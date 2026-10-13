@@ -18,5 +18,14 @@ export const STATS_FOLDER = 'Stats';
 /** The folders every new project gets. */
 export const PROJECT_FOLDERS: readonly string[] = [MANUSCRIPT_FOLDER, TIMELINE_FOLDER, RESEARCH_FOLDER, STATS_FOLDER];
 
+/**
+ * The folder exported manuscripts are saved in. It is not part of a new
+ * project: it is made the first time the writer exports.
+ */
+export const EXPORTS_FOLDER = 'Exports';
+
+/** The kinds of file an export can be, by the ending of the file's name. */
+export const EXPORT_EXTENSIONS: readonly string[] = ['md', 'html', 'docx'];
+
 /** The project's to-dos, as plain checkbox lines. */
 export const TODO_FILE = 'To-do.md';

@@ -106,6 +106,7 @@ describe('source layout', () => {
       'features/outliner/index.ts',
       'features/schemes/index.ts',
       'features/report/index.ts',
+      'features/export/index.ts',
     ]) {
       expect(names, expected).toContain(expected);
     }
@@ -257,6 +258,33 @@ describe('the whole plugin', () => {
     expect(open).toMatch(/this\.dataFilePath\([^;]*, false\)/);
   });
 
+  it('writes a file from bytes in one place only, which only the store can reach, and only as a new export', () => {
+    // Obsidian's vault.createBinary is how an exported manuscript is saved. It appears
+    // in one method of one file (createBinary in src/obsidian/obsidianVault.ts),
+    // which makes a new file or fails: it cannot change a file that is there.
+    const fromBytes = /\bapp\s*\.\s*vault\s*\.\s*createBinary\s*\(/g;
+    for (const file of allFiles) {
+      const uses = (codeOf(file).match(fromBytes) ?? []).length;
+      expect(uses, relative(file)).toBe(relative(file) === 'obsidian/obsidianVault.ts' ? 1 : 0);
+    }
+    // That method is only ever called by the project store, once, in createExportFile.
+    const callers = allFiles.filter((file) => /\.\s*createBinary\s*\(/.test(codeOf(file))).map(relative);
+    expect(callers.sort()).toEqual(['core/projectStore.ts', 'obsidian/obsidianVault.ts']);
+    const store = codeOf(path.join(srcDir, 'core', 'projectStore.ts'));
+    expect((store.match(/\.\s*createBinary\s*\(/g) ?? []).length).toBe(1);
+    const method = /\n  createExportFile\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
+    expect(method).toMatch(/this\.vault\.createBinary\(target, data\)/);
+    // The place is worked out by the store itself, from a bare file name that
+    // has passed exportFilePath (whose refusal is returned first): directly
+    // inside the Exports folder. And nothing is written where something is.
+    expect(method).toMatch(/const rel = this\.exportFilePath\(active, name\);\s*if \(typeof rel !== 'string'\) return rel;\s*const target = joinPath\(active\.folder, rel\);\s*if \(this\.vault\.exists\(target\)\) \{\s*return refused\('exists'/);
+    const check = /\n  private exportFilePath\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
+    expect(check).toMatch(/const rel = `\$\{EXPORTS_FOLDER\}\/\$\{name\}`;/);
+    expect(check).toMatch(/parentPath\(rel\) !== EXPORTS_FOLDER\) return no;/);
+    expect(check).toMatch(/sanitiseFileName\(stem, ''\) !== stem\) return no;/);
+    expect(check).toMatch(/EXPORT_EXTENSIONS\.includes\(/);
+  });
+
   it('declares what the writing progress offers the other screens once, in the core', () => {
     // The two services are looked up by name. The names, and the shapes of
     // what is found under them, are written down in one file that every
@@ -291,6 +319,7 @@ describe('the whole plugin', () => {
     const folders = new Set(featureFiles.map((file) => relative(file).split('/').slice(0, 2).join('/')));
     expect([...folders].sort()).toEqual([
       'features/corkboard',
+      'features/export',
       'features/modes',
       'features/outliner',
       'features/planner',
@@ -326,7 +355,7 @@ describe('the whole plugin', () => {
     // A feature is handed the vault doorway to list notes, read them and
     // listen for changes. Everything that writes goes through the project
     // store, which checks what may be written.
-    const writes = /\.\s*(updateFrontmatter|updateText|createFile|createFolder|rename|trash)\s*\(/;
+    const writes = /\.\s*(updateFrontmatter|updateText|createFile|createBinary|createFolder|rename|trash)\s*\(/;
     for (const file of featureFiles) {
       expect(writes.test(codeOf(file)), relative(file)).toBe(false);
     }
@@ -390,7 +419,7 @@ describe('the whole plugin', () => {
     // move, remove). It never reads or writes a note itself.
     const screenFiles = allFiles.filter((file) => /^(views|ui)\//.test(relative(file)));
     expect(screenFiles.length).toBeGreaterThanOrEqual(8);
-    const doorway = /\bVaultPort\b|\b[vV]ault\s*\.\s*\w+\s*\(|\.\s*(updateFrontmatter|createFile|createFolder|readText|readFrontmatter)\s*\(/;
+    const doorway = /\bVaultPort\b|\b[vV]ault\s*\.\s*\w+\s*\(|\.\s*(updateFrontmatter|createFile|createBinary|createFolder|readText|readFrontmatter)\s*\(/;
     for (const file of screenFiles) {
       expect(doorway.test(codeOf(file)), relative(file)).toBe(false);
     }
@@ -443,6 +472,7 @@ describe('the stylesheet is put together from one file per screen', () => {
       'schemes.css',
       'modes.css',
       'report.css',
+      'export.css',
     ]);
     // No stylesheet is left out, and none is listed that is not there.
     expect(readdirSync(stylesDir).filter((name) => name.endsWith('.css')).sort()).toEqual([...STYLE_FILES].sort());
@@ -480,7 +510,7 @@ describe('the stylesheet is put together from one file per screen', () => {
   });
 
   it('gives each screen a stylesheet of its own, so that screens built side by side never share a file', () => {
-    for (const feature of ['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'report']) {
+    for (const feature of ['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'report', 'export']) {
       expect(STYLE_FILES, feature).toContain(`${feature}.css`);
     }
   });

@@ -95,6 +95,17 @@ export interface VaultPort {
    */
   createFile(path: string, body: string, frontmatter?: Readonly<Frontmatter>): Promise<string>;
 
+  /**
+   * Create a new file from bytes: for a file the plugin makes that is not a
+   * note, such as an exported manuscript. Nothing is ever replaced: rejects
+   * when something is already at the path (whatever its capitals) or its
+   * folder is missing. Resolves with the path the file was created at.
+   *
+   * The project store is the only caller, and it creates nothing but new
+   * files in a project's Exports folder: see createExportFile there.
+   */
+  createBinary(path: string, data: Uint8Array): Promise<string>;
+
   /** Create a folder. Does nothing when it already exists. */
   createFolder(path: string): Promise<void>;
 
