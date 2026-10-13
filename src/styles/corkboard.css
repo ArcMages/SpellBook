@@ -1,0 +1,862 @@
+/*
+ * Spellbook: the corkboard, the inspector, and the window for statuses and
+ * labels.
+ *
+ * The rules of styles.css hold here too:
+ *   - every class starts with "spellbook-", every variable with "--spellbook-";
+ *   - colours and spacing come only from Obsidian's CSS variables, so the
+ *     plugin follows the user's theme in light and dark mode;
+ *   - sides are named "start" and "end", never by their physical names, so
+ *     that everything mirrors when Obsidian itself runs the other way;
+ *   - nothing may depend on hover alone, and every layout must work at phone width.
+ *
+ * Two things are set from the plugin's code and not here, because they are
+ * measured: the number of columns of the board (and the space between cards,
+ * which the column count is worked out with), and how far a target bar is
+ * filled.
+ */
+
+/* ------------------------------------------------------------------ Colours */
+
+/* A status or a label has one of eight colours, stored by name. Each name is
+   one of Obsidian's own colours, so it follows the theme. Whatever carries
+   the class may use the colour as var(--spellbook-tag-color). */
+.spellbook-color-red {
+  --spellbook-tag-color: var(--color-red);
+}
+
+.spellbook-color-orange {
+  --spellbook-tag-color: var(--color-orange);
+}
+
+.spellbook-color-yellow {
+  --spellbook-tag-color: var(--color-yellow);
+}
+
+.spellbook-color-green {
+  --spellbook-tag-color: var(--color-green);
+}
+
+.spellbook-color-cyan {
+  --spellbook-tag-color: var(--color-cyan);
+}
+
+.spellbook-color-blue {
+  --spellbook-tag-color: var(--color-blue);
+}
+
+.spellbook-color-purple {
+  --spellbook-tag-color: var(--color-purple);
+}
+
+.spellbook-color-pink {
+  --spellbook-tag-color: var(--color-pink);
+}
+
+/* No colour: the quiet grey of a border. Set on the thing itself, so that it
+   does not take the colour of what it sits in (a status on a labelled card). */
+.spellbook-no-color {
+  --spellbook-tag-color: var(--background-modifier-border);
+}
+
+/* A small round patch of a colour: in menus, on cards and in the lists. */
+.spellbook-swatch {
+  display: inline-block;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: var(--size-4-3);
+  height: var(--size-4-3);
+  margin-inline-end: var(--size-2-3);
+  border: var(--border-width) solid var(--spellbook-tag-color);
+  border-radius: 50%;
+  background-color: var(--spellbook-tag-color);
+  vertical-align: middle;
+}
+
+.spellbook-swatch.spellbook-no-color {
+  background-color: transparent;
+}
+
+/* ---------------------------------------------------------------- Corkboard */
+
+/* Obsidian's pane around the board: the board brings its own margins and
+   does its own scrolling. (The class is repeated to outweigh Obsidian's own
+   rule for pane contents.) */
+.spellbook-board-pane.spellbook-board-pane {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* The board: a header that stays put above cards that scroll. */
+.spellbook-board {
+  /* The smallest size of something that is tapped with a finger. */
+  --spellbook-board-touch: 44px;
+  /* On a phone, Obsidian's own bar floats over the bottom of the pane. This
+     is the least room it is given under the last card. */
+  --spellbook-board-bar-room: 80px;
+  /* How many lines of a synopsis a card shows. */
+  --spellbook-card-lines: 5;
+
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* The header wraps: in a narrow pane the trail takes a line of its own. */
+.spellbook-board-header {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-2-3) var(--size-4-3);
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-4);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+/* The trail from the manuscript to the folder on show. */
+.spellbook-board-trail {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-2-1);
+  min-width: 0;
+}
+
+/* A step of the trail: a button that reads as plain text. */
+.spellbook-board .spellbook-crumb {
+  max-width: 100%;
+  height: auto;
+  padding-block: var(--size-2-1);
+  padding-inline: var(--size-2-3);
+  overflow: hidden;
+  border: none;
+  border-radius: var(--radius-s);
+  background: none;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: var(--cursor);
+}
+
+.spellbook-board .spellbook-crumb.spellbook-is-current {
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-board .spellbook-crumb-divider {
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+}
+
+/* The sums, the card size and the menu, at the far end of the header. */
+.spellbook-board-tools {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--size-4-2);
+  margin-inline-start: auto;
+}
+
+.spellbook-board-summary {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+}
+
+.spellbook-board .spellbook-board-more {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  cursor: var(--cursor);
+}
+
+/* The part that scrolls. The scrollbar keeps its room when it is not needed,
+   so the cards do not change width as the board fills up. */
+.spellbook-board-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  /* Room under the last card, also past the rounded bottom edge of a phone. */
+  padding-block: var(--size-4-4) calc(var(--size-4-8) + var(--safe-area-inset-bottom, 0px));
+  padding-inline: var(--size-4-4);
+}
+
+/* On a phone the last cards would otherwise lie under Obsidian's floating
+   bar. The board ends with enough empty room to scroll its last card clear. */
+.spellbook-board.spellbook-is-phone .spellbook-board-scroll {
+  padding-block-end: calc(
+    max(var(--mobile-navbar-height, 0px), var(--spellbook-board-bar-room)) + var(--safe-area-inset-bottom, 0px) +
+      var(--size-4-4)
+  );
+}
+
+.spellbook-board-message {
+  padding-block: var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-normal);
+  text-align: start;
+}
+
+/* The cards. One column until the board has been measured; the plugin's code
+   then sets as many columns as the measured width has room for. */
+.spellbook-board-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--size-4-3);
+  align-items: stretch;
+}
+
+.spellbook-board-grid.spellbook-size-small {
+  --spellbook-card-lines: 3;
+}
+
+.spellbook-board-grid.spellbook-size-medium {
+  --spellbook-card-lines: 5;
+}
+
+.spellbook-board-grid.spellbook-size-large {
+  --spellbook-card-lines: 9;
+}
+
+/* One index card. Its edge on the starting side takes the colour of the
+   scene's label. A finger that rests on a card picks it up, so resting must
+   not select its text or raise the phone's own bubble. */
+.spellbook-board .spellbook-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-3);
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--size-4-12);
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-inline-start: var(--size-2-2) solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background-color: var(--background-primary-alt);
+  color: var(--text-normal);
+  cursor: var(--cursor);
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.spellbook-board .spellbook-card.spellbook-has-label {
+  border-inline-start-color: var(--spellbook-tag-color);
+}
+
+.spellbook-board .spellbook-card:focus-visible {
+  outline: var(--size-2-1) solid var(--interactive-accent);
+  outline-offset: var(--size-2-1);
+}
+
+/* The card of the scene that is open in the editor: a ring around it, which
+   leaves the label's edge as it is. */
+.spellbook-board .spellbook-card.spellbook-is-active {
+  box-shadow: 0 0 0 var(--size-2-1) var(--interactive-accent);
+}
+
+/* The top line of a card: its title, and its "more" button at the far end. */
+.spellbook-board .spellbook-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--size-2-3);
+}
+
+.spellbook-board .spellbook-card-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: var(--font-semibold);
+  line-height: var(--line-height-tight);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.spellbook-board .spellbook-card-more {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  margin-block-start: calc(-1 * var(--size-2-2));
+  margin-inline-end: calc(-1 * var(--size-2-3));
+  cursor: var(--cursor);
+}
+
+.spellbook-board .spellbook-card-folder-icon {
+  display: flex;
+  flex: 0 0 auto;
+  color: var(--text-muted);
+}
+
+.spellbook-board .spellbook-card-folder-icon svg {
+  width: var(--icon-s);
+  height: var(--icon-s);
+}
+
+/* The synopsis, cut after a few lines; the writer's own line breaks are kept. */
+.spellbook-board .spellbook-card-synopsis {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-normal);
+  text-align: start;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--spellbook-card-lines);
+}
+
+/* A preview taken from the scene's own text, where it has no synopsis: quieter. */
+.spellbook-board .spellbook-card-synopsis.spellbook-is-derived {
+  color: var(--text-faint);
+}
+
+/* A binder entry whose note is not in the vault (yet): greyed, with a warning. */
+.spellbook-board .spellbook-card.spellbook-is-missing {
+  border-style: dashed;
+  background-color: var(--background-secondary);
+}
+
+.spellbook-board .spellbook-card.spellbook-is-missing .spellbook-card-title {
+  color: var(--text-faint);
+}
+
+.spellbook-board .spellbook-card-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--size-2-3);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  line-height: var(--line-height-tight);
+  text-align: start;
+}
+
+.spellbook-board .spellbook-card-warning-icon {
+  display: flex;
+  flex: 0 0 auto;
+  color: var(--text-warning);
+}
+
+.spellbook-board .spellbook-card-warning-icon svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+/* The bottom line of a card: label, status, and the word count at the far end. */
+.spellbook-board .spellbook-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-2-2) var(--size-4-2);
+  margin-block-start: auto;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: var(--line-height-normal);
+}
+
+.spellbook-board .spellbook-card-label {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.spellbook-board .spellbook-card-label-name,
+.spellbook-board .spellbook-card-status-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The status: a small pill, tinted with the status's colour. (The plain
+   background is for a device that does not know how to mix colours.) */
+.spellbook-board .spellbook-card-status {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  padding-block: 0;
+  padding-inline: var(--size-4-2);
+  border: var(--border-width) solid var(--spellbook-tag-color);
+  border-radius: var(--radius-l);
+  background-color: var(--background-modifier-hover);
+  background-color: color-mix(in srgb, var(--spellbook-tag-color) 20%, transparent);
+  color: var(--text-normal);
+}
+
+/* A status or a label that the project's list does not have. */
+.spellbook-board .spellbook-card-status.spellbook-is-unlisted {
+  border-style: dashed;
+}
+
+.spellbook-board .spellbook-card-label.spellbook-is-unlisted {
+  color: var(--text-faint);
+}
+
+.spellbook-board .spellbook-card-words {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.spellbook-board .spellbook-card-folder-missing {
+  color: var(--text-warning);
+}
+
+/* How far the scene is toward its word target: a thin bar under the card. */
+.spellbook-board .spellbook-card-target {
+  height: var(--size-2-2);
+  overflow: hidden;
+  border-radius: var(--size-2-2);
+  background-color: var(--background-modifier-border);
+}
+
+.spellbook-board .spellbook-card-target-fill {
+  height: 100%;
+  border-radius: inherit;
+  background-color: var(--interactive-accent);
+}
+
+.spellbook-board .spellbook-card-target.spellbook-is-reached .spellbook-card-target-fill {
+  background-color: var(--color-green);
+}
+
+/* ------------------------------------------------------ Corkboard: dragging */
+
+/* The card that was picked up stays where it is, dimmed, until it is dropped. */
+.spellbook-board .spellbook-card.spellbook-is-dragged {
+  opacity: 0.5;
+}
+
+/* While a mouse drags, the pointer shows that it is holding something. */
+.spellbook-board .spellbook-drag-active .spellbook-card {
+  cursor: grabbing;
+}
+
+/* Where a drop would put the card: a line in the space in front of the card
+   that carries the mark (or after it, for the end of the board). */
+.spellbook-board .spellbook-card.spellbook-drop-before::before,
+.spellbook-board .spellbook-card.spellbook-drop-after::after {
+  position: absolute;
+  inset-block: 0;
+  width: var(--size-2-1);
+  border-radius: var(--size-2-1);
+  background-color: var(--interactive-accent);
+  content: '';
+  pointer-events: none;
+}
+
+.spellbook-board .spellbook-card.spellbook-drop-before::before {
+  inset-inline-start: calc(-1 * var(--size-4-2));
+}
+
+.spellbook-board .spellbook-card.spellbook-drop-after::after {
+  inset-inline-end: calc(-1 * var(--size-4-2));
+}
+
+/* In a single column (a phone, a narrow pane) the cards follow each other
+   downwards, so the line lies across. */
+.spellbook-board.spellbook-is-single .spellbook-card.spellbook-drop-before::before,
+.spellbook-board.spellbook-is-single .spellbook-card.spellbook-drop-after::after {
+  inset-block: auto;
+  inset-inline: 0;
+  width: auto;
+  height: var(--size-2-1);
+}
+
+.spellbook-board.spellbook-is-single .spellbook-card.spellbook-drop-before::before {
+  inset-block-start: calc(-1 * var(--size-4-2));
+}
+
+.spellbook-board.spellbook-is-single .spellbook-card.spellbook-drop-after::after {
+  inset-block-end: calc(-1 * var(--size-4-2));
+}
+
+/* --------------------------------------------------------- Corkboard: touch */
+
+/* What is tapped with a finger is large enough to hit: on phones and tablets
+   (the class is set from Obsidian's own platform check) and on any other
+   screen that is mainly used by touch. With a mouse it stays compact. */
+.spellbook-board.spellbook-is-mobile .spellbook-card-more,
+.spellbook-board.spellbook-is-mobile .spellbook-board-more,
+.spellbook-board.spellbook-is-mobile .spellbook-board-size,
+.spellbook-board.spellbook-is-mobile .spellbook-crumb {
+  min-width: var(--spellbook-board-touch);
+  min-height: var(--spellbook-board-touch);
+}
+
+@media (pointer: coarse) {
+  .spellbook-board .spellbook-card-more,
+  .spellbook-board .spellbook-board-more,
+  .spellbook-board .spellbook-board-size,
+  .spellbook-board .spellbook-crumb {
+    min-width: var(--spellbook-board-touch);
+    min-height: var(--spellbook-board-touch);
+  }
+}
+
+/* A pointer that can hover gets a hint of what a click will hit. Nothing
+   depends on it. */
+@media (hover: hover) {
+  .spellbook-board .spellbook-card:hover {
+    background-color: var(--background-modifier-hover);
+  }
+
+  .spellbook-board .spellbook-crumb:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+}
+
+/* ---------------------------------------------------------------- Inspector */
+
+.spellbook-inspector-pane.spellbook-inspector-pane {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.spellbook-inspector {
+  --spellbook-inspector-touch: 44px;
+  /* The least room under the last field on a phone, for Obsidian's floating bar. */
+  --spellbook-inspector-bar-room: 80px;
+
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* The place at the top that another part of the plugin fills with a line of
+   its own. It takes no room while it is empty. */
+.spellbook-inspector-slot {
+  flex: 0 0 auto;
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-normal);
+  text-align: start;
+}
+
+.spellbook-inspector-slot:empty {
+  display: none;
+}
+
+.spellbook-inspector-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-block: var(--size-4-3) calc(var(--size-4-8) + var(--safe-area-inset-bottom, 0px));
+  padding-inline: var(--size-4-3);
+}
+
+.spellbook-inspector.spellbook-is-phone .spellbook-inspector-scroll {
+  padding-block-end: calc(
+    max(var(--mobile-navbar-height, 0px), var(--spellbook-inspector-bar-room)) + var(--safe-area-inset-bottom, 0px) +
+      var(--size-4-4)
+  );
+}
+
+.spellbook-inspector-message {
+  padding-block: var(--size-2-3);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-normal);
+  text-align: start;
+}
+
+.spellbook-inspector-hint {
+  color: var(--text-faint);
+}
+
+.spellbook-inspector-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+}
+
+.spellbook-inspector-title {
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-height-tight);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.spellbook-inspector-problem {
+  color: var(--text-warning);
+  font-size: var(--font-ui-smaller);
+  line-height: var(--line-height-tight);
+  text-align: start;
+}
+
+/* A field: its name, the field itself under it, and a message under that. */
+.spellbook-inspector .spellbook-field-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-2);
+}
+
+.spellbook-inspector .spellbook-field-name {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-medium);
+  text-align: start;
+}
+
+.spellbook-inspector .spellbook-field-input {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  text-align: start;
+}
+
+.spellbook-inspector .spellbook-inspector-synopsis {
+  resize: vertical;
+}
+
+.spellbook-inspector .spellbook-field-input.spellbook-is-invalid {
+  border-color: var(--text-error);
+}
+
+.spellbook-inspector .spellbook-field-error {
+  margin-block-start: var(--size-2-2);
+  color: var(--text-error);
+  font-size: var(--font-ui-smaller);
+  line-height: var(--line-height-tight);
+  text-align: start;
+}
+
+.spellbook-inspector .spellbook-field-error:empty {
+  display: none;
+}
+
+/* The switch sits beside its name, at the far end of the line. */
+.spellbook-inspector .spellbook-field-compile .spellbook-field-label {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-3);
+}
+
+.spellbook-inspector .spellbook-field-compile .spellbook-field-name {
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+.spellbook-inspector .spellbook-inspector-compile {
+  flex: 0 0 auto;
+}
+
+/* The dates: plain text, the name at the start of the line and the date at its end. */
+.spellbook-inspector-dates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-2);
+  padding-block-start: var(--size-4-2);
+  border-block-start: var(--border-width) solid var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-inspector-date {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--size-4-3);
+}
+
+.spellbook-inspector-date-value {
+  color: var(--text-normal);
+}
+
+.spellbook-inspector .spellbook-inspector-lists {
+  margin-block-start: var(--size-4-4);
+}
+
+.spellbook-inspector.spellbook-is-mobile .spellbook-field-input,
+.spellbook-inspector.spellbook-is-mobile .spellbook-field-compile .spellbook-field-label,
+.spellbook-inspector.spellbook-is-mobile .spellbook-inspector-lists {
+  min-height: var(--spellbook-inspector-touch);
+}
+
+@media (pointer: coarse) {
+  .spellbook-inspector .spellbook-field-input,
+  .spellbook-inspector .spellbook-field-compile .spellbook-field-label,
+  .spellbook-inspector .spellbook-inspector-lists {
+    min-height: var(--spellbook-inspector-touch);
+  }
+}
+
+/* ------------------------------------------- The window: statuses and labels */
+
+.spellbook-tags {
+  --spellbook-tags-touch: 44px;
+}
+
+.spellbook-tags .spellbook-tags-section + .spellbook-tags-section {
+  margin-block-start: var(--size-4-6);
+}
+
+.spellbook-tags .spellbook-tags-heading {
+  margin-block-end: var(--size-4-2);
+  font-weight: var(--font-semibold);
+  text-align: start;
+}
+
+.spellbook-tags .spellbook-tags-message,
+.spellbook-tags .spellbook-tags-note {
+  margin-block-end: var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-normal);
+  text-align: start;
+}
+
+.spellbook-tags .spellbook-tags-problem {
+  margin-block-end: var(--size-4-2);
+  color: var(--text-warning);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-normal);
+  text-align: start;
+}
+
+.spellbook-tags .spellbook-tags-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* One status or label: its colour, its name, and its buttons at the far end. */
+.spellbook-tags .spellbook-tag-row {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-3);
+  padding-block: var(--size-2-2);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+/* The colour: a button that shows nothing but the colour itself. */
+.spellbook-tags .spellbook-tag-color {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: auto;
+  padding: var(--size-2-3);
+  border: none;
+  background: none;
+  box-shadow: none;
+  cursor: var(--cursor);
+}
+
+.spellbook-tags .spellbook-tag-color .spellbook-swatch {
+  width: var(--size-4-4);
+  height: var(--size-4-4);
+  margin: 0;
+}
+
+.spellbook-tags .spellbook-tag-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.spellbook-tags .spellbook-tag-button {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  cursor: var(--cursor);
+}
+
+/* A button that has nothing to do here (the first cannot move up) stays in
+   its place, dimmed, so the buttons of all rows stand in columns. */
+.spellbook-tags .spellbook-tag-button.spellbook-is-disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.spellbook-tags .spellbook-tag-uses {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+}
+
+.spellbook-tags .spellbook-tags-unlisted {
+  margin-block-start: var(--size-4-3);
+}
+
+.spellbook-tags .spellbook-tags-add {
+  margin-block-start: var(--size-4-3);
+}
+
+.spellbook-tags.spellbook-is-mobile .spellbook-tag-color,
+.spellbook-tags.spellbook-is-mobile .spellbook-tag-button,
+.spellbook-tags.spellbook-is-mobile .spellbook-tags-adopt,
+.spellbook-tags.spellbook-is-mobile .spellbook-tags-add {
+  min-width: var(--spellbook-tags-touch);
+  min-height: var(--spellbook-tags-touch);
+}
+
+@media (pointer: coarse) {
+  .spellbook-tags .spellbook-tag-color,
+  .spellbook-tags .spellbook-tag-button,
+  .spellbook-tags .spellbook-tags-adopt,
+  .spellbook-tags .spellbook-tags-add {
+    min-width: var(--spellbook-tags-touch);
+    min-height: var(--spellbook-tags-touch);
+  }
+}
+
+/* ------------------------------------------------- The window: a synopsis */
+
+.spellbook-synopsis .spellbook-synopsis-field {
+  margin-block-end: var(--size-4-4);
+}
+
+.spellbook-synopsis .spellbook-synopsis-input {
+  box-sizing: border-box;
+  width: 100%;
+  resize: vertical;
+  text-align: start;
+}
+
+.spellbook-synopsis .spellbook-synopsis-message {
+  margin-block-start: var(--size-2-3);
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+  text-align: start;
+}
+
+.spellbook-synopsis .spellbook-synopsis-message:empty {
+  display: none;
+}
+
+/* -------------------------------------------------------------- Out of sight */
+
+/* Something that is built but has nothing to show right now (a card without a
+   synopsis, a board without a message). Last in the file, and with the class
+   repeated, so that it outweighs the rule that lays the thing out. */
+.spellbook-is-off.spellbook-is-off.spellbook-is-off {
+  display: none;
+}
