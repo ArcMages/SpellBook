@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEVICE_ID_KEY, DEVICE_ID_LENGTH, deviceIdOf, isDeviceId, newDeviceId } from '../src/core/deviceId';
 import { WordCountCache } from '../src/core/wordCountCache';
 import { corkboardFeature } from '../src/features/corkboard/index';
+import { exportFeature } from '../src/features/export/index';
 import { outlinerFeature } from '../src/features/outliner/index';
 import { plannerFeature } from '../src/features/planner/index';
 import { progressFeature } from '../src/features/progress/index';
@@ -65,8 +66,8 @@ const feature = (id: string, register: (context: FeatureContext) => void = () =>
 
 describe('the list of features', () => {
   it('holds the five screens, each from a folder of its own', () => {
-    expect(FEATURES).toEqual([corkboardFeature, progressFeature, plannerFeature, timelineFeature, outlinerFeature]);
-    expect(FEATURES.map((entry) => entry.id)).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner']);
+    expect(FEATURES).toEqual([corkboardFeature, progressFeature, plannerFeature, timelineFeature, outlinerFeature, exportFeature]);
+    expect(FEATURES.map((entry) => entry.id)).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'export']);
   });
 
   it('registers as it stands: every screen plugs itself in, and none leaves a trace on the device', () => {
@@ -74,7 +75,7 @@ describe('the list of features', () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const registered = registerFeatures(FEATURES, host);
     expect(logged).not.toHaveBeenCalled(); // no screen failed to start
-    expect(registered.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner']);
+    expect(registered.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'export']);
 
     // What the screens registered through the plugin.
     expect(plugin.viewTypes).toEqual([
@@ -86,7 +87,7 @@ describe('the list of features', () => {
     ]);
     const commandIds = plugin.commands.map((command) => command.id);
     expect(commandIds).toEqual(
-      expect.arrayContaining(['open-corkboard', 'open-inspector', 'set-writing-targets', 'open-planner', 'open-timeline', 'open-outliner']),
+      expect.arrayContaining(['open-corkboard', 'open-inspector', 'set-writing-targets', 'open-planner', 'open-timeline', 'open-outliner', 'export-manuscript']),
     );
     expect(new Set(commandIds).size).toBe(commandIds.length); // no two share an id
     expect(registered.settingsSections.map((section) => [section.id, section.title])).toEqual([

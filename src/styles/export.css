@@ -1,0 +1,54 @@
+/*
+ * Spellbook: the export window.
+ *
+ * The rules of styles.css hold here too:
+ *   - every class starts with "spellbook-", every variable with "--spellbook-";
+ *   - colours and spacing come only from Obsidian's CSS variables, so the
+ *     plugin follows the user's theme in light and dark mode;
+ *   - sides are named "start" and "end", never by their physical names, so
+ *     that everything mirrors when Obsidian itself runs the other way;
+ *   - nothing may depend on hover alone, and every layout must work at phone width.
+ *
+ * The window is made of Obsidian's own rows. Only the pieces of text between
+ * them are styled here. (The look of an exported file is not set here: it
+ * is part of the file itself.)
+ */
+
+/* The project's title, above the form. */
+.spellbook-export .spellbook-export-project {
+  margin-block: 0 var(--size-4-2);
+  font-weight: var(--font-semibold);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+/* What a format is, and what an export will take: quiet lines under a row. */
+.spellbook-export .spellbook-export-note,
+.spellbook-export .spellbook-export-summary {
+  margin-block: var(--size-4-1) var(--size-4-3);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+/* Where the new file is. The path is the writer's own text and may be long. */
+.spellbook-export .spellbook-export-path {
+  padding: var(--size-4-2) var(--size-4-3);
+  border-radius: var(--radius-s);
+  background-color: var(--background-secondary);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+  text-align: start;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* The scenes that were left out. */
+.spellbook-export .spellbook-export-left-out {
+  margin-block: 0 var(--size-4-3);
+  padding-inline-start: var(--size-4-6);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  overflow-wrap: anywhere;
+}
