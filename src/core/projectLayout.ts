@@ -27,5 +27,12 @@ export const EXPORTS_FOLDER = 'Exports';
 /** The kinds of file an export can be, by the ending of the file's name. */
 export const EXPORT_EXTENSIONS: readonly string[] = ['md', 'html', 'docx'];
 
+/**
+ * The folder the world-building notes live in: one note per character, place,
+ * faction or item, each in a folder for its type ("World/Characters"). It is
+ * not part of a new project: it is made the first time the writer adds one.
+ */
+export const WORLD_FOLDER = 'World';
+
 /** The project's to-dos, as plain checkbox lines. */
 export const TODO_FILE = 'To-do.md';

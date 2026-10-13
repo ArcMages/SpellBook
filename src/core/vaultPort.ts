@@ -149,6 +149,15 @@ export interface VaultPort {
    */
   updateText(path: string, change: (current: string | null) => string | null): Promise<boolean>;
 
+  /**
+   * The note a link points at, as the vault itself resolves it: `link` is
+   * what stands between the double brackets of a wikilink, without a heading
+   * or a shown name ("Mara", "World/Characters/Mara"), and `from` is the
+   * vault path of the note the link is written in. Null when the link leads
+   * to no file. Cheap; reads no files.
+   */
+  resolveLink(link: string, from: string): string | null;
+
   /** Listen to vault events. Returns a function that stops listening. */
   on(listener: VaultListener): () => void;
 }

@@ -181,6 +181,10 @@ export class ObsidianVault implements VaultPort {
     return parent.children.some((child) => clashKey(child.name) === name);
   }
 
+  resolveLink(link: string, from: string): string | null {
+    return this.app.metadataCache.getFirstLinkpathDest(link, from)?.path ?? null;
+  }
+
   async readText(path: string): Promise<string> {
     return this.app.vault.cachedRead(this.requireFile(path));
   }

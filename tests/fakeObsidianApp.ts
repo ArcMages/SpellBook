@@ -18,6 +18,7 @@
 
 import { TFile, TFolder, getFrontMatterInfo, parseYaml, stringifyYaml } from 'obsidian';
 import type { App, CachedMetadata, TAbstractFile } from 'obsidian';
+import { resolveLinkAmong } from './memoryVault';
 import { FakeElement } from './obsidianStub';
 
 interface Ref {
@@ -204,6 +205,13 @@ class FakeMetadataCache extends FakeEvents {
 
   getFileCache(file: TFile): CachedMetadata | null {
     return this.cache.get(file.path) ?? null;
+  }
+
+  /** Where a link written in the note at `sourcePath` leads, or null. */
+  getFirstLinkpathDest(linkpath: string, sourcePath: string): TFile | null {
+    const paths = this.owner.vault.getMarkdownFiles().map((file) => file.path);
+    const found = resolveLinkAmong(paths, linkpath, sourcePath);
+    return found === null ? null : this.owner.vault.getFileByPath(found);
   }
 
   private parse(file: TFile): CachedMetadata {
