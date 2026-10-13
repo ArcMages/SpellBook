@@ -17,6 +17,40 @@
   max-width: 100%;
 }
 
+/* The small windows that ask for a name: the field takes the full width, and
+   a message can appear under it. */
+.spellbook-prompt .spellbook-prompt-field {
+  margin-block-end: var(--size-4-4);
+}
+
+.spellbook-prompt .spellbook-prompt-field .spellbook-prompt-input {
+  width: 100%;
+  text-align: start;
+}
+
+.spellbook-prompt .spellbook-prompt-field .spellbook-prompt-input.spellbook-is-invalid {
+  border-color: var(--text-error);
+}
+
+.spellbook-prompt .spellbook-prompt-message {
+  margin-block-start: var(--size-2-3);
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+  text-align: start;
+}
+
+.spellbook-prompt .spellbook-prompt-message:empty {
+  display: none;
+}
+
+/* The window that asks before a scene is deleted. */
+.spellbook-confirm .spellbook-confirm-message {
+  margin-block: 0 var(--size-4-4);
+  color: var(--text-muted);
+  text-align: start;
+}
+
 /* ------------------------------------------------------------------ Binder */
 
 /* Obsidian's pane around the binder: the binder brings its own margins and
@@ -33,6 +67,10 @@
 .spellbook-binder {
   /* The smallest height of something that is tapped with a finger. */
   --spellbook-touch-target: 44px;
+  /* On a phone, Obsidian's own bar floats over the bottom of the drawer the
+     binder sits in. This is the least room it is given under the last row;
+     more is taken when Obsidian says its bar is taller. */
+  --spellbook-phone-bar-room: 80px;
 
   display: flex;
   flex: 1 1 auto;
@@ -56,14 +94,40 @@
   min-width: 0;
 }
 
-/* Room for the binder's buttons; takes no space while it is empty. */
+/* The binder's buttons: New scene, New folder and a menu. Takes no space
+   while it is empty. */
 .spellbook-binder-toolbar {
+  display: flex;
   flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--size-2-1);
+  margin: 0;
   padding: 0;
 }
 
 .spellbook-binder-toolbar:empty {
   display: none;
+}
+
+.spellbook-binder .spellbook-toolbar-button {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  cursor: var(--cursor);
+}
+
+.spellbook-binder .spellbook-toolbar-button svg {
+  width: var(--icon-s);
+  height: var(--icon-s);
+}
+
+/* A button that was reached with the keyboard shows where the keyboard is. */
+.spellbook-binder .spellbook-toolbar-button:focus-visible,
+.spellbook-binder .spellbook-row-more:focus-visible {
+  outline: var(--size-2-1) solid var(--background-modifier-border-focus);
+  outline-offset: calc(-1 * var(--size-2-1));
 }
 
 .spellbook-project-name {
@@ -122,6 +186,18 @@
   /* Room under the last row, also past the rounded bottom edge of a phone. */
   padding-block: var(--size-4-2) calc(var(--size-4-8) + var(--safe-area-inset-bottom, 0px));
   padding-inline: var(--size-4-2);
+}
+
+/* On a phone the last rows would otherwise lie under Obsidian's floating bar,
+   where they can be neither read nor tapped. The list ends with enough empty
+   room to scroll its last row clear of the bar: the height Obsidian gives for
+   its bar (or the plugin's own figure when that is larger, or Obsidian gives
+   none), the rounded bottom edge of the screen, and a little air. */
+.spellbook-binder.spellbook-is-phone .spellbook-binder-scroll {
+  padding-block-end: calc(
+    max(var(--mobile-navbar-height, 0px), var(--spellbook-phone-bar-room)) + var(--safe-area-inset-bottom, 0px) +
+      var(--size-4-4)
+  );
 }
 
 /* A line of plain text in the list: an explanation, or "nothing here yet". */
@@ -194,6 +270,44 @@
   color: var(--text-muted);
 }
 
+/* What stays in view between the header and the list: the notice for a
+   conflicting copy of the project's index. Takes no space while it is empty. */
+.spellbook-binder-alerts {
+  flex: 0 0 auto;
+  padding-block: var(--size-4-2) 0;
+  padding-inline: var(--size-4-2);
+}
+
+.spellbook-binder-alerts:empty {
+  display: none;
+}
+
+.spellbook-binder-alerts .spellbook-binder-banner {
+  margin-block-end: 0;
+}
+
+/* A copy is something to look at, not something that is broken. */
+.spellbook-binder-banner.spellbook-conflict-banner {
+  border-inline-start-color: var(--text-warning);
+}
+
+.spellbook-conflict-banner .spellbook-binder-banner-icon {
+  color: var(--text-warning);
+}
+
+.spellbook-binder-banner-hint {
+  margin-block-start: var(--size-2-3);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-binder-banner-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+  margin-block-start: var(--size-4-2);
+}
+
 /* ---------------------------------------------------------- Binder: rows */
 
 /* One row. The classes Obsidian's own trees use sit next to these, so themes
@@ -214,16 +328,99 @@
   font-size: var(--nav-item-size);
   font-weight: var(--nav-item-weight);
   line-height: var(--line-height-tight);
+  /* A finger that rests on a row picks the row up. It must not also select
+     the row's text, or bring up the phone's own bubble for it. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .spellbook-binder .spellbook-row > .spellbook-row-self.is-clickable {
   cursor: var(--cursor);
 }
 
+/* The selected row: the one last tapped, opened or acted on. A thin ring
+   sets it apart in every theme. (This rule comes before the one for the
+   active note, so that the active note keeps its own background.) */
+.spellbook-binder .spellbook-row > .spellbook-row-self.spellbook-is-selected {
+  background-color: var(--nav-item-background-selected, var(--background-modifier-hover));
+  outline: var(--border-width) solid var(--background-modifier-border-focus);
+  outline-offset: calc(-1 * var(--border-width));
+}
+
 .spellbook-binder .spellbook-row > .spellbook-row-self.is-active {
   background-color: var(--nav-item-background-active);
   color: var(--nav-item-color-active);
   font-weight: var(--nav-item-weight-active);
+}
+
+/* The row the keyboard is on, when it got there with the keyboard. */
+.spellbook-binder .spellbook-row > .spellbook-row-self:focus-visible {
+  outline: var(--size-2-1) solid var(--background-modifier-border-focus);
+  outline-offset: calc(-1 * var(--size-2-1));
+}
+
+/* ------------------------------------------------------ Binder: dragging */
+
+/* The row that was picked up stays where it is, dimmed, until it is dropped. */
+.spellbook-binder .spellbook-row > .spellbook-row-self.spellbook-is-dragged {
+  opacity: 0.5;
+}
+
+/* The folder (or the empty manuscript) a drop would go into. */
+.spellbook-binder .spellbook-row > .spellbook-row-self.spellbook-is-drop-target {
+  background-color: var(--background-modifier-hover);
+  outline: var(--size-2-1) solid var(--interactive-accent);
+  outline-offset: calc(-1 * var(--size-2-1));
+}
+
+/* While a mouse drags, the pointer shows that it is holding something. */
+.spellbook-binder .spellbook-drag-active .spellbook-row > .spellbook-row-self.spellbook-row-self {
+  cursor: grabbing;
+}
+
+/* What is being dragged, floating under the pointer. It sits at the top of
+   the page, outside the binder, and is put in its place by the plugin's
+   code; nothing can be tapped through it. */
+.spellbook-drag-ghost {
+  position: fixed;
+  z-index: var(--layer-dragged-item, 80);
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding-block: var(--size-2-2);
+  padding-inline: var(--size-4-3);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background-color: var(--background-primary);
+  box-shadow: var(--shadow-s);
+  color: var(--text-normal);
+  font-size: var(--nav-item-size);
+  line-height: var(--line-height-tight);
+  opacity: 0.9;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.spellbook-drag-ghost-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The thin line that shows where a drop would put the dragged thing. */
+.spellbook-drop-line {
+  position: fixed;
+  z-index: var(--layer-dragged-item, 80);
+  height: var(--size-2-1);
+  margin-block-start: calc(var(--size-2-1) / -2);
+  border-radius: var(--size-2-1);
+  background-color: var(--interactive-accent);
+  pointer-events: none;
+  will-change: transform;
 }
 
 /* The space at the start of every row: a fold arrow, a warning sign, or
@@ -263,8 +460,8 @@
   min-width: 0;
 }
 
-/* Title and word count. This element takes the direction of the title's own
-   text, so a Hebrew title sits at the right end with its count at the left. */
+/* Title and word count. This element keeps the direction of the app, so the
+   count is at the end of every row and all counts stand in one column. */
 .spellbook-binder .spellbook-row-body {
   display: flex;
   align-items: center;
@@ -272,6 +469,10 @@
   min-width: 0;
 }
 
+/* The title takes all the room up to the count. When it is the writer's own
+   text it has a direction of its own (dir="auto" on this element), and
+   "start" is then its own start side: a Hebrew title reads right to left and
+   sits against the count column, an English one sits at the other end. */
 .spellbook-binder .spellbook-title {
   flex: 1 1 auto;
   min-width: 0;
@@ -293,6 +494,37 @@
   font-size: var(--font-ui-smaller);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* The "more" button of a row. It comes last, so it sits at the far end from
+   the fold arrow whichever way Obsidian reads, and it takes up the full
+   height of the row (the margins make up for the row's own padding). */
+.spellbook-binder .spellbook-row-self > .spellbook-row-more {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  align-self: stretch;
+  justify-content: center;
+  margin-block: calc(-1 * var(--size-2-2));
+  margin-inline: 0 calc(-1 * var(--size-4-2));
+  padding-block: 0;
+  padding-inline: var(--size-2-3);
+  border-radius: var(--radius-s);
+  cursor: var(--cursor);
+}
+
+.spellbook-binder .spellbook-row-more svg {
+  width: var(--icon-s);
+  height: var(--icon-s);
+}
+
+/* The room of a "more" button, left empty in a row that shows a count but has
+   no button, so that the counts of all rows stand in one column. As wide as
+   the button: its icon and its padding on both sides. */
+.spellbook-binder .spellbook-row-self > .spellbook-row-more-space {
+  flex: 0 0 auto;
+  width: calc(var(--icon-s) + 2 * var(--size-2-3));
+  margin-inline: 0 calc(-1 * var(--size-4-2));
 }
 
 /* A second line under the title, for something the writer should know. */
@@ -360,15 +592,50 @@
    other screen that is mainly used by touch. With a mouse they stay compact. */
 .spellbook-binder.spellbook-is-mobile .spellbook-row-self,
 .spellbook-binder.spellbook-is-mobile .spellbook-binder-heading .spellbook-project-switch,
-.spellbook-binder.spellbook-is-mobile .spellbook-binder-create {
+.spellbook-binder.spellbook-is-mobile .spellbook-binder-create,
+.spellbook-binder.spellbook-is-mobile .spellbook-banner-button {
   min-height: var(--spellbook-touch-target);
+}
+
+/* The same for the buttons, which are as wide as they are tall. */
+.spellbook-binder.spellbook-is-mobile .spellbook-toolbar-button,
+.spellbook-binder.spellbook-is-mobile .spellbook-row-self > .spellbook-row-more {
+  min-width: var(--spellbook-touch-target);
+  min-height: var(--spellbook-touch-target);
+}
+
+.spellbook-binder.spellbook-is-mobile .spellbook-row-self > .spellbook-row-more-space {
+  min-width: var(--spellbook-touch-target);
 }
 
 @media (pointer: coarse) {
   .spellbook-binder .spellbook-row-self,
   .spellbook-binder .spellbook-binder-heading .spellbook-project-switch,
-  .spellbook-binder .spellbook-binder-create {
+  .spellbook-binder .spellbook-binder-create,
+  .spellbook-binder .spellbook-banner-button {
     min-height: var(--spellbook-touch-target);
+  }
+
+  .spellbook-binder .spellbook-toolbar-button,
+  .spellbook-binder .spellbook-row-self > .spellbook-row-more {
+    min-width: var(--spellbook-touch-target);
+    min-height: var(--spellbook-touch-target);
+  }
+
+  .spellbook-binder .spellbook-row-self > .spellbook-row-more-space {
+    min-width: var(--spellbook-touch-target);
+  }
+}
+
+/* With a mouse, the "more" button of a row stays out of sight until the row
+   is pointed at, holds the keyboard's focus, or is the selected or the active
+   row, so that a long list is not a column of dots. It is never the only way
+   in: a right-click opens the same menu, and the commands do the same things.
+   On phones and tablets, and on any screen without a mouse, the button is
+   always there. */
+@media (hover: hover) and (pointer: fine) {
+  .spellbook-binder:not(.spellbook-is-mobile) .spellbook-row-self:not(:hover):not(:focus-within):not(.is-active):not(.spellbook-is-selected) > .spellbook-row-more {
+    opacity: 0;
   }
 }
 
@@ -391,6 +658,7 @@
 /* A narrow pane (decided by measuring the pane, not by the kind of device):
    titles get all the room; the counts and second lines go. */
 .spellbook-binder.spellbook-is-narrow .spellbook-count-outer,
-.spellbook-binder.spellbook-is-narrow .spellbook-row-note {
+.spellbook-binder.spellbook-is-narrow .spellbook-row-note,
+.spellbook-binder.spellbook-is-narrow .spellbook-row-self > .spellbook-row-more-space {
   display: none;
 }

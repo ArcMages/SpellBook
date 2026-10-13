@@ -1,19 +1,26 @@
 import { Notice, Plugin } from 'obsidian';
 import type { PaneType } from 'obsidian';
+import { owningProject, placeOfNote } from './core/binderModel';
+import { BinderSelection } from './core/binderSelection';
+import { sceneRef } from './core/binderTree';
 import { DevicePrefs } from './core/devicePrefs';
 import { createSampleProject, createStarterProject } from './core/newProject';
 import type { NewProject } from './core/newProject';
+import { isInside, isMarkdownPath, relativeTo } from './core/paths';
+import { MANUSCRIPT_FOLDER, RESEARCH_FOLDER } from './core/projectLayout';
 import { ProjectSession } from './core/projectSession';
 import { ProjectStore } from './core/projectStore';
-import type { IntentResult } from './core/types';
+import type { IntentResult, NodeRef, ProjectSnapshot } from './core/types';
 import { WordCountCache } from './core/wordCountCache';
 import { ObsidianDeviceStorage } from './obsidian/deviceStorage';
 import { ObsidianVault } from './obsidian/obsidianVault';
 import { openNote } from './obsidian/openNote';
-import { localToday, setTimer } from './obsidian/systemClock';
+import { localToday, nextFrame, setTimer } from './obsidian/systemClock';
 import { SpellbookSettingTab } from './settings';
 import { CreateProjectModal } from './ui/createProjectModal';
 import { BINDER_ICON } from './ui/icons';
+import { BinderActions } from './views/binderActions';
+import type { ActionsHost } from './views/binderActions';
 import { BINDER_VIEW_TYPE, BinderView } from './views/binderView';
 import type { BinderHost, BinderServices } from './views/binderView';
 
@@ -24,6 +31,25 @@ const NO_ROOM_FOR_BINDER = 'The binder could not be opened: Obsidian has no room
 /** How long a notice about something that went wrong stays up, in milliseconds. */
 const PROBLEM_NOTICE_MS = 10000;
 
+/** The open project, when it is one that can be changed. */
+interface OpenProject {
+  readonly services: BinderServices;
+  readonly project: ProjectSnapshot;
+}
+
+/** The note being worked on, as a scene of the open project's binder. */
+interface ActiveScene extends OpenProject {
+  readonly ref: NodeRef;
+}
+
+/** A note that has (or should have) a row in the binder of one of the vault's projects. */
+interface RevealTarget {
+  /** The index path of the note's project. */
+  readonly indexPath: string;
+  /** The note's path relative to that project's folder. */
+  readonly path: string;
+}
+
 /**
  * Spellbook, a novel writer.
  *
@@ -33,12 +59,15 @@ const PROBLEM_NOTICE_MS = 10000;
  * the one this device last worked on. Loading the plugin changes no note;
  * notes are only created when a command is run.
  */
-export default class SpellbookPlugin extends Plugin implements BinderHost {
+export default class SpellbookPlugin extends Plugin implements BinderHost, ActionsHost {
   /**
    * The working parts of the plugin: the project store and what goes with it.
    * Null until Obsidian's layout is ready, and again after unloading.
    */
   services: BinderServices | null = null;
+
+  /** What the binder's buttons, its menus and the commands below do. */
+  readonly actions = new BinderActions(this);
 
   private unloaded = false;
   /** True while a project is being created, so that a second request cannot overlap it. */
@@ -86,6 +115,60 @@ export default class SpellbookPlugin extends Plugin implements BinderHost {
       },
     });
 
+    // The commands below make everything in the binder possible without a
+    // mouse and without dragging. Each one is only offered while it can do
+    // something: the command palette asks first (checking = true).
+    this.addCommand({
+      id: 'new-scene',
+      name: 'New scene',
+      checkCallback: (checking) => {
+        const open = this.writableProject();
+        if (!open) return false;
+        if (!checking) this.actions.newSceneNear(open.project.indexPath, this.rowInUse(open));
+        return true;
+      },
+    });
+    this.addCommand({
+      id: 'new-folder',
+      name: 'New folder',
+      checkCallback: (checking) => {
+        const open = this.writableProject();
+        if (!open) return false;
+        if (!checking) this.actions.newFolderNear(open.project.indexPath, this.rowInUse(open));
+        return true;
+      },
+    });
+    this.addCommand({
+      id: 'move-scene-up',
+      name: 'Move scene up',
+      checkCallback: (checking) => {
+        const scene = this.activeScene();
+        if (!scene) return false;
+        if (!checking) void this.actions.step(scene.project.indexPath, scene.ref, 'up');
+        return true;
+      },
+    });
+    this.addCommand({
+      id: 'move-scene-down',
+      name: 'Move scene down',
+      checkCallback: (checking) => {
+        const scene = this.activeScene();
+        if (!scene) return false;
+        if (!checking) void this.actions.step(scene.project.indexPath, scene.ref, 'down');
+        return true;
+      },
+    });
+    this.addCommand({
+      id: 'reveal-active-scene',
+      name: 'Reveal active scene in binder',
+      checkCallback: (checking) => {
+        const target = this.revealTarget();
+        if (!target) return false;
+        if (!checking) void this.revealInBinder(target);
+        return true;
+      },
+    });
+
     this.register(() => {
       this.unloaded = true;
       this.waiting = [];
@@ -118,7 +201,16 @@ export default class SpellbookPlugin extends Plugin implements BinderHost {
     const prefs = new DevicePrefs(new ObsidianDeviceStorage(this.app));
     const session = new ProjectSession(store, prefs);
     const wordCounts = new WordCountCache({ vault, setTimer });
-    this.services = { store, session, wordCounts, prefs };
+    const selection = new BinderSelection();
+    this.services = {
+      store,
+      session,
+      wordCounts,
+      prefs,
+      selection,
+      clock: { setTimer, nextFrame },
+      dismissedCopies: new Set(),
+    };
 
     store.start();
     wordCounts.start();
@@ -130,6 +222,7 @@ export default class SpellbookPlugin extends Plugin implements BinderHost {
     this.register(() => {
       session.dispose();
       wordCounts.dispose();
+      selection.dispose();
       store.dispose();
       vault.stop();
       this.services = null;
@@ -186,6 +279,84 @@ export default class SpellbookPlugin extends Plugin implements BinderHost {
       console.error('Spellbook: the binder could not be opened', error);
       new Notice('The binder could not be opened.', PROBLEM_NOTICE_MS);
     }
+  }
+
+  // ------------------------------------------------- what the commands act on
+
+  /** The open project, when there is one and it can be changed. */
+  private writableProject(): OpenProject | null {
+    const services = this.services;
+    const project = services?.store.project;
+    if (!services || !project || project.readOnly) return null;
+    return { services, project };
+  }
+
+  /** The vault path of the note being worked on, if any. */
+  private activePath(): string | null {
+    return this.app.workspace.getActiveFile()?.path ?? null;
+  }
+
+  /** The note being worked on, when it is a scene in the binder of the open project. */
+  private activeScene(): ActiveScene | null {
+    const open = this.writableProject();
+    const active = this.activePath();
+    if (!open || active === null) return null;
+    const path = relativeTo(open.project.folder, active);
+    if (path === null || placeOfNote(open.project, path) !== 'binder') return null;
+    return { ...open, ref: sceneRef(path) };
+  }
+
+  /**
+   * The row a new scene or folder is put next to when a command asks for
+   * one: the scene being worked on, or else the binder's selected row.
+   */
+  private rowInUse(open: OpenProject): NodeRef | null {
+    return this.activeScene()?.ref ?? open.services.selection.currentIn(open.project.indexPath);
+  }
+
+  /**
+   * Where the note being worked on is to be found in a binder: in the open
+   * project when it has a row there, or else in the project whose Manuscript
+   * or Research folder holds it. Null for any other note.
+   */
+  private revealTarget(): RevealTarget | null {
+    const services = this.services;
+    const active = this.activePath();
+    if (!services || active === null) return null;
+    const open = services.store.project;
+    if (open) {
+      const path = relativeTo(open.folder, active);
+      if (path !== null && placeOfNote(open, path) !== null) return { indexPath: open.indexPath, path };
+    }
+    const owner = owningProject(services.store.listProjects(), active);
+    if (!owner || owner.indexPath === open?.indexPath || !isMarkdownPath(active)) return null;
+    const path = relativeTo(owner.folder, active);
+    if (path === null || !(isInside(MANUSCRIPT_FOLDER, path) || isInside(RESEARCH_FOLDER, path))) return null;
+    return { indexPath: owner.indexPath, path };
+  }
+
+  /**
+   * Show the binder with the row of a note selected and in view. When the
+   * note belongs to another project of the vault, that project is opened
+   * first (and becomes the one this device works on).
+   */
+  private async revealInBinder(target: RevealTarget): Promise<void> {
+    const services = this.services;
+    if (!services) return;
+    if (services.store.project?.indexPath !== target.indexPath) {
+      const result = await services.session.choose(target.indexPath);
+      if (result.status !== 'done') {
+        new Notice(result.message, PROBLEM_NOTICE_MS);
+        return;
+      }
+    }
+    await this.openBinder();
+    const project = this.services?.store.project;
+    if (!project || project.indexPath !== target.indexPath || placeOfNote(project, target.path) === null) {
+      new Notice('This note has no row in the binder.');
+      return;
+    }
+    this.actions.select(target.indexPath, sceneRef(target.path));
   }
 
   // ----------------------------------------------------------------- commands

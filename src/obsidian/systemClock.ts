@@ -16,3 +16,14 @@ export function setTimer(callback: () => void, ms: number): () => void {
     window.clearTimeout(id);
   };
 }
+
+/**
+ * Call `callback` once, just before the screen is next drawn, with the time
+ * in milliseconds. Returns a function that cancels it.
+ */
+export function nextFrame(callback: (time: number) => void): () => void {
+  const id = window.requestAnimationFrame(callback);
+  return () => {
+    window.cancelAnimationFrame(id);
+  };
+}
