@@ -39,8 +39,11 @@ export interface SceneLineService {
    * The pieces of the line as they stand now, in the order they are shown.
    * Each has an id, an English label, a value ready for the screen, and
    * `met` when it has a target. A piece with nothing to show is left out;
-   * with no project open the list is empty. The values are numbers and
-   * dates, never the writer's own text.
+   * with no project open the list is empty. Which pieces there are, and in
+   * what order, is the writer's choice on this device (the bottom bar's
+   * settings). The values are numbers and dates, except for the pieces
+   * marked `ownText` (a status name, a scene's title), which are the
+   * writer's own text in any language.
    */
   current(): readonly StatusSegment[];
   /**

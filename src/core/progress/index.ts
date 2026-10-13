@@ -279,10 +279,72 @@ export type {
 export {
   /** The ordered, labelled, formatted pieces of the line for the open scene; pieces with nothing to show are left out. */
   buildStatusLine,
+  /** About how long so many words take to read: "<1 min", "12 min", "1h 05m". */
+  formatReadingTime,
+  /** How many words a minute the reading time goes by. */
+  READING_WORDS_PER_MINUTE,
 } from './statusLine';
 
+export {
+  /** Every figure the bar can show, as the settings name them. */
+  BAR_ITEMS,
+  /** The ready-made layouts: Minimal, Drafting, Everything. */
+  BAR_PRESETS,
+  /** The icons the settings offer for a shortcut button. */
+  BAR_BUTTON_ICONS,
+  /** The layout a device starts with: the bar as it was before it could be changed. */
+  DEFAULT_BAR_LAYOUT,
+  /** Read a stored layout; the default for nothing or for anything that is not one. Never throws. */
+  parseBarLayout,
+  /** A layout as text, to keep on the device. */
+  serializeBarLayout,
+  /** True when two layouts hold the same things in the same order. */
+  sameBarLayout,
+  /** The figures of a layout, in order. */
+  barItemIds,
+  /** The figures a layout does not hold yet. */
+  missingBarItems,
+  /** The name of a figure as the settings show it. */
+  barItemName,
+  /** True when a value is the id of a figure. */
+  isBarItemId,
+  /** Put a figure at the end of a layout. */
+  addBarItem,
+  /** Put a shortcut button at the end of a layout. */
+  addBarButton,
+  /** Take one entry out of a layout. */
+  removeBarEntry,
+  /** Move one entry a step toward the start (-1) or the end (1). */
+  moveBarEntry,
+  /** Change what a button says or which icon it shows. */
+  editBarButton,
+  /** A button's label as it is kept: one line, no spaces at the ends, not too long. */
+  tidyLabel,
+  /** No more than this many figures and buttons are kept in a layout. */
+  MAX_BAR_ENTRIES,
+  /** The longest label a button can have, in characters. */
+  MAX_LABEL_LENGTH,
+} from './barLayout';
+
 export type {
-  /** The names of the pieces: scene, started, edited, session, project, today. */
+  /** The id of a figure the bar can show. */
+  BarItemId,
+  /** One figure the writer can choose: its id, its name and what it shows. */
+  BarItemInfo,
+  /** A figure in the bar. */
+  BarItemEntry,
+  /** A shortcut button in the bar: the command it runs, its label and its icon. */
+  BarButtonEntry,
+  /** One thing in the bar: a figure or a shortcut button. */
+  BarEntry,
+  /** What the bar holds, in order. */
+  BarLayout,
+  /** A ready-made layout, with a name and a line that describes it. */
+  BarPreset,
+} from './barLayout';
+
+export type {
+  /** The names of the pieces: the figures the writer can choose from (see BarItemId). */
   StatusSegmentId,
   /** One piece: id, English label, formatted value, and whether its target is met. */
   StatusSegment,
