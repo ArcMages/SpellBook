@@ -55,6 +55,21 @@ describe('buildSceneCard', () => {
     expect(card.label).toEqual({ name: HEBREW.daniel, color: 'cyan', listed: true });
   });
 
+  it('passes pointed Hebrew through code for code, never tidying or reordering its marks', () => {
+    expect(HEBREW.untidy.normalize('NFC')).not.toBe(HEBREW.untidy);
+    const written = buildSceneCard(
+      { path: `Manuscript/${HEBREW.untidy}.md`, frontmatter: { synopsis: HEBREW.untidy, status: HEBREW.untidy, label: HEBREW.untidy } },
+      lists,
+    );
+    expect(written.title).toBe(HEBREW.untidy);
+    expect(written.path).toBe(`Manuscript/${HEBREW.untidy}.md`);
+    expect(written.synopsis).toBe(HEBREW.untidy);
+    expect(written.status?.name).toBe(HEBREW.untidy);
+    expect(written.label?.name).toBe(HEBREW.untidy);
+    const derived = buildSceneCard({ path: 'a.md', frontmatter: {}, text: `---\nlabel: x\n---\n${HEBREW.untidy}\n` }, lists);
+    expect(derived.synopsis).toBe(HEBREW.untidy);
+  });
+
   describe('the title', () => {
     it('is the file name without its extension, wherever the file is', () => {
       const title = (path: string): string => buildSceneCard({ path }, lists).title;
@@ -95,7 +110,7 @@ describe('buildSceneCard', () => {
       for (const prose of [ENGLISH_PROSE, HEBREW.prose]) {
         const card = buildSceneCard({ path: 'a.md', frontmatter: { synopsis: '' }, text: note('synopsis: ""', prose) }, lists);
         expect(card.synopsisDerived).toBe(true);
-        expect(card.synopsis.endsWith('…')).toBe(true);
+        expect(card.synopsis.endsWith('\u{2026}')).toBe(true);
         const body = card.synopsis.slice(0, -1);
         expect(prose.startsWith(body)).toBe(true);
         expect(prose.charAt(body.length)).toBe(' ');
@@ -106,7 +121,7 @@ describe('buildSceneCard', () => {
 
     it('can be made shorter', () => {
       const card = buildSceneCard({ path: 'a.md', text: 'one two three four five' }, lists, 8);
-      expect(card.synopsis).toBe('one two…');
+      expect(card.synopsis).toBe('one two\u{2026}');
     });
 
     it('is empty, and not marked as derived, when there is no synopsis and no text to take one from', () => {

@@ -38,6 +38,13 @@ export const HEBREW = {
   opening: 'פתיחה',
   /** "The letter" */
   letter: 'המכתב',
+  /**
+   * Pointed Hebrew ("house", "peace") stored in a form that Unicode tidying
+   * would rewrite: a dagesh typed before its vowel, and a shin with its dot as
+   * a single code. Text that is only passed through must come out with
+   * exactly these codes, in exactly this order.
+   */
+  untidy: '\u{5D1}\u{5BC}\u{5B7}\u{5D9}\u{5B4}\u{5EA} \u{FB2A}\u{5DC}\u{5D5}\u{5DD}',
   /** A synopsis: "Anna finds the letter in the drawer and decides not to open it." */
   synopsis: 'אנה מוצאת את המכתב במגירה ומחליטה לא לפתוח אותו.',
   /** Prose of 290 characters, with commas and full stops: well past the length of a preview. */

@@ -5,8 +5,13 @@ import { PREVIEW_LENGTH, derivePreview } from '../../src/core/cards';
 import { characterBoundary, defaultGraphemeSegmenter } from '../../src/core/cards/preview';
 import { ENGLISH_PROSE, HEBREW } from './helpers';
 
-const ELLIPSIS = '…';
+// Characters that are easy to mistake or impossible to see are written as
+// codes throughout this file, never typed in.
+const ELLIPSIS = '\u{2026}';
+const EM_DASH = '\u{2014}';
 const MARK = /\p{M}/u;
+/** What may be dropped from the end of a preview in front of the ellipsis: , ; : and dashes. */
+const HANGING = '[,;:\\u{2013}\\u{2014}-]';
 
 /** How many characters a reader sees: marks that sit on a letter are not counted. */
 function seen(text: string): number {
@@ -15,7 +20,7 @@ function seen(text: string): number {
 
 /** Every letter of the text followed by a Hebrew vowel point, as in pointed writing. */
 function pointed(text: string): string {
-  const points = ['ָ', 'ִ', 'ֶ', 'ַּ'];
+  const points = ['\u{5B8}', '\u{5B4}', '\u{5B6}', '\u{5B7}\u{5BC}'];
   return [...text].map((character, index) => (character === ' ' ? character : character + points[index % points.length])).join('');
 }
 
@@ -31,7 +36,7 @@ function expectCutAtWord(preview: string, prose: string, limit: number): void {
   expect(prose.startsWith(body)).toBe(true);
   expect(body).toBe(body.trimEnd());
   // What was left out begins with a space, perhaps after a comma or dash that was dropped.
-  expect(prose.slice(body.length)).toMatch(/^[,;:–—-]* /);
+  expect(prose.slice(body.length)).toMatch(new RegExp(`^${HANGING}* `, 'u'));
   expect(seen(body)).toBeLessThanOrEqual(limit);
 }
 
@@ -107,13 +112,25 @@ describe('derivePreview: what counts as prose', () => {
   });
 
   it('keeps the words themselves exactly as written, markup and all', () => {
-    const line = 'She *never* said "yes" to [[Daniel]] — not once; he_knew.';
+    const line = `She *never* said "yes" to [[Daniel]] ${EM_DASH} not once; he_knew.`;
     expect(derivePreview(line)).toBe(line);
   });
 
   it('does not reorder a line that mixes Hebrew and English', () => {
     const line = `${HEBREW.anna} said "hello" ${HEBREW.daniel} (1984) ${HEBREW.letter}.`;
     expect(derivePreview(line)).toBe(line);
+  });
+
+  it('passes pointed Hebrew through code for code, whole or cut', () => {
+    expect(HEBREW.untidy.normalize('NFC')).not.toBe(HEBREW.untidy);
+    expect(derivePreview(`# ${HEBREW.chapterOne}\n\n${HEBREW.untidy}\n`)).toBe(HEBREW.untidy);
+    const long = Array.from({ length: 40 }, () => HEBREW.untidy).join(' ');
+    for (const segmenter of [defaultGraphemeSegmenter(), null]) {
+      const preview = derivePreview(long, 60, segmenter);
+      expect(preview.endsWith(ELLIPSIS)).toBe(true);
+      expect(long.startsWith(preview.slice(0, -1))).toBe(true);
+      expect(long.charAt(preview.length - 1)).toBe(' ');
+    }
   });
 
   it('starts at the first prose even when a great deal comes before it', () => {
@@ -136,7 +153,7 @@ describe('derivePreview: where it cuts', () => {
     expect(seen(preview)).toBeGreaterThan(180);
     expect(preview).toBe(
       'The rain fell all night on the old town, and the streets filled with water until not one dry place was left. ' +
-        'Anna stood by the window and looked out at the blurred lights of the harbour. She thought…',
+        `Anna stood by the window and looked out at the blurred lights of the harbour. She thought${ELLIPSIS}`,
     );
   });
 
@@ -146,24 +163,45 @@ describe('derivePreview: where it cuts', () => {
     expect(seen(preview)).toBeGreaterThan(180);
   });
 
-  it('cuts at a word boundary at every length, in English and in Hebrew', () => {
-    for (const prose of [ENGLISH_PROSE, HEBREW.prose]) {
-      for (let limit = 12; limit < seen(prose); limit += 7) {
-        const preview = derivePreview(prose, limit);
-        expectCutAtWord(preview, prose, limit);
-      }
+  /**
+   * The preview worked out the slow, obvious way, for plain prose without
+   * marks: step back from the limit to a space, keep what is in front of it.
+   */
+  function cutByHand(prose: string, limit: number): string {
+    let cut = limit;
+    while (cut > 0 && prose.charAt(cut) !== ' ') cut--;
+    return prose.slice(0, cut).trimEnd().replace(new RegExp(`${HANGING}+$`, 'u'), '').trimEnd() + ELLIPSIS;
+  }
+
+  it('cuts English at the last word boundary within the limit, at every length', () => {
+    for (let limit = 12; limit < ENGLISH_PROSE.length; limit += 1) {
+      const preview = derivePreview(ENGLISH_PROSE, limit);
+      expectCutAtWord(preview, ENGLISH_PROSE, limit);
+      expect(preview, `limit ${limit}`).toBe(cutByHand(ENGLISH_PROSE, limit));
     }
   });
 
-  it('keeps the last whole word that fits, not one fewer', () => {
+  it('cuts Hebrew at the last word boundary within the limit, at every length', () => {
+    for (let limit = 12; limit < HEBREW.prose.length; limit += 1) {
+      const preview = derivePreview(HEBREW.prose, limit);
+      expectCutAtWord(preview, HEBREW.prose, limit);
+      expect(preview, `limit ${limit}`).toBe(cutByHand(HEBREW.prose, limit));
+    }
+  });
+
+  it('keeps the last whole English word that fits, not one fewer', () => {
     // "one two three" is 13 characters: at 13 it fits whole, at 12 "three" has to go.
     expect(derivePreview('one two three four', 13)).toBe(`one two three${ELLIPSIS}`);
     expect(derivePreview('one two three four', 12)).toBe(`one two${ELLIPSIS}`);
     expect(derivePreview('one two three', 13)).toBe('one two three');
+  });
+
+  it('keeps the last whole Hebrew word that fits, not one fewer', () => {
     const hebrew = `${HEBREW.anna} ${HEBREW.daniel} ${HEBREW.letter}`; // 3 + 1 + 5 + 1 + 5 characters
     expect(derivePreview(hebrew, 9)).toBe(`${HEBREW.anna} ${HEBREW.daniel}${ELLIPSIS}`);
     expect(derivePreview(hebrew, 8)).toBe(`${HEBREW.anna}${ELLIPSIS}`);
     expect(derivePreview(hebrew, 15)).toBe(hebrew);
+    expect(derivePreview(hebrew, 14)).toBe(`${HEBREW.anna} ${HEBREW.daniel}${ELLIPSIS}`);
   });
 
   it('counts the limit across paragraphs', () => {
@@ -173,7 +211,9 @@ describe('derivePreview: where it cuts', () => {
 
   it('drops a comma, colon or dash left hanging in front of the ellipsis', () => {
     expect(derivePreview('Anna stood, waiting for him', 12)).toBe(`Anna stood${ELLIPSIS}`);
-    expect(derivePreview('Anna stood — waiting for him', 13)).toBe(`Anna stood${ELLIPSIS}`);
+    expect(derivePreview(`Anna stood ${EM_DASH} waiting for him`, 13)).toBe(`Anna stood${ELLIPSIS}`);
+    expect(derivePreview('Anna stood - waiting for him', 13)).toBe(`Anna stood${ELLIPSIS}`);
+    expect(derivePreview('Anna stood \u{2013} waiting for him', 13)).toBe(`Anna stood${ELLIPSIS}`);
     expect(derivePreview('Anna stood: waiting for him', 12)).toBe(`Anna stood${ELLIPSIS}`);
     expect(derivePreview('Anna stood. Waiting for him', 12)).toBe(`Anna stood.${ELLIPSIS}`);
   });
@@ -218,7 +258,7 @@ describe('derivePreview: where it cuts', () => {
 });
 
 describe('derivePreview: text with no word boundary to cut at', () => {
-  const family = '\u{1F469}‍\u{1F469}‍\u{1F467}'; // three people joined into one symbol
+  const family = '\u{1F469}\u{200D}\u{1F469}\u{200D}\u{1F467}'; // three people joined into one symbol
   const flagless = '\u{1F44B}\u{1F3FD}'; // a waving hand with a skin tone
 
   it('cuts a very long unbroken run inside, since there is nowhere else', () => {
@@ -273,7 +313,7 @@ describe('derivePreview: text with no word boundary to cut at', () => {
   });
 
   it('copes with text that is nearly all marks', () => {
-    const stacked = `a${'́'.repeat(5000)} b${'́'.repeat(5000)} c`;
+    const stacked = `a${'\u{301}'.repeat(5000)} b${'\u{301}'.repeat(5000)} c`;
     for (const segmenter of [defaultGraphemeSegmenter(), null]) {
       const preview = derivePreview(stacked, 200, segmenter);
       expect(preview.endsWith(ELLIPSIS)).toBe(true);
@@ -303,14 +343,14 @@ describe('characterBoundary', () => {
   });
 
   it('moves a cut back to the start of the character it would split', () => {
-    const shalom = 'שָׁלוֹם'; // shin + dot + vowel, lamed, vav + vowel, mem
+    const shalom = '\u{5E9}\u{5C1}\u{5B8}\u{5DC}\u{5D5}\u{5B9}\u{5DD}'; // shin + dot + vowel, lamed, vav + vowel, mem
     for (const segmenter of both) {
       expect(characterBoundary(shalom, 1, segmenter)).toBe(0);
       expect(characterBoundary(shalom, 2, segmenter)).toBe(0);
       expect(characterBoundary(shalom, 3, segmenter)).toBe(3);
       expect(characterBoundary(shalom, 5, segmenter)).toBe(4);
       expect(characterBoundary('a\u{1F600}b', 2, segmenter)).toBe(1);
-      expect(characterBoundary('éx', 1, segmenter)).toBe(0);
+      expect(characterBoundary('e\u{301}x', 1, segmenter)).toBe(0);
     }
   });
 });

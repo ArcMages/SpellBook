@@ -239,6 +239,16 @@ describe('inspectorPatch: synopsis', () => {
     expect(patchOf(inspectorPatch(scene(), { synopsis: typed })).set).toEqual({ synopsis: typed });
   });
 
+  it('passes pointed Hebrew through code for code, in what it shows and in what it stores', () => {
+    expect(HEBREW.untidy.normalize('NFC')).not.toBe(HEBREW.untidy);
+    const shown = buildInspector({ path: 'a.md', frontmatter: { synopsis: HEBREW.untidy, status: HEBREW.untidy, label: HEBREW.untidy } }, lists);
+    expect(shown.synopsis).toBe(HEBREW.untidy);
+    expect(shown.status).toBe(HEBREW.untidy);
+    expect(shown.labelOptions[shown.labelOptions.length - 1]?.name).toBe(HEBREW.untidy);
+    const patch = patchOf(inspectorPatch(scene(), { synopsis: HEBREW.untidy, status: HEBREW.untidy, label: ` ${HEBREW.untidy} ` }, lists));
+    expect(patch.set).toEqual({ synopsis: HEBREW.untidy, status: HEBREW.untidy, label: HEBREW.untidy });
+  });
+
   it('treats a change in spacing as a change', () => {
     expect(patchOf(inspectorPatch({ synopsis: 'One.' }, { synopsis: 'One. ' })).set).toEqual({ synopsis: 'One. ' });
   });

@@ -87,8 +87,9 @@ describe('cardRef and cardIndex', () => {
 
   it('finds a Hebrew scene however its name is stored', () => {
     // A pointed letter may be stored as one code or as a letter and a mark.
-    const stored = 'שׁלום';
-    const typed = 'שׁלום';
+    const stored = '\u{5E9}\u{5C1}\u{5DC}\u{5D5}\u{5DD}';
+    const typed = '\u{FB2A}\u{5DC}\u{5D5}\u{5DD}';
+    expect(typed).not.toBe(stored);
     const board = boardOf([sceneNode('A'), sceneNode(stored)]);
     expect(cardIndex(board, sceneRef(`Manuscript/${typed}.md`))).toBe(1);
   });

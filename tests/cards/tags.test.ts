@@ -88,6 +88,26 @@ describe('parseTagList', () => {
     expect(names(list)).toEqual([HEBREW.anna, HEBREW.firstDraft]);
   });
 
+  it('keeps pointed Hebrew names code for code, through reading and every change', () => {
+    expect(HEBREW.untidy.normalize('NFC')).not.toBe(HEBREW.untidy);
+    const list = parseTagList('label', [{ name: HEBREW.untidy, color: 'blue' }, { name: 'Anna' }]);
+    expect(list.tags[0]?.name).toBe(HEBREW.untidy);
+    // It is still found by the same name stored the other way.
+    expect(findTag(list, HEBREW.untidy.normalize('NFC'))?.name).toBe(HEBREW.untidy);
+
+    const added = accepted(addTag(parseTagList('label', []), HEBREW.untidy));
+    expect(added.value).toEqual([{ name: HEBREW.untidy }]);
+    expect(added.list.tags[0]?.name).toBe(HEBREW.untidy);
+
+    const renamed = accepted(renameTag(list, 'Anna', `  ${HEBREW.untidy}2 `, [{ path: 'a.md', frontmatter: { label: 'Anna' } }]));
+    expect(renamed.value[1]).toEqual({ name: `${HEBREW.untidy}2` });
+    expect(renamed.scenePatches[0]?.patch.set).toEqual({ label: `${HEBREW.untidy}2` });
+
+    const moved = accepted(moveTag(list, 'Anna', 0));
+    expect(moved.list.tags[1]?.name).toBe(HEBREW.untidy);
+    expect(unlistedTags(parseTagList('label', []), [{ path: 'a.md', frontmatter: { label: HEBREW.untidy } }])[0]?.name).toBe(HEBREW.untidy);
+  });
+
   describe('when the index has no list', () => {
     it('gives the four built-in statuses, each with a colour', () => {
       const list = parseTagList('status', undefined);
@@ -241,8 +261,8 @@ describe('findTag', () => {
 
   it('finds a Hebrew name with vowel points however the points are stored', () => {
     // The same pointed letter can be stored as one code or as a letter and a mark.
-    const composed = 'שׁלום'; // shin with its dot as one character
-    const decomposed = 'שׁלום'; // shin, then the dot
+    const composed = '\u{FB2A}\u{5DC}\u{5D5}\u{5DD}'; // shin with its dot as one character
+    const decomposed = '\u{5E9}\u{5C1}\u{5DC}\u{5D5}\u{5DD}'; // shin, then the dot
     expect(composed).not.toBe(decomposed);
     const list = parseTagList('label', [{ name: decomposed, color: 'blue' }]);
     expect(findTag(list, composed)?.color).toBe('blue');
@@ -574,6 +594,19 @@ describe('recolourTag', () => {
     expect(refusal(recolourTag(statuses(), 'Abandoned', 'red'))).toBe('not-found');
   });
 
+  it('writes the built-in statuses out in full when one of them is recoloured', () => {
+    const result = accepted(recolourTag(parseTagList('status', undefined), 'Revised', 'purple'));
+    expect(result.value).toEqual([
+      { name: 'To do', color: 'red' },
+      { name: 'First draft', color: 'orange' },
+      { name: 'Revised', color: 'purple' },
+      { name: 'Final', color: 'green' },
+    ]);
+    expect(result.list.fromDefaults).toBe(false);
+    // The built-in list itself is not changed by this: it is the same next time.
+    expect(parseTagList('status', undefined).tags.map((tag) => tag.color)).toEqual(['red', 'orange', 'blue', 'green']);
+  });
+
   it('keeps a colour it does not know until the writer picks another', () => {
     const stored = deepFreeze([{ name: 'A', color: 'teal', icon: 'star' }, { name: 'B', color: 'red' }]);
     const list = parseTagList('label', stored);
@@ -615,6 +648,17 @@ describe('moveTag', () => {
     expect(refusal(moveTag(statuses(), 'First draft', 1))).toBe('unchanged');
     expect(refusal(moveTag(statuses(), HEBREW.final, 99))).toBe('unchanged');
     expect(refusal(moveTag(statuses(), 'Abandoned', 0))).toBe('not-found');
+  });
+
+  it('writes the built-in statuses out in their new order when one of them is moved', () => {
+    const result = accepted(moveTag(parseTagList('status', undefined), 'Final', 0));
+    expect(result.value).toEqual([
+      { name: 'Final', color: 'green' },
+      { name: 'To do', color: 'red' },
+      { name: 'First draft', color: 'orange' },
+      { name: 'Revised', color: 'blue' },
+    ]);
+    expect(names(parseTagList('status', undefined))).toEqual(['To do', 'First draft', 'Revised', 'Final']);
   });
 
   it('can reach every order, one move at a time, and always matches what a re-read gives', () => {

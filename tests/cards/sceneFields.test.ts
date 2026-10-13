@@ -31,6 +31,16 @@ describe('readSceneFields', () => {
     expect(fields.problems).toEqual([]);
   });
 
+  it('passes pointed Hebrew through code for code, never tidying or reordering its marks', () => {
+    // The sample really is in a form that tidying would change.
+    expect(HEBREW.untidy.normalize('NFC')).not.toBe(HEBREW.untidy);
+    expect(HEBREW.untidy.normalize('NFD')).not.toBe(HEBREW.untidy);
+    const fields = readSceneFields({ synopsis: HEBREW.untidy, status: HEBREW.untidy, label: HEBREW.untidy });
+    expect(fields.synopsis).toBe(HEBREW.untidy);
+    expect(fields.status).toBe(HEBREW.untidy);
+    expect(fields.label).toBe(HEBREW.untidy);
+  });
+
   it('gives the usual values when there are no properties at all', () => {
     const usual = {
       synopsis: '',

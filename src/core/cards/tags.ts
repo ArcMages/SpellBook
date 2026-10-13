@@ -71,8 +71,8 @@ export interface TagList {
 const DEFAULT_STATUS_COLORS: readonly CardColor[] = ['red', 'orange', 'blue', 'green'];
 
 /** The statuses of a project that has not chosen its own: the four built-in stages, each with a colour. */
-export const DEFAULT_STATUSES: readonly Tag[] = SCENE_STATUSES.map(
-  (name, position): Tag => ({ name, color: DEFAULT_STATUS_COLORS[position] ?? null }),
+export const DEFAULT_STATUSES: readonly Tag[] = Object.freeze(
+  SCENE_STATUSES.map((name, position): Tag => Object.freeze({ name, color: DEFAULT_STATUS_COLORS[position] ?? null })),
 );
 
 const WORD: Readonly<Record<TagKind, string>> = { status: 'status', label: 'label' };

@@ -11,7 +11,11 @@ import { countableText } from './coreImports';
 /** About how many characters of a scene's text make up a derived synopsis. */
 export const PREVIEW_LENGTH = 200;
 
-const ELLIPSIS = '…';
+const ELLIPSIS = '\u{2026}';
+
+// Spaces, and a comma, semicolon, colon, hyphen or dash (U+2013, U+2014), left
+// at the very end of the kept text: they would look odd in front of the ellipsis.
+const HANGING = /[ ,;:\u{2013}\u{2014}-]+$/u;
 
 /** No word is longer than this many characters; a longer run without a space may be cut inside. */
 const LONGEST_WORD = 40;
@@ -200,8 +204,6 @@ export function derivePreview(
   // (a web address, or writing that uses no spaces) is cut inside.
   const atWord = wordCut > 0 && counted - countedAtWordCut <= LONGEST_WORD;
   const cut = atWord ? wordCut : characterBoundary(prose, hardCut, segmenter);
-  const kept = prose
-    .slice(0, cut)
-    .replace(/[ ,;:–—-]+$/, '');
+  const kept = prose.slice(0, cut).replace(HANGING, '');
   return kept === '' ? ELLIPSIS : kept + ELLIPSIS;
 }

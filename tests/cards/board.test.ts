@@ -180,6 +180,16 @@ describe('buildBoard: one folder', () => {
     expect(sceneCard(partTwo.cards, HEBREW.opening).label).toEqual({ name: HEBREW.daniel, color: 'cyan', listed: true });
   });
 
+  it('passes a pointed Hebrew folder name through code for code, on the card and in the breadcrumb', () => {
+    expect(HEBREW.untidy.normalize('NFC')).not.toBe(HEBREW.untidy);
+    const tree = treeOf([folderNode(HEBREW.untidy, [sceneNode(HEBREW.untidy)])]);
+    const top = buildBoard({ tree, sceneOf: () => undefined, lists });
+    expect(folderCard(top.cards, HEBREW.untidy).name).toBe(HEBREW.untidy);
+    const inside = buildBoard({ tree, scope: folderCard(top.cards, HEBREW.untidy).opens, sceneOf: () => undefined, lists });
+    expect(inside.breadcrumb[1]?.name).toBe(HEBREW.untidy);
+    expect(inside.cards[0]).toMatchObject({ kind: 'scene', title: HEBREW.untidy, path: `Manuscript/${HEBREW.untidy}.md` });
+  });
+
   it('shows an empty folder as a board with no cards', () => {
     const empty = board(folderScope('f-Empty'));
     expect(empty.cards).toEqual([]);
@@ -257,7 +267,7 @@ describe('buildBoard: scenes that are missing, unread or still being counted', (
       lists,
       previewLength: 8,
     });
-    expect(sceneCard(short.cards, 'A').synopsis).toBe('one two…');
+    expect(sceneCard(short.cards, 'A').synopsis).toBe('one two\u{2026}');
   });
 });
 

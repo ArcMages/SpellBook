@@ -89,6 +89,32 @@ describe('the cards engine keeps to src/core', () => {
   });
 });
 
+describe('the tests of the cards engine', () => {
+  it('write hidden characters and marks as codes, so that what a test checks can be read', () => {
+    // A vowel point, a joiner or a direction mark typed straight into a file
+    // cannot be seen, and an editor may quietly rewrite it. Plain Hebrew
+    // letters are fine; everything of this kind is written as \u{...}.
+    const testFiles = readdirSync(here).filter((name) => name.endsWith('.ts'));
+    expect(testFiles.length).toBeGreaterThan(8);
+    for (const name of testFiles) {
+      const hidden = [...readFileSync(path.join(here, name), 'utf8')]
+        .filter((character) => {
+          const code = character.codePointAt(0) as number;
+          return (
+            /\p{M}/u.test(character) ||
+            (code >= 0x200b && code <= 0x200f) ||
+            (code >= 0x202a && code <= 0x202e) ||
+            (code >= 0x2060 && code <= 0x2069) ||
+            (code >= 0xfb1d && code <= 0xfb4f) ||
+            code === 0xfeff
+          );
+        })
+        .map((character) => `U+${(character.codePointAt(0) as number).toString(16).toUpperCase()}`);
+      expect(hidden, name).toEqual([]);
+    }
+  });
+});
+
 describe('index.ts, the list the screen builders work from', () => {
   const source = read('index.ts');
   const lines = source.split('\n');
