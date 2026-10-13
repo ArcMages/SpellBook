@@ -1,0 +1,341 @@
+/*
+ * Spellbook: the writing report, the figures of a scene, a chapter or the
+ * whole manuscript.
+ *
+ * The rules of styles.css hold here too:
+ *   - every class starts with "spellbook-", every variable with "--spellbook-";
+ *   - colours and spacing come only from Obsidian's CSS variables, so the
+ *     plugin follows the user's theme in light and dark mode;
+ *   - sides are named "start" and "end", never by their physical names, so
+ *     that everything mirrors when Obsidian itself runs the other way;
+ *   - nothing may depend on hover alone, and every layout must work at phone width.
+ *
+ * One thing is set from the plugin's code and not here, because it is worked
+ * out: how far the bar that shows the reading is filled.
+ */
+
+/* --------------------------------------------------------------------- Pane */
+
+/* Obsidian's pane around the report: the report brings its own margins and
+   does its own scrolling. (The class is repeated to outweigh Obsidian's own
+   rule for pane contents.) */
+.spellbook-report-pane.spellbook-report-pane {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.spellbook-report {
+  --spellbook-report-touch: 44px;
+  --spellbook-report-bar-room: 80px;
+  --spellbook-report-tile-width: 13em;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+/* The name of the pane, the scope button and Refresh. */
+.spellbook-report-header {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2) var(--size-4-3);
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-report-heading {
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  text-align: start;
+}
+
+.spellbook-report-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-2);
+  min-width: 0;
+}
+
+/* The scope button may carry the name of a folder: a long one is cut short. */
+.spellbook-report-scope {
+  max-width: 20em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* On touch screens the buttons are tall enough for a finger. */
+.spellbook-report.spellbook-is-mobile .spellbook-report-scope,
+.spellbook-report.spellbook-is-mobile .spellbook-report-refresh,
+.spellbook-report.spellbook-is-mobile .spellbook-report-more {
+  min-height: var(--spellbook-report-touch);
+}
+
+/* ------------------------------------------------------------------- Status */
+
+/* How far the reading is, or that the figures are out of date. */
+.spellbook-report-status {
+  flex: 0 0 auto;
+  padding-inline: var(--size-4-3);
+  color: var(--text-muted);
+  text-align: start;
+}
+
+.spellbook-report-progress-text,
+.spellbook-report-stale {
+  padding-block: var(--size-4-2) var(--size-2-2);
+}
+
+.spellbook-report-stale {
+  color: var(--text-warning);
+}
+
+.spellbook-report-progress {
+  height: var(--size-2-3);
+  margin-block-end: var(--size-4-2);
+  overflow: hidden;
+  border-radius: var(--radius-s);
+  background-color: var(--background-modifier-border);
+}
+
+.spellbook-report-progress-fill {
+  height: 100%;
+  border-radius: var(--radius-s);
+  background-color: var(--interactive-accent);
+}
+
+/* --------------------------------------------------------------------- Body */
+
+/* The figures and the words scroll inside this box. */
+.spellbook-report-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-block: var(--size-4-3);
+  padding-inline: var(--size-4-3);
+  overflow-y: auto;
+}
+
+/* On a phone, Obsidian's own bar floats over the bottom of the pane: the
+   last lines end above it, so that they can be read and tapped. Obsidian's
+   own figures where it gives them, and the plugin's own as the least. */
+.spellbook-report.spellbook-is-phone .spellbook-report-body {
+  padding-block-end: max(
+    var(--spellbook-report-bar-room),
+    calc(var(--mobile-navbar-height, 0px) + var(--safe-area-inset-bottom, 0px))
+  );
+}
+
+.spellbook-report-message {
+  padding-block: var(--size-4-2);
+  color: var(--text-muted);
+  text-align: start;
+}
+
+/* What the figures are about: "Folder", its name, "12 scenes". */
+.spellbook-report-subject {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--size-2-2) var(--size-4-2);
+  margin-block-end: var(--size-4-3);
+}
+
+.spellbook-report-subject-kind,
+.spellbook-report-subject-scenes {
+  color: var(--text-muted);
+}
+
+.spellbook-report-subject-title {
+  min-width: 0;
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+
+/* Scenes that could not be read. */
+.spellbook-report-unread {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-2-2) var(--size-4-2);
+  margin-block-end: var(--size-4-3);
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-2);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  color: var(--text-warning);
+}
+
+.spellbook-report-unread-title {
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ Figures */
+
+/* As many columns as there is room for. */
+.spellbook-report-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--spellbook-report-tile-width), 1fr));
+  gap: var(--size-4-2);
+}
+
+/* A narrow pane (a phone, or a slim side pane): the same figures, one under the other. */
+.spellbook-report.spellbook-is-narrow .spellbook-report-figures {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.spellbook-report-tile {
+  box-sizing: border-box;
+  min-width: 0;
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background-color: var(--background-secondary);
+  text-align: start;
+}
+
+.spellbook-report-tile-label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-report-tile-value {
+  color: var(--text-normal);
+  font-size: var(--font-ui-large);
+  font-weight: var(--font-semibold);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.spellbook-report-tile-note {
+  margin-block-start: var(--size-2-1);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+/* Under the number of pages: the field that says how many words go on one. */
+.spellbook-report-per-page {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-2-2) var(--size-4-2);
+  margin-block-start: var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-report-per-page-field {
+  width: 6em;
+  text-align: start;
+}
+
+.spellbook-report.spellbook-is-mobile .spellbook-report-per-page-field {
+  min-height: var(--spellbook-report-touch);
+}
+
+/* The reading grade has the most to say about itself: where there is room it
+   takes the whole width. */
+.spellbook-report-tile-grade {
+  grid-column: 1 / -1;
+}
+
+/* ----------------------------------------------------------- Most used words */
+
+.spellbook-report-words {
+  margin-block-start: var(--size-4-6);
+}
+
+.spellbook-report-words-heading {
+  margin-block-end: var(--size-4-2);
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  text-align: start;
+}
+
+/* The switch: a tick box with its words, both of which take the tap. */
+.spellbook-report-common {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  cursor: pointer;
+}
+
+.spellbook-report.spellbook-is-mobile .spellbook-report-common {
+  min-height: var(--spellbook-report-touch);
+}
+
+.spellbook-report-common-note {
+  margin-block: var(--size-2-1) var(--size-4-2);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-align: start;
+}
+
+.spellbook-report-word-table {
+  width: 100%;
+  max-width: 32em;
+  margin: 0;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.spellbook-report-word-head,
+.spellbook-report-word,
+.spellbook-report-word-count,
+.spellbook-report-word-share {
+  padding-block: var(--size-2-2);
+  padding-inline: var(--size-4-2);
+  border: 0;
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+  text-align: start;
+}
+
+.spellbook-report-word-head {
+  color: var(--text-muted);
+  font-weight: var(--font-medium);
+}
+
+/* A word is the writer's own text, in whichever language: a long one wraps. */
+.spellbook-report-word {
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+
+/* Numbers stand at the end of their cell, so that their digits line up. */
+.spellbook-report-word-number {
+  color: var(--text-muted);
+  text-align: end;
+  white-space: nowrap;
+}
+
+.spellbook-report-more {
+  margin-block-start: var(--size-4-3);
+}
+
+/* ------------------------------------------------------------ The scope menu */
+
+/* A folder inside another folder is set in, a step for each level. */
+.spellbook-report-menu-depth-1 {
+  padding-inline-start: var(--size-4-4);
+}
+
+.spellbook-report-menu-depth-2 {
+  padding-inline-start: var(--size-4-8);
+}
+
+.spellbook-report-menu-depth-3 {
+  padding-inline-start: var(--size-4-12);
+}

@@ -23,6 +23,7 @@ export {
   fleschKincaidGrade,
   lixIndex,
   pagesFor,
+  parseWordsPerPage,
   readWordsPerPage,
   readingGrade,
   wordKey,

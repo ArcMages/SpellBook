@@ -173,12 +173,20 @@ export function analyzeText(markdown: string, segmenter: WordSegmenter | null = 
 
 // ------------------------------------------------------------ pages and time
 
-/** What is kept as the words on a page: a whole number within sensible bounds, or the default. */
-export function readWordsPerPage(value: unknown): number {
+/**
+ * What was typed or stored as the words on a page: a whole number within
+ * sensible bounds, or null when it is not one.
+ */
+export function parseWordsPerPage(value: unknown): number | null {
   const number = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : Number.NaN;
-  if (!Number.isFinite(number)) return DEFAULT_WORDS_PER_PAGE;
+  if (!Number.isFinite(number)) return null;
   const whole = Math.round(number);
-  return whole < MIN_WORDS_PER_PAGE || whole > MAX_WORDS_PER_PAGE ? DEFAULT_WORDS_PER_PAGE : whole;
+  return whole < MIN_WORDS_PER_PAGE || whole > MAX_WORDS_PER_PAGE ? null : whole;
+}
+
+/** The words on a page to go by: what was stored when that is a sensible number, or the default. */
+export function readWordsPerPage(value: unknown): number {
+  return parseWordsPerPage(value) ?? DEFAULT_WORDS_PER_PAGE;
 }
 
 /** The pages a number of words fills: a page that was begun counts as a page. */
