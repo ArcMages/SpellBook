@@ -385,7 +385,7 @@ describe('deleteScene', () => {
   it('takes the scene out of the binder and moves its note to the trash', async () => {
     const { store, vault, indexPath } = await openSeeded(withFolder);
 
-    expect(await store.deleteScene('Manuscript/B.md')).toEqual({ status: 'done', value: undefined });
+    expect(await store.deleteScene('Manuscript/B.md')).toEqual({ status: 'done', value: { trashed: true } });
 
     expect(picture(store)).toBe('A Part[C] D');
     expect(vault.trashed).toEqual(['Novel/Manuscript/B.md']);
@@ -453,9 +453,20 @@ describe('deleteScene', () => {
 
   it('removes the entry of a scene whose note is already gone', async () => {
     const { store, vault, indexPath } = await openSeeded({ binder: ['Manuscript/A.md', 'Manuscript/Ghost.md'], scenes: { A: 1024 } });
-    expect((await store.deleteScene('Manuscript/Ghost.md')).status).toBe('done');
+    // The result says that nothing went to the trash, so that nobody is told it did.
+    expect(await store.deleteScene('Manuscript/Ghost.md')).toEqual({ status: 'done', value: { trashed: false } });
     expect(binderOnDisk(vault, indexPath)).toEqual(['Manuscript/A.md']);
     expect(vault.trashed).toEqual([]);
+  });
+
+  it('says that nothing was trashed when the note left the project before the delete got its turn', async () => {
+    const { store, vault, indexPath } = await openSeeded(withFolder);
+    // Another device moved the note out of the project; the binder still lists it.
+    vault.external.rename('Novel/Manuscript/B.md', 'Archive/B.md');
+    expect(await store.deleteScene('Manuscript/B.md')).toEqual({ status: 'done', value: { trashed: false } });
+    expect(JSON.stringify(binderOnDisk(vault, indexPath))).not.toContain('Manuscript/B.md');
+    expect(vault.trashed).toEqual([]);
+    expect(vault.has('Archive/B.md')).toBe(true); // it is still where it was moved to
   });
 
   it('reports a scene that is neither in the binder nor in the vault', async () => {
