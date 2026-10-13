@@ -277,6 +277,15 @@ export class ObsidianVault implements VaultPort {
     return this.changeText(this.requireFile(path), change);
   }
 
+  /**
+   * Replaces the text of a note that is there; it never creates one. Only
+   * the project store calls it, and only to restore a scene from a snapshot:
+   * see replaceSceneText in src/core/projectStore.ts.
+   */
+  async replaceText(path: string, change: (current: string) => string | null): Promise<boolean> {
+    return this.changeText(this.requireFile(path), (current) => change(current ?? ''));
+  }
+
   /** Read, change and save an existing file's text in one step; nothing is written when `change` gives null. */
   private async changeText(file: TFile, change: (current: string | null) => string | null): Promise<boolean> {
     let saved = false;

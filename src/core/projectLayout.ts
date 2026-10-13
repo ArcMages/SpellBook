@@ -29,3 +29,10 @@ export const EXPORT_EXTENSIONS: readonly string[] = ['md', 'html', 'docx'];
 
 /** The project's to-dos, as plain checkbox lines. */
 export const TODO_FILE = 'To-do.md';
+
+/**
+ * The folder the snapshots of scenes are kept in: earlier versions, saved as
+ * plain notes, one folder for each scene. It is not part of a new project:
+ * it is made the first time a snapshot is taken.
+ */
+export const SNAPSHOTS_FOLDER = 'Snapshots';
