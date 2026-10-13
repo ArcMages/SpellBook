@@ -154,6 +154,34 @@ export function eventHasEntity(event: TimelineEvent, wanted: ReadonlySet<string>
   return event.entities.some((target) => wanted.has(index.resolve(target).key));
 }
 
+/**
+ * How many of an event's chips to show on its card, so that every chip shown
+ * is whole. When they do not all fit, room is kept for the "+N" that counts
+ * the rest; a card too narrow for even one chip shows the "+N" alone.
+ *
+ * @param widths    how wide each chip is, in the order they are shown
+ * @param room      how much room there is for the chips and the "+N" together
+ * @param gap       the space between one chip and the next
+ * @param moreWidth how wide the "+N" is
+ * @param uncounted how many more entities the event names than there are chips (they are counted by the "+N" whatever fits)
+ * @returns how many chips to show, from the first
+ */
+export function chipsThatFit(widths: readonly number[], room: number, gap: number, moreWidth: number, uncounted = 0): number {
+  // A hair of slack: widths are measured in whole pixels.
+  const fits = (needed: number): boolean => needed <= room + 0.5;
+  const all = widths.reduce((sum, width) => sum + width, 0) + gap * Math.max(0, widths.length - 1);
+  if (uncounted <= 0 && fits(all)) return widths.length;
+  const most = uncounted > 0 ? widths.length : widths.length - 1;
+  let shown = 0;
+  let used = moreWidth;
+  while (shown < most) {
+    used += (widths[shown] as number) + gap;
+    if (!fits(used)) break;
+    shown++;
+  }
+  return shown;
+}
+
 const isLink = (text: string): boolean => /^!?\[\[.*\]\]$/.test(text) || /^\[[^\]]*\]\(.+\)$/.test(text);
 
 /**

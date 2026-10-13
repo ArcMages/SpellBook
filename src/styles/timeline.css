@@ -659,12 +659,58 @@
   color: var(--text-faint);
 }
 
+/* The entities of a card take the room the date and the tags leave: as many
+   whole chips as fit, then a "+N" for the rest. How wide this is does not
+   depend on what is in it, so that it can be measured. */
 .spellbook-timeline-card-entities {
   display: flex;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   gap: var(--size-2-1);
   min-width: 0;
   overflow: hidden;
+}
+
+/* With entities to show, the tags leave them half the line. */
+.spellbook-timeline-card-meta.spellbook-has-entities .spellbook-timeline-card-tags {
+  max-inline-size: 50%;
+}
+
+/* The chips of a card. A chip is shown whole or not at all, never cut down
+   to a letter or two: the box is one line high and its chips wrap, so a chip
+   that does not fit goes to a second line, which is out of sight. (The
+   invisible first piece makes also a first chip wrap when it is too wide.)
+   The view then counts the chips that fit and says so in the "+N". */
+.spellbook-timeline-card-chips {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  column-gap: var(--size-2-1);
+  row-gap: var(--size-4-4);
+  min-width: 0;
+  block-size: calc(1em * var(--line-height-tight) + 2 * var(--border-width));
+  overflow: hidden;
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-timeline-card-chips::before {
+  flex: 0 0 auto;
+  inline-size: 0;
+  margin-inline-end: calc(-1 * var(--size-2-1));
+  content: "";
+}
+
+.spellbook-timeline-card-chips .spellbook-timeline-entity-chip {
+  flex: 0 0 auto;
+  max-width: none;
+  box-sizing: border-box;
+  block-size: calc(1em * var(--line-height-tight) + 2 * var(--border-width));
+  font-size: 1em;
+}
+
+/* Fitted by the view: the chips left are those that fit, on one line. */
+.spellbook-timeline-card-chips.spellbook-is-fitted {
+  flex-wrap: nowrap;
 }
 
 .spellbook-timeline-entity-more {

@@ -9,6 +9,7 @@ import {
   ENTITIES_KEY,
   WORLD_FOLDER,
   calendarToIndexValue,
+  chipsThatFit,
   createEntityIndex,
   describeEventProblem,
   eventEntities,
@@ -151,6 +152,33 @@ describe('changing the entities of a note', () => {
     expect(setEntitiesPatch({ entities: [[['Mara']]] }, [keyOf('Mara')], index)).toEqual({ entities: ['[[Mara]]'] });
     // A key that no note has cannot be added.
     expect(setEntitiesPatch({}, ['name:nobody'], index)).toEqual({});
+  });
+});
+
+describe('the chips that fit on a card', () => {
+  it('are all of them when there is room, with no room kept for a "+N"', () => {
+    expect(chipsThatFit([40, 34, 60], 138, 2, 20)).toBe(3);
+    expect(chipsThatFit([40], 40, 2, 20)).toBe(1);
+    expect(chipsThatFit([], 0, 2, 20)).toBe(0);
+  });
+
+  it('are as many whole ones as fit beside the "+N" when there is not', () => {
+    expect(chipsThatFit([40, 34, 60], 137, 2, 20)).toBe(2); // 40 + 2 + 34 + 2 + 20
+    expect(chipsThatFit([40, 34, 60], 98, 2, 20)).toBe(2);
+    expect(chipsThatFit([40, 34, 60], 97, 2, 20)).toBe(1);
+    expect(chipsThatFit([40, 34, 60], 62, 2, 20)).toBe(1);
+    expect(chipsThatFit([40, 34, 60], 61, 2, 20)).toBe(0);
+    // Too narrow even for the "+N": still no chip in part.
+    expect(chipsThatFit([40, 34, 60], 5, 2, 20)).toBe(0);
+  });
+
+  it('keep room for the "+N" when the event names more entities than there are chips', () => {
+    expect(chipsThatFit([40, 34, 60], 138, 2, 20, 2)).toBe(2);
+    expect(chipsThatFit([40, 34, 60], 160, 2, 20, 2)).toBe(3);
+  });
+
+  it('never skip a chip to show a later, shorter one: the order is the note\'s', () => {
+    expect(chipsThatFit([90, 10, 10], 60, 2, 20)).toBe(0);
   });
 });
 

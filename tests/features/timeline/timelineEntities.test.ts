@@ -107,6 +107,100 @@ describe('entities on event cards', () => {
     expect(one(card, 'spellbook-timeline-entity-more').text).toBe('+2');
   });
 
+  describe('on a narrow card', () => {
+    const NAMES = ['Mara', 'Tom', 'Saltwick', 'Dunmore', 'Eve'];
+
+    /** A card with five entities: an event that lasts, so that its card is as long as the zoom makes it. */
+    async function crowded(names: readonly string[] = NAMES): Promise<{ s: Stage; card: FakeElement }> {
+      const world = names.map((name) => `Novel/World/${name}.md`);
+      const events = [note(WAR, { date: '1923-04-12', end: '1923-06-12', timelines: ['Main plot'], entities: names.map((name) => `[[${name}]]`) })];
+      const s = await open(new FakeHost(peopled({ world, events })));
+      return { s, card: cardOf(s, 'The war begins') };
+    }
+
+    /** What the page would say when asked how wide things are: the room for the chips, each chip, and the "+N". */
+    function lay(card: FakeElement, room: number, chips: readonly number[], more = 20): void {
+      Object.assign(one(card, 'spellbook-timeline-card-entities'), { clientWidth: room });
+      card.withClass('spellbook-timeline-entity-chip').forEach((chip, at) => Object.assign(chip, { offsetWidth: chips[at] }));
+      Object.assign(one(card, 'spellbook-timeline-entity-more'), { offsetWidth: more });
+    }
+
+    /** The writer zooms: the card gets another width, and its chips are fitted to it. */
+    async function refit(s: Stage, zoom: 'Zoom in' | 'Zoom out'): Promise<void> {
+      click(button(s, zoom));
+      await settle(s);
+    }
+
+    const visible = (card: FakeElement): string[] =>
+      card
+        .withClass('spellbook-timeline-entity-chip')
+        .filter((chip) => !chip.hasClass('spellbook-is-hidden'))
+        .map((chip) => chip.text);
+    const moreOf = (card: FakeElement): FakeElement => one(card, 'spellbook-timeline-entity-more');
+
+    it('shows as many whole chips as fit, then a "+N" whose title lists the rest', async () => {
+      const { s, card } = await crowded();
+      // Mara 40, Tom 34, Saltwick 60: with the gaps and the "+N" (20), two fit in 100.
+      lay(card, 100, [40, 34, 60]);
+      await refit(s, 'Zoom in');
+      expect(visible(card)).toEqual(['Mara', 'Tom']);
+      expect(moreOf(card).text).toBe('+3');
+      expect(moreOf(card).hasClass('spellbook-is-hidden')).toBe(false);
+      expect(moreOf(card).attrs['title']).toBe('Saltwick, Dunmore, Eve');
+
+      // Narrower still: one chip.
+      lay(card, 64, [40, 34, 60]);
+      await refit(s, 'Zoom out');
+      expect(visible(card)).toEqual(['Mara']);
+      expect(moreOf(card).text).toBe('+4');
+      expect(moreOf(card).attrs['title']).toBe('Tom, Saltwick, Dunmore, Eve');
+    });
+
+    it('shows the "+N" alone rather than a chip cut down to a letter or two', async () => {
+      const { s, card } = await crowded();
+      lay(card, 50, [40, 34, 60]);
+      await refit(s, 'Zoom in');
+      expect(visible(card)).toEqual([]);
+      expect(moreOf(card).text).toBe('+5');
+      expect(moreOf(card).attrs['title']).toBe(NAMES.join(', '));
+    });
+
+    it('brings the chips back when the card is wide again', async () => {
+      const { s, card } = await crowded();
+      lay(card, 50, [40, 34, 60]);
+      await refit(s, 'Zoom in');
+      lay(card, 300, [40, 34, 60]);
+      await refit(s, 'Zoom out');
+      expect(visible(card)).toEqual(['Mara', 'Tom', 'Saltwick']);
+      expect(moreOf(card).text).toBe('+2');
+      expect(moreOf(card).attrs['title']).toBe('Dunmore, Eve');
+    });
+
+    it('needs no "+N" when every entity is on show, and shows one when the last does not fit', async () => {
+      const { s, card } = await crowded(['Mara', 'Tom']);
+      expect(moreOf(card).hasClass('spellbook-is-hidden')).toBe(true);
+      // Both fit exactly when no room is kept for a "+N"...
+      lay(card, 76, [40, 34]);
+      await refit(s, 'Zoom in');
+      expect(visible(card)).toEqual(['Mara', 'Tom']);
+      expect(moreOf(card).hasClass('spellbook-is-hidden')).toBe(true);
+      expect(moreOf(card).attrs['title']).toBeUndefined();
+      // ...and a little less room shows one, and counts the other.
+      lay(card, 70, [40, 34]);
+      await refit(s, 'Zoom out');
+      expect(visible(card)).toEqual(['Mara']);
+      expect(moreOf(card).text).toBe('+1');
+      expect(moreOf(card).attrs['title']).toBe('Tom');
+    });
+
+    it('leaves every chip in place where the page cannot be measured', async () => {
+      const { s, card } = await crowded();
+      await refit(s, 'Zoom in');
+      expect(visible(card)).toEqual(['Mara', 'Tom', 'Saltwick']);
+      expect(moreOf(card).text).toBe('+2');
+    });
+  });
+
   it('draws a card again when an entity\'s note is renamed', async () => {
     const host = new FakeHost(peopled());
     const s = await open(host);
