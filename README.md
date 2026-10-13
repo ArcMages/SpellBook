@@ -4,7 +4,49 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 
 **Status:** version 0.1.0, pre-release. Every screen has been looked at on a Mac in a test copy of Obsidian, and most of them in Obsidian's phone layout at phone size. Nothing has been tried on a real iPhone or iPad yet. Spellbook is not in Obsidian's community plugin list. See [Known limits](docs/guide.md#known-limits).
 
-The full user guide is in [docs/guide.md](docs/guide.md).
+## Learn
+
+- [Tutorial: your first novel in Spellbook](docs/tutorial.md). A walk-through from an empty vault to a Word file for a reader, in numbered steps.
+- [User guide](docs/guide.md). The reference: every screen, every command, how your writing is stored, and the known limits.
+- [Customising: making Spellbook your own](docs/customising.md). Colour schemes, keyboard shortcuts, the bottom bar, statuses and labels, and where each setting lives.
+
+## Screens
+
+### Binder, scene and inspector
+
+![The binder on the left, a scene open in the middle and the inspector on the right](docs/images/binder-scene-inspector.png)
+
+*The book as a tree in the left sidebar, a scene open in the editor, and the scene's synopsis, status, label and target in the right sidebar.*
+
+### Corkboard
+
+![The corkboard with index cards showing titles, synopses, statuses and coloured labels](docs/images/corkboard.png)
+
+*One index card per scene, with its title, synopsis, status, coloured label and word count.*
+
+### Timeline
+
+![The timeline with coloured lanes and event cards along a time axis](docs/images/timeline.png)
+
+*Story events as cards in named, coloured lanes on one time axis.*
+
+### Novel view
+
+![The novel view showing several scenes as one continuous page](docs/images/novel-view.png)
+
+*The manuscript as one continuous page to read through.*
+
+### World
+
+![The World screen with cards for characters, places and items](docs/images/world.png)
+
+*A card for each character, place, faction and item of the story.*
+
+### On a phone
+
+![The World screen in phone layout, with one column of cards](docs/images/phone-world.png)
+
+*The World screen in Obsidian's phone layout: the same cards in one column.*
 
 ## Features
 
