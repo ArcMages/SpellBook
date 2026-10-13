@@ -34,11 +34,12 @@ import {
   sceneRef,
   scenesIn,
 } from './binderTree';
-import { newFolderId, sanitiseFileName, uniqueName } from './names';
+import { newFolderId, sanitiseFileName, tidyDisplayName, uniqueName } from './names';
 import { ORDER_STEP, planOrderKeys, readOrder } from './orderKeys';
 import type { OrderedScene } from './orderKeys';
 import {
   clashKey,
+  comparePaths,
   isInside,
   isMarkdownPath,
   isSafeRelativePath,
@@ -57,10 +58,14 @@ import {
   readTitle,
   writeBinder,
 } from './projectIndex';
+import { MANUSCRIPT_FOLDER, PROJECT_FOLDERS, TODO_FILE } from './projectLayout';
+import { plantSeed } from './projectSeed';
+import type { PlantedSeed, ProjectSeed } from './projectSeed';
 import { DEFAULT_SCENE_NAME, newSceneFrontmatter } from './scene';
 import type {
   Binder,
   BinderNode,
+  CreatedProject,
   Frontmatter,
   IntentResult,
   NodeRef,
@@ -75,11 +80,7 @@ import type {
 import { VaultFileMissingError } from './vaultPort';
 import type { MarkdownFileInfo, VaultEvent, VaultPort } from './vaultPort';
 
-/** The folder scenes live in. Notes here that are not in the binder show as Unfiled. */
-export const MANUSCRIPT_FOLDER = 'Manuscript';
-/** The folders every new project gets. */
-export const PROJECT_FOLDERS: readonly string[] = [MANUSCRIPT_FOLDER, 'Timeline', 'Research', 'Stats'];
-export const TODO_FILE = 'To-do.md';
+export { MANUSCRIPT_FOLDER, PROJECT_FOLDERS, TODO_FILE } from './projectLayout';
 
 /** How long to wait after the last change before writing order keys into scene notes. */
 export const ORDER_DEBOUNCE_MS = 1500;
@@ -88,6 +89,17 @@ export const RENAME_SETTLE_MS = 250;
 
 const READ_ONLY_MESSAGE =
   'This project is read-only because its index could not be understood. Nothing was changed.';
+
+/** Choices for createProject(). */
+export interface NewProjectOptions {
+  /** The scenes, binder folders and notes the project starts with. Default: none. */
+  readonly seed?: ProjectSeed;
+  /**
+   * What to do when the name is taken. false (the default) refuses; true
+   * creates the project as "<name> 2", "<name> 3" and so on instead.
+   */
+  readonly numberIfTaken?: boolean;
+}
 
 export interface StoreDeps {
   readonly vault: VaultPort;
@@ -158,11 +170,6 @@ function summaryOf(known: KnownProject): ProjectSummary {
     folder: parentPath(known.indexPath),
     title: known.explicitTitle ?? noteTitle(known.indexPath),
   };
-}
-
-/** Folder names are free text, but a line break or a run of spaces in one helps nobody. */
-function tidyDisplayName(name: string): string {
-  return name.replace(/\s+/g, ' ').trim();
 }
 
 const END_OF_BINDER: Placement = { at: 'end', parentId: null };
@@ -304,16 +311,25 @@ export class ProjectStore {
   /**
    * Create a new project: a folder named after it, inside `parentFolder`
    * ("" = the vault root), holding the index note, To-do.md and the folders
-   * Manuscript, Timeline, Research and Stats. Refuses when something with
-   * that name is already there.
+   * Manuscript, Timeline, Research and Stats, plus whatever `options.seed`
+   * describes (scenes, binder folders, notes).
+   *
+   * Refuses when something with that name is already there, unless
+   * `options.numberIfTaken` asks for "<name> 2", "<name> 3" and so on. Only
+   * ever creates; never changes or replaces an existing file. The new project
+   * is not opened.
    */
-  createProject(name: string, parentFolder = ''): Promise<IntentResult<ProjectSummary>> {
-    return this.run(async (): Promise<IntentResult<ProjectSummary>> => {
-      const title = tidyDisplayName(name);
-      if (title === '') return refused('invalid-name', 'Give the project a name.');
-      const folderName = sanitiseFileName(title, '');
-      if (folderName === '') {
-        return refused('invalid-name', `"${title}" has no characters that can be used in a folder name.`);
+  createProject(
+    name: string,
+    parentFolder = '',
+    options: NewProjectOptions = {},
+  ): Promise<IntentResult<CreatedProject>> {
+    return this.run(async (): Promise<IntentResult<CreatedProject>> => {
+      const typed = tidyDisplayName(name);
+      if (typed === '') return refused('invalid-name', 'Give the project a name.');
+      const baseName = sanitiseFileName(typed, '');
+      if (baseName === '') {
+        return refused('invalid-name', `"${typed}" has no characters that can be used in a folder name.`);
       }
 
       const parent = joinPath(parentFolder);
@@ -335,13 +351,22 @@ export class ProjectStore {
         }
       }
 
+      let folderName = baseName;
+      let title = typed;
+      if (options.numberIfTaken === true) {
+        folderName = uniqueName(baseName, (candidate) => this.vault.exists(joinPath(parent, candidate)));
+        // The title gets the same " 2" as the folder, so the two can be told apart by name.
+        title = `${typed}${folderName.slice(baseName.length)}`;
+      }
       const folder = joinPath(parent, folderName);
       if (this.vault.exists(folder)) {
         return refused('exists', `There is already something called "${folderName}" here. Choose another name.`);
       }
 
+      const seed = options.seed;
       let step = 'the project folder';
       let indexPath: string;
+      let planted: PlantedSeed = { binder: [], scenes: [] };
       try {
         await this.vault.createFolder(folder);
         step = 'the project index note';
@@ -355,7 +380,16 @@ export class ProjectStore {
           await this.vault.createFolder(joinPath(folder, sub));
         }
         step = 'the to-do note';
-        await this.vault.createFile(joinPath(folder, TODO_FILE), '');
+        await this.vault.createFile(joinPath(folder, TODO_FILE), seed?.todo ?? '');
+        if (seed) {
+          planted = await plantSeed(this.vault, folder, seed, {
+            today: this.deps.today(),
+            random: this.deps.random,
+            onStep: (what) => {
+              step = what;
+            },
+          });
+        }
       } catch (error) {
         return failed(
           `The project was only partly created: ${step} could not be made (${messageOf(error)}). ` +
@@ -363,11 +397,36 @@ export class ProjectStore {
         );
       }
 
+      if (planted.binder.length > 0) {
+        const problem = await this.listInNewIndex(indexPath, planted.binder);
+        if (problem !== null) {
+          return failed(
+            `The project's notes were created, but its binder could not be saved (${problem}). ` +
+              `Nothing was deleted; the scenes are in "${joinPath(folder, MANUSCRIPT_FOLDER)}" and show under Unfiled.`,
+          );
+        }
+      }
+
       const known: KnownProject = { indexPath, explicitTitle: title };
       this.projects.set(indexPath, known);
       this.emit({ type: 'projects' });
-      return done(summaryOf(known));
+      return done({ ...summaryOf(known), scenes: planted.scenes });
     });
+  }
+
+  /**
+   * Folders a new project can be created in: "" (the vault root) first, then
+   * every folder that is not part of an existing project, each followed by
+   * the folders inside it.
+   */
+  listParentFolders(): string[] {
+    const projectFolders = [...this.projects.values()]
+      .map((known) => summaryOf(known).folder)
+      .filter((folder) => folder !== '');
+    const free = this.vault
+      .listFolders()
+      .filter((folder) => !projectFolders.some((taken) => folder === taken || isInside(taken, folder)));
+    return ['', ...free.sort(comparePaths)];
   }
 
   /** Create a scene note in Manuscript/ and put it in the binder. */
@@ -718,6 +777,31 @@ export class ProjectStore {
   }
 
   // ----------------------------------------------------------- index on disk
+
+  /**
+   * Write the binder of a project that was created a moment ago, in one
+   * read-modify-write of its index note. Whatever the index already lists (it
+   * is normally empty) is kept in front. Returns null when saved, or the
+   * reason it could not be.
+   */
+  private async listInNewIndex(indexPath: string, binder: Binder): Promise<string | null> {
+    let problem: string | null = null;
+    try {
+      await this.vault.updateFrontmatter(indexPath, (frontmatter) => {
+        problem = null;
+        const parsed = isProjectIndex(frontmatter) ? parseProjectIndex(frontmatter) : null;
+        if (parsed === null || !parsed.ok) {
+          problem = 'the index note changed while the project was being created';
+          return false;
+        }
+        writeBinder(frontmatter, [...parsed.binder, ...binder]);
+        return true;
+      });
+    } catch (error) {
+      return messageOf(error);
+    }
+    return problem;
+  }
 
   private whyNotWritable(
     active: ActiveProject | null,

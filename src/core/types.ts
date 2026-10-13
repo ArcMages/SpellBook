@@ -56,6 +56,15 @@ export interface ProjectSummary {
   readonly title: string;
 }
 
+/** A project that was just created. */
+export interface CreatedProject extends ProjectSummary {
+  /**
+   * The scenes it was created with, in manuscript order, as paths relative to
+   * the project folder. Empty for a project created without any.
+   */
+  readonly scenes: readonly string[];
+}
+
 /** One row of the binder as the views see it. */
 export type TreeNode =
   | {

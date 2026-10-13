@@ -68,6 +68,14 @@ export function sanitiseFileName(raw: string, fallback: string = DEFAULT_NAME): 
 }
 
 /**
+ * Tidy a display name (a project title or a binder folder name). These are
+ * free text in any language, but a line break or a run of spaces helps nobody.
+ */
+export function tidyDisplayName(name: string): string {
+  return name.replace(/\s+/g, ' ').trim();
+}
+
+/**
  * Make a name unique by adding " 2", " 3" and so on.
  *
  * @param base    the wanted name

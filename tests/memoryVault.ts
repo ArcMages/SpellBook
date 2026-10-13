@@ -259,6 +259,11 @@ export class MemoryVault implements VaultPort {
     return out;
   }
 
+  listFolders(): string[] {
+    // In the order they were made: Obsidian promises no particular order either.
+    return [...this.folders];
+  }
+
   exists(path: string): boolean {
     const wanted = clashKey(path);
     for (const file of this.files.keys()) if (clashKey(file) === wanted) return true;

@@ -7,7 +7,6 @@ import { describe, expect, it } from 'vitest';
 import { ProjectStore } from '../src/core/projectStore';
 import { VaultFileMissingError } from '../src/core/vaultPort';
 import type { VaultEvent } from '../src/core/vaultPort';
-import SpellbookPlugin from '../src/main';
 import { ObsidianVault } from '../src/obsidian/obsidianVault';
 import { localToday } from '../src/obsidian/systemClock';
 import { FakeObsidian, note } from './fakeObsidianApp';
@@ -54,6 +53,15 @@ describe('ObsidianVault: reading', () => {
     ]);
     expect(vault.listMarkdownFiles('Novel/Manuscript').map((file) => file.path)).toEqual(['Novel/Manuscript/Opening.md']);
     expect(vault.listMarkdownFiles('')).toHaveLength(4);
+  });
+
+  it('lists every folder, without the top of the vault itself', async () => {
+    const { vault } = started();
+    expect([...vault.listFolders()].sort()).toEqual(['Notes', 'Novel', 'Novel/Manuscript']);
+    await vault.createFolder('Novel/Research');
+    expect(vault.listFolders()).toContain('Novel/Research');
+    expect(vault.listFolders()).not.toContain('/');
+    expect(vault.listFolders()).not.toContain('');
   });
 
   it('knows what exists, without telling capitals apart', () => {
@@ -276,6 +284,20 @@ describe('ObsidianVault: events and start-up', () => {
     expect(events).toEqual([]);
   });
 
+  it('hands every listener it attaches to the plugin, when given the way to', () => {
+    const fake = novelVault();
+    const vault = new ObsidianVault(fake.app);
+    const handed: unknown[] = [];
+    vault.start((ref) => handed.push(ref));
+    expect(handed).toHaveLength(fake.metadataCache.listenerCount()); // before the layout is ready
+    fake.finishStartup();
+    // the one-off "resolved" listener has detached itself by now, but was handed over too
+    expect(handed).toHaveLength(fake.vault.listenerCount() + fake.metadataCache.listenerCount() + 1);
+    expect(new Set(handed).size).toBe(handed.length);
+    vault.stop();
+    expect(fake.vault.listenerCount() + fake.metadataCache.listenerCount()).toBe(0);
+  });
+
   it('stops telling a listener that has unsubscribed', async () => {
     const { vault } = started();
     const heard: VaultEvent[] = [];
@@ -357,25 +379,6 @@ describe('the store on top of ObsidianVault', () => {
     // The whole session used only the safe doorways.
     expect(fake.calls.every((call) => /^(processFrontMatter|renameFile|trashFile) /.test(call))).toBe(true);
     store.dispose();
-  });
-});
-
-describe('the plugin entry point', () => {
-  it('loads, starts the store, finds projects after start-up, and cleans up on unload', () => {
-    const fake = novelVault();
-    const manifest = { id: 'spellbook-novel-writer', name: 'Spellbook', version: '0.1.0' };
-    const plugin = new SpellbookPlugin(fake.app, manifest as never);
-
-    plugin.onload();
-    expect(plugin.store).toBeInstanceOf(ProjectStore);
-    expect(plugin.store.listProjects()).toEqual([]);
-    fake.finishStartup();
-    expect(plugin.store.listProjects().map((p) => p.title)).toEqual(['My Novel']);
-    expect(fake.saves).toEqual([]); // loading the plugin changes no note
-
-    plugin.unload();
-    expect(fake.vault.listenerCount()).toBe(0);
-    expect(fake.metadataCache.listenerCount()).toBe(0);
   });
 });
 

@@ -55,6 +55,9 @@ export interface VaultPort {
    */
   listMarkdownFiles(under?: string): MarkdownFileInfo[];
 
+  /** Every folder in the vault, as vault paths, without the root itself. Cheap; reads no files. */
+  listFolders(): string[];
+
   /**
    * Whether a file or folder is at this path. Upper and lower case are not
    * told apart ("letter.md" exists when "Letter.md" does), because that is

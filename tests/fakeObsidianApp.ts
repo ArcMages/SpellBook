@@ -18,13 +18,15 @@ import type { App, CachedMetadata, TAbstractFile } from 'obsidian';
 interface Ref {
   name: string;
   callback: (...args: unknown[]) => unknown;
+  /** Where the listener is attached; Obsidian uses this to detach events given to registerEvent. */
+  e: FakeEvents;
 }
 
 class FakeEvents {
   private readonly refs = new Set<Ref>();
 
   on(name: string, callback: (...args: never[]) => unknown): Ref {
-    const ref: Ref = { name, callback: callback as (...args: unknown[]) => unknown };
+    const ref: Ref = { name, callback: callback as (...args: unknown[]) => unknown, e: this };
     this.refs.add(ref);
     return ref;
   }
@@ -80,6 +82,12 @@ class FakeVault extends FakeEvents {
   getFolderByPath(path: string): TFolder | null {
     const entry = this.entries.get(path);
     return entry instanceof TFolder ? entry : null;
+  }
+
+  getAllFolders(includeRoot = false): TFolder[] {
+    return [...this.entries.values()].filter(
+      (entry): entry is TFolder => entry instanceof TFolder && (includeRoot || entry !== this.root),
+    );
   }
 
   getMarkdownFiles(): TFile[] {
@@ -216,7 +224,17 @@ class FakeMetadataCache extends FakeEvents {
 
 class FakeWorkspace {
   layoutReady = false;
+  /** Paths of the notes opened through getLeaf().openFile(), in order. */
+  readonly opened: string[] = [];
   private waiting: Array<() => unknown> = [];
+
+  getLeaf(_newLeaf?: boolean): { openFile(file: TFile): Promise<void> } {
+    return {
+      openFile: async (file: TFile): Promise<void> => {
+        this.opened.push(file.path);
+      },
+    };
+  }
 
   onLayoutReady(callback: () => unknown): void {
     if (this.layoutReady) callback();

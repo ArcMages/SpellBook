@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 const thisFile = fileURLToPath(import.meta.url);
 const srcDir = path.resolve(path.dirname(thisFile), '..', 'src');
+const stylesFile = path.resolve(path.dirname(thisFile), '..', 'styles.css');
 
 function listFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -46,7 +47,12 @@ describe('source layout', () => {
       'core/wordCount.ts',
       'core/vaultPort.ts',
       'core/projectStore.ts',
+      'core/projectSeed.ts',
+      'core/sampleProject.ts',
+      'core/newProject.ts',
       'obsidian/obsidianVault.ts',
+      'obsidian/openNote.ts',
+      'ui/createProjectModal.ts',
     ]) {
       expect(names, expected).toContain(expected);
     }
@@ -139,6 +145,25 @@ describe('the whole plugin', () => {
     }
   });
 
+  it('uses no regular-expression lookbehind', () => {
+    // A lookbehind stops the whole plugin from loading on iPhones and iPads older than iOS 16.4.
+    const lookbehind = /\(\?<[=!]/;
+    for (const file of allFiles) {
+      expect(lookbehind.test(readFileSync(file, 'utf8')), relative(file)).toBe(false);
+    }
+    expect(lookbehind.test(['/(?', '<=a)b/'].join(''))).toBe(true);
+    expect(lookbehind.test(['/(?', '<!a)b/'].join(''))).toBe(true);
+    expect(lookbehind.test('/(?<name>a)(?=b)(?!c)/')).toBe(false); // named groups and lookaheads are fine
+  });
+
+  it('only the views and windows touch the screen, never the core or the vault doorway', () => {
+    for (const file of [...coreFiles, ...adapterFiles]) {
+      const code = codeOf(file);
+      expect(/\b(createEl|createDiv|createSpan|contentEl|containerEl)\b/.test(code), relative(file)).toBe(false);
+      expect(/from\s+['"]\.\.\/(ui|views)\//.test(code), relative(file)).toBe(false);
+    }
+  });
+
   it('contains no invisible or direction-changing characters', () => {
     // Such characters can make code read differently from what it does.
     for (const file of allFiles) {
@@ -157,5 +182,33 @@ describe('the whole plugin', () => {
         .map((code) => `U+${code.toString(16).toUpperCase().padStart(4, '0')}`);
       expect(odd, relative(file)).toEqual([]);
     }
+  });
+});
+
+describe('styles.css', () => {
+  const css = readFileSync(stylesFile, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => ({
+    selectors: (match[1] ?? '').split(',').map((selector) => selector.trim()),
+    body: match[2] ?? '',
+  }));
+
+  it('only styles things inside elements the plugin itself marked', () => {
+    for (const rule of rules) {
+      for (const selector of rule.selectors) {
+        expect(selector.startsWith('.spellbook-'), selector).toBe(true);
+      }
+    }
+  });
+
+  it('takes its colours from the theme, never from fixed values', () => {
+    for (const rule of rules) {
+      expect(/#[0-9a-fA-F]{3,8}\b|\b(rgb|rgba|hsl|hsla)\(/.test(rule.body), rule.selectors.join(', ')).toBe(false);
+    }
+  });
+
+  it('the checks themselves work', () => {
+    expect(rules.length).toBeGreaterThan(0);
+    expect(/#[0-9a-fA-F]{3,8}\b|\b(rgb|rgba|hsl|hsla)\(/.test('color: #fff;')).toBe(true);
+    expect(/#[0-9a-fA-F]{3,8}\b|\b(rgb|rgba|hsl|hsla)\(/.test('color: var(--text-normal);')).toBe(false);
   });
 });

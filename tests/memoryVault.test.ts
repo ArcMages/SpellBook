@@ -27,6 +27,16 @@ describe('MemoryVault as a VaultPort', () => {
     expect(vault.listMarkdownFiles('A').map((file) => file.path)).toEqual(['A/One.md', 'A/Sub/Two.md']);
   });
 
+  it('lists every folder, without the top of the vault, in no promised order', async () => {
+    const vault = new MemoryVault().seed('B/Sub/Two.md').seedFolder('A').seed('Loose.md');
+    expect(vault.listFolders()).toEqual(['B', 'B/Sub', 'A']);
+    await vault.createFolder('A/New');
+    expect(vault.listFolders()).toEqual(['B', 'B/Sub', 'A', 'A/New']);
+    vault.external.delete('B');
+    expect(vault.listFolders()).toEqual(['A', 'A/New']);
+    expect(new MemoryVault().listFolders()).toEqual([]);
+  });
+
   it('hands out copies: changing what it returns does not change the vault', async () => {
     const vault = new MemoryVault().seed('Note.md', { frontmatter: { list: [1, 2] } });
     const read = await vault.readFrontmatter('Note.md');

@@ -91,3 +91,23 @@ export function normaliseRelativePath(raw: string): string | null {
   const tidy = segments.join('/');
   return tidy.trim() === '' ? null : tidy;
 }
+
+/**
+ * Order for showing folders as a list: by name, one step of the path at a
+ * time, so that everything inside a folder comes straight after it
+ * ("Writing", "Writing/Drafts", "Writing notes").
+ */
+export function comparePaths(a: string, b: string): number {
+  const left = a.split('/');
+  const right = b.split('/');
+  const shared = Math.min(left.length, right.length);
+  for (let i = 0; i < shared; i++) {
+    const l = left[i] as string;
+    const r = right[i] as string;
+    if (l === r) continue;
+    const byName = l.localeCompare(r);
+    if (byName !== 0) return byName;
+    return l < r ? -1 : 1;
+  }
+  return left.length - right.length;
+}

@@ -374,7 +374,7 @@ describe('createProject', () => {
 
     expect(result).toEqual({
       status: 'done',
-      value: { indexPath: 'Writing/My Novel/My Novel.md', folder: 'Writing/My Novel', title: 'My Novel' },
+      value: { indexPath: 'Writing/My Novel/My Novel.md', folder: 'Writing/My Novel', title: 'My Novel', scenes: [] },
     });
     expect(vault.writes.map((write) => `${write.op} ${write.path}`)).toEqual([
       'createFolder Writing/My Novel',
@@ -440,14 +440,14 @@ describe('createProject', () => {
   it('keeps the title as typed but cleans the folder name', async () => {
     const { store, vault } = makeStore();
     const created = valueOf(await store.createProject('Who: Me?'));
-    expect(created).toEqual({ indexPath: 'Who Me/Who Me.md', folder: 'Who Me', title: 'Who: Me?' });
+    expect(created).toEqual({ indexPath: 'Who Me/Who Me.md', folder: 'Who Me', title: 'Who: Me?', scenes: [] });
     expect(vault.frontmatterOf('Who Me/Who Me.md')?.['title']).toBe('Who: Me?');
   });
 
   it('accepts a title in Hebrew', async () => {
     const { store, vault } = makeStore();
     const created = valueOf(await store.createProject('הרומן שלי'));
-    expect(created).toEqual({ indexPath: 'הרומן שלי/הרומן שלי.md', folder: 'הרומן שלי', title: 'הרומן שלי' });
+    expect(created).toEqual({ indexPath: 'הרומן שלי/הרומן שלי.md', folder: 'הרומן שלי', title: 'הרומן שלי', scenes: [] });
     expect(vault.hasFolder('הרומן שלי/Manuscript')).toBe(true);
   });
 

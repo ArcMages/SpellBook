@@ -7,3 +7,10 @@
  *     plugin follows the user's theme in light and dark mode;
  *   - nothing may depend on hover alone, and every layout must work at phone width.
  */
+
+/* The "Create project" window: on a narrow screen a long folder name must not
+   push the form wider than the window. */
+.spellbook-create-project .setting-item-control input[type='text'],
+.spellbook-create-project .setting-item-control select {
+  max-width: 100%;
+}

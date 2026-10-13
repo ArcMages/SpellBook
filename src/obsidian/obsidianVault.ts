@@ -27,6 +27,7 @@ export class ObsidianVault implements VaultPort {
   private readonly listeners = new Set<VaultListener>();
   private readonly refs: Array<{ source: Events; ref: EventRef }> = [];
   private started = false;
+  private registerEvent: ((ref: EventRef) => void) | null = null;
 
   constructor(app: App) {
     this.app = app;
@@ -44,10 +45,15 @@ export class ObsidianVault implements VaultPort {
    *   - when the workspace layout is ready (all files are listed), and
    *   - the first time the index reports that it has finished.
    * Notes indexed in between arrive one by one as "metadata" events.
+   *
+   * @param registerEvent the plugin's own registerEvent, so that Obsidian
+   *   also detaches every listener when the plugin unloads (stop() detaches
+   *   them as well; doing both is harmless)
    */
-  start(): void {
+  start(registerEvent?: (ref: EventRef) => void): void {
     if (this.started) return;
     this.started = true;
+    this.registerEvent = registerEvent ?? null;
     const { vault, metadataCache, workspace } = this.app;
 
     this.track(
@@ -99,12 +105,14 @@ export class ObsidianVault implements VaultPort {
   /** Stop passing events on. */
   stop(): void {
     this.started = false;
+    this.registerEvent = null;
     for (const { source, ref } of this.refs) source.offref(ref);
     this.refs.length = 0;
   }
 
   private track(source: Events, ref: EventRef): void {
     this.refs.push({ source, ref });
+    this.registerEvent?.(ref);
   }
 
   private emit(event: VaultEvent): void {
@@ -136,6 +144,10 @@ export class ObsidianVault implements VaultPort {
       out.push({ path: file.path, frontmatter: isRecord(frontmatter) ? frontmatter : null });
     }
     return out;
+  }
+
+  listFolders(): string[] {
+    return this.app.vault.getAllFolders(false).map((folder) => folder.path);
   }
 
   exists(path: string): boolean {

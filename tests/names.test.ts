@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_NAME, MAX_NAME_BYTES, newFolderId, sameName, sanitiseFileName, uniqueName } from '../src/core/names';
+import { DEFAULT_NAME, MAX_NAME_BYTES, newFolderId, sameName, sanitiseFileName, tidyDisplayName, uniqueName } from '../src/core/names';
+import { comparePaths } from '../src/core/paths';
 
 const utf8Bytes = (text: string): number => new TextEncoder().encode(text).length;
 const char = (codePoint: number): string => String.fromCodePoint(codePoint);
@@ -119,6 +120,43 @@ describe('uniqueName', () => {
   it('works for names in any language', () => {
     const taken = new Set(['מכתב']);
     expect(uniqueName('מכתב', (name) => taken.has(name))).toBe('מכתב 2');
+  });
+});
+
+describe('tidyDisplayName', () => {
+  it('trims and squeezes spaces and line breaks, and keeps everything else', () => {
+    expect(tidyDisplayName('  Part   one \n')).toBe('Part one');
+    expect(tidyDisplayName('Who: Me?')).toBe('Who: Me?');
+    expect(tidyDisplayName('חלק\tראשון')).toBe('חלק ראשון');
+    expect(tidyDisplayName(' \n ')).toBe('');
+  });
+});
+
+describe('comparePaths', () => {
+  it('puts what is inside a folder straight after it', () => {
+    const folders = ['writing notes', 'Writing/Drafts/Old', 'Archive', 'Writing', 'Writing/Drafts', 'Zebra', 'Archive/2024'];
+    expect([...folders].sort(comparePaths)).toEqual([
+      'Archive',
+      'Archive/2024',
+      'Writing',
+      'Writing/Drafts',
+      'Writing/Drafts/Old',
+      'writing notes',
+      'Zebra',
+    ]);
+  });
+
+  it('is a proper order: equal only for the same path, and the same either way round', () => {
+    expect(comparePaths('A/B', 'A/B')).toBe(0);
+    expect(comparePaths('A', 'A/B')).toBeLessThan(0);
+    expect(comparePaths('A/B', 'A')).toBeGreaterThan(0);
+    expect(Math.sign(comparePaths('alpha', 'Beta'))).toBe(-Math.sign(comparePaths('Beta', 'alpha')));
+    expect(comparePaths('Letter', 'letter')).not.toBe(0);
+    expect(Math.sign(comparePaths('Letter', 'letter'))).toBe(-Math.sign(comparePaths('letter', 'Letter')));
+  });
+
+  it('sorts names in other alphabets too', () => {
+    expect(['ספר ב', 'ספר א'].sort(comparePaths)).toEqual(['ספר א', 'ספר ב']);
   });
 });
 
