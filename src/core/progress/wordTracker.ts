@@ -113,7 +113,10 @@ export interface EditEvent {
 
 /** What the tracker needs from outside. */
 export interface TrackerDeps {
-  /** The local date and time, read at the moment of the call. */
+  /**
+   * The local date and time, read at the moment of the call. In the plugin:
+   * today's date as the device sees it, and the system clock in milliseconds.
+   */
   readonly clock: () => Instant;
   /** The projects in the vault, read at the moment of the call. */
   readonly projects: () => ProjectsNow;

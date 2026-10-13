@@ -5,37 +5,46 @@
 //
 // How the parts fit together
 //
-// 1. Counting. Make one WordTracker when the plugin loads. Tell it every edit
-//    the writer makes in the editor (edit) and hand it word counts (measure):
-//    once when a note is opened, and again whenever plan() names the note.
-//    plan() also says when to save and how long to sleep.
+// 1. Counting. Make one WordTracker when the plugin loads, with a clock that
+//    gives the device's local date and the time in milliseconds. Tell it every
+//    edit the writer makes in the editor (edit) and hand it word counts
+//    (measure): once when a note is opened, and again whenever plan() names
+//    the note. plan() also says when to save and how long to sleep; ask it
+//    again after every edit and after acting on it. Call plan(true) when the
+//    plugin unloads.
 //
-// 2. Saving. When plan() says "write", take tracker.unwritten(). For each
-//    entry, the file is statsFilePath(entry.project, entry.date, deviceId).
-//    Read that file's text as it is now (or null when there is none), pass it
-//    through updateStatsText together with the entries for that file, save
-//    the text it returns, then call tracker.markWritten with those entries.
-//    If a save fails, call tracker.writeFailed() instead.
+// 2. Saving. Each device has an id of its own (newDeviceId, kept in the
+//    device's own storage, never in synced data). When plan() says "write",
+//    take tracker.unwritten(). For each entry, the file is
+//    statsFilePath(entry.project, entry.date, deviceId). Read that file's
+//    text as it is now (or null when there is none), pass it through
+//    updateStatsText together with the entries for that file, save the text
+//    it returns, then call tracker.markWritten with those entries. If a save
+//    fails, call tracker.writeFailed() instead.
 //
-// 3. Reading. Read every file in <Project>/Stats with parseStatsFile, add
-//    them up with sumDeviceLogs, and add this device's unsaved words with
-//    addToTotals(totals, tracker.unwritten() for the project). From the
-//    totals come the day, week and month figures, the streak and the average.
+// 3. Reading. Read every file in <Project>/Stats with parseStatsFile (pass
+//    the file's path too), add them up with sumDeviceLogs, and add this
+//    device's unsaved words with addToTotals(totals, the entries of
+//    tracker.unwritten() for that project). From the totals come the day,
+//    week and month figures (summariseWords turns four stored numbers into
+//    added, deleted and net), the streak and the average.
 //
 // 4. Targets. parseTargets(index frontmatter[TARGETS_KEY]) reads them,
-//    validateTargets checks a form, updateTargets gives the value to store,
-//    and writingProgress does the sums.
+//    validateTargets checks a form, updateTargets gives the value to store
+//    under that key, and writingProgress does the sums.
 //
-// 5. Scene dates. Keep a SceneDatesState, feed sceneDatesStep the editor's
-//    events, and for every write it returns, update that scene's properties
-//    with what sceneDatePatch says (and nothing else).
+// 5. Scene dates. Keep a SceneDatesState, feed sceneDatesStep the events of
+//    the editor and the app, and for every write it returns, update that
+//    scene's properties with what sceneDatePatch says (and nothing else).
 //
 // 6. The line of figures. buildStatusLine turns the numbers into labelled,
-//    formatted pieces.
+//    formatted pieces: the scene's count, sceneStartDate, sceneEditedDate,
+//    tracker.session().net, the manuscript total, and today's manuscript net
+//    (summariseWords(countsOn(totals, today)).manuscript.net).
 //
 // Dates are always text written as YYYY-MM-DD in the device's local time;
 // paths are vault paths with forward slashes; a project is named by the
-// vault path of its folder.
+// vault path of its folder ("" for a project at the top of the vault).
 
 // ------------------------------------------------------------ daily log files
 

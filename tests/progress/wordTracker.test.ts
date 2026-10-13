@@ -688,7 +688,7 @@ describe('undo and redo', () => {
 
 describe('the date a change is credited to', () => {
   it('is the local date at the moment of typing, so a session across midnight splits in two', () => {
-    const { tracker, world, day } = setup();
+    const { tracker, world } = setup();
     const page = new Page(tracker, SCENE, 'The letter arrived.');
     page.type(' Four words before midnight.');
     page.pause();
@@ -712,6 +712,25 @@ describe('the date a change is credited to', () => {
     page.pause();
     expect(day(TODAY)).toEqual(counts(4));
     expect(day(TOMORROW)).toEqual(NO_WORDS);
+  });
+
+  it('credits typing that runs across midnight without a pause to the day it began, and splits there', () => {
+    const { tracker, world, day } = setup();
+    const page = new Page(tracker, SCENE, 'The letter arrived.');
+    page.type(' Two words'); // a second before midnight
+    world.date = TOMORROW;
+    world.time += 1500;
+    page.type(' and three more.'); // a moment after, with no pause in between
+    // The date has changed: the note is asked for at once, pause or no pause.
+    expect(tracker.plan()).toMatchObject({ measure: [SCENE], write: true });
+    page.pause();
+    expect(day(TODAY)).toEqual(counts(5));
+    expect(day(TOMORROW)).toEqual(NO_WORDS);
+    // Everything typed from here on belongs to the new day.
+    page.type(' Four words after that.');
+    page.pause();
+    expect(day(TODAY)).toEqual(counts(5));
+    expect(day(TOMORROW)).toEqual(counts(4));
   });
 
   it('asks for yesterday\'s typing to be measured and saved at once after midnight', () => {
@@ -1078,6 +1097,16 @@ describe('housekeeping', () => {
     // A new note at the same path starts from scratch.
     tracker.measure(SCENE, 40);
     expect(day()).toEqual(counts(3));
+  });
+
+  it('stops asking for a note that was deleted before it could be measured', () => {
+    const { tracker, world } = setup();
+    const page = new Page(tracker, SCENE, '');
+    page.type('one two three');
+    world.time += 2000;
+    expect(tracker.plan().measure).toEqual([SCENE]);
+    tracker.removed(SCENE);
+    expect(tracker.plan()).toEqual({ measure: [], write: false, wait: null });
   });
 
   it('follows a project folder that is renamed', () => {
