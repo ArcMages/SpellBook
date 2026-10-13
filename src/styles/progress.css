@@ -9,6 +9,8 @@
    the line side by side. Obsidian styles the item itself (its size, and the
    tint it gets when pointed at, because a click on it does something). */
 .spellbook-status {
+  display: inline-flex;
+  align-items: center;
   gap: var(--size-4-3);
   font-variant-numeric: tabular-nums;
 }

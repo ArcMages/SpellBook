@@ -11,7 +11,7 @@
 // A test that uses this file must lay the feature's extras over the shared
 // Obsidian stand-in first (see obsidianExtras.ts).
 
-import { EditorState } from '@codemirror/state';
+import { EditorState, Transaction } from '@codemirror/state';
 import type { ChangeSet, Extension, TransactionSpec } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import type { ViewUpdate } from '@codemirror/view';
@@ -259,8 +259,12 @@ export class FakeEditor {
    * The note changed on disk (a sync, another program) and Obsidian put the
    * new text into the editor: a change with no user event at all.
    */
-  reload(text: string): void {
-    this.dispatch({ changes: { from: 0, to: this.state.doc.length, insert: text } });
+  reload(text: string, options: { keptOutOfUndo?: boolean } = {}): void {
+    this.dispatch({
+      changes: { from: 0, to: this.state.doc.length, insert: text },
+      // Some programs keep such a change out of the editor's undo history.
+      ...(options.keptOutOfUndo ? { annotations: Transaction.addToHistory.of(false) } : {}),
+    });
     this.done = [];
     this.undone = [];
   }

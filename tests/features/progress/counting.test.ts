@@ -219,6 +219,19 @@ describe('what does not count', () => {
     expect(stand.logDays('2026-10')).toEqual([day(DAY, { manuscriptAdded: 3 })]);
   });
 
+  it('does not count a change a program made that the editor\'s undo cannot reach', async () => {
+    const stand = await standUp();
+    const editor = stand.editor(OPENING);
+    editor.type('One two. ');
+    editor.reload(`${editor.text}Ten words put in by a program, not by me.\n`, { keptOutOfUndo: true });
+    editor.type('Three. ');
+    await stand.pass(PAUSE);
+    editor.reload('Almost everything is gone.\n', { keptOutOfUndo: true });
+    await stand.pass(PAUSE);
+    await stand.pass(QUIET);
+    expect(stand.logDays('2026-10')).toEqual([day(DAY, { manuscriptAdded: 3 })]);
+  });
+
   it('keeps what was typed when a sync arrives in the middle of it', async () => {
     const stand = await standUp();
     const editor = stand.editor(OPENING);

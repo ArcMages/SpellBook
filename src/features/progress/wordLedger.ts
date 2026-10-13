@@ -46,6 +46,9 @@ export const LONGEST_RETRY_MS = 5 * 60 * 1000;
  */
 export const MOST_WATCHED = 40;
 
+/** The word counts of this many texts are remembered, newest first (two panes on one note take four). */
+const REMEMBERED_COUNTS = 4;
+
 /** A note's text as the editor holds it: it never changes, and it is only turned into a string when it is counted. */
 export interface EditorText {
   toString(): string;
@@ -140,7 +143,7 @@ export class WordLedger {
   private holdUntil = 0;
   private lastProblem: string | null = null;
   private stopped = false;
-  /** The last two texts that were counted, so that the same text is not counted twice. */
+  /** The last few texts that were counted, so that the same text is not counted twice. */
   private counts: Array<[EditorText, number]> = [];
 
   constructor(deps: LedgerDeps) {
@@ -379,14 +382,14 @@ export class WordLedger {
 
   // ------------------------------------------------------------------- counting
 
-  /** The words in a text. The last two answers are remembered: a change's "before" is usually the "after" of the last one. */
+  /** The words in a text. The last few answers are remembered: a change's "before" is usually the "after" of the last one. */
   private wordsIn(text: EditorText): number {
     for (const [known, words] of this.counts) {
       if (known === text) return words;
     }
     const words = countWords(text.toString());
     this.counts.unshift([text, words]);
-    if (this.counts.length > 2) this.counts.length = 2;
+    if (this.counts.length > REMEMBERED_COUNTS) this.counts.length = REMEMBERED_COUNTS;
     return words;
   }
 
