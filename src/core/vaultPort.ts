@@ -152,7 +152,8 @@ export interface VaultPort {
    * created (its folder must exist).
    *
    * This replaces everything in the file, so it is only for files the plugin
-   * itself owns (its to-do list and its word logs). It must never be used on
+   * itself owns (its to-do list, its word logs and its reference for AI
+   * assistants). It must never be used on
    * a scene or any other note the writer writes in: the project store is the
    * only caller, and it refuses every other path.
    *

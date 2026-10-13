@@ -44,3 +44,14 @@ export const TODO_FILE = 'To-do.md';
  * it is made the first time a snapshot is taken.
  */
 export const SNAPSHOTS_FOLDER = 'Snapshots';
+
+/**
+ * The folder the reference for AI assistants is kept in, inside a project.
+ * It is not part of a new project: it is made when the writer asks for the
+ * note ("Create AI helper note"). Nothing in it is a scene, an event, an
+ * entity or a snapshot, so no screen lists it.
+ */
+export const AI_HELPER_FOLDER = 'AI helper';
+
+/** The reference for AI assistants: what a Spellbook project is and how to help with one without breaking it. */
+export const AI_HELPER_FILE = 'Spellbook for AI assistants.md';
