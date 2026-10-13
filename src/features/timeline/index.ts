@@ -1,14 +1,75 @@
 // The timeline: named, coloured lanes on one time axis, with the events kept
 // as notes in the project's Timeline folder.
 //
-// Not built yet. Everything this feature needs goes into this folder (and
-// its stylesheet, src/styles/timeline.css); nothing outside it has to change.
+// This file plugs the screen into the plugin: it makes the timeline's host
+// (timelineWiring.ts), registers the view with it, and adds the command and
+// the ribbon button that open the timeline. Everything the timeline needs is
+// in this folder and in its stylesheet, src/styles/timeline.css.
 
+import { Notice } from 'obsidian';
+import type { App } from 'obsidian';
+import { iconName } from '../../ui/icons';
 import type { Feature, FeatureContext } from '../registry';
+import { TIMELINE_ICONS } from './timelineMenus';
+import { TIMELINE_VIEW_TYPE, createTimelineView } from './timelineView';
+import { TimelineWiring } from './timelineWiring';
+
+export { TIMELINE_VIEW_NAME, TIMELINE_VIEW_TYPE, TimelineView, createTimelineView } from './timelineView';
+export { TimelineWiring } from './timelineWiring';
+export type { TimelineHost } from './timelineHost';
+
+/** The command's id; Obsidian puts the plugin's own id in front. */
+export const OPEN_TIMELINE_COMMAND = 'open-timeline';
+/** The command's name; Obsidian puts "Spellbook: " in front. */
+export const OPEN_TIMELINE_NAME = 'Open timeline';
+/** What the ribbon button says when it is pointed at. */
+export const OPEN_TIMELINE_TOOLTIP = 'Open Spellbook timeline';
+export const TIMELINE_NOT_OPENED = 'The timeline could not be opened.';
+
+/** How long a notice about something that went wrong stays up, in milliseconds. */
+const PROBLEM_NOTICE_MS = 10000;
+
+/**
+ * Show the timeline as a tab in the main area. A timeline that is already
+ * open anywhere is brought to the front instead: asking twice never opens two.
+ */
+async function showTimeline(app: App): Promise<void> {
+  const { workspace } = app;
+  try {
+    let leaf = workspace.getLeavesOfType(TIMELINE_VIEW_TYPE)[0] ?? null;
+    if (!leaf) {
+      leaf = workspace.getLeaf('tab');
+      await leaf.setViewState({ type: TIMELINE_VIEW_TYPE, active: true });
+    }
+    await workspace.revealLeaf(leaf);
+  } catch (error) {
+    console.error('Spellbook: the timeline could not be opened', error);
+    new Notice(TIMELINE_NOT_OPENED, PROBLEM_NOTICE_MS);
+  }
+}
 
 export const timelineFeature: Feature = {
   id: 'timeline',
-  register(_context: FeatureContext): void {
-    // Nothing to register yet.
+  register(context: FeatureContext): void {
+    // The host is there before the view type is: Obsidian may put a timeline
+    // that was open last time back on the screen the moment the type exists,
+    // before any project is open. Until one is, the host has nothing to show.
+    const host = new TimelineWiring(context);
+    context.onUnload(() => {
+      host.release();
+    });
+
+    /** The timeline being brought to the front, so that two requests cannot open two. */
+    let opening: Promise<void> | null = null;
+    const open = (): void => {
+      if (host.isReleased) return;
+      opening ??= showTimeline(context.app).finally(() => {
+        opening = null;
+      });
+    };
+
+    context.plugin.registerView(TIMELINE_VIEW_TYPE, (leaf) => createTimelineView(leaf, host));
+    context.plugin.addCommand({ id: OPEN_TIMELINE_COMMAND, name: OPEN_TIMELINE_NAME, callback: open });
+    context.plugin.addRibbonIcon(iconName(...TIMELINE_ICONS.view) ?? 'calendar', OPEN_TIMELINE_TOOLTIP, open);
   },
 };

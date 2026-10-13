@@ -1,7 +1,8 @@
-// Rules about the timeline screen's own source and stylesheet, checked by
-// reading the files. They are the rules of tests/sourceRules.test.ts for
-// styles.css, applied to src/styles/timeline.css, and the promise that the
-// screen reaches the project only through its host.
+// Rules about the timeline's own source and stylesheet, checked by reading
+// the files. They are the rules of tests/sourceRules.test.ts for styles.css,
+// applied to src/styles/timeline.css, the promise that the screen reaches the
+// project only through its host, and the promise that the host (the wiring)
+// changes the project only through the store.
 
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
@@ -21,10 +22,21 @@ const codeOf = (name: string): string =>
     .replace(/^\s*\/\/.*$/gm, '')
     .replace(/\s\/\/ .*$/gm, '');
 
+/**
+ * The files that plug the screen into the plugin: the feature itself, the
+ * host it gives the screen, and what the device remembers for it. Every
+ * other file is the screen, which knows nothing of the plugin but its host.
+ */
+const WIRING = ['hiddenLanes.ts', 'index.ts', 'timelineWiring.ts'];
+const screenFiles = files.filter((name) => !WIRING.includes(name));
+const importsOf = (name: string): string[] => [...read(name).matchAll(/from\s+['"]([^'"]+)['"]/g)].map((match) => match[1] ?? '');
+
 describe('the timeline screen source', () => {
-  it('has its files, and leaves index.ts to whoever wires it up', () => {
+  it('has its files: the screen, and the three that plug it into the plugin', () => {
     expect([...files].sort()).toEqual([
       'eventModal.ts',
+      'hiddenLanes.ts',
+      'index.ts',
       'lanesModal.ts',
       'timelineActions.ts',
       'timelineGestures.ts',
@@ -32,20 +44,51 @@ describe('the timeline screen source', () => {
       'timelineMenus.ts',
       'timelineScene.ts',
       'timelineView.ts',
+      'timelineWiring.ts',
     ]);
+    expect(screenFiles).toHaveLength(8);
   });
 
   it('reaches the project only through its host: no store, no vault, no session', () => {
     let imports = 0;
-    for (const name of files) {
-      for (const match of read(name).matchAll(/from\s+['"]([^'"]+)['"]/g)) {
-        const target = match[1] ?? '';
+    for (const name of screenFiles) {
+      for (const target of importsOf(name)) {
         imports++;
-        expect(/projectStore|projectSession|vaultPort|devicePrefs|wordCount|\/obsidian\/|\/views\/|main$/.test(target), `${name} imports ${target}`).toBe(false);
+        expect(/projectStore|projectSession|vaultPort|devicePrefs|wordCount|registry|\/obsidian\/|\/views\/|main$/.test(target), `${name} imports ${target}`).toBe(false);
+        // Nor does the screen know who its host is.
+        expect(/\.\/(index|timelineWiring|hiddenLanes)$/.test(target), `${name} imports ${target}`).toBe(false);
       }
       expect(/\b(processFrontMatter|trashFile|getMarkdownFiles|getFileCache|metadataCache|fileManager)\b/.test(codeOf(name)), name).toBe(false);
     }
     expect(imports).toBeGreaterThan(20);
+  });
+
+  it('is plugged in by a host that changes the project only through the store', () => {
+    // The host is handed the vault doorway to listen with. It never writes
+    // through it, never reads a note's text, and never reaches for Obsidian's
+    // own vault: every change is an intent of the project store.
+    const doorway = /\.\s*(updateFrontmatter|updateText|createFile|createFolder|rename|trash|readText|readFrontmatter)\s*\(/;
+    const obsidianOwn = /\b(processFrontMatter|trashFile|renameFile|getMarkdownFiles|getFileCache|metadataCache|fileManager)\b/;
+    for (const name of WIRING) {
+      expect(doorway.test(codeOf(name)), name).toBe(false);
+      expect(obsidianOwn.test(codeOf(name)), name).toBe(false);
+      expect(/\bvault\s*\.\s*(?!on\b)\w+\s*\(/.test(codeOf(name)), `${name} uses the vault for more than listening`).toBe(false);
+      for (const target of importsOf(name)) {
+        expect(/projectSession|\/obsidian\/|\/views\/|main$/.test(target), `${name} imports ${target}`).toBe(false);
+      }
+    }
+    const wiring = codeOf('timelineWiring.ts');
+    for (const intent of ['updateNoteProperties', 'updateProjectData', 'addTimelineNote']) {
+      expect(wiring, intent).toMatch(new RegExp(`store\\s*\\.\\s*${intent}\\(`));
+    }
+    expect(wiring).toMatch(/vault\s*\.\s*on\(/);
+    // What one device hides is kept on that device, in a file that knows nothing else.
+    expect(importsOf('hiddenLanes.ts')).toEqual(['../../core/devicePrefs']);
+    expect(codeOf('timelineWiring.ts')).not.toMatch(/storage\s*\.\s*(load|save)\(/);
+    // The rules would catch a slip.
+    expect(doorway.test('await context.vault.updateFrontmatter(path, change);')).toBe(true);
+    expect(/\bvault\s*\.\s*(?!on\b)\w+\s*\(/.test('context.vault.listFiles(folder)')).toBe(true);
+    expect(/\bvault\s*\.\s*(?!on\b)\w+\s*\(/.test('context.vault.on((event) => {})')).toBe(false);
   });
 
   it('keeps the layout and the scene free of Obsidian and of the page', () => {
