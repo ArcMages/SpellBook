@@ -476,18 +476,122 @@ describe('deleteScene', () => {
     expect(picture(store)).toBe('A Part[B C] D'); // nothing happened at all
   });
 
-  it('when the trash fails, the note is kept and shows up as unfiled', async () => {
-    const { store, vault } = await openSeeded(withFolder);
+  it('when the trash fails, nothing is lost: the note is kept and the scene goes back to its place', async () => {
+    const { store, vault, indexPath } = await openSeeded(withFolder);
+    const binderBefore = binderOnDisk(vault, indexPath);
     vault.failNext('trash');
 
     const result = await store.deleteScene('Manuscript/B.md');
 
     expect(result.status).toBe('failed');
     expect(result.status === 'failed' && result.message).toMatch(/could not be moved to the trash/);
+    expect(result.status === 'failed' && result.message).toMatch(/still in the binder/);
     expect(vault.has('Novel/Manuscript/B.md')).toBe(true);
     expect(vault.bodyOf('Novel/Manuscript/B.md')).toBe(sceneBody('B'));
-    expect(picture(store)).toBe('A Part[C] D');
-    expect(project(store).unfiled).toEqual(['Manuscript/B.md']);
+    expect(picture(store)).toBe('A Part[B C] D');
+    expect(binderOnDisk(vault, indexPath)).toEqual(binderBefore);
+    expect(project(store).unfiled).toEqual([]);
+    expect(vault.trashed).toEqual([]);
+  });
+
+  it('puts the scene back in the right place wherever it was: first in a folder, or first of all', async () => {
+    const { store, vault, indexPath } = await openSeeded(withFolder);
+    const binderBefore = binderOnDisk(vault, indexPath);
+    for (const path of ['Manuscript/A.md', 'Manuscript/B.md', 'Manuscript/C.md', 'Manuscript/D.md']) {
+      vault.failNext('trash');
+      expect((await store.deleteScene(path)).status, path).toBe('failed');
+      expect(binderOnDisk(vault, indexPath), path).toEqual(binderBefore);
+    }
+    expect(picture(store)).toBe('A Part[B C] D');
+  });
+
+  it('when the trash fails for a scene kept outside Manuscript, it goes back into the binder too', async () => {
+    // Such a note would not show under Unfiled, so losing its entry would hide it altogether.
+    const vault = new MemoryVault().seed('Novel/Research/Filed.md', { body: 'a scene kept elsewhere' });
+    const { store, indexPath } = await openSeeded({ binder: ['Manuscript/A.md', 'Research/Filed.md'], scenes: { A: 1024 } }, vault);
+    vault.failNext('trash', 'Novel/Research/Filed.md');
+
+    const result = await store.deleteScene('Research/Filed.md');
+
+    expect(result.status).toBe('failed');
+    expect(result.status === 'failed' && result.message).toMatch(/could not be moved to the trash/);
+    expect(result.status === 'failed' && result.message).not.toMatch(/Unfiled/);
+    expect(binderOnDisk(vault, indexPath)).toEqual(['Manuscript/A.md', 'Research/Filed.md']);
+    expect(picture(store)).toBe('A Filed');
+    expect(project(store).unfiled).toEqual([]);
+    expect(vault.bodyOf('Novel/Research/Filed.md')).toBe('a scene kept elsewhere');
+    // and it can still be deleted once the trash works again
+    expect((await store.deleteScene('Research/Filed.md')).status).toBe('done');
+    expect(vault.trashed).toEqual(['Novel/Research/Filed.md']);
+  });
+
+  it('puts the scene at the end when its old place has gone in the meantime', async () => {
+    const { store, vault, indexPath } = await openSeeded(withFolder);
+    vault.failNext('trash');
+    // Another device removes the folder "Part" just after this device took C out of it.
+    let done = false;
+    vault.on((event) => {
+      if (done || event.type !== 'modify' || event.path !== indexPath) return;
+      done = true;
+      vault.external.editFrontmatter(indexPath, (fm) => {
+        fm['binder'] = ['Manuscript/A.md', 'Manuscript/D.md'];
+      }, { silent: true });
+    });
+
+    expect((await store.deleteScene('Manuscript/C.md')).status).toBe('failed');
+
+    expect(binderOnDisk(vault, indexPath)).toEqual(['Manuscript/A.md', 'Manuscript/D.md', 'Manuscript/C.md']);
+    expect(picture(store)).toBe('A D C');
+  });
+
+  describe('when the trash fails and the scene cannot be put back either', () => {
+    /** Let the first save of the index through and make the second one fail. */
+    function failSecondIndexSave(vault: MemoryVault, indexPath: string): void {
+      let armed = false;
+      vault.on((event) => {
+        if (armed || event.type !== 'modify' || event.path !== indexPath) return;
+        armed = true;
+        vault.failNext('updateFrontmatter', indexPath);
+      });
+    }
+
+    it('says that a manuscript note is now under Unfiled, and it is', async () => {
+      const { store, vault, indexPath } = await openSeeded(withFolder);
+      vault.failNext('trash');
+      failSecondIndexSave(vault, indexPath);
+
+      const result = await store.deleteScene('Manuscript/B.md');
+
+      expect(result.status).toBe('failed');
+      expect(result.status === 'failed' && result.message).toMatch(/taken out of the binder/);
+      expect(result.status === 'failed' && result.message).toMatch(/You can find it under Unfiled/);
+      expect(picture(store)).toBe('A Part[C] D');
+      expect(project(store).unfiled).toEqual(['Manuscript/B.md']);
+      expect(vault.bodyOf('Novel/Manuscript/B.md')).toBe(sceneBody('B'));
+    });
+
+    it('says where a note outside Manuscript is, and does not claim it is under Unfiled', async () => {
+      const vault = new MemoryVault().seed('Novel/Research/Filed.md', { body: 'kept' });
+      const { store, indexPath } = await openSeeded({ binder: ['Manuscript/A.md', 'Research/Filed.md'], scenes: { A: 1024 } }, vault);
+      vault.failNext('trash');
+      failSecondIndexSave(vault, indexPath);
+
+      const result = await store.deleteScene('Research/Filed.md');
+
+      expect(result.status).toBe('failed');
+      const message = result.status === 'failed' ? result.message : '';
+      expect(message).toMatch(/taken out of the binder/);
+      expect(message).toContain('still at "Research/Filed.md"');
+      expect(message).toMatch(/move it into the Manuscript folder/);
+      expect(message).not.toMatch(/You can find it under Unfiled/);
+      expect(project(store).unfiled).toEqual([]);
+      expect(vault.bodyOf('Novel/Research/Filed.md')).toBe('kept');
+      // The advice works: once moved into Manuscript/, the note can be filed again.
+      vault.external.rename('Novel/Research/Filed.md', 'Novel/Manuscript/Filed.md');
+      await settle(store);
+      expect(project(store).unfiled).toEqual(['Manuscript/Filed.md']);
+      expect((await store.addUnfiledToBinder('Manuscript/Filed.md')).status).toBe('done');
+    });
   });
 });
 

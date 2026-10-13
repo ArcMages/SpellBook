@@ -5,6 +5,7 @@
 
 import { Modal, Setting } from 'obsidian';
 import type { App, ButtonComponent } from 'obsidian';
+import { isInputMethodKey } from './keys';
 
 /** How the top of the vault is shown in the list of folders. */
 export const VAULT_ROOT_LABEL = '/ (top of the vault)';
@@ -52,8 +53,9 @@ export class CreateProjectModal extends Modal {
         // The name may be in any language; let the text pick its own direction.
         text.inputEl.setAttr('dir', 'auto');
         text.inputEl.addEventListener('keydown', (event) => {
-          // Enter creates the project, except while a character is still being composed.
-          if (event.key !== 'Enter' || event.isComposing) return;
+          // Enter creates the project, except when it only accepts a word
+          // suggested by an input method (Japanese, Chinese, Korean ...).
+          if (event.key !== 'Enter' || isInputMethodKey(event)) return;
           event.preventDefault();
           void this.submit();
         });

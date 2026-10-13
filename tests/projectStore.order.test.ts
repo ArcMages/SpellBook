@@ -6,8 +6,8 @@ import { isStrictlyIncreasing } from '../src/core/orderKeys';
 import { parseProjectIndex } from '../src/core/projectIndex';
 import { ORDER_DEBOUNCE_MS } from '../src/core/projectStore';
 import type { Frontmatter } from '../src/core/types';
-import type { MemoryVault } from './memoryVault';
-import { openSeeded, picture, sceneBody, settle, valueOf } from './storeHarness';
+import { MemoryVault } from './memoryVault';
+import { openSeeded, picture, sceneBody, seedProject, settle, valueOf } from './storeHarness';
 
 const five = { scenes: { A: 1024, B: 2048, C: 3072, D: 4096, E: 5120 } };
 
@@ -292,6 +292,74 @@ describe('order keys and other devices', () => {
     expect(vault.writes).toEqual([]);
   });
 
+  it('rewrites only the scene moved here while a reorder from another device is still arriving', async () => {
+    const { store, vault, timers, indexPath } = await openSeeded(five);
+    // Another device moved E to the front. Its index has arrived; E.md, with its new key, has not.
+    vault.external.editFrontmatter(indexPath, (fm) => {
+      fm['binder'] = ['E', 'A', 'B', 'C', 'D'].map((name) => `Manuscript/${name}.md`);
+    });
+    await settle(store);
+
+    valueOf(await store.moveNode(sceneRef('Manuscript/D.md'), { at: 'after', sibling: sceneRef('Manuscript/A.md') }));
+    timers.advance(ORDER_DEBOUNCE_MS);
+    await settle(store);
+
+    expect(picture(store)).toBe('E A D B C');
+    // E was not moved on this device, so its note is left to the device that moved it.
+    expect(sceneWrites(vault)).toEqual(['D']);
+    expect(orderOf(vault, 'D')).toBe(1536);
+    expect(orderOf(vault, 'E')).toBe(5120);
+
+    // E.md arrives with the key the other device gave it. Everything fits, and nothing more is written.
+    vault.external.editFrontmatter('Novel/Manuscript/E.md', (fm) => {
+      fm['order'] = 512;
+    });
+    await settle(store);
+    timers.advance(ORDER_DEBOUNCE_MS * 10);
+    await settle(store);
+    expect(sceneWrites(vault)).toEqual(['D']);
+    expectRisingKeys(vault, indexPath);
+  });
+
+  it('leaves room beside a scene whose key is still arriving, so the two keys cannot collide', async () => {
+    const { store, vault, timers, indexPath } = await openSeeded(five);
+    vault.external.editFrontmatter(indexPath, (fm) => {
+      fm['binder'] = ['E', 'A', 'B', 'C', 'D'].map((name) => `Manuscript/${name}.md`);
+    });
+    await settle(store);
+
+    // D goes straight after E, into the very gap E's new key (512) will land in.
+    valueOf(await store.moveNode(sceneRef('Manuscript/D.md'), { at: 'after', sibling: sceneRef('Manuscript/E.md') }));
+    timers.advance(ORDER_DEBOUNCE_MS);
+    await settle(store);
+    expect(sceneWrites(vault)).toEqual(['D']);
+    expect(orderOf(vault, 'D')).toBe(682); // two thirds of the way to A, not the middle
+
+    vault.external.editFrontmatter('Novel/Manuscript/E.md', (fm) => {
+      fm['order'] = 512;
+    });
+    await settle(store);
+    expectRisingKeys(vault, indexPath);
+  });
+
+  it('does not repair a key that only looks wrong, whatever else is moved here', async () => {
+    // C carries a key that does not fit its place (a hand edit, or a reorder still arriving).
+    const { store, vault, timers } = await openSeeded({ scenes: { A: 1024, B: 2048, C: 100, D: 4096, E: 5120 } });
+    valueOf(await store.moveNode(sceneRef('Manuscript/E.md'), { at: 'start', parentId: null }));
+    valueOf(await store.addScene('New'));
+    timers.advance(ORDER_DEBOUNCE_MS);
+    await settle(store);
+    expect(sceneWrites(vault)).toEqual(['E']);
+    expect(orderOf(vault, 'C')).toBe(100);
+
+    // Moving C itself is what gives it a fitting key.
+    valueOf(await store.moveNode(sceneRef('Manuscript/C.md'), { at: 'after', sibling: sceneRef('Manuscript/A.md') }));
+    timers.advance(ORDER_DEBOUNCE_MS);
+    await settle(store);
+    expect(sceneWrites(vault)).toEqual(['E', 'C']);
+    expect(orderOf(vault, 'C')).toBe(1536);
+  });
+
   it('leaves a note alone when it already holds the planned key by the time of writing', async () => {
     const { store, vault, timers } = await openSeeded(five);
     valueOf(await store.moveNode(sceneRef('Manuscript/E.md'), { at: 'after', sibling: sceneRef('Manuscript/A.md') }));
@@ -340,6 +408,227 @@ describe('order keys and other devices', () => {
   });
 });
 
+describe('a key that could not be written', () => {
+  it('is tried again the next time the binder is changed here', async () => {
+    const { store, vault, timers, indexPath } = await openSeeded(five);
+    vault.failNext('updateFrontmatter', 'Novel/Manuscript/E.md');
+    valueOf(await store.moveNode(sceneRef('Manuscript/E.md'), { at: 'start', parentId: null }));
+    timers.advance(ORDER_DEBOUNCE_MS);
+    await settle(store);
+    expect(sceneWrites(vault)).toEqual([]);
+    expect(orderOf(vault, 'E')).toBe(5120);
+    expect(timers.pending).toBe(0); // no retry loop: it waits for the writer's next change
+
+    valueOf(await store.moveNode(sceneRef('Manuscript/B.md'), { at: 'end', parentId: null }));
+    timers.advance(ORDER_DEBOUNCE_MS);
+    await settle(store);
+    expect(picture(store)).toBe('E A C D B');
+    expect(sceneWrites(vault).sort()).toEqual(['B', 'E']);
+    expect(orderOf(vault, 'E')).toBe(512);
+    expectRisingKeys(vault, indexPath);
+  });
+});
+
+describe('a scene that was moved while its note was missing', () => {
+  it('gets its key with the next change made here, once the note has arrived', async () => {
+    const { store, vault, timers, indexPath } = await openSeeded({
+      binder: ['Manuscript/A.md', 'Manuscript/Ghost.md', 'Manuscript/B.md', 'Manuscript/C.md'],
+      scenes: { A: 1024, B: 2048, C: 3072 },
+    });
+    valueOf(await store.moveNode(sceneRef('Manuscript/Ghost.md'), { at: 'end', parentId: null }));
+    timers.advance(ORDER_DEBOUNCE_MS);
+    await settle(store);
+    expect(sceneWrites(vault)).toEqual([]); // there is no note to write to yet
+
+    // The note arrives, still carrying the key of its old place between A and B.
+    vault.external.create('Novel/Manuscript/Ghost.md', { frontmatter: { order: 1536 }, body: sceneBody('Ghost') });
+    await settle(store);
+    timers.advance(ORDER_DEBOUNCE_MS * 10);
+    await settle(store);
+    expect(vault.writes.filter((write) => write.op === 'updateFrontmatter' && write.path !== indexPath)).toEqual([]);
+
+    valueOf(await store.moveNode(sceneRef('Manuscript/C.md'), { at: 'start', parentId: null }));
+    timers.advance(ORDER_DEBOUNCE_MS);
+    await settle(store);
+    expect(picture(store)).toBe('C A B Ghost');
+    expect(sceneWrites(vault).sort()).toEqual(['C', 'Ghost']);
+    expectRisingKeys(vault, indexPath);
+  });
+});
+
+describe('order keys of notes the vault has not indexed yet', () => {
+  it('reads the keys from the notes themselves, and still rewrites one note for one move', async () => {
+    const { store, vault, timers, indexPath } = await openSeeded(five);
+    vault.forgetIndex(); // as while Obsidian is still filling its index after starting
+
+    valueOf(await store.moveNode(sceneRef('Manuscript/E.md'), { at: 'after', sibling: sceneRef('Manuscript/A.md') }));
+    timers.advance(ORDER_DEBOUNCE_MS);
+    await settle(store);
+
+    expect(sceneWrites(vault)).toEqual(['E']);
+    expect(orderOf(vault, 'E')).toBe(1536);
+    expect(['A', 'B', 'C', 'D'].map((name) => orderOf(vault, name))).toEqual([1024, 2048, 3072, 4096]);
+    expectRisingKeys(vault, indexPath);
+  });
+
+  it('gives a new scene a key that fits the keys on disk', async () => {
+    const { store, vault, timers, indexPath } = await openSeeded({ scenes: { A: 100, B: 200, C: 300 } });
+    vault.forgetIndex();
+
+    valueOf(await store.addScene('Mid', { at: 'after', sibling: sceneRef('Manuscript/A.md') }));
+    valueOf(await store.addScene('Last'));
+    expect(orderOf(vault, 'Mid')).toBe(150);
+    expect(orderOf(vault, 'Last')).toBe(1324);
+    timers.advance(ORDER_DEBOUNCE_MS);
+    await settle(store);
+
+    expect(sceneWrites(vault)).toEqual([]);
+    expect(['A', 'B', 'C'].map((name) => orderOf(vault, name))).toEqual([100, 200, 300]);
+    expectRisingKeys(vault, indexPath);
+  });
+
+  it('copes with a single note that arrived a moment ago', async () => {
+    const { store, vault, timers, indexPath } = await openSeeded(five);
+    vault.holdMetadata(); // the vault lists new notes but has not read their properties
+    vault.external.create('Novel/Manuscript/F.md', { frontmatter: { order: 9000 }, body: sceneBody('F') });
+    vault.external.editFrontmatter(indexPath, (fm) => {
+      fm['binder'] = ['A', 'B', 'C', 'D', 'E', 'F'].map((name) => `Manuscript/${name}.md`);
+    });
+    await settle(store);
+
+    valueOf(await store.moveNode(sceneRef('Manuscript/A.md'), { at: 'after', sibling: sceneRef('Manuscript/B.md') }));
+    timers.advance(ORDER_DEBOUNCE_MS);
+    await settle(store);
+
+    expect(sceneWrites(vault)).toEqual(['A']);
+    expect(orderOf(vault, 'F')).toBe(9000); // its own key was read and found to fit
+    expectRisingKeys(vault, indexPath);
+  });
+
+  it('still gives a key to a note that really has no properties', async () => {
+    const vault = new MemoryVault().seed('Novel/Manuscript/Bare.md', { body: 'no properties at all' });
+    const { store, timers, indexPath } = await openSeeded(
+      { binder: ['Manuscript/A.md', 'Manuscript/Bare.md', 'Manuscript/B.md'], scenes: { A: 1024, B: 2048 } },
+      vault,
+    );
+    valueOf(await store.moveNode(sceneRef('Manuscript/B.md'), { at: 'start', parentId: null }));
+    timers.advance(ORDER_DEBOUNCE_MS);
+    await settle(store);
+
+    expect(sceneWrites(vault).sort()).toEqual(['B', 'Bare']);
+    expect(vault.frontmatterOf('Novel/Manuscript/Bare.md')).toEqual({ order: 2048 });
+    expect(vault.bodyOf('Novel/Manuscript/Bare.md')).toBe('no properties at all');
+    expectRisingKeys(vault, indexPath);
+  });
+
+  it('plans around a note whose properties cannot be read at all', async () => {
+    const { store, vault, timers } = await openSeeded(five);
+    vault.external.corrupt('Novel/Manuscript/C.md', { silent: true });
+    vault.forgetIndex();
+
+    valueOf(await store.moveNode(sceneRef('Manuscript/E.md'), { at: 'after', sibling: sceneRef('Manuscript/A.md') }));
+    timers.advance(ORDER_DEBOUNCE_MS);
+    await settle(store);
+
+    expect(sceneWrites(vault)).toEqual(['E']);
+    expect(orderOf(vault, 'E')).toBe(1536);
+    expect(await vault.readText('Novel/Manuscript/C.md')).toContain(sceneBody('C'));
+  });
+});
+
+describe('order keys that are still waiting when the project is left', () => {
+  it('are written before another project is opened', async () => {
+    const vault = new MemoryVault();
+    const other = seedProject(vault, { folder: 'Other', title: 'Other', scenes: { X: 1024 } });
+    const { store, timers } = await openSeeded(five, vault);
+
+    valueOf(await store.moveNode(sceneRef('Manuscript/E.md'), { at: 'start', parentId: null }));
+    expect(orderOf(vault, 'E')).toBe(5120); // still waiting for its delay
+    valueOf(await store.openProject(other));
+
+    expect(store.project?.title).toBe('Other');
+    expect(sceneWrites(vault)).toEqual(['E']);
+    expect(orderOf(vault, 'E')).toBe(512);
+    expect(timers.pending).toBe(0);
+    timers.advance(ORDER_DEBOUNCE_MS * 10);
+    await settle(store);
+    expect(sceneWrites(vault)).toEqual(['E']); // and nothing lands in the project that is open now
+    expect(orderOf(vault, 'X', 'Other')).toBe(1024);
+  });
+
+  it('are written before the project is closed', async () => {
+    const { store, vault, timers, indexPath } = await openSeeded(five);
+    valueOf(await store.moveNode(sceneRef('Manuscript/E.md'), { at: 'start', parentId: null }));
+
+    await store.closeProject();
+
+    expect(store.project).toBeNull();
+    expect(sceneWrites(vault)).toEqual(['E']);
+    expect(orderOf(vault, 'E')).toBe(512);
+    expect(timers.pending).toBe(0);
+    expectRisingKeys(vault, indexPath);
+  });
+
+  it('closing or switching writes nothing when no key is waiting', async () => {
+    const vault = new MemoryVault();
+    const other = seedProject(vault, { folder: 'Other', title: 'Other', scenes: { X: 1024 } });
+    // A project whose keys do not fit its binder: opening and leaving it must not "repair" them.
+    const { store } = await openSeeded({ scenes: { A: 3072, B: 2048, C: null } }, vault);
+    const readsBefore = vault.reads.readFrontmatter;
+
+    valueOf(await store.openProject(other));
+    await store.closeProject();
+
+    expect(vault.writes).toEqual([]);
+    expect(vault.reads.readFrontmatter).toBe(readsBefore + 1); // only the index of the project being opened
+  });
+
+  it('are planned once an index that became unreadable has been repaired', async () => {
+    const { store, vault, timers, indexPath } = await openSeeded(five);
+    valueOf(await store.moveNode(sceneRef('Manuscript/E.md'), { at: 'start', parentId: null }));
+    const moved = vault.frontmatterOf(indexPath)?.['binder'];
+    vault.external.editFrontmatter(indexPath, (fm) => {
+      fm['binder'] = 'broken by a merge';
+    });
+    await settle(store);
+    timers.advance(ORDER_DEBOUNCE_MS * 10);
+    await settle(store);
+    expect(store.project?.readOnly).toBe(true);
+    expect(sceneWrites(vault)).toEqual([]);
+
+    vault.external.editFrontmatter(indexPath, (fm) => {
+      fm['binder'] = moved;
+    });
+    await settle(store);
+    expect(store.project?.readOnly).toBe(false);
+    expect(sceneWrites(vault)).toEqual([]); // after the usual delay, not at once
+    timers.advance(ORDER_DEBOUNCE_MS);
+    await settle(store);
+
+    expect(sceneWrites(vault)).toEqual(['E']);
+    expect(orderOf(vault, 'E')).toBe(512);
+    expect(timers.pending).toBe(0);
+    expectRisingKeys(vault, indexPath);
+  });
+
+  it('follow a scene that is renamed before its key was written', async () => {
+    const { store, vault, timers, indexPath } = await openSeeded(five);
+    valueOf(await store.moveNode(sceneRef('Manuscript/E.md'), { at: 'start', parentId: null }));
+    valueOf(await store.renameScene('Manuscript/E.md', 'Epilogue'));
+    // ... and D is moved, then renamed in the file explorer.
+    valueOf(await store.moveNode(sceneRef('Manuscript/D.md'), { at: 'after', sibling: sceneRef('Manuscript/A.md') }));
+    vault.external.rename('Novel/Manuscript/D.md', 'Novel/Manuscript/Dawn.md');
+    timers.advance(ORDER_DEBOUNCE_MS);
+    await settle(store);
+
+    expect(picture(store)).toBe('Epilogue A Dawn B C');
+    expect(sceneWrites(vault).sort()).toEqual(['Dawn', 'Epilogue']);
+    expect(orderOf(vault, 'Epilogue')).toBe(512);
+    expect(orderOf(vault, 'Dawn')).toBe(1536);
+    expectRisingKeys(vault, indexPath);
+  });
+});
+
 describe('syncOrderKeysNow', () => {
   it('writes outstanding keys without waiting, and the later timer then has nothing to do', async () => {
     const { store, vault, timers } = await openSeeded(five);
@@ -350,5 +639,11 @@ describe('syncOrderKeysNow', () => {
     timers.advance(ORDER_DEBOUNCE_MS * 2);
     await settle(store);
     expect(sceneWrites(vault)).toEqual(['E']);
+  });
+
+  it('writes nothing when no key is waiting, even if the keys on disk do not fit the binder', async () => {
+    const { store, vault } = await openSeeded({ scenes: { A: 3072, B: 2048, C: null } });
+    await store.syncOrderKeysNow();
+    expect(vault.writes).toEqual([]);
   });
 });

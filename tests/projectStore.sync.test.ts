@@ -300,6 +300,48 @@ describe('a scene note is renamed or moved outside the plugin', () => {
     expect(picture(store)).toBe('A B C');
   });
 
+  it('follows two notes that swap names, so each entry stays with its own text', async () => {
+    const { store, vault, timers, indexPath } = await openSeeded(threeScenes);
+    // A script (or a sync) swaps the names of A and B by way of a spare name.
+    vault.external.rename('Novel/Manuscript/A.md', 'Novel/Manuscript/Spare.md');
+    vault.external.rename('Novel/Manuscript/B.md', 'Novel/Manuscript/A.md');
+    vault.external.rename('Novel/Manuscript/Spare.md', 'Novel/Manuscript/B.md');
+    await settle(store);
+
+    // Shown correctly at once, before anything is saved: the first scene is now called B.
+    expect(picture(store)).toBe('B A C');
+    expect(project(store).missing).toEqual([]);
+    expect(project(store).unfiled).toEqual([]);
+
+    timers.advance(RENAME_SETTLE_MS);
+    await settle(store);
+    expect(binderOnDisk(vault, indexPath)).toEqual(['Manuscript/B.md', 'Manuscript/A.md', 'Manuscript/C.md']);
+    expect(vault.writes).toEqual([{ op: 'updateFrontmatter', path: indexPath }]);
+    // The manuscript still reads in the same order: the text that came first comes first.
+    expect(vault.bodyOf('Novel/Manuscript/B.md')).toBe(sceneBody('A'));
+    expect(vault.bodyOf('Novel/Manuscript/A.md')).toBe(sceneBody('B'));
+    expect(['B', 'A', 'C'].map((name) => vault.frontmatterOf(`Novel/Manuscript/${name}.md`)?.['order'])).toEqual([1024, 2048, 3072]);
+
+    timers.advance(60_000);
+    await settle(store);
+    expect(vault.writes).toHaveLength(1);
+    expect(picture(store)).toBe('B A C');
+  });
+
+  it('follows a note into a name that another scene has only just left', async () => {
+    const { store, vault, timers, indexPath } = await openSeeded(threeScenes);
+    vault.external.rename('Novel/Manuscript/A.md', 'Novel/Manuscript/Spare.md');
+    vault.external.rename('Novel/Manuscript/B.md', 'Novel/Manuscript/Bee.md');
+    vault.external.rename('Novel/Manuscript/Spare.md', 'Novel/Manuscript/B.md');
+    timers.advance(RENAME_SETTLE_MS);
+    await settle(store);
+
+    expect(binderOnDisk(vault, indexPath)).toEqual(['Manuscript/B.md', 'Manuscript/Bee.md', 'Manuscript/C.md']);
+    expect(vault.writes).toEqual([{ op: 'updateFrontmatter', path: indexPath }]);
+    expect(project(store).missing).toEqual([]);
+    expect(project(store).unfiled).toEqual([]);
+  });
+
   for (const order of ['folder-first', 'files-first'] as const) {
     it(`follows every note of a renamed folder with one write (events ${order})`, async () => {
       const vault = new MemoryVault();

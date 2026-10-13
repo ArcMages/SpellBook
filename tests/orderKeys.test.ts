@@ -3,6 +3,7 @@ import {
   MAX_ORDER_KEY,
   ORDER_STEP,
   isStrictlyIncreasing,
+  planLocalOrderKeys,
   planOrderKeys,
   readOrder,
 } from '../src/core/orderKeys';
@@ -285,6 +286,98 @@ describe('planOrderKeys', () => {
     const after = move(list, 2999, 0);
     const changes = planOrderKeys(after, new Set(['s2999']));
     expect(changes).toEqual([{ path: 's2999', order: 512 }]);
+  });
+});
+
+describe('planLocalOrderKeys', () => {
+  /** Scenes with the given names and keys, in manuscript order. */
+  const named = (list: Record<string, number | null>): OrderedScene[] =>
+    Object.entries(list).map(([path, order]) => ({ path, order }));
+  const touched = (...paths: string[]): Set<string> => new Set(paths);
+  const paths = (changes: readonly OrderChange[]): string[] => changes.map((change) => change.path).sort();
+
+  it('is the usual plan when the scenes not touched here are in order', () => {
+    // one move, with a gap to move into
+    const afterMove = named({ a: 1024, e: 5120, b: 2048, c: 3072, d: 4096 });
+    expect(planLocalOrderKeys(afterMove, touched('e'))).toEqual([{ path: 'e', order: 1536 }]);
+    // no whole number fits: a neighbour is renumbered as well
+    const packed = named({ a: 10, d: 5000, b: 11, c: 12, e: 6000 });
+    expect(planLocalOrderKeys(packed, touched('d'))).toEqual(planOrderKeys(packed, touched('d')));
+    expect(paths(planLocalOrderKeys(packed, touched('d')))).toEqual(['a', 'd']);
+    // scenes that never had a key all get one
+    const keyless = named({ c: null, a: null, b: null });
+    expect(planLocalOrderKeys(keyless, touched('c'))).toEqual(planOrderKeys(keyless, touched('c')));
+    expect(planLocalOrderKeys(keyless, touched('c'))).toHaveLength(3);
+  });
+
+  it('leaves a scene that was not touched here alone, even when its key does not fit', () => {
+    // e was moved to the front on another device and its new key has not arrived; d was moved here.
+    const list = named({ e: 5120, a: 1024, d: 4096, b: 2048, c: 3072 });
+    expect(paths(planOrderKeys(list, touched('d')))).toEqual(['d', 'e']); // the full repair would write both
+    expect(planLocalOrderKeys(list, touched('d'))).toEqual([{ path: 'd', order: 1536 }]);
+  });
+
+  it('writes nothing when nothing was touched here and every scene has a key', () => {
+    expect(planLocalOrderKeys(named({ e: 5120, a: 1024, b: 2048 }), touched())).toEqual([]);
+    expect(planLocalOrderKeys(named({ a: 3, b: 2, c: 1 }), touched())).toEqual([]);
+    expect(planLocalOrderKeys(named({ a: 7, b: 7 }), touched())).toEqual([]);
+    expect(planLocalOrderKeys([], touched())).toEqual([]);
+  });
+
+  it('gives a key to a scene that has none, without repairing the others', () => {
+    const list = named({ e: 5120, a: 1024, k: null, b: 2048 });
+    expect(planLocalOrderKeys(list, touched())).toEqual([{ path: 'k', order: 1536 }]);
+  });
+
+  it('does not measure from a key that is out of place, and leaves room for the one on its way', () => {
+    // d goes between e and a. Whatever e holds now, d must fit in front of a;
+    // and e will get a key in that same gap, so d does not take the middle of it.
+    const list = named({ e: 5120, d: 4096, a: 1024, b: 2048, c: 3072 });
+    expect(planLocalOrderKeys(list, touched('d'))).toEqual([{ path: 'd', order: 682 }]);
+  });
+
+  it('does not renumber a neighbour just to leave that room', () => {
+    // s is out of place between p and q; x is added here, and one number is free between p and q.
+    const list = named({ p: 10, s: 9000, x: null, q: 12, r: 13, t: 14 });
+    expect(planLocalOrderKeys(list, touched('x'))).toEqual([{ path: 'x', order: 11 }]);
+  });
+
+  it('for random manuscripts: never writes an out-of-place key it did not touch, and puts the rest in order', () => {
+    const random = randomSource(20261014);
+    for (let trial = 0; trial < 600; trial++) {
+      const length = 1 + Math.floor(random() * 9);
+      const list: OrderedScene[] = [];
+      const touchedHere = new Set<string>();
+      for (let i = 0; i < length; i++) {
+        const roll = random();
+        const order =
+          roll < 0.15 ? null : roll < 0.6 ? 1 + Math.floor(random() * 12) : ORDER_STEP * (1 + Math.floor(random() * 8));
+        list.push({ path: `s${i}`, order });
+        if (random() < 0.25) touchedHere.add(`s${i}`);
+      }
+      const picture = `${JSON.stringify(list.map((scene) => scene.order))} touched ${[...touchedHere].join(',')}`;
+
+      // The scenes another device may still be sending keys for.
+      const others = list.filter((scene) => !touchedHere.has(scene.path) && scene.order !== null);
+      const awaited = new Set(planOrderKeys(others).map((change) => change.path));
+
+      const changes = planLocalOrderKeys(list, touchedHere);
+      for (const change of changes) {
+        expect(awaited.has(change.path), picture).toBe(false);
+        expect(Number.isInteger(change.order) && change.order >= 1, picture).toBe(true);
+        expect(change.order, picture).not.toBe(list.find((scene) => scene.path === change.path)?.order);
+      }
+      if (awaited.size === 0) expect(changes, picture).toEqual(planOrderKeys(list, touchedHere));
+      if (touchedHere.size === 0 && list.every((scene) => scene.order !== null)) expect(changes, picture).toEqual([]);
+
+      // Everything except the awaited scenes now rises in manuscript order.
+      const result = apply(list, changes);
+      const settled = list.map((scene, index) => ({ path: scene.path, order: result[index] ?? null }));
+      const expected = settled.filter((scene) => !awaited.has(scene.path)).map((scene) => scene.order);
+      expect(isStrictlyIncreasing(expected), picture).toBe(true);
+      // ... and carrying the plan out leaves nothing more to do.
+      expect(planLocalOrderKeys(settled, new Set()), picture).toEqual([]);
+    }
   });
 });
 

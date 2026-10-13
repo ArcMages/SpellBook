@@ -224,7 +224,7 @@ describe('opening a project', () => {
     expect(picture(store)).toBe('B');
 
     changes.length = 0;
-    store.closeProject();
+    await store.closeProject();
     expect(store.project).toBeNull();
     expect(changes).toEqual([{ type: 'project' }]);
     // an intent with no project open is refused

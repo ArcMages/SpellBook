@@ -17,6 +17,8 @@
 //  - Unfiled notes and Missing entries are worked out when reading, and never
 //    "fixed" on disk without being asked.
 //  - A note's text is never changed. Deleting a scene moves it to the trash.
+//  - A scene note's "order" property is only written for something the writer
+//    did on this device, and only in the notes that change needs.
 
 import {
   findFolder,
@@ -26,6 +28,7 @@ import {
   insertNode,
   locate,
   moveNode as moveInTree,
+  placementOf,
   removeFolderKeepChildren,
   removeNode,
   renameFolder as renameFolderInTree,
@@ -35,7 +38,7 @@ import {
   scenesIn,
 } from './binderTree';
 import { newFolderId, sanitiseFileName, tidyDisplayName, uniqueName } from './names';
-import { ORDER_STEP, planOrderKeys, readOrder } from './orderKeys';
+import { ORDER_STEP, planLocalOrderKeys, readOrder } from './orderKeys';
 import type { OrderedScene } from './orderKeys';
 import {
   clashKey,
@@ -224,7 +227,11 @@ export class ProjectStore {
     this.rediscover();
   }
 
-  /** Stop listening and cancel anything scheduled. Nothing more is written after this. */
+  /**
+   * Stop listening and cancel anything scheduled. Nothing more is written
+   * after this, not even order keys that were still waiting for their delay:
+   * the plugin has been switched off and must leave the vault alone.
+   */
   dispose(): void {
     this.disposed = true;
     this.stopListening?.();
@@ -269,6 +276,9 @@ export class ProjectStore {
   /** Open the project whose index note is at `indexPath` (read from the file itself). */
   openProject(indexPath: string): Promise<IntentResult<ProjectSnapshot>> {
     return this.enqueue(async (): Promise<IntentResult<ProjectSnapshot>> => {
+      // Order keys still waiting for their delay belong to the project that
+      // is open now. Write them before leaving it; nobody would do it later.
+      await this.flushOrderKeys();
       let frontmatter: Frontmatter | null;
       try {
         frontmatter = await this.vault.readFrontmatter(indexPath);
@@ -299,11 +309,17 @@ export class ProjectStore {
     });
   }
 
-  /** Close the open project. Its files are not touched. */
-  closeProject(): void {
-    if (!this.active) return;
-    this.resetActive();
-    this.refreshSnapshot();
+  /**
+   * Close the open project. Order keys that were still waiting for their
+   * delay are written first; apart from that its files are not touched.
+   */
+  closeProject(): Promise<void> {
+    return this.enqueue(async (): Promise<void> => {
+      if (!this.active) return;
+      await this.flushOrderKeys();
+      this.resetActive();
+      this.refreshSnapshot();
+    });
   }
 
   // ------------------------------------------------------------------ intents
@@ -439,6 +455,10 @@ export class ProjectStore {
       const manuscript = joinPath(active.folder, MANUSCRIPT_FOLDER);
       if (!this.vault.exists(manuscript)) await this.vault.createFolder(manuscript);
 
+      // The order keys the scenes hold now. Looked up first, so that nothing
+      // has to be waited for between choosing a free name and creating the note.
+      const keyed = await this.keyedScenes(active);
+
       // A name counts as taken when a note has it, and also when the binder
       // lists it: a Missing entry may be a note that is still on its way from
       // another device, and must not be filled in by a new empty note.
@@ -451,7 +471,7 @@ export class ProjectStore {
       });
       const wanted = `${MANUSCRIPT_FOLDER}/${name}.md`;
 
-      const order = this.orderForNewScene(active, binder, wanted, placement);
+      const order = this.orderForNewScene(keyed.scenes, binder, wanted, placement);
       const createdPath = await this.vault.createFile(
         joinPath(active.folder, wanted),
         '',
@@ -636,30 +656,41 @@ export class ProjectStore {
         return refused('invalid-path', `"${path}" is not a scene of this project.`);
       }
 
-      // Binder first: if the trash step then fails, the note is still there
-      // and simply shows up as Unfiled.
-      const removal = await this.mutateBinder<undefined>((onDisk) => {
+      // Binder first: a note is only trashed once the index no longer lists
+      // it. If the trash step then fails, the entry is put back where it was.
+      const removal = await this.mutateBinder<{ entry: BinderNode; where: Placement }>((onDisk) => {
+        const where = placementOf(onDisk, sceneRef(rel));
         const removed = removeNode(onDisk, sceneRef(rel));
-        if (!removed) return noop('not-found', 'That scene is no longer in the binder.');
-        return { status: 'done', binder: removed.binder, value: undefined };
+        if (!where || !removed) return noop('not-found', 'That scene is no longer in the binder.');
+        return { status: 'done', binder: removed.binder, value: { entry: removed.node, where } };
       });
       if (removal.status === 'failed' || removal.status === 'refused') return removal;
-      const wasInBinder = removal.status === 'done';
+      const taken = removal.status === 'done' ? removal.value : null;
 
       const file = this.projectFiles(active).get(pathKey(rel));
       if (!file) {
-        return wasInBinder ? done(undefined) : noop('not-found', 'That scene is no longer in the project.');
+        return taken ? done(undefined) : noop('not-found', 'That scene is no longer in the project.');
       }
-      if (!wasInBinder && !isInside(MANUSCRIPT_FOLDER, file.rel)) {
+      if (!taken && !isInside(MANUSCRIPT_FOLDER, file.rel)) {
         // The binder on disk no longer lists it, and it is not a manuscript note: leave it be.
         return noop('not-found', 'That scene is no longer in the binder.');
       }
       try {
         await this.vault.trash(file.path);
       } catch (error) {
+        const why = `note could not be moved to the trash (${messageOf(error)}).`;
+        // It was an unfiled manuscript note, and still is.
+        if (!taken) return failed(`The ${why} You can find it under Unfiled.`);
+        if (await this.putBack(taken.entry, taken.where)) {
+          return failed(`The scene was not deleted, because its ${why} It is still in the binder.`);
+        }
+        // Only notes in the Manuscript folder are listed as Unfiled.
         return failed(
-          (wasInBinder ? 'The scene was taken out of the binder, but its ' : 'The ') +
-            `note could not be moved to the trash: ${messageOf(error)} You can find it under Unfiled.`,
+          `The scene was taken out of the binder, but its ${why} ` +
+            (isInside(MANUSCRIPT_FOLDER, file.rel)
+              ? 'You can find it under Unfiled.'
+              : `The note is still at "${file.rel}". To file it again, move it into the ` +
+                `${MANUSCRIPT_FOLDER} folder: it is then listed under Unfiled.`),
         );
       }
       this.knownOrders.delete(file.path);
@@ -727,9 +758,7 @@ export class ProjectStore {
 
   /** Write any outstanding order keys now instead of waiting for the delay. */
   syncOrderKeysNow(): Promise<void> {
-    this.cancelOrderTimer?.();
-    this.cancelOrderTimer = null;
-    return this.enqueue(() => this.syncOrderKeys());
+    return this.enqueue(() => this.flushOrderKeys());
   }
 
   // -------------------------------------------------------------------- queue
@@ -840,6 +869,24 @@ export class ProjectStore {
   }
 
   /**
+   * Put a binder entry back after a delete that did not go through: at the
+   * place it was taken from, or at the end when that place is gone. Returns
+   * whether the binder lists it again.
+   */
+  private async putBack(entry: BinderNode, where: Placement): Promise<boolean> {
+    const result = await this.mutateBinder<undefined>((onDisk) => {
+      const target = resolvePlacement(onDisk, where) ?? { parentId: null, index: onDisk.length };
+      const inserted = insertNode(onDisk, entry, target.parentId, target.index);
+      if (inserted.ok) return { status: 'done', binder: inserted.binder, value: undefined };
+      // "duplicate": the index lists it again already (another device was quicker).
+      return inserted.reason === 'duplicate'
+        ? noop('already-in-binder', 'The binder already lists this note.')
+        : failed('The binder changed while the scene was being put back.');
+    });
+    return result.status === 'done' || (result.status === 'noop' && result.reason === 'already-in-binder');
+  }
+
+  /**
    * Apply one change to the binder inside a single read-modify-write of the
    * index note. `change` sees the binder as it is on disk right now and
    * decides what to do. Renames waiting in `pendingRenames` ride along in the
@@ -942,10 +989,14 @@ export class ProjectStore {
     const parsed = parseProjectIndex(frontmatter);
     active.explicitTitle = parsed.title;
     if (parsed.ok) {
+      const repaired = active.readOnly;
       active.binder = parsed.binder;
       active.readOnly = false;
       active.error = null;
       active.notes = parsed.notes;
+      // Order keys for what the writer moved before the index became
+      // unreadable could not be planned then. They can be now.
+      if (repaired && this.orderHints.size > 0) this.scheduleOrderSync([]);
     } else {
       this.markUnreadable(active, parsed.error);
     }
@@ -956,14 +1007,17 @@ export class ProjectStore {
     }
   }
 
-  /** Put the project into read-only mode with a reason. Nothing is written while it lasts. */
+  /**
+   * Put the project into read-only mode with a reason. Nothing is written
+   * while it lasts. Which scenes the writer moved (orderHints) is remembered:
+   * their order keys are planned once the index can be read again.
+   */
   private markUnreadable(active: ActiveProject, reason: string): void {
     active.binder = [];
     active.readOnly = true;
     active.error = `${reason} The project is read-only until this is fixed; Spellbook will not change the index.`;
     active.notes = [];
     this.pendingRenames.clear();
-    this.orderHints.clear();
     this.cancelTimers();
   }
 
@@ -1236,6 +1290,8 @@ export class ProjectStore {
 
   /** Remember that a note moved, joining it up with an earlier move of the same note. */
   private recordRename(oldRel: string, newRel: string): void {
+    // A scene that is waiting for its order key keeps waiting under its new name.
+    if (this.orderHints.delete(oldRel)) this.orderHints.add(newRel);
     for (const [from, to] of this.pendingRenames) {
       if (to !== oldRel) continue;
       if (from === newRel) this.pendingRenames.delete(from);
@@ -1263,34 +1319,88 @@ export class ProjectStore {
 
   // --------------------------------------------------------------- order keys
 
-  private orderOf(file: ProjectFile): number | null {
-    return this.knownOrders.get(file.path) ?? readOrder(file.frontmatter?.['order']);
+  /**
+   * A scene note's order key: a number, null when the note has none, or
+   * undefined when that cannot be told because the note cannot be read.
+   */
+  private async orderOf(file: ProjectFile): Promise<number | null | undefined> {
+    const written = this.knownOrders.get(file.path);
+    if (written !== undefined) return written;
+    if (file.frontmatter !== null) return readOrder(file.frontmatter['order']);
+    // The vault's index holds nothing for this note. That is so for a note
+    // without properties, and just as much for one that has not been indexed
+    // yet (the app has only just started, or the note has only just arrived).
+    // Only the note itself can tell the two apart.
+    try {
+      const onDisk = await this.vault.readFrontmatter(file.path);
+      return readOrder(onDisk?.['order']);
+    } catch {
+      return undefined;
+    }
   }
 
-  /** The order key for a scene about to be created at `placement`. */
-  private orderForNewScene(active: ActiveProject, binder: Binder, rel: string, placement: Placement): number {
+  /**
+   * The scenes of the binder in manuscript order, each with the order key it
+   * holds now, and the vault path of each one's note. Scenes whose note is
+   * missing or cannot be read are not among them, because there is nothing
+   * to write to; they are listed in `noNote` instead.
+   */
+  private async keyedScenes(
+    active: ActiveProject,
+  ): Promise<{ scenes: OrderedScene[]; vaultPathOf: Map<string, string>; noNote: string[] }> {
+    const files = this.projectFiles(active);
+    const scenes: OrderedScene[] = [];
+    const vaultPathOf = new Map<string, string>();
+    const noNote: string[] = [];
+    // One note after another: when the vault's index is still empty, every
+    // note has to be read, and a phone should not be asked for all at once.
+    for (const rel of flattenScenes(this.effectiveBinder(active))) {
+      const file = files.get(pathKey(rel));
+      const order = file ? await this.orderOf(file) : undefined;
+      if (!file || order === undefined) {
+        noNote.push(rel);
+        continue;
+      }
+      scenes.push({ path: rel, order });
+      vaultPathOf.set(rel, file.path);
+    }
+    return { scenes, vaultPathOf, noNote };
+  }
+
+  /**
+   * The order key for a scene about to be created at `placement`.
+   * `keyed` is what keyedScenes() found: the other scenes and their keys.
+   */
+  private orderForNewScene(
+    keyed: readonly OrderedScene[],
+    binder: Binder,
+    rel: string,
+    placement: Placement,
+  ): number {
     const target = resolvePlacement(binder, placement) ?? { parentId: null, index: binder.length };
     const inserted = insertNode(binder, { kind: 'scene', path: rel }, target.parentId, target.index);
     const withNew: Binder = inserted.ok ? inserted.binder : [...binder, { kind: 'scene', path: rel }];
 
-    const files = this.projectFiles(active);
+    const known = new Map(keyed.map((scene) => [pathKey(scene.path), scene] as const));
     const scenes: OrderedScene[] = [];
     for (const path of flattenScenes(withNew)) {
       if (path === rel) {
         scenes.push({ path, order: null });
         continue;
       }
-      const file = files.get(pathKey(path));
-      if (file) scenes.push({ path, order: this.orderOf(file) });
+      const scene = known.get(pathKey(path));
+      if (scene) scenes.push(scene);
     }
-    const planned = planOrderKeys(scenes, new Set([rel])).find((change) => change.path === rel);
+    const planned = planLocalOrderKeys(scenes, new Set([rel])).find((change) => change.path === rel);
     return planned?.order ?? ORDER_STEP;
   }
 
   /**
    * Order keys are only written as a result of something the writer did on
    * this device, never because of a change that arrived by sync: otherwise two
-   * devices could keep correcting each other's files.
+   * devices could keep correcting each other's files. `scenes` are the ones
+   * that were just moved, added or filed here; they stay in `orderHints`
+   * until a plan has dealt with them.
    */
   private scheduleOrderSync(scenes: Iterable<string>): void {
     for (const rel of scenes) this.orderHints.add(rel);
@@ -1304,10 +1414,30 @@ export class ProjectStore {
   }
 
   /**
-   * Bring the "order" property of the scene notes in line with the binder,
-   * writing as few notes as possible. Missing notes are skipped. Each note is
-   * re-read at the moment of writing and left alone if it already holds the
-   * right value, so these writes cannot trigger each other.
+   * Write the order keys that are still waiting for their delay, if any.
+   * Called from inside the queue, before the open project is left.
+   */
+  private async flushOrderKeys(): Promise<void> {
+    if (this.cancelOrderTimer === null && this.orderHints.size === 0) return;
+    this.cancelOrderTimer?.();
+    this.cancelOrderTimer = null;
+    try {
+      await this.syncOrderKeys();
+    } catch (error) {
+      // Leaving a project must never be held up by its order keys.
+      console.error('Spellbook: could not write the order keys', error);
+    }
+  }
+
+  /**
+   * Bring the "order" property of the scenes the writer moved, added or filed
+   * on this device in line with the binder, writing as few notes as possible.
+   * A scene that was not touched here is only written when it has no key at
+   * all, or when no whole number fits next to it; a key that merely looks
+   * wrong is left alone, because the device that moved that scene may still
+   * be sending it (see planLocalOrderKeys). Missing notes are skipped. Each
+   * note is re-read at the moment of writing and left alone if it already
+   * holds the right value, so these writes cannot trigger each other.
    */
   private async syncOrderKeys(): Promise<void> {
     try {
@@ -1316,20 +1446,21 @@ export class ProjectStore {
       // Plan against the binder as it is on disk now.
       await this.reloadFromDisk();
       if (this.active !== active || active.readOnly) return;
+      const { scenes, vaultPathOf, noNote } = await this.keyedScenes(active);
+      if (this.active !== active || this.disposed) return;
 
+      // This plan covers everything that was waiting ...
+      this.cancelOrderTimer?.();
+      this.cancelOrderTimer = null;
       const hints = new Set(this.orderHints);
       this.orderHints.clear();
-      const files = this.projectFiles(active);
-      const scenes: OrderedScene[] = [];
-      const vaultPathOf = new Map<string, string>();
-      for (const rel of flattenScenes(this.effectiveBinder(active))) {
-        const file = files.get(pathKey(rel));
-        if (!file) continue; // Missing: nothing to write to
-        scenes.push({ path: rel, order: this.orderOf(file) });
-        vaultPathOf.set(rel, file.path);
+      // ... except a scene that was moved here while its note was missing or
+      // unreadable. It keeps waiting, and gets its key with a later change.
+      for (const rel of noNote) {
+        if (hints.has(rel)) this.orderHints.add(rel);
       }
 
-      for (const change of planOrderKeys(scenes, hints)) {
+      for (const change of planLocalOrderKeys(scenes, hints)) {
         if (this.active !== active || this.disposed) return;
         const path = vaultPathOf.get(change.path);
         if (path === undefined) continue;
@@ -1342,7 +1473,8 @@ export class ProjectStore {
           this.knownOrders.set(path, change.order);
         } catch {
           // The note vanished or its properties cannot be read. Leave it
-          // alone; the next change to the binder plans again.
+          // alone, and try again when the binder is next changed here.
+          this.orderHints.add(change.path);
         }
       }
     } finally {

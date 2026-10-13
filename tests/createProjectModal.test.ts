@@ -148,6 +148,25 @@ describe('the Create project window', () => {
     expect(calls).toEqual([]);
   });
 
+  it('ignores the Enter that accepts a suggested word on iPhone and iPad', async () => {
+    // There the composition has already ended when the key arrives: isComposing
+    // is false, and only the key code 229 says an input method handled the key.
+    const { modal, name, calls, finish } = open();
+    name.type('しょうせつ');
+    let prevented = false;
+    name.inputEl.dispatch('keydown', { key: 'Enter', isComposing: false, keyCode: 229, preventDefault: () => { prevented = true; } });
+    expect(calls).toEqual([]);
+    expect(prevented).toBe(false); // the key is left to the keyboard
+    expect(modal.isOpen).toBe(true);
+
+    // The next, ordinary Enter creates the project.
+    name.type('小説');
+    name.inputEl.dispatch('keydown', { key: 'Enter', isComposing: false, keyCode: 13, preventDefault: () => undefined });
+    expect(calls).toEqual([['小説', '']]);
+    await finish(true);
+    expect(modal.isOpen).toBe(false);
+  });
+
   it('closes on Cancel without creating anything', () => {
     const { modal, name, cancel, calls } = open();
     name.type('Novel');

@@ -157,6 +157,52 @@ export function planOrderKeys(
   return changes;
 }
 
+/**
+ * The part of the plan that one device may carry out after the writer changed
+ * the binder on it.
+ *
+ * planOrderKeys() repairs every key that disagrees with the manuscript order.
+ * A device must not do that for scenes it did not touch. When the binder is
+ * reordered on another device, the index can arrive here before the scene
+ * notes that carry the new keys; "repairing" those notes would make two
+ * devices write the same note at the same time.
+ *
+ * So the scenes that were not touched here, and whose keys are out of order
+ * among themselves, are left to the device that moved them: they are never
+ * given a key here and never measured from. Everything else is planned as
+ * usual: the touched scenes, scenes that have no key at all, and neighbours
+ * that must be renumbered because no whole number fits.
+ *
+ * @param scenes      the scenes in manuscript order with their current keys
+ * @param touchedHere scenes moved, added or filed on this device since the
+ *                    last plan
+ * @returns the scenes this device should write, with their new key
+ */
+export function planLocalOrderKeys(
+  scenes: readonly OrderedScene[],
+  touchedHere: ReadonlySet<string>,
+): OrderChange[] {
+  // "Awaited" scenes: not touched here, yet out of order among the other
+  // untouched scenes. Their key is expected from the device that moved them.
+  const others = scenes.filter((scene) => !touchedHere.has(scene.path) && readOrder(scene.order) !== null);
+  const awaited = new Set(planOrderKeys(others).map((change) => change.path));
+  if (awaited.size === 0) return planOrderKeys(scenes, touchedHere);
+
+  // Plan as if the awaited scenes were not there at all ...
+  const tight = planOrderKeys(
+    scenes.filter((scene) => !awaited.has(scene.path)),
+    touchedHere,
+  );
+  // ... and again leaving room where they sit, so that a key on its way from
+  // another device does not land on a key chosen here. Room is only left when
+  // it costs no extra note.
+  const roomy = planOrderKeys(
+    scenes.map((scene) => (awaited.has(scene.path) ? { path: scene.path, order: null } : scene)),
+    touchedHere,
+  ).filter((change) => !awaited.has(change.path));
+  return roomy.length <= tight.length ? roomy : tight;
+}
+
 /** True when the keys rise strictly from one scene to the next and all are usable. */
 export function isStrictlyIncreasing(orders: readonly (number | null)[]): boolean {
   let last = 0;

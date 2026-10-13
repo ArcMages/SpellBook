@@ -198,6 +198,18 @@ export function resolvePlacement(
   };
 }
 
+/**
+ * Where a node sits, as a placement that would put it there again: straight
+ * after the node in front of it, or at the start of its folder. Null when the
+ * node is not in the tree.
+ */
+export function placementOf(binder: Binder, ref: NodeRef): Placement | null {
+  const found = locate(binder, ref);
+  if (!found) return null;
+  const before = found.index > 0 ? childrenOf(binder, found.parentId)?.[found.index - 1] : undefined;
+  return before ? { at: 'after', sibling: refOf(before) } : { at: 'start', parentId: found.parentId };
+}
+
 export type MoveResult =
   | { readonly ok: true; readonly binder: Binder }
   | {
@@ -286,23 +298,50 @@ export function replaceScenePath(binder: Binder, oldPath: string, newPath: strin
 
 /**
  * Apply several path changes at once (for example after a folder of notes
- * was renamed). A change is skipped when its old path is not in the tree or
- * its new path already is. `changed` tells whether anything was replaced.
+ * was renamed). They are worked out together against the tree as it is, not
+ * one after another, so that two notes that swapped names are both followed.
+ * A change is skipped when its old path is not in the tree, or when the tree
+ * would then list its new path twice. `changed` tells whether anything was
+ * replaced.
  */
 export function replaceScenePaths(
   binder: Binder,
   renames: Iterable<readonly [oldPath: string, newPath: string]>,
 ): { binder: Binder; changed: boolean } {
-  let current = binder;
-  let changed = false;
+  const listed = new Set(flattenScenes(binder).map(pathKey));
+  // Key of the old path -> the new path, for the entries that are in the tree.
+  const moves = new Map<string, string>();
   for (const [oldPath, newPath] of renames) {
-    if (pathKey(oldPath) === pathKey(newPath)) continue;
-    const next = replaceScenePath(current, oldPath, newPath);
-    if (next === null) continue;
-    current = next;
-    changed = true;
+    const from = pathKey(oldPath);
+    if (from === pathKey(newPath) || !listed.has(from) || moves.has(from)) continue;
+    moves.set(from, newPath);
   }
-  return { binder: current, changed };
+
+  // Whether a new path is free depends on the other changes: the entry that
+  // holds it may itself be moving away. Dropping one change can therefore
+  // block another, so look again until nothing more is dropped.
+  for (let settled = false; !settled; ) {
+    settled = true;
+    const taken = new Set([...listed].filter((key) => !moves.has(key)));
+    for (const [from, newPath] of moves) {
+      const to = pathKey(newPath);
+      if (taken.has(to)) {
+        moves.delete(from);
+        settled = false;
+      } else {
+        taken.add(to);
+      }
+    }
+  }
+  if (moves.size === 0) return { binder, changed: false };
+
+  const walk = (nodes: Binder): Binder =>
+    nodes.map((node): BinderNode => {
+      if (node.kind === 'folder') return { ...node, children: walk(node.children) };
+      const newPath = moves.get(pathKey(node.path));
+      return newPath === undefined ? node : { kind: 'scene', path: newPath };
+    });
+  return { binder: walk(binder), changed: true };
 }
 
 /**

@@ -10,6 +10,7 @@ import {
   insertNode,
   locate,
   moveNode,
+  placementOf,
   removeFolderKeepChildren,
   removeNode,
   renameFolder,
@@ -373,6 +374,92 @@ describe('replaceScenePath', () => {
     const nothing = replaceScenePaths(sample(), [['zzz.md', 'y.md']]);
     expect(nothing.changed).toBe(false);
     expect(draw(nothing.binder)).toBe(draw(sample()));
+  });
+});
+
+describe('replaceScenePaths', () => {
+  const after = (renames: Array<[string, string]>): string => draw(replaceScenePaths(sample(), renames).binder);
+
+  it('follows two notes that swapped names', () => {
+    const result = replaceScenePaths(sample(), [
+      ['a.md', 'b.md'],
+      ['b.md', 'a.md'],
+    ]);
+    expect(result.changed).toBe(true);
+    expect(draw(result.binder)).toBe('b p1[a p1a[c] d] e p2[]');
+  });
+
+  it('follows three notes that passed their names round in a circle', () => {
+    expect(
+      after([
+        ['a.md', 'c.md'],
+        ['c.md', 'e.md'],
+        ['e.md', 'a.md'],
+      ]),
+    ).toBe('c p1[b p1a[e] d] a p2[]');
+  });
+
+  it('follows a note into a name another note has just left, in whatever order the two are given', () => {
+    expect(after([['a.md', 'b.md'], ['b.md', 'x.md']])).toBe('b p1[x p1a[c] d] e p2[]');
+    expect(after([['b.md', 'x.md'], ['a.md', 'b.md']])).toBe('b p1[x p1a[c] d] e p2[]');
+  });
+
+  it('never lists a path twice', () => {
+    // e.md stays where it is, so nothing may be renamed onto it ...
+    expect(after([['a.md', 'e.md']])).toBe(draw(sample()));
+    // ... and then b.md does not move away either, so a.md cannot take its name.
+    const blocked = replaceScenePaths(sample(), [
+      ['a.md', 'b.md'],
+      ['b.md', 'e.md'],
+    ]);
+    expect(blocked.changed).toBe(false);
+    expect(draw(blocked.binder)).toBe(draw(sample()));
+    // Two notes cannot both end up with the same new name: the first one given gets it.
+    expect(after([['a.md', 'x.md'], ['b.md', 'x.md']])).toBe('x p1[b p1a[c] d] e p2[]');
+  });
+
+  it('keeps every scene exactly once, and does not change its input', () => {
+    const before = sample();
+    const result = replaceScenePaths(before, [
+      ['a.md', 'b.md'],
+      ['b.md', 'a.md'],
+      ['d.md', 'sub/d.md'],
+    ]);
+    expect(draw(before)).toBe(draw(sample()));
+    expect(flattenScenes(result.binder).sort()).toEqual(['a.md', 'b.md', 'c.md', 'e.md', 'sub/d.md']);
+    expect(folderIds(result.binder)).toEqual(folderIds(before));
+  });
+
+  it('ignores a rename that only changes the Unicode spelling of a path', () => {
+    const composed = 'Café.md'.normalize('NFC');
+    const decomposed = composed.normalize('NFD');
+    const binder: Binder = [scene(composed)];
+    const result = replaceScenePaths(binder, [[composed, decomposed]]);
+    expect(result.changed).toBe(false);
+    expect(result.binder).toBe(binder);
+  });
+});
+
+describe('placementOf', () => {
+  it('names the place of a node so that it can be put back there', () => {
+    expect(placementOf(sample(), sceneRef('a.md'))).toEqual({ at: 'start', parentId: null });
+    expect(placementOf(sample(), sceneRef('b.md'))).toEqual({ at: 'start', parentId: 'p1' });
+    expect(placementOf(sample(), sceneRef('d.md'))).toEqual({ at: 'after', sibling: folderRef('p1a') });
+    expect(placementOf(sample(), sceneRef('e.md'))).toEqual({ at: 'after', sibling: folderRef('p1') });
+    expect(placementOf(sample(), folderRef('p2'))).toEqual({ at: 'after', sibling: sceneRef('e.md') });
+    expect(placementOf(sample(), sceneRef('zzz.md'))).toBeNull();
+  });
+
+  it('puts every node back exactly where it was taken from', () => {
+    for (const ref of [sceneRef('a.md'), sceneRef('b.md'), sceneRef('c.md'), sceneRef('d.md'), sceneRef('e.md'), folderRef('p1'), folderRef('p1a'), folderRef('p2')]) {
+      const where = placementOf(sample(), ref);
+      const removed = removeNode(sample(), ref);
+      if (!where || !removed) throw new Error('the node should be in the sample');
+      const target = resolvePlacement(removed.binder, where);
+      if (!target) throw new Error('the place should still be there');
+      const back = insertNode(removed.binder, removed.node, target.parentId, target.index);
+      expect(back.ok && draw(back.binder), JSON.stringify(ref)).toBe(draw(sample()));
+    }
   });
 });
 
