@@ -38,7 +38,8 @@ function draw(slot: HTMLElement, line: SceneLineService): void {
     // A word of the app's own and a number or a date: read left to right in every language.
     const item = slot.createSpan({ cls: 'spellbook-summary-item', attr: { dir: 'ltr' } });
     item.createSpan({ cls: 'spellbook-summary-label', text: segment.label });
-    item.createSpan({ cls: 'spellbook-summary-value', text: segment.value });
+    // The writer's own text (a status, a scene's title) picks its own direction.
+    item.createSpan({ cls: 'spellbook-summary-value', text: segment.value, attr: segment.ownText === true ? { dir: 'auto' } : {} });
   }
 }
 
