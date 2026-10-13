@@ -4,10 +4,27 @@
 // day ("1923-04-12"), and stands at the first day of its period. Years run
 // from 1 to 9999 on the proleptic Gregorian calendar.
 //
+// A project may have an invented calendar instead (see calendar.ts). A date
+// of such a calendar carries it along (`calendar`), so that everything that
+// is handed a date knows how to count it; whatever makes a date out of
+// something else (text, a day number) is told which calendar to use. A date
+// without one is a real-world date, exactly as before.
+//
 // Everything here is whole-number arithmetic. No clock and no time zone is
 // involved, so a date means the same on every device.
 
 import { formatLocalDate } from './../dates';
+import {
+  calendarDateOfDay,
+  calendarDateText,
+  calendarDayNumber,
+  calendarDaysInMonth,
+  firstCalendarYear,
+  formatCalendarDate,
+  lastCalendarYear,
+  readCalendarDateText,
+} from './calendar';
+import type { StoryCalendar } from './calendar';
 
 /** How exactly a story date is known. */
 export type DatePrecision = 'year' | 'month' | 'day';
@@ -15,12 +32,14 @@ export type DatePrecision = 'year' | 'month' | 'day';
 /** A date in the story. Build one with `storyDate` or `readStoryDate`, never by hand. */
 export interface StoryDate {
   readonly precision: DatePrecision;
-  /** 1 to 9999. */
+  /** 1 to 9999. In an invented calendar: the year of its running count (see calendar.ts). */
   readonly year: number;
   /** 1 to 12; 1 when only the year is known. */
   readonly month: number;
   /** 1 to 31; 1 when the day is not known. */
   readonly day: number;
+  /** The invented calendar the date is counted in; absent for a real-world date. */
+  readonly calendar?: StoryCalendar;
 }
 
 /** When something happens: a start, and an end when it lasts. */
@@ -90,41 +109,111 @@ export const MIN_DAY_NUMBER = toDayNumber(MIN_YEAR, 1, 1);
 /** The day number of 31 December 9999, the latest story date. */
 export const MAX_DAY_NUMBER = toDayNumber(MAX_YEAR, 12, 31);
 
-const MAX_MONTH_INDEX = MAX_YEAR * 12 - 1;
+/** How one calendar counts: the real-world one, or an invented one. */
+interface DateSystem {
+  readonly calendar: StoryCalendar | null;
+  readonly minYear: number;
+  readonly maxYear: number;
+  /** Months in a year. */
+  readonly months: number;
+  readonly minDay: number;
+  readonly maxDay: number;
+  toDay(year: number, month: number, day: number): number;
+  fromDay(dayNumber: number): [number, number, number];
+  daysInMonth(year: number, month: number): number;
+}
 
-/** Months since January of year 1. */
+const REAL_WORLD: DateSystem = {
+  calendar: null,
+  minYear: MIN_YEAR,
+  maxYear: MAX_YEAR,
+  months: 12,
+  minDay: MIN_DAY_NUMBER,
+  maxDay: MAX_DAY_NUMBER,
+  toDay: toDayNumber,
+  fromDay: toCalendar,
+  daysInMonth,
+};
+
+const SYSTEMS = new WeakMap<StoryCalendar, DateSystem>();
+
+/** How a calendar counts; the real-world one when none is given. */
+function systemOf(calendar: StoryCalendar | null | undefined): DateSystem {
+  if (calendar === undefined || calendar === null) return REAL_WORLD;
+  let system = SYSTEMS.get(calendar);
+  if (system === undefined) {
+    const minYear = firstCalendarYear(calendar);
+    const maxYear = lastCalendarYear(calendar);
+    const months = calendar.months.length;
+    system = {
+      calendar,
+      minYear,
+      maxYear,
+      months,
+      minDay: calendarDayNumber(calendar, minYear, 1, 1),
+      maxDay: calendarDayNumber(calendar, maxYear, months, calendarDaysInMonth(calendar, maxYear, months)),
+      toDay: (year, month, day) => calendarDayNumber(calendar, year, month, day),
+      fromDay: (dayNumber) => calendarDateOfDay(calendar, dayNumber),
+      daysInMonth: (year, month) => calendarDaysInMonth(calendar, year, month),
+    };
+    SYSTEMS.set(calendar, system);
+  }
+  return system;
+}
+
+/** A date of a system, put together from parts that are known to be right. */
+function made(system: DateSystem, precision: DatePrecision, year: number, month: number, day: number): StoryDate {
+  return system.calendar === null ? { precision, year, month, day } : { precision, year, month, day, calendar: system.calendar };
+}
+
+function maxMonthIndex(system: DateSystem): number {
+  return (system.maxYear - system.minYear + 1) * system.months - 1;
+}
+
+/** Months since the first month of the calendar's first year. */
 function monthIndexOf(date: StoryDate): number {
-  return (date.year - 1) * 12 + (date.month - 1);
+  const system = systemOf(date.calendar);
+  return (date.year - system.minYear) * system.months + (date.month - 1);
 }
 
-function monthDate(index: number): StoryDate {
-  const safe = Math.min(MAX_MONTH_INDEX, Math.max(0, index));
-  const year = div(safe, 12) + 1;
-  return { precision: 'month', year, month: safe - (year - 1) * 12 + 1, day: 1 };
+function monthDate(system: DateSystem, index: number): StoryDate {
+  const safe = Math.min(maxMonthIndex(system), Math.max(0, index));
+  const years = div(safe, system.months);
+  return made(system, 'month', years + system.minYear, safe - years * system.months + 1, 1);
 }
 
-function yearDate(year: number): StoryDate {
-  return { precision: 'year', year: Math.min(MAX_YEAR, Math.max(MIN_YEAR, year)), month: 1, day: 1 };
+function yearDate(system: DateSystem, year: number): StoryDate {
+  return made(system, 'year', Math.min(system.maxYear, Math.max(system.minYear, year)), 1, 1);
 }
 
 /** A day number brought into the calendar's range. Anything that is not a number counts as the earliest day. */
-function clampDayNumber(dayNumber: number): number {
-  if (Number.isNaN(dayNumber)) return MIN_DAY_NUMBER;
-  return Math.min(MAX_DAY_NUMBER, Math.max(MIN_DAY_NUMBER, dayNumber));
+function clampDayNumber(dayNumber: number, system: DateSystem = REAL_WORLD): number {
+  if (Number.isNaN(dayNumber)) return system.minDay;
+  return Math.min(system.maxDay, Math.max(system.minDay, dayNumber));
+}
+
+/** The first and the last day number a calendar has; the real-world one's when none is given. */
+export function dayNumberLimits(calendar?: StoryCalendar | null): { readonly first: number; readonly last: number } {
+  const system = systemOf(calendar);
+  return { first: system.minDay, last: system.maxDay };
 }
 
 /**
  * Make a story date. Give the year alone, the year and month, or all three;
  * the precision follows from what is given. Returns null for a date that does
  * not exist (month 13, 30 February) or lies outside the years 1 to 9999.
+ *
+ * @param calendar the project's invented calendar, when it has one; `year` is
+ *   then the year of its running count (see `runningYearOf`)
  */
-export function storyDate(year: number, month?: number, day?: number): StoryDate | null {
-  if (!isWhole(year) || year < MIN_YEAR || year > MAX_YEAR) return null;
-  if (month === undefined) return day === undefined ? { precision: 'year', year, month: 1, day: 1 } : null;
-  if (!isWhole(month) || month < 1 || month > 12) return null;
-  if (day === undefined) return { precision: 'month', year, month, day: 1 };
-  if (!isWhole(day) || day < 1 || day > daysInMonth(year, month)) return null;
-  return { precision: 'day', year, month, day };
+export function storyDate(year: number, month?: number, day?: number, calendar?: StoryCalendar | null): StoryDate | null {
+  const system = systemOf(calendar);
+  if (!isWhole(year) || year < system.minYear || year > system.maxYear) return null;
+  if (month === undefined) return day === undefined ? made(system, 'year', year, 1, 1) : null;
+  if (!isWhole(month) || month < 1 || month > system.months) return null;
+  if (day === undefined) return made(system, 'month', year, month, 1);
+  if (!isWhole(day) || day < 1 || day > system.daysInMonth(year, month)) return null;
+  return made(system, 'day', year, month, day);
 }
 
 /** A property value that was understood as a date, with what is needed to write a new date the same way. */
@@ -170,8 +259,20 @@ function parseDateText(text: string): ParsedDateValue | null {
   return null;
 }
 
-/** Read a date property, keeping how it was written. Null when it is not a date. */
-export function parseDateValue(value: unknown): ParsedDateValue | null {
+/**
+ * Read a date property, keeping how it was written. Null when it is not a date.
+ *
+ * @param calendar the project's invented calendar, when it has one. Only a
+ *   date written in that calendar's own form ("1203-04-17 AE") is then read:
+ *   a real-world date is not taken for a date of the invented calendar.
+ */
+export function parseDateValue(value: unknown, calendar?: StoryCalendar | null): ParsedDateValue | null {
+  if (calendar !== undefined && calendar !== null) {
+    if (typeof value !== 'string') return null;
+    const parts = readCalendarDateText(calendar, value);
+    const date = parts === null ? null : storyDate(parts.year, parts.month, parts.day, calendar);
+    return date === null ? null : { date, form: 'text', suffix: '' };
+  }
   if (typeof value === 'number') {
     const date = storyDate(value);
     return date === null ? null : { date, form: 'number', suffix: '' };
@@ -195,12 +296,17 @@ export function isBlankValue(value: unknown): boolean {
  * Never throws: anything else, a date that does not exist, and a year outside
  * 1 to 9999 all give null, which the timeline shows as "undated".
  */
-export function readStoryDate(value: unknown): StoryDate | null {
-  return parseDateValue(value)?.date ?? null;
+export function readStoryDate(value: unknown, calendar?: StoryCalendar | null): StoryDate | null {
+  return parseDateValue(value, calendar)?.date ?? null;
 }
 
-/** A story date as text: "1923", "1923-04" or "1923-04-12", always with a four-digit year. */
+/**
+ * A story date as text: "1923", "1923-04" or "1923-04-12", always with a
+ * four-digit year. A date of an invented calendar ends with its era:
+ * "1203-04-17 AE".
+ */
 export function storyDateToText(date: StoryDate): string {
+  if (date.calendar !== undefined) return calendarDateText(date.calendar, date.precision, date.year, date.month, date.day);
   const full = formatLocalDate(date.year, date.month, date.day);
   if (date.precision === 'year') return full.slice(0, 4);
   return date.precision === 'month' ? full.slice(0, 7) : full;
@@ -211,11 +317,13 @@ export function storyDateToText(date: StoryDate): string {
  * for a year (1923), text for a month or a day ("1923-04", "1923-04-12").
  */
 export function storyDateToFrontmatter(date: StoryDate): string | number {
-  return date.precision === 'year' ? date.year : storyDateToText(date);
+  // A date of an invented calendar is always text: its era is part of it.
+  return date.precision === 'year' && date.calendar === undefined ? date.year : storyDateToText(date);
 }
 
 /** A story date in English: "12 Apr 1923", "Apr 1923" or "1923". */
 export function formatStoryDate(date: StoryDate): string {
+  if (date.calendar !== undefined) return formatCalendarDate(date.calendar, date.precision, date.year, date.month, date.day);
   if (date.precision === 'year') return String(date.year);
   const month = MONTH_NAMES[date.month - 1] ?? '';
   return date.precision === 'month' ? `${month} ${date.year}` : `${date.day} ${month} ${date.year}`;
@@ -236,7 +344,7 @@ export function formatStoryDateRange(start: StoryDate, end: StoryDate | null): s
  * before it. A year or a month counts as its first day.
  */
 export function storyDateToDayNumber(date: StoryDate): number {
-  return toDayNumber(date.year, date.month, date.day);
+  return systemOf(date.calendar).toDay(date.year, date.month, date.day);
 }
 
 /**
@@ -244,11 +352,16 @@ export function storyDateToDayNumber(date: StoryDate): number {
  * day itself, or the month or year it falls in. Fractions are dropped, and a
  * number outside the calendar is brought to its nearest end.
  */
-export function dayNumberToStoryDate(dayNumber: number, precision: DatePrecision = 'day'): StoryDate {
-  const [year, month, day] = toCalendar(Math.floor(clampDayNumber(dayNumber)));
-  if (precision === 'year') return { precision, year, month: 1, day: 1 };
-  if (precision === 'month') return { precision, year, month, day: 1 };
-  return { precision, year, month, day };
+export function dayNumberToStoryDate(
+  dayNumber: number,
+  precision: DatePrecision = 'day',
+  calendar?: StoryCalendar | null,
+): StoryDate {
+  const system = systemOf(calendar);
+  const [year, month, day] = system.fromDay(Math.floor(clampDayNumber(dayNumber, system)));
+  if (precision === 'year') return made(system, precision, year, 1, 1);
+  if (precision === 'month') return made(system, precision, year, month, 1);
+  return made(system, precision, year, month, day);
 }
 
 /** True when two story dates are the same day at the same precision. */
@@ -272,9 +385,10 @@ export function compareStoryDates(a: StoryDate, b: StoryDate): number {
 export function shiftStoryDate(date: StoryDate, steps: number): StoryDate {
   if (!Number.isFinite(steps)) return date;
   const whole = Math.trunc(steps);
-  if (date.precision === 'year') return yearDate(date.year + whole);
-  if (date.precision === 'month') return monthDate(monthIndexOf(date) + whole);
-  return dayNumberToStoryDate(clampDayNumber(storyDateToDayNumber(date) + whole), 'day');
+  const system = systemOf(date.calendar);
+  if (date.precision === 'year') return yearDate(system, date.year + whole);
+  if (date.precision === 'month') return monthDate(system, monthIndexOf(date) + whole);
+  return dayNumberToStoryDate(storyDateToDayNumber(date) + whole, 'day', date.calendar);
 }
 
 /**
@@ -282,10 +396,10 @@ export function shiftStoryDate(date: StoryDate, steps: number): StoryDate {
  * precision asked for: the nearest day, the nearest first of a month, or the
  * nearest 1 January. This is what a dragged event snaps to.
  */
-export function snapDayNumber(dayNumber: number, precision: DatePrecision): StoryDate {
-  const clamped = clampDayNumber(dayNumber);
-  if (precision === 'day') return dayNumberToStoryDate(clampDayNumber(Math.round(clamped)), 'day');
-  const before = dayNumberToStoryDate(clamped, precision);
+export function snapDayNumber(dayNumber: number, precision: DatePrecision, calendar?: StoryCalendar | null): StoryDate {
+  const clamped = clampDayNumber(dayNumber, systemOf(calendar));
+  if (precision === 'day') return dayNumberToStoryDate(Math.round(clamped), 'day', calendar);
+  const before = dayNumberToStoryDate(clamped, precision, calendar);
   const after = shiftStoryDate(before, 1);
   if (sameStoryDate(after, before)) return before;
   return storyDateToDayNumber(after) - clamped <= clamped - storyDateToDayNumber(before) ? after : before;
@@ -305,18 +419,22 @@ export function moveDates(start: StoryDate, end: StoryDate | null, target: Story
   if (end === null || storyDateToDayNumber(end) <= startDay) return { start: target, end: null };
 
   // The last day the new start may fall on for the end to stay in the calendar.
+  const system = systemOf(start.calendar);
+  const lastMonthIndex = maxMonthIndex(system);
   let lastStartDay: number;
   if (end.precision === 'day') {
-    lastStartDay = startDay + (MAX_DAY_NUMBER - storyDateToDayNumber(end));
+    lastStartDay = startDay + (system.maxDay - storyDateToDayNumber(end));
   } else if (end.precision === 'month') {
-    const lastMonth = monthIndexOf(start) + (MAX_MONTH_INDEX - monthIndexOf(end));
-    lastStartDay = lastMonth >= MAX_MONTH_INDEX ? MAX_DAY_NUMBER : storyDateToDayNumber(monthDate(lastMonth + 1)) - 1;
+    const lastMonth = monthIndexOf(start) + (lastMonthIndex - monthIndexOf(end));
+    lastStartDay = lastMonth >= lastMonthIndex ? system.maxDay : storyDateToDayNumber(monthDate(system, lastMonth + 1)) - 1;
   } else {
-    const lastYear = start.year + (MAX_YEAR - end.year);
-    lastStartDay = lastYear >= MAX_YEAR ? MAX_DAY_NUMBER : toDayNumber(lastYear + 1, 1, 1) - 1;
+    const lastYear = start.year + (system.maxYear - end.year);
+    lastStartDay = lastYear >= system.maxYear ? system.maxDay : system.toDay(lastYear + 1, 1, 1) - 1;
   }
   const moved =
-    storyDateToDayNumber(target) <= lastStartDay ? target : dayNumberToStoryDate(lastStartDay, target.precision);
+    storyDateToDayNumber(target) <= lastStartDay
+      ? target
+      : dayNumberToStoryDate(lastStartDay, target.precision, start.calendar);
   return { start: moved, end: carryStoryDate(end, start, moved) };
 }
 
@@ -327,10 +445,11 @@ export function moveDates(start: StoryDate, end: StoryDate | null, target: Story
  * calendar.
  */
 export function carryStoryDate(date: StoryDate, from: StoryDate, to: StoryDate): StoryDate {
+  const system = systemOf(date.calendar);
   if (date.precision === 'day') {
     const day = storyDateToDayNumber(date) + storyDateToDayNumber(to) - storyDateToDayNumber(from);
-    return dayNumberToStoryDate(clampDayNumber(day), 'day');
+    return dayNumberToStoryDate(day, 'day', date.calendar);
   }
-  if (date.precision === 'month') return monthDate(monthIndexOf(date) + monthIndexOf(to) - monthIndexOf(from));
-  return yearDate(date.year + to.year - from.year);
+  if (date.precision === 'month') return monthDate(system, monthIndexOf(date) + monthIndexOf(to) - monthIndexOf(from));
+  return yearDate(system, date.year + to.year - from.year);
 }

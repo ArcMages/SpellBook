@@ -22,8 +22,10 @@ const nameOf = (file: string): string => path.basename(file);
 describe('the timeline engine source', () => {
   it('has its files', () => {
     expect(files.map(nameOf).sort()).toEqual([
+      'calendar.ts',
       'common.ts',
       'drag.ts',
+      'entities.ts',
       'eventLanes.ts',
       'events.ts',
       'index.ts',

@@ -8,15 +8,22 @@
 //   end: 1923-04-20         optional: makes the event a span
 //   timelines: [Main plot]  the lanes it shows in
 //   scenes: ["[[Opening]]"] the scenes that tell it
+//   entities: ["[[Mara]]"]  the people, places and things of the World folder it involves
 //   tags: [war]
 //
 // A scene with a date is an event too, in the built-in Manuscript lane.
+//
+// In a project with an invented calendar (see calendar.ts) the dates are
+// written in that calendar's own form, "1203-04-17 AE", and only that form
+// is read: a real-world date left over from before is reported, not guessed at.
 //
 // Reading never throws. A note edited by hand or by another device may hold
 // anything: what is understood is kept and the rest is reported.
 
 import { clashKey, isInside, isMarkdownPath, noteTitle } from './../paths';
 import type { Frontmatter } from './../types';
+import { calendarExampleText } from './calendar';
+import type { StoryCalendar } from './calendar';
 import { isRecord, laneKey, readName } from './common';
 import type { FrontmatterPatch } from './common';
 import {
@@ -52,6 +59,7 @@ export type EventSource = 'event' | 'scene';
  *  - end-without-date: there is an "end" but no usable "date"; the event is undated.
  *  - timelines-unreadable: some entry of "timelines" is not a name; it was skipped.
  *  - scenes-unreadable:    some entry of "scenes" is not a link; it was skipped.
+ *  - entities-unreadable:  some entry of "entities" is not a link; it was skipped.
  */
 export type EventProblem =
   | 'date-unreadable'
@@ -59,7 +67,8 @@ export type EventProblem =
   | 'end-before-start'
   | 'end-without-date'
   | 'timelines-unreadable'
-  | 'scenes-unreadable';
+  | 'scenes-unreadable'
+  | 'entities-unreadable';
 
 /** One event of the timeline. */
 export interface TimelineEvent {
@@ -76,6 +85,8 @@ export interface TimelineEvent {
   readonly timelines: readonly string[];
   /** The scenes the note links, as link targets: "Opening", "Manuscript/Opening" or a path. */
   readonly scenes: readonly string[];
+  /** The entities the note links (notes of the World folder), as link targets: "Mara" or "World/Mara". */
+  readonly entities: readonly string[];
   /** The note's tags, without "#". */
   readonly tags: readonly string[];
   /** What could not be used, for the screen to point out; empty when all is well. */
@@ -101,10 +112,20 @@ export function isEventPath(path: string): boolean {
   return isInside(TIMELINE_FOLDER, path) && isMarkdownPath(path);
 }
 
-/** An event problem in plain English, for the screen to show. */
-export function describeEventProblem(problem: EventProblem): string {
+/**
+ * An event problem in plain English, for the screen to show.
+ *
+ * @param calendar the project's invented calendar, when it has one: the advice about dates is then about that calendar
+ */
+export function describeEventProblem(problem: EventProblem, calendar?: StoryCalendar | null): string {
   switch (problem) {
     case 'date-unreadable':
+      if (calendar !== undefined && calendar !== null) {
+        return (
+          `The date is not a date of the calendar "${calendar.name}", so the event is undated. ` +
+          `Nothing was changed in the note. Use "Set date" to pick a date, which is then written like ${calendarExampleText(calendar)}.`
+        );
+      }
       return 'The date could not be read. Write it as a year, a year and month, or a full date: 1923, 1923-04 or 1923-04-12.';
     case 'end-unreadable':
       return 'The end date could not be read, so the event is shown as a single moment.';
@@ -116,6 +137,8 @@ export function describeEventProblem(problem: EventProblem): string {
       return 'Some entries of "timelines" are not names of timelines, so they were skipped.';
     case 'scenes-unreadable':
       return 'Some entries of "scenes" are not links to scenes, so they were skipped.';
+    case 'entities-unreadable':
+      return 'Some entries of "entities" are not links to notes, so they were skipped.';
   }
 }
 
@@ -204,6 +227,17 @@ export function linkTarget(link: string): string | null {
 }
 
 /**
+ * Every text in a list of links, as it is written: "[[Mara]]", or just
+ * "Mara" for a wikilink that was written without quotes (YAML reads that as
+ * a list inside a list, so lists are opened up as deep as they go).
+ */
+export function linkTexts(value: unknown): string[] {
+  const texts: string[] = [];
+  collectTexts(value, texts, 0);
+  return texts;
+}
+
+/**
  * The scenes in a "scenes" property. A wikilink written without quotes is
  * read by YAML as a list inside a list, so lists are opened up as deep as
  * they go.
@@ -241,17 +275,22 @@ function readTags(value: unknown): string[] {
   return tags;
 }
 
-function buildEvent(path: string, source: EventSource, properties: Readonly<Record<string, unknown>>): TimelineEvent {
+function buildEvent(
+  path: string,
+  source: EventSource,
+  properties: Readonly<Record<string, unknown>>,
+  calendar: StoryCalendar | null | undefined,
+): TimelineEvent {
   const problems: EventProblem[] = [];
   const rawDate = properties['date'];
   const rawEnd = properties['end'];
 
-  const start = parseDateValue(rawDate)?.date ?? null;
+  const start = parseDateValue(rawDate, calendar)?.date ?? null;
   if (start === null && !isBlankValue(rawDate)) problems.push('date-unreadable');
 
   let end: StoryDate | null = null;
   if (!isBlankValue(rawEnd)) {
-    const readEnd = parseDateValue(rawEnd)?.date ?? null;
+    const readEnd = parseDateValue(rawEnd, calendar)?.date ?? null;
     if (readEnd === null) problems.push('end-unreadable');
     else if (start === null) problems.push('end-without-date');
     else {
@@ -265,6 +304,8 @@ function buildEvent(path: string, source: EventSource, properties: Readonly<Reco
   if (timelines.skipped) problems.push('timelines-unreadable');
   const scenes = readSceneLinks(properties['scenes']);
   if (scenes.skipped) problems.push('scenes-unreadable');
+  const entities = readSceneLinks(properties['entities']);
+  if (entities.skipped) problems.push('entities-unreadable');
 
   return {
     path,
@@ -274,6 +315,7 @@ function buildEvent(path: string, source: EventSource, properties: Readonly<Reco
     end,
     timelines: timelines.items,
     scenes: scenes.items,
+    entities: entities.items,
     tags: readTags(properties['tags']),
     problems,
   };
@@ -287,9 +329,10 @@ function buildEvent(path: string, source: EventSource, properties: Readonly<Reco
  *
  * @param path        the note's path; kept as the event's identity
  * @param frontmatter the note's properties, whatever they are
+ * @param calendar    the project's invented calendar, when it has one
  */
-export function readEvent(path: string, frontmatter: unknown): TimelineEvent {
-  return buildEvent(path, 'event', isRecord(frontmatter) ? frontmatter : {});
+export function readEvent(path: string, frontmatter: unknown, calendar?: StoryCalendar | null): TimelineEvent {
+  return buildEvent(path, 'event', isRecord(frontmatter) ? frontmatter : {}, calendar);
 }
 
 /**
@@ -297,9 +340,9 @@ export function readEvent(path: string, frontmatter: unknown): TimelineEvent {
  * without one (or with an empty one) the result is null. A date that cannot
  * be read makes an undated event, so the writer can see it and mend it.
  */
-export function readSceneEvent(path: string, frontmatter: unknown): TimelineEvent | null {
+export function readSceneEvent(path: string, frontmatter: unknown, calendar?: StoryCalendar | null): TimelineEvent | null {
   if (!isRecord(frontmatter) || isBlankValue(frontmatter['date'])) return null;
-  return buildEvent(path, 'scene', frontmatter);
+  return buildEvent(path, 'scene', frontmatter, calendar);
 }
 
 /**
@@ -307,15 +350,17 @@ export function readSceneEvent(path: string, frontmatter: unknown): TimelineEven
  *
  * @param eventNotes the notes in Timeline/
  * @param sceneNotes the scenes of the manuscript; those without a date are skipped
+ * @param calendar   the project's invented calendar, when it has one
  */
 export function readTimeline(
   eventNotes: readonly TimelineNote[],
   sceneNotes: readonly TimelineNote[] = [],
+  calendar?: StoryCalendar | null,
 ): TimelineModel {
   const all: TimelineEvent[] = [];
-  for (const note of eventNotes) all.push(readEvent(note.path, note.frontmatter));
+  for (const note of eventNotes) all.push(readEvent(note.path, note.frontmatter, calendar));
   for (const note of sceneNotes) {
-    const event = readSceneEvent(note.path, note.frontmatter);
+    const event = readSceneEvent(note.path, note.frontmatter, calendar);
     if (event !== null) all.push(event);
   }
 
@@ -327,6 +372,40 @@ export function readTimeline(
   });
   dated.sort((a, b) => compareStoryDates(a.start, b.start) || a.index - b.index);
   return { dated: dated.map((entry) => entry.event), undated };
+}
+
+/** A date written in a note that a calendar cannot read. */
+export interface MisfitDate {
+  /** The note's path, as it was given. */
+  readonly path: string;
+  /** The note's title. */
+  readonly title: string;
+  /** Which property holds it. */
+  readonly property: 'date' | 'end';
+  /** What is written there, as text. */
+  readonly value: string;
+}
+
+/**
+ * The dates written in notes that a calendar could not read: what a project
+ * would be left with, undated, if it took that calendar. Nothing is changed;
+ * this only lists them, for the writer to see before choosing.
+ *
+ * @param notes    the event notes and the scenes
+ * @param calendar the calendar to try them against; null for the real-world one
+ */
+export function datesOutsideCalendar(notes: readonly TimelineNote[], calendar: StoryCalendar | null): MisfitDate[] {
+  const found: MisfitDate[] = [];
+  for (const note of notes) {
+    if (!isRecord(note.frontmatter)) continue;
+    for (const property of ['date', 'end'] as const) {
+      const value = note.frontmatter[property];
+      if (isBlankValue(value) || parseDateValue(value, calendar) !== null) continue;
+      const text = typeof value === 'string' || typeof value === 'number' ? String(value) : JSON.stringify(value) ?? '';
+      found.push({ path: note.path, title: noteTitle(note.path), property, value: text });
+    }
+  }
+  return found;
 }
 
 // ---------------------------------------------------------- resolving links
@@ -419,12 +498,14 @@ function encodeLike(date: StoryDate, previous: ParsedDateValue): string | number
  */
 export function redateEventPatch(frontmatter: unknown, target: StoryDate): FrontmatterPatch {
   const properties = isRecord(frontmatter) ? frontmatter : {};
-  const current = parseDateValue(properties['date']);
+  // The target says which calendar the project counts in.
+  const calendar = target.calendar;
+  const current = parseDateValue(properties['date'], calendar);
   if (current === null) return { date: storyDateToFrontmatter(target) };
 
   const start = current.date;
-  const wanted = dayNumberToStoryDate(storyDateToDayNumber(target), start.precision);
-  const end = parseDateValue(properties['end']);
+  const wanted = dayNumberToStoryDate(storyDateToDayNumber(target), start.precision, calendar);
+  const end = parseDateValue(properties['end'], calendar);
   const spanEnd = end !== null && storyDateToDayNumber(end.date) > storyDateToDayNumber(start) ? end.date : null;
   const moved = moveDates(start, spanEnd, wanted);
 

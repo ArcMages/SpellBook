@@ -5,6 +5,8 @@
 // is the up-and-down one; on a phone with time running down it is the other
 // way round. Along is positive towards later dates.
 
+import { calendarYearLength } from './calendar';
+import type { StoryCalendar } from './calendar';
 import { clampZoom, positionToDay } from './scale';
 import type { TimeScale } from './scale';
 import { moveDates, sameStoryDate, snapDayNumber, storyDateToDayNumber } from './storyDate';
@@ -28,19 +30,29 @@ export function isTap(along: number, across: number, threshold: number = TAP_THR
  * The date at a position on the axis, at the precision asked for: the
  * nearest day, first of a month or 1 January. Use it to date a new event
  * where the writer tapped.
+ *
+ * @param calendar the project's invented calendar, when it has one
  */
-export function dateAtPosition(scale: TimeScale, position: number, precision: DatePrecision): StoryDate {
-  return snapDayNumber(positionToDay(scale, position), precision);
+export function dateAtPosition(
+  scale: TimeScale,
+  position: number,
+  precision: DatePrecision,
+  calendar?: StoryCalendar | null,
+): StoryDate {
+  return snapDayNumber(positionToDay(scale, position), precision, calendar);
 }
 
 /**
  * A precision that suits the zoom, for dating a new event where the writer
  * tapped: the day when a day is at least 8 pixels wide, the month when a
- * month is, and otherwise the year.
+ * month is, and otherwise the year. In an invented calendar a month is as
+ * long as its months are on average.
  */
-export function precisionForScale(scale: TimeScale): DatePrecision {
+export function precisionForScale(scale: TimeScale, calendar?: StoryCalendar | null): DatePrecision {
   if (scale.pxPerDay >= 8) return 'day';
-  return scale.pxPerDay * 30 >= 8 ? 'month' : 'year';
+  const month =
+    calendar === undefined || calendar === null ? 30 : calendarYearLength(calendar) / Math.max(1, calendar.months.length);
+  return scale.pxPerDay * month >= 8 ? 'month' : 'year';
 }
 
 /**
@@ -57,7 +69,7 @@ export function precisionForScale(scale: TimeScale): DatePrecision {
  */
 export function dragDates(start: StoryDate, end: StoryDate | null, along: number, scale: TimeScale): DateRange {
   const days = Number.isFinite(along) ? along / clampZoom(scale.pxPerDay) : 0;
-  const target = snapDayNumber(storyDateToDayNumber(start) + days, start.precision);
+  const target = snapDayNumber(storyDateToDayNumber(start) + days, start.precision, start.calendar);
   return moveDates(start, end, target);
 }
 
