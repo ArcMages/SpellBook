@@ -96,9 +96,9 @@ Spellbook makes no network requests and collects nothing: no telemetry, no analy
 
 What was checked to say this: the whole of `src/` was searched for `fetch`, `XMLHttpRequest`, Obsidian's `requestUrl`, `WebSocket`, `sendBeacon`, `eval`, `new Function`, dynamic `import()`, `require()`, web addresses, and imports of Node.js or Electron modules. The only matches are the fixed format names that a Word file must carry inside it (they look like web addresses but are never contacted). The stylesheets load no remote fonts or images, and the plugin has no runtime dependencies beyond Obsidian itself.
 
-## Copyright
+## Licence
 
-Copyright © 2026 Daniel | DandiMage. All rights reserved. See [LICENSE](LICENSE).
+MIT. Copyright © 2026 Daniel | DandiMage. See [LICENSE](LICENSE).
 
 ## Credits
 
