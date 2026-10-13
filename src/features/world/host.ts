@@ -6,39 +6,68 @@
 //   - the types an entity can have (from the project index);
 //   - the entities: the notes in the project's World folder;
 //   - the links: which entities each scene and timeline event lists in its
-//     "entities" property, and so the scenes and events of each entity.
+//     "entities" property, and so the scenes and events of each entity;
+//   - the relations: which entities each entity lists in its "related"
+//     property, and so who lists each entity.
 // All of it is worked out when it is first asked for and kept until the
 // project or one of those notes changes. Where a link leads is asked of the
 // vault itself (Obsidian's own index of links), never guessed from a name.
 //
 // Every change goes through the project store: a new entity note, a rename,
 // a note moved to the trash, a link added to or taken out of a scene's
-// properties, a changed list of types. The vault doorway is used to read and
-// to listen, never to write. No note's text is ever changed.
+// properties, one property of an entity's sheet, its picture, its relations,
+// a changed list of types. The vault doorway is used to read and to listen,
+// never to write. No note's text is ever changed.
+//
+// How the browser is laid out (cards or a table) is this device's own
+// choice: it is kept in the device's storage, never in the project.
 
 import { Notice } from 'obsidian';
 import type { PaneType } from 'obsidian';
 import { sanitiseFileName } from '../../core/names';
-import { noteTitle, pathKey, relativeTo } from '../../core/paths';
+import { isImagePath, noteTitle, pathKey, relativeTo } from '../../core/paths';
 import type { Frontmatter, IntentResult, TreeNode } from '../../core/types';
 import type { VaultEvent } from '../../core/vaultPort';
 import {
   ENTITY_TYPES_KEY,
   addEntityLink,
+  addRelation,
+  buildRelations,
   buildWorldLinks,
+  fieldText,
   findType,
+  imageLink,
   linkTo,
   mentionNames,
   newEntityBody,
   newEntityFrontmatter,
   parseLink,
+  parseRelation,
   readEntities,
   readEntityTypes,
+  readLayout,
+  relabelRelation,
+  relationTo,
   removeEntityLink,
+  removeRelation,
+  resolveImage,
   sceneMention,
+  setEntityField,
+  setImage,
   writeEntityTypes,
 } from '../../core/world';
-import type { Entity, EntityType, LinkChange, LinkingNote, MentionSnippet, TypeEdit, WorldLinks } from '../../core/world';
+import type {
+  Entity,
+  EntityType,
+  FieldChange,
+  LinkChange,
+  LinkingNote,
+  MentionSnippet,
+  TypeEdit,
+  WorldLayout,
+  WorldLinks,
+  WorldRelations,
+} from '../../core/world';
 import type { FeatureContext } from '../registry';
 import { NO_PROJECT_TEXT, PROBLEM_NOTICE_MS } from './parts';
 
@@ -49,6 +78,23 @@ export const NO_TYPE_TEXT = 'That type is no longer in the list.';
 export const NOT_FOUND_TEXT = 'That note is no longer in the project (it may still be syncing).';
 export const UNREADABLE_LIST_TEXT =
   'The "entities" property of that note is not a list of links, so it was left as it is. Put it right in the note itself.';
+export const UNREADABLE_FIELD_TEXT = 'That property holds a list or something else that is not one line of text, so it was left as it is. Change it in the note itself.';
+export const UNREADABLE_RELATED_TEXT =
+  'The "related" property of that note is not a list of links, so it was left as it is. Put it right in the note itself.';
+export const NOT_A_PICTURE_TEXT = 'That file is no longer in the vault, or it is not a picture.';
+export const SELF_RELATION_TEXT = 'A note cannot be related to itself.';
+
+/** Where this device keeps how the browser is laid out: "cards" or "list". */
+export const LAYOUT_KEY = 'spellbook-world-layout';
+
+/** A scene or an event an entity is in, with what the sheet shows beside its title. */
+export interface SheetAppearance {
+  /** Path relative to the project folder. */
+  readonly path: string;
+  readonly title: string;
+  /** A scene's synopsis, or an event's date in the story, on one line; "" for none. */
+  readonly note: string;
+}
 
 /** The open project, as the world-building screen needs it. */
 export interface WorldProject {
@@ -69,7 +115,7 @@ export interface FoundMention {
 }
 
 /** What the host is built on: the parts of the feature context it uses. */
-export type WorldHostContext = Pick<FeatureContext, 'store' | 'vault' | 'clock' | 'openNote'>;
+export type WorldHostContext = Pick<FeatureContext, 'store' | 'vault' | 'clock' | 'openNote' | 'storage'>;
 
 /** The open project, worked out once for every change of it. */
 interface Model {
@@ -82,11 +128,15 @@ interface Model {
   /** The scenes of the binder, in order. */
   readonly scenes: readonly LinkingNote[];
   readonly links: WorldLinks;
+  readonly relations: WorldRelations;
+  /** The properties of every note the project has, by path: for the line beside a scene or an event. */
+  readonly indexed: ReadonlyMap<string, Readonly<Frontmatter> | null>;
   /** The properties of every note the model was read from, as text: for telling a change from none. */
   readonly known: ReadonlyMap<string, string>;
 }
 
 const NO_LINKS: WorldLinks = { linksOf: () => [], scenesOf: () => [], eventsOf: () => [] };
+const NO_RELATIONS: WorldRelations = { of: () => [], mentionedBy: () => [] };
 
 /** What a finished request says to the screen: null when done, or why it was not. */
 function answerOf(result: IntentResult<unknown>): string | null {
@@ -116,6 +166,8 @@ export class WorldHost {
   private model: Model | null = null;
   /** The timer of a change that is about to be told, if any. */
   private stopTelling: (() => void) | null = null;
+  /** How the browser is laid out on this device; null until it is read from the device's storage. */
+  private chosenLayout: WorldLayout | null = null;
 
   constructor(context: WorldHostContext) {
     this.context = context;
@@ -231,6 +283,11 @@ export class WorldHost {
       events,
       resolve: (target, from) => this.resolveEntityLink(target, from),
     });
+    const relations = buildRelations({
+      entities,
+      entityVaultPath: (path) => store.vaultPathOf(path),
+      resolve: (target, from) => this.resolveEntityLink(target, from),
+    });
     this.model = {
       project: { id: snapshot.indexPath, title: snapshot.title, readOnly: snapshot.readOnly },
       folder: snapshot.folder,
@@ -239,6 +296,8 @@ export class WorldHost {
       byPath: new Map(entities.map((entity) => [pathKey(entity.path), entity])),
       scenes,
       links,
+      relations,
+      indexed,
       known,
     };
     return this.model;
@@ -268,6 +327,93 @@ export class WorldHost {
   /** Who is where: the links between scenes, events and entities. */
   get links(): WorldLinks {
     return this.current()?.links ?? NO_LINKS;
+  }
+
+  /** Who has to do with whom: the relations between entities. */
+  get relations(): WorldRelations {
+    return this.current()?.relations ?? NO_RELATIONS;
+  }
+
+  /** The scenes an entity is in, in binder order, each with its synopsis on one line. */
+  sceneRows(entityPath: string): SheetAppearance[] {
+    const model = this.current();
+    if (!model) return [];
+    return model.links.scenesOf(entityPath).map((scene) => ({
+      path: scene.path,
+      title: scene.title,
+      note: fieldText(model.indexed.get(pathKey(scene.path))?.['synopsis']),
+    }));
+  }
+
+  /** The timeline events an entity is in, each with its date in the story (and the day it ends, when it lasts). */
+  eventRows(entityPath: string): SheetAppearance[] {
+    const model = this.current();
+    if (!model) return [];
+    return model.links.eventsOf(entityPath).map((event) => {
+      const frontmatter = model.indexed.get(pathKey(event.path));
+      const from = fieldText(frontmatter?.['date']);
+      const to = fieldText(frontmatter?.['end']);
+      return { path: event.path, title: event.title, note: to !== '' && from !== '' ? `${from} to ${to}` : from };
+    });
+  }
+
+  /**
+   * The picture of an entity, as an address an image element can show; null
+   * when its note names none, or what it names is not there or not a picture.
+   */
+  imageOf(entity: Entity): string | null {
+    if (this.disposed) return null;
+    const { store, vault } = this.context;
+    const from = store.vaultPathOf(entity.path);
+    if (from === null) return null;
+    const found = resolveImage(entity.frontmatter, from, (target, source) => vault.resolveLink(target, source));
+    return found === null ? null : vault.resourceUrl(found);
+  }
+
+  /** Every picture of the vault, as vault paths, sorted: what "Choose picture" lists. */
+  imageFiles(): string[] {
+    return this.disposed ? [] : this.context.vault.listImageFiles();
+  }
+
+  /** The address a picture of the vault can be shown at, for the list it is chosen from; null for what is not one. */
+  pictureUrl(imagePath: string): string | null {
+    if (this.disposed || !isImagePath(imagePath)) return null;
+    return this.context.vault.resourceUrl(imagePath);
+  }
+
+  /**
+   * The entity whose note is at a vault path (the note open in the editor,
+   * say), as its path relative to the project folder; null when the note is
+   * not an entity of the open project.
+   */
+  entityPathOf(vaultPath: string): string | null {
+    const model = this.current();
+    const rel = model ? relativeTo(model.folder, vaultPath) : null;
+    return rel !== null && model?.byPath.has(pathKey(rel)) === true ? rel : null;
+  }
+
+  /** How the browser is laid out on this device: as cards, or as a table. */
+  get layout(): WorldLayout {
+    if (this.chosenLayout === null) {
+      let stored: unknown = null;
+      try {
+        stored = this.context.storage.load(LAYOUT_KEY);
+      } catch {
+        stored = null; // a storage that fails is ignored: the choice then lasts until Obsidian closes
+      }
+      this.chosenLayout = readLayout(stored);
+    }
+    return this.chosenLayout;
+  }
+
+  set layout(layout: WorldLayout) {
+    if (this.layout === layout) return;
+    this.chosenLayout = layout;
+    try {
+      this.context.storage.save(LAYOUT_KEY, layout);
+    } catch {
+      // see above
+    }
   }
 
   /** The entity whose note is at this path (relative to the project folder), or null. */
@@ -439,6 +585,108 @@ export class WorldHost {
     );
     this.changed();
     return (outcome as LinkChange) === 'unreadable' ? UNREADABLE_LIST_TEXT : answerOf(result);
+  }
+
+  // ---------------------------------------------------------------- the sheet
+
+  /**
+   * Set one property of an entity's note to what was typed on its sheet: a
+   * field of its type, its summary, or a property the writer added. Only
+   * that property changes, in the note's properties; never its text.
+   *
+   * @param name the property's name
+   */
+  async setField(entityPath: string, name: string, typed: string): Promise<string | null> {
+    const project = this.writable();
+    if (typeof project === 'string') return project;
+    if (this.entity(entityPath) === null) return NOT_FOUND_TEXT;
+    let outcome: FieldChange = 'unchanged';
+    const result = await this.context.store.updateNoteProperties(
+      entityPath,
+      (frontmatter) => {
+        outcome = setEntityField(frontmatter, name, typed);
+        return outcome === 'changed';
+      },
+      project.id,
+    );
+    this.changed();
+    return (outcome as FieldChange) === 'unreadable' ? UNREADABLE_FIELD_TEXT : answerOf(result);
+  }
+
+  /**
+   * Give an entity a picture, or take its picture away (null): a link to the
+   * image file is written in the note's "image" property. The picture itself
+   * is never touched.
+   *
+   * @param imagePath the picture's vault path, as imageFiles gives it
+   */
+  async setPicture(entityPath: string, imagePath: string | null): Promise<string | null> {
+    const project = this.writable();
+    if (typeof project === 'string') return project;
+    const { store, vault } = this.context;
+    const from = store.vaultPathOf(entityPath);
+    if (from === null || this.entity(entityPath) === null) return NOT_FOUND_TEXT;
+    let link: string | null = null;
+    if (imagePath !== null) {
+      if (!vault.listImageFiles().includes(imagePath)) return NOT_A_PICTURE_TEXT;
+      link = imageLink(imagePath, from, (target, source) => vault.resolveLink(target, source));
+    }
+    const result = await store.updateNoteProperties(entityPath, (frontmatter) => setImage(frontmatter, link), project.id);
+    this.changed();
+    return answerOf(result);
+  }
+
+  /**
+   * Say that an entity has to do with another: a link to the other's note is
+   * added to this one's "related" property, with a short label, unless it
+   * lists the other already. Nothing is written into the other note.
+   */
+  async relate(entityPath: string, otherPath: string, label: string): Promise<string | null> {
+    const project = this.writable();
+    if (typeof project === 'string') return project;
+    const { store, vault } = this.context;
+    const from = store.vaultPathOf(entityPath);
+    const to = store.vaultPathOf(otherPath);
+    if (from === null || to === null) return NOT_FOUND_TEXT;
+    if (pathKey(from) === pathKey(to)) return SELF_RELATION_TEXT;
+    const entry = relationTo(noteTitle(otherPath), to, from, (target, source) => vault.resolveLink(target, source), label);
+    let outcome: LinkChange = 'unchanged';
+    const result = await store.updateNoteProperties(
+      entityPath,
+      (frontmatter) => {
+        outcome = addRelation(frontmatter, entry, (written) => {
+          const target = parseRelation(written)?.target;
+          const found = target === undefined ? null : this.resolveEntityLink(target, from);
+          return found !== null && pathKey(found) === pathKey(to);
+        });
+        return outcome === 'changed';
+      },
+      project.id,
+    );
+    this.changed();
+    return (outcome as LinkChange) === 'unreadable' ? UNREADABLE_RELATED_TEXT : answerOf(result);
+  }
+
+  /**
+   * Give one entry of an entity's "related" list another label, or take the
+   * entry out (null).
+   *
+   * @param raw the entry exactly as it is written
+   */
+  async changeRelation(entityPath: string, raw: string, label: string | null): Promise<string | null> {
+    const project = this.writable();
+    if (typeof project === 'string') return project;
+    let outcome: LinkChange = 'unchanged';
+    const result = await this.context.store.updateNoteProperties(
+      entityPath,
+      (frontmatter) => {
+        outcome = label === null ? removeRelation(frontmatter, raw) : relabelRelation(frontmatter, raw, label);
+        return outcome === 'changed';
+      },
+      project.id,
+    );
+    this.changed();
+    return (outcome as LinkChange) === 'unreadable' ? UNREADABLE_RELATED_TEXT : answerOf(result);
   }
 
   /**

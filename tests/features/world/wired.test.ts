@@ -90,19 +90,23 @@ function directionOf(root: FakeElement, text: string): Array<string | null> {
 }
 
 describe('plugging in', () => {
-  it('registers the pane, six commands and a ribbon button, and offers the inspector its service', async () => {
+  it('registers the pane, ten commands and a ribbon button, and offers the inspector its service', async () => {
     const s = await stage();
     expect(s.plugin.viewTypes).toEqual([WORLD_VIEW_TYPE]);
     expect(WORLD_VIEW_TYPE).toBe('spellbook-world');
     expect(s.plugin.commands.map((command) => [command.id, command.name])).toEqual([
       ['open-world', 'Open world'],
+      ['open-entity-sheet', 'Open entity sheet'],
       ['new-character', 'New character'],
       ['new-place', 'New place'],
       ['new-faction', 'New faction'],
       ['new-item', 'New item'],
+      ['new-lore', 'New lore'],
+      ['new-creature', 'New creature'],
+      ['new-culture', 'New culture'],
       ['new-entity', 'New entity'],
     ]);
-    expect(Object.values(WORLD_COMMANDS)).toHaveLength(6);
+    expect(Object.values(WORLD_COMMANDS)).toHaveLength(10);
     expect(s.plugin.ribbonIcons.map((icon) => icon.title)).toEqual([WORLD_RIBBON_TITLE]);
     expect(s.features.services.get(SCENE_ENTITIES_SERVICE)).toBeDefined();
     // Plugging in opens nothing, writes nothing and reads no note.
@@ -166,7 +170,8 @@ describe('the browser', () => {
     const { pane } = await openWorld(s);
     expect(directionOf(pane, MARA_HE)).toEqual(['auto']);
     expect(directionOf(pane, MARA_HE_SUMMARY)).toEqual(['auto']);
-    expect(directionOf(pane, 'Mara')).toEqual(['auto']);
+    // The name on Mara's card, and the lamp's owner among the facts on its card.
+    expect(directionOf(pane, 'Mara')).toEqual(['auto', 'auto']);
     expect(one(cardNamed(pane, MARA_HE), 'spellbook-world-card-scenes').getAttr('dir')).toBe('ltr');
     expect(one(pane, 'spellbook-world-search').getAttr('dir')).toBe('auto');
   });
@@ -194,7 +199,7 @@ describe('the browser', () => {
     const s = await stage();
     const { pane } = await openWorld(s);
     const filter = one(pane, 'spellbook-world-filter');
-    expect(filter.children.map((option) => option.text)).toEqual(['All types', 'Characters', 'Places', 'Factions', 'Items', 'Other']);
+    expect(filter.children.map((option) => option.text)).toEqual(['All types', 'Characters', 'Places', 'Factions', 'Items', 'Lore', 'Creatures', 'Cultures', 'Other']);
     filter.value = 'place';
     filter.fire('change');
     expect(groupsOf(pane)).toEqual([['Places', '1', ['Saltwick']]]);
@@ -249,7 +254,7 @@ describe('the browser', () => {
     expect(one(lamp, 'spellbook-world-card-summary').text).toBe('Brass, and older than the tower.');
     expect(one(lamp, 'spellbook-world-card-scenes').text).toBe('1 scene');
     // A note with no known type is listed under "Other".
-    s.vault.external.create(inNovel('World/Loose.md'), { frontmatter: { type: 'creature' } });
+    s.vault.external.create(inNovel('World/Loose.md'), { frontmatter: { type: 'vessel' } });
     await calm(s);
     expect(last(groupsOf(pane))).toEqual(['Other', '1', ['Loose']]);
   });
@@ -288,8 +293,20 @@ describe('making an entity', () => {
     expect(lastWindow().titleEl.text).toBe('New character');
     await answer(s, 'Joss Hale');
     expect(s.vault.writes).toEqual([{ op: 'createFile', path: 'Novel/World/Characters/Joss Hale.md' }]);
-    expect(s.vault.frontmatterOf('Novel/World/Characters/Joss Hale.md')).toEqual({ type: 'character', role: '', age: '', appearance: '', goal: '', summary: '', aliases: [] });
-    expect(s.vault.bodyOf('Novel/World/Characters/Joss Hale.md')).toBe('## Description\n\n## Background\n\n## Notes\n\n');
+    expect(s.vault.frontmatterOf('Novel/World/Characters/Joss Hale.md')).toEqual({
+      type: 'character',
+      role: '',
+      age: '',
+      occupation: '',
+      appearance: '',
+      personality: '',
+      voice: '',
+      goal: '',
+      arc: '',
+      summary: '',
+      aliases: [],
+    });
+    expect(s.vault.bodyOf('Novel/World/Characters/Joss Hale.md')).toBe('## Appearance\n\n## Background\n\n## Notes\n\n');
     expect(s.opened).toEqual([{ path: 'Novel/World/Characters/Joss Hale.md', where: false }]);
     expect(StubModal.opened.filter((modal) => modal.isOpen)).toEqual([]);
   });
@@ -297,22 +314,28 @@ describe('making an entity', () => {
   it('has a command for each built-in type, each with its own folder and properties', async () => {
     const s = await stage();
     for (const [command, name, path, keys] of [
-      ['new-place', 'The Pier', 'Novel/World/Places/The Pier.md', ['type', 'kind', 'region', 'summary', 'aliases']],
+      ['new-place', 'The Pier', 'Novel/World/Places/The Pier.md', ['type', 'kind', 'region', 'atmosphere', 'landmarks', 'summary', 'aliases']],
       ['new-faction', 'The Guild', 'Novel/World/Factions/The Guild.md', ['type', 'kind', 'leader', 'summary', 'aliases']],
       ['new-item', 'The Key', 'Novel/World/Items/The Key.md', ['type', 'kind', 'owner', 'summary', 'aliases']],
+      ['new-lore', 'The Bell Under the Bar', 'Novel/World/Lore/The Bell Under the Bar.md', ['type', 'kind', 'period', 'told-by', 'summary', 'aliases']],
+      ['new-creature', 'The Tide Hound', 'Novel/World/Creatures/The Tide Hound.md', ['type', 'kind', 'habitat', 'summary', 'aliases']],
+      ['new-culture', 'The Bar Folk', 'Novel/World/Cultures/The Bar Folk.md', ['type', 'kind', 'region', 'summary', 'aliases']],
     ] as const) {
       s.command(command).callback?.();
       await answer(s, name);
       expect(Object.keys(s.vault.frontmatterOf(path) ?? {}), command).toEqual(keys);
     }
     expect(s.vault.hasFolder('Novel/World/Factions')).toBe(true);
+    expect(s.vault.bodyOf('Novel/World/Lore/The Bell Under the Bar.md')).toBe('## The tale\n\n## Who tells it\n\n## What is true\n\n');
+    s.command('new-lore').callback?.();
+    expect(lastWindow().titleEl.text).toBe('New lore');
   });
 
   it('"New entity" asks which type first', async () => {
     const s = await stage();
     s.command('new-entity').callback?.();
     const choice = lastWindow();
-    expect(choice.contentEl.withClass('spellbook-world-choice-name').map((name) => name.text)).toEqual(['Character', 'Place', 'Faction', 'Item']);
+    expect(choice.contentEl.withClass('spellbook-world-choice-name').map((name) => name.text)).toEqual(['Character', 'Place', 'Faction', 'Item', 'Lore', 'Creature', 'Culture']);
     choice.contentEl.withClass('spellbook-world-choice-type')[1]?.fire('click');
     expect(lastWindow().titleEl.text).toBe('New place');
     await answer(s, 'נמל');
@@ -353,7 +376,7 @@ describe('making an entity', () => {
     const { pane } = await openWorld(readOnly);
     expect(one(pane, 'spellbook-world-new').disabled).toBe(true);
     one(cardNamed(pane, 'Mara'), 'spellbook-world-card-more').fire('click');
-    expect(lastMenu().outline).toEqual(['Open', 'Open in new tab', 'Show scenes and details']);
+    expect(lastMenu().outline).toEqual(['Open', 'Open in new tab', 'Open sheet']);
     expect(vault.writes).toEqual([]);
   });
 
@@ -361,7 +384,7 @@ describe('making an entity', () => {
     const s = await stage();
     const { pane } = await openWorld(s);
     one(pane, 'spellbook-world-new').fire('click');
-    expect(lastMenu().outline).toEqual(['Character', 'Place', 'Faction', 'Item']);
+    expect(lastMenu().outline).toEqual(['Character', 'Place', 'Faction', 'Item', 'Lore', 'Creature', 'Culture']);
     lastMenu().item('Faction').click();
     expect(lastWindow().titleEl.text).toBe('New faction');
     await answer(s, 'The Guild');
@@ -374,7 +397,7 @@ describe('the card\'s menu', () => {
     const s = await stage();
     const { pane } = await openWorld(s);
     one(cardNamed(pane, 'Mara'), 'spellbook-world-card-more').fire('click');
-    expect(lastMenu().outline).toEqual(['Open', 'Open in new tab', 'Show scenes and details', '---', 'Rename', 'Delete']);
+    expect(lastMenu().outline).toEqual(['Open', 'Open in new tab', 'Open sheet', '---', 'Rename', 'Delete']);
     lastMenu().item('Rename').click();
     expect(one(lastWindow().contentEl, 'spellbook-prompt-input').value).toBe('Mara');
     await answer(s, 'Saltwick');
@@ -422,7 +445,7 @@ describe('the card\'s menu', () => {
   });
 });
 
-describe('the details', () => {
+describe('the sheet', () => {
   async function detailsOf(s: Wired, name: string, width = 900): Promise<{ pane: FakeElement; detail: FakeElement; root: FakeElement }> {
     const { pane } = await openWorld(s, width);
     one(cardNamed(pane, name), 'spellbook-world-card-scenes').fire('click');
@@ -437,11 +460,14 @@ describe('the details', () => {
     expect(cardNamed(pane, 'Saltwick').hasClass('is-selected')).toBe(true);
     expect(one(detail, 'spellbook-world-detail-name').text).toBe('Saltwick');
     expect(one(detail, 'spellbook-world-detail-type').text).toBe('Place');
-    expect(one(detail, 'spellbook-world-detail-summary').text).toBe('Fog, salt and gulls.');
-    expect(detail.withClass('spellbook-world-field-name').map((field) => field.text)).toEqual(['kind', 'region']);
-    expect(detail.withClass('spellbook-world-field-value').map((field) => field.text)).toEqual(['Harbour town', 'North coast']);
-    expect(detail.withClass('spellbook-world-section-head').map((head) => head.fullText)).toEqual(['Scenes 2', 'Timeline events 1']);
+    expect(one(detail, 'spellbook-world-detail-summary').value).toBe('Fog, salt and gulls.');
+    // Every field of the type, also the ones that are still empty, each in a box of its own.
+    expect(detail.withClass('spellbook-world-field-name').map((field) => field.text)).toEqual(['kind', 'region', 'atmosphere', 'landmarks']);
+    expect(detail.withClass('spellbook-world-field-box').map((field) => field.value)).toEqual(['Harbour town', 'North coast', '', '']);
+    expect(detail.withClass('spellbook-world-section-head').map((head) => head.fullText)).toEqual(['Related 0 Add', 'Scenes 2', 'Events 1']);
     expect(rowTitles(detail)).toEqual(['Opening', 'Closing', 'The fire']);
+    // Under an event, its date in the story.
+    expect(detail.withClass('spellbook-world-row-note').map((note) => note.text)).toEqual(['1890-03-01']);
     expect(s.vault.reads.readText).toBe(0);
   });
 
@@ -475,7 +501,8 @@ describe('the details', () => {
     expect(root.hasClass('spellbook-world-has-detail')).toBe(true);
     const detail = one(pane, 'spellbook-world-detail');
     expect(one(detail, 'spellbook-world-detail-name').getAttr('dir')).toBe('auto');
-    expect(one(detail, 'spellbook-world-detail-summary').text).toBe(MARA_HE_SUMMARY);
+    expect(one(detail, 'spellbook-world-detail-summary').value).toBe(MARA_HE_SUMMARY);
+    expect(one(detail, 'spellbook-world-detail-summary').getAttr('dir')).toBe('auto');
     const back = one(detail, 'spellbook-world-detail-back');
     expect(back.getAttr('aria-label')).toBe('Back to the list');
     back.fire('click');
@@ -603,7 +630,15 @@ describe('who is in a scene (what the inspector is offered)', () => {
     const picker = lastWindow();
     typeInto(one(picker.contentEl, 'spellbook-world-picker-input'), 'Anna');
     const create = picker.contentEl.withClass('spellbook-world-picker-create');
-    expect(create.map((row) => row.fullText)).toEqual(['New character: Anna', 'New place: Anna', 'New faction: Anna', 'New item: Anna']);
+    expect(create.map((row) => row.fullText)).toEqual([
+      'New character: Anna',
+      'New place: Anna',
+      'New faction: Anna',
+      'New item: Anna',
+      'New lore: Anna',
+      'New creature: Anna',
+      'New culture: Anna',
+    ]);
     create[0]?.fire('click');
     await calm(s);
     expect(s.vault.writes).toEqual([
@@ -770,12 +805,12 @@ describe('entity types', () => {
     return row;
   };
 
-  it('lists the four built-in types with their folders and properties, and stores nothing until something changes', async () => {
+  it('lists the seven built-in types with their folders and properties, and stores nothing until something changes', async () => {
     const s = await stage();
     const { modal } = await typesWindow(s);
-    expect(typeNames(modal)).toEqual(['Character', 'Place', 'Faction', 'Item']);
+    expect(typeNames(modal)).toEqual(['Character', 'Place', 'Faction', 'Item', 'Lore', 'Creature', 'Culture']);
     expect(one(rowOf(modal, 'Character'), 'spellbook-world-type-folder').text).toBe('World/Characters');
-    expect(one(rowOf(modal, 'Character'), 'spellbook-world-type-fields').text).toBe('role, age, appearance, goal, summary');
+    expect(one(rowOf(modal, 'Character'), 'spellbook-world-type-fields').text).toBe('role, age, occupation, appearance, personality, voice, goal, arc, summary');
     expect(s.vault.writes).toEqual([]);
     expect(s.store.projectData('entityTypes')).toBeUndefined();
   });
@@ -785,18 +820,18 @@ describe('entity types', () => {
     const { pane, modal } = await typesWindow(s);
     one(modal.contentEl, 'spellbook-world-types-add').fire('click');
     await answer(s, 'יצור');
-    expect(typeNames(modal)).toEqual(['Character', 'Place', 'Faction', 'Item', 'יצור']);
+    expect(typeNames(modal)).toEqual(['Character', 'Place', 'Faction', 'Item', 'Lore', 'Creature', 'Culture', 'יצור']);
     expect(one(rowOf(modal, 'יצור'), 'spellbook-world-type-name').getAttr('dir')).toBe('auto');
     expect(s.vault.writes).toEqual([{ op: 'updateFrontmatter', path: NOVEL_INDEX }]);
     const stored = s.vault.frontmatterOf(NOVEL_INDEX)?.['entityTypes'] as Array<Record<string, unknown>>;
-    expect(stored.map((type) => type['id'])).toEqual(['character', 'place', 'faction', 'item', 'יצור']);
-    expect(stored[4]).toEqual({ id: 'יצור', name: 'יצור', folder: 'יצור', fields: ['summary'], color: null, icon: 'circle-dot' });
+    expect(stored.map((type) => type['id'])).toEqual(['character', 'place', 'faction', 'item', 'lore', 'creature', 'culture', 'יצור']);
+    expect(stored[7]).toEqual({ id: 'יצור', name: 'יצור', folder: 'יצור', fields: ['summary'], color: null, icon: 'circle-dot' });
     // The rest of the index is as it was.
     expect(s.vault.frontmatterOf(NOVEL_INDEX)?.['binder']).toHaveLength(3);
 
     modal.close();
     one(pane, 'spellbook-world-new').fire('click');
-    expect(lastMenu().outline).toEqual(['Character', 'Place', 'Faction', 'Item', 'יצור']);
+    expect(lastMenu().outline).toEqual(['Character', 'Place', 'Faction', 'Item', 'Lore', 'Creature', 'Culture', 'יצור']);
     lastMenu().item('יצור').click();
     await answer(s, 'Kraken');
     expect(s.vault.frontmatterOf('Novel/World/יצור/Kraken.md')).toEqual({ type: 'יצור', summary: '', aliases: [] });
@@ -813,7 +848,7 @@ describe('entity types', () => {
     one(rowOf(modal, 'Character'), 'spellbook-world-type-more').fire('click');
     expect(lastMenu().outline).toEqual(['Rename', 'Change folder', 'Change properties']); // a built-in type cannot be removed
     more('Character', 'Change properties');
-    expect(one(lastWindow().contentEl, 'spellbook-prompt-input').value).toBe('role, age, appearance, goal, summary');
+    expect(one(lastWindow().contentEl, 'spellbook-prompt-input').value).toBe('role, age, occupation, appearance, personality, voice, goal, arc, summary');
     await answer(s, 'role, pronouns, summary, type');
     more('Character', 'Change folder');
     await answer(s, 'People');
@@ -829,7 +864,7 @@ describe('entity types', () => {
     await calm(s);
 
     const stored = (s.vault.frontmatterOf(NOVEL_INDEX)?.['entityTypes'] as Array<Record<string, unknown>>)[0];
-    expect(stored).toEqual({ id: 'character', name: 'Person', folder: 'People', fields: ['role', 'pronouns', 'summary'], color: 'pink', icon: 'crown' });
+    expect(stored).toEqual({ id: 'character', name: 'Person', folder: 'People', fields: ['role', 'pronouns', 'summary'], fieldsVersion: 2, color: 'pink', icon: 'crown' });
     // Only the index was written: the notes keep their type, their place and their properties.
     expect(new Set(s.vault.writes.map((write) => write.path))).toEqual(new Set([NOVEL_INDEX]));
     expect(s.vault.has(inNovel(MARA))).toBe(true);
@@ -860,23 +895,23 @@ describe('entity types', () => {
     const { pane, modal } = await typesWindow(s);
     one(rowOf(modal, 'Item'), 'spellbook-world-type-up').fire('click');
     await calm(s);
-    expect(typeNames(modal)).toEqual(['Character', 'Place', 'Item', 'Faction']);
+    expect(typeNames(modal)).toEqual(['Character', 'Place', 'Item', 'Faction', 'Lore', 'Creature', 'Culture']);
     expect(one(rowOf(modal, 'Character'), 'spellbook-world-type-up').getAttr('aria-disabled')).toBe('true');
     expect(groupsOf(pane).map((group) => group[0])).toEqual(['Characters', 'Places', 'Items']);
 
     one(modal.contentEl, 'spellbook-world-types-add').fire('click');
-    await answer(s, 'Creature');
-    s.vault.external.create(inNovel('World/Creature/Kraken.md'), { frontmatter: { type: 'creature' } });
+    await answer(s, 'Vessel');
+    s.vault.external.create(inNovel('World/Vessel/Kraken.md'), { frontmatter: { type: 'vessel' } });
     await calm(s);
-    one(rowOf(modal, 'Creature'), 'spellbook-world-type-more').fire('click');
+    one(rowOf(modal, 'Vessel'), 'spellbook-world-type-more').fire('click');
     expect(lastMenu().outline).toEqual(['Rename', 'Change folder', 'Change properties', '---', 'Remove']);
     lastMenu().item('Remove').click();
     const confirm = lastWindow();
     expect(one(confirm.contentEl, 'spellbook-confirm-message').text).toMatch(/1 note has this type\. They stay where they are/);
     confirmIn(confirm);
     await calm(s);
-    expect(typeNames(modal)).toEqual(['Character', 'Place', 'Item', 'Faction']);
-    expect(s.vault.has(inNovel('World/Creature/Kraken.md'))).toBe(true);
+    expect(typeNames(modal)).toEqual(['Character', 'Place', 'Item', 'Faction', 'Lore', 'Creature', 'Culture']);
+    expect(s.vault.has(inNovel('World/Vessel/Kraken.md'))).toBe(true);
     expect(s.vault.trashed).toEqual([]);
     expect(last(groupsOf(pane))).toEqual(['Other', '1', ['Kraken']]);
   });
@@ -888,6 +923,6 @@ describe('entity types', () => {
       frontmatter['entityTypes'] = [{ id: 'ship', name: 'Ship', folder: 'Ships', fields: ['summary'], color: 'cyan', icon: 'ship' }];
     });
     await calm(s);
-    expect(typeNames(modal)).toEqual(['Ship', 'Character', 'Place', 'Faction', 'Item']);
+    expect(typeNames(modal)).toEqual(['Ship', 'Character', 'Place', 'Faction', 'Item', 'Lore', 'Creature', 'Culture']);
   });
 });

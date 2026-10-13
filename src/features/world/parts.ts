@@ -43,6 +43,14 @@ export const WORLD_ICONS = {
   moveDown: ['arrow-down'],
   folder: ['folder'],
   fields: ['list'],
+  sheet: ['id-card', 'contact', 'panel-right'],
+  picture: ['image', 'image-plus'],
+  relate: ['plus'],
+  label: ['pencil', 'edit-3'],
+  cards: ['layout-grid', 'grid'],
+  list: ['list', 'table'],
+  sortUp: ['arrow-up', 'chevron-up'],
+  sortDown: ['arrow-down', 'chevron-down'],
 } as const satisfies Record<string, readonly string[]>;
 
 /**
@@ -75,6 +83,35 @@ export function typeBadge(parent: HTMLElement, type: EntityType | null, cls = ''
   setColor(badge, type?.color ?? null);
   showIcon(badge, type?.icon ?? FALLBACK_ICON, FALLBACK_ICON);
   return badge;
+}
+
+/** On the frame of a picture that shows the type's icon: the entity has no picture, or it could not be shown. */
+export const NO_PICTURE_CLASS = 'spellbook-world-picture-none';
+
+/**
+ * An entity's picture in a frame: cropped to fill it, on a card and on the
+ * sheet. Without a picture the frame shows the type's icon in its colour,
+ * and so does a picture that turns out not to load (a file that is broken or
+ * still on its way from another device).
+ *
+ * @param url the address of the picture (see WorldHost.imageOf), or null for none
+ */
+export function entityPicture(parent: HTMLElement, url: string | null, type: EntityType | null, cls = ''): HTMLElement {
+  // The name beside it says who it is: the picture itself is not read out.
+  const frame = parent.createDiv({ cls: `spellbook-world-picture ${cls}`.trim(), attr: { 'aria-hidden': 'true' } });
+  setColor(frame, type?.color ?? null);
+  const showIconInstead = (): void => {
+    frame.empty();
+    frame.addClass(NO_PICTURE_CLASS);
+    typeBadge(frame, type);
+  };
+  if (url === null) {
+    showIconInstead();
+    return frame;
+  }
+  const picture = frame.createEl('img', { cls: 'spellbook-world-picture-img', attr: { src: url, alt: '', loading: 'lazy', draggable: 'false' } });
+  picture.addEventListener('error', showIconInstead);
+  return frame;
 }
 
 /**
