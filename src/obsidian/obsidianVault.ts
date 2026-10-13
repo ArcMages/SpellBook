@@ -11,7 +11,10 @@
 //     list and the word logs), in one place: updateText below, which reads,
 //     changes and saves in one step with vault.process,
 //   - a file is written from bytes in one place only: createBinary below,
-//     which makes a new exported manuscript and can replace nothing.
+//     which makes a new exported manuscript and can replace nothing,
+//   - the text of a note the writer writes in is replaced for one thing
+//     only, restoring a scene from a snapshot: replaceText below, which goes
+//     through the same one step and never creates a file.
 
 import { TFile, TFolder, getFrontMatterInfo, normalizePath, parseYaml, stringifyYaml } from 'obsidian';
 import type { App, EventRef, Events, TAbstractFile } from 'obsidian';

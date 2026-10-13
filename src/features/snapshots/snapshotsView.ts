@@ -127,8 +127,8 @@ export class SnapshotsView extends ItemView {
   private compared: { before: string; after: string; diff: TextDiff } | null = null;
   private readonly unfolded = new Set<number>();
   private busy = false;
-  /** True when the scene was saved since the differences were last counted. */
-  private sceneChanged = false;
+  /** True when every snapshot is to be compared with the scene again, not only the new ones. */
+  private countAll = true;
 
   constructor(leaf: WorkspaceLeaf, keeper: SnapshotKeeper, clock: FeatureClock) {
     super(leaf);
@@ -193,7 +193,7 @@ export class SnapshotsView extends ItemView {
     // A pane that Obsidian opened by itself (the layout of last time) shows the scene in front, if there is one.
     if (this.scenePath === null) this.scenePath = this.keeper.openScene()?.path ?? null;
     this.render();
-    this.recount(0);
+    this.startCount(true);
   }
 
   protected override async onClose(): Promise<void> {
@@ -240,7 +240,7 @@ export class SnapshotsView extends ItemView {
     this.compared = null;
     this.say('');
     this.render();
-    this.recount(0);
+    this.startCount(true);
   }
 
   /** The scene the pane is about, for those who ask. */
@@ -260,18 +260,23 @@ export class SnapshotsView extends ItemView {
         }
         return;
       case 'project':
+        // A pane that was there before the project was (Obsidian opens its panes first) finds its scene now.
+        if (this.scenePath === null) {
+          this.scenePath = this.keeper.openScene()?.path ?? null;
+          if (this.scenePath !== null) this.startCount(true);
+        }
         this.render();
         return;
       case 'snapshots':
         if (this.mode.kind === 'list') this.render();
-        this.recount(0);
+        // Only what is new is compared; the rest stands.
+        this.startCount(false);
         return;
       case 'text': {
         const scene = this.scenePath === null ? null : this.keeper.sceneAt(change.vaultPath);
         if (!scene || this.scenePath === null || pathKey(scene.path) !== pathKey(this.scenePath)) return;
         // Not while it is being typed in: a moment after the last save.
-        this.sceneChanged = true;
-        this.recount(RECOUNT_DELAY_MS);
+        this.recountSoon();
         return;
       }
       default:
@@ -303,44 +308,51 @@ export class SnapshotsView extends ItemView {
     });
   }
 
-  /**
-   * Count again how each snapshot differs from the scene as it is now: one
-   * snapshot at a time, with a pause between two, so that a long list never
-   * holds up the screen.
-   */
-  private recount(delay: number): void {
+  /** The scene was saved: count again how every snapshot differs from it, a moment after the last save. */
+  private recountSoon(): void {
     this.cancelRecount?.();
-    this.cancelRecount = null;
-    const request = ++this.request;
-    const run = (): void => {
+    this.cancelRecount = this.clock.setTimer(() => {
       this.cancelRecount = null;
-      void this.count(request).catch((error: unknown) => {
-        console.error('Spellbook: the snapshots could not be compared with the scene', error);
-      });
-    };
-    if (delay > 0) this.cancelRecount = this.clock.setTimer(run, delay);
-    else run();
+      this.startCount(true);
+    }, RECOUNT_DELAY_MS);
+  }
+
+  /**
+   * Count how the snapshots differ from the scene as it is now: one snapshot
+   * at a time, with a pause between two, so that a long list never holds up
+   * the screen.
+   *
+   * @param all true: every snapshot, against the scene read afresh; false:
+   *   only those not counted yet
+   */
+  private startCount(all: boolean): void {
+    if (all) this.countAll = true;
+    const request = ++this.request;
+    void this.count(request).catch((error: unknown) => {
+      console.error('Spellbook: the snapshots could not be compared with the scene', error);
+    });
   }
 
   private async count(request: number): Promise<void> {
     const scene = this.scene();
     if (this.closed || !scene) return;
+    const all = this.countAll;
+    if (!all && this.keeper.list(scene.path).every((info) => this.changes.has(info.path))) return;
     const current = await this.keeper.sceneText(scene.path);
     if (current === null || request !== this.request) return;
     const now = SnapshotKeeper.bodyOf(current);
-    if (this.sceneChanged) {
-      this.sceneChanged = false;
+    if (all && this.mode.kind === 'compare' && this.mode.other === null && this.compared !== null && this.compared.after !== now) {
       // A comparison with the scene as it is now is made again with the newer text.
-      if (this.mode.kind === 'compare' && this.mode.other === null && this.compared !== null && this.compared.after !== now) {
-        this.compared = null;
-        this.unfolded.clear();
-        this.render();
-      }
+      this.compared = null;
+      this.unfolded.clear();
+      this.render();
     }
     const live = new Set<string>();
     for (const info of this.keeper.list(scene.path)) {
       live.add(info.path);
+      if (!all && this.changes.has(info.path)) continue;
       const text = await this.textOf(info.path);
+      // Whoever took over counts what was not reached: "all" stands until a whole round is done.
       if (request !== this.request || this.closed) return;
       if (text === null) continue;
       const diff = diffTexts(text.body, now);
@@ -349,6 +361,7 @@ export class SnapshotsView extends ItemView {
       await this.pause();
       if (request !== this.request || this.closed) return;
     }
+    if (all) this.countAll = false;
     for (const path of [...this.changes.keys()]) if (!live.has(path)) this.changes.delete(path);
   }
 
@@ -705,6 +718,10 @@ export class SnapshotsView extends ItemView {
           this.compared = null;
           this.say(RESTORED_TEXT);
           new Notice(RESTORED_TEXT, NOTICE_MS);
+          // The scene reads differently now: every snapshot is compared with it again, at once.
+          this.cancelRecount?.();
+          this.cancelRecount = null;
+          this.startCount(true);
         }).catch((error: unknown) => {
           console.error('Spellbook: a snapshot could not be restored', error);
           new Notice(`The snapshot could not be restored: ${error instanceof Error ? error.message : String(error)}`, PROBLEM_NOTICE_MS);

@@ -17,6 +17,8 @@
 //  - Unfiled notes and Missing entries are worked out when reading, and never
 //    "fixed" on disk without being asked.
 //  - A note's text is never changed. Deleting a scene moves it to the trash.
+//    (One exception, asked for by the writer each time: restoring a scene
+//    from a snapshot, through replaceSceneText and nothing else.)
 //  - A scene note's "order" property is only written for something the writer
 //    did on this device, and only in the notes that change needs.
 

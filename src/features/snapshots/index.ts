@@ -33,6 +33,17 @@ export const SNAPSHOT_COMMANDS = {
   open: { id: 'open-snapshots', name: 'Snapshots of this scene' },
 } as const;
 
+/** The name the snapshots are offered under to the other screens (see FeatureServices). */
+export const SNAPSHOTS_SERVICE = 'snapshots.actions';
+
+/** What the snapshots offer the other screens. Paths are relative to the project folder, as the binder has them. */
+export interface SnapshotsService {
+  /** Ask for a name and take a snapshot of a scene. Does nothing for a path that is no scene with a note. */
+  take(scenePath: string): void;
+  /** Show the snapshots of a scene in the Snapshots pane. */
+  show(scenePath: string): void;
+}
+
 export const COULD_NOT_OPEN_TEXT = 'The snapshots could not be opened.';
 
 const NOTICE_MS = 5000;
@@ -140,6 +151,19 @@ export const snapshotsFeature: Feature = {
       });
       asking.open();
     };
+
+    // For the other screens (a scene's menu in the binder, say): looked up by name, when it is needed.
+    const service: SnapshotsService = {
+      take: (scenePath) => {
+        const scene = released ? null : keeper.scene(scenePath);
+        if (scene) take(scene);
+      },
+      show: (scenePath) => {
+        const scene = released ? null : keeper.scene(scenePath);
+        if (scene) void pane.reveal(scene.path);
+      },
+    };
+    context.services.provide(SNAPSHOTS_SERVICE, service);
 
     plugin.registerView(SNAPSHOTS_VIEW_TYPE, (leaf) => createSnapshotsView(leaf, keeper, context.clock));
     plugin.addCommand({
