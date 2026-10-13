@@ -159,6 +159,14 @@ export interface CorkboardHost extends CardsHost {
   watchScenes(watcher: object, paths: readonly string[]): void;
 }
 
+/** The "In this scene" part of the inspector (sceneEntities.ts), as the inspector holds it. */
+export interface SceneEntitiesPart {
+  /** Draw the part again: the inspector shows another scene, or none. */
+  refresh(): void;
+  /** The inspector closes. */
+  stop(): void;
+}
+
 /** What the inspector needs. */
 export interface InspectorHost extends CardsHost {
   /**
@@ -167,4 +175,11 @@ export interface InspectorHost extends CardsHost {
    * if anything, is called when the inspector closes.
    */
   mountSummary?(slot: HTMLElement): (() => void) | void;
+  /**
+   * Optional. Called once when the inspector opens, with an empty element
+   * under the scene's dates, for the entities in the scene (see
+   * sceneEntities.ts). `scenePath` gives the scene the inspector shows at
+   * that moment, or null.
+   */
+  mountEntities?(slot: HTMLElement, scenePath: () => string | null): SceneEntitiesPart | null;
 }
