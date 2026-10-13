@@ -122,7 +122,10 @@ export class ProjectSession {
       .map((project) => project.indexPath)
       .filter((indexPath) => !this.unopenable.has(indexPath));
     const open = this.store.project?.indexPath ?? null;
-    const chosen = this.prefs.getActiveProject();
+    // A choice that points at what has turned out to be a conflicting copy of
+    // a project's index stands for that project.
+    const remembered = this.prefs.getActiveProject();
+    const chosen = remembered === null ? null : (this.store.mainIndexOf(remembered) ?? remembered);
     const chosenIsThere = chosen !== null && openable.includes(chosen);
 
     let target: string | null = null;
@@ -130,6 +133,11 @@ export class ProjectSession {
       if (chosen !== open) target = chosen;
     } else if (open === null) {
       target = openable[0] ?? null;
+    } else {
+      // The open "project" is such a copy (its original arrived later, by
+      // sync): move over to the project itself, which then reports the copy.
+      const main = this.store.mainIndexOf(open);
+      if (main !== null && openable.includes(main)) target = main;
     }
     if (target === null) return;
 

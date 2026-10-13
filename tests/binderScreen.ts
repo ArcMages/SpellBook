@@ -1,7 +1,7 @@
 // Reading the binder panel in tests: what a writer would see and tap, taken
 // from the stand-in elements (tests/obsidianStub.ts).
 
-import type { FakeElement } from './obsidianStub';
+import type { FakeElement, FakeEvent } from './obsidianStub';
 
 /** The one element with this class inside `pane`, or a failed test. */
 export function one(pane: FakeElement, cls: string): FakeElement {
@@ -109,4 +109,121 @@ export function selectedTitle(pane: FakeElement): string | null {
   const found = pane.withClass('spellbook-row-self', 'spellbook-is-selected');
   if (found.length > 1) throw new Error(`expected at most one selected row, found ${found.length}`);
   return found[0] ? (partOf(found[0], 'spellbook-title')?.text ?? '') : null;
+}
+
+/** The title of a row (the part that is tapped). */
+export function titleOf(row: FakeElement): string {
+  return partOf(row, 'spellbook-title')?.text ?? '';
+}
+
+// ---------------------------------------------------------------- the layout
+
+/** How high the stand-in rows are, and where the list starts, once layOut() has run. */
+export const ROW_HEIGHT = 30;
+export const LIST_TOP = 100;
+export const LIST_WIDTH = 300;
+/** How much further in each level of nesting starts. */
+export const INDENT = 10;
+
+const NOWHERE = { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 };
+
+/**
+ * Give every row a place on the screen, as a browser's layout would: the
+ * list starts at LIST_TOP, every row is ROW_HEIGHT high, rows inside a
+ * folder start INDENT further in, and what is folded shut has no size. The
+ * list's own scroll position shifts everything up.
+ *
+ * The stand-in elements lay nothing out themselves, so call this again
+ * whenever rows were added, moved, folded or scrolled.
+ */
+export function layOut(pane: FakeElement, height = 600): void {
+  const list = scroller(pane);
+  list.rect = { top: LIST_TOP, bottom: LIST_TOP + height, left: 0, right: LIST_WIDTH, width: LIST_WIDTH, height };
+  let y = LIST_TOP - list.scrollTop;
+  const hide = (container: FakeElement): void => {
+    for (const element of container.all()) element.rect = { ...NOWHERE };
+  };
+  const walk = (container: FakeElement, depth: number): void => {
+    for (const item of container.children) {
+      const top = y;
+      const left = depth * INDENT;
+      if (!item.hasClass('spellbook-row')) {
+        // A line of text: as high as a row.
+        y += ROW_HEIGHT;
+        item.rect = { top, bottom: y, left, right: LIST_WIDTH, width: LIST_WIDTH - left, height: ROW_HEIGHT };
+        continue;
+      }
+      const self = item.children.find((child) => child.hasClass('spellbook-row-self')) as FakeElement;
+      const inside = item.children.find((child) => child.hasClass('spellbook-children'));
+      y += ROW_HEIGHT;
+      self.rect = { top, bottom: y, left, right: LIST_WIDTH, width: LIST_WIDTH - left, height: ROW_HEIGHT };
+      if (inside) {
+        if (item.hasClass('is-collapsed')) hide(inside);
+        else walk(inside, depth + 1);
+      }
+      item.rect = { top, bottom: y, left, right: LIST_WIDTH, width: LIST_WIDTH - left, height: y - top };
+    }
+  };
+  walk(one(pane, 'spellbook-binder-body'), 0);
+}
+
+/** A height within a row: 0 is its top edge, 1 its bottom edge, 0.5 its middle. */
+export function inRow(row: FakeElement, part: number): number {
+  return row.rect.top + part * (row.rect.bottom - row.rect.top);
+}
+
+// --------------------------------------------------------------- the pointer
+
+export type PointerKind = 'mouse' | 'touch' | 'pen';
+
+/**
+ * A pointer event as a browser sends it, on its way from the window down to
+ * `target` and back up, so that listeners on the list and on the document
+ * hear it too. Returns the event, to see what was done with it.
+ */
+export function point(
+  target: FakeElement,
+  type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel',
+  x: number,
+  y: number,
+  kind: PointerKind = 'mouse',
+  extra: Record<string, unknown> = {},
+): FakeEvent {
+  return target.fire(type, {
+    pointerId: 1,
+    pointerType: kind,
+    isPrimary: true,
+    button: 0,
+    buttons: type === 'pointerup' || type === 'pointercancel' ? 0 : 1,
+    clientX: x,
+    clientY: y,
+    ...extra,
+  });
+}
+
+/** Where a press on a row lands: on its title, a little in from the row's start. */
+export function gripOf(row: FakeElement): { target: FakeElement; x: number; y: number } {
+  return { target: partOf(row, 'spellbook-title') ?? row, x: row.rect.left + 20, y: inRow(row, 0.5) };
+}
+
+/**
+ * Pick a row up with the mouse and carry it to a place on the screen,
+ * without letting go: press on the row, then move there.
+ */
+export function carry(row: FakeElement, x: number, y: number): void {
+  const grip = gripOf(row);
+  point(grip.target, 'pointerdown', grip.x, grip.y);
+  // The first move starts the drag; the second is the place itself.
+  point(grip.target, 'pointermove', grip.x, grip.y + 6);
+  point(grip.target, 'pointermove', x, y);
+}
+
+/** Let go of the mouse button at a place on the screen. */
+export function letGo(row: FakeElement, x: number, y: number): void {
+  point(gripOf(row).target, 'pointerup', x, y);
+}
+
+/** As if the writer pressed a key on an element, with the event travelling as in a browser. */
+export function type(element: FakeElement, key: string, event: Record<string, unknown> = {}): FakeEvent {
+  return element.fire('keydown', { key, ...event });
 }

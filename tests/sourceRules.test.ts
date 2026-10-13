@@ -67,6 +67,9 @@ describe('source layout', () => {
       'ui/safely.ts',
       'views/binderActions.ts',
       'views/binderMenus.ts',
+      'core/dropTarget.ts',
+      'core/conflictCopies.ts',
+      'ui/dragDrop.ts',
     ]) {
       expect(names, expected).toContain(expected);
     }
@@ -316,14 +319,34 @@ describe('styles.css', () => {
       }
     }
     expect(exceptions).toBe(1);
-    // Nothing is made invisible anywhere else.
-    const invisible = /\b(opacity:\s*0|visibility:\s*hidden)\b/;
+    // Nothing is made invisible anywhere else. (Dimmed is not invisible: a
+    // row that is being dragged is at half strength, and can still be seen.)
+    const invisible = /\b(opacity:\s*0(?![.\d])|visibility:\s*hidden\b)/;
     for (const rule of rules) {
       if (invisible.test(rule.body)) expect(mouseOnly.includes(rule.body), rule.selectors.join(', ')).toBe(true);
     }
     expect(changesWhatIsSeen.test('opacity: 0;')).toBe(true);
     expect(invisible.test('opacity: 0;')).toBe(true);
+    expect(invisible.test('opacity:0')).toBe(true);
     expect(invisible.test('visibility: hidden;')).toBe(true);
+    expect(invisible.test('opacity: 0.5;')).toBe(false);
+  });
+
+  it('keeps a finger that rests on a row from selecting its text or raising the phone\'s own bubble', () => {
+    // A long press picks a row up (src/ui/dragDrop.ts). Without these, an
+    // iPhone would also start a text selection and show its bubble.
+    const row = rules.find((rule) => rule.selectors.includes('.spellbook-binder .spellbook-row > .spellbook-row-self'));
+    expect(row?.body).toMatch(/-webkit-touch-callout:\s*none/);
+    expect(row?.body).toMatch(/-webkit-user-select:\s*none/);
+    expect(row?.body).toMatch(/[^-]user-select:\s*none/);
+  });
+
+  it('never lets the ghost of a dragged row, or the line that shows where it would go, take a tap', () => {
+    for (const selector of ['.spellbook-drag-ghost', '.spellbook-drop-line']) {
+      const rule = rules.find((candidate) => candidate.selectors.includes(selector));
+      expect(rule?.body, selector).toMatch(/position:\s*fixed/);
+      expect(rule?.body, selector).toMatch(/pointer-events:\s*none/);
+    }
   });
 
   it('the checks themselves work', () => {

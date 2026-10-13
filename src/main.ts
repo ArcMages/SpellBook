@@ -15,7 +15,7 @@ import { WordCountCache } from './core/wordCountCache';
 import { ObsidianDeviceStorage } from './obsidian/deviceStorage';
 import { ObsidianVault } from './obsidian/obsidianVault';
 import { openNote } from './obsidian/openNote';
-import { localToday, setTimer } from './obsidian/systemClock';
+import { localToday, nextFrame, setTimer } from './obsidian/systemClock';
 import { SpellbookSettingTab } from './settings';
 import { CreateProjectModal } from './ui/createProjectModal';
 import { BINDER_ICON } from './ui/icons';
@@ -202,7 +202,15 @@ export default class SpellbookPlugin extends Plugin implements BinderHost, Actio
     const session = new ProjectSession(store, prefs);
     const wordCounts = new WordCountCache({ vault, setTimer });
     const selection = new BinderSelection();
-    this.services = { store, session, wordCounts, prefs, selection };
+    this.services = {
+      store,
+      session,
+      wordCounts,
+      prefs,
+      selection,
+      clock: { setTimer, nextFrame },
+      dismissedCopies: new Set(),
+    };
 
     store.start();
     wordCounts.start();

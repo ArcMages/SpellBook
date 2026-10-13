@@ -98,6 +98,11 @@ export interface ProjectSnapshot extends ProjectSummary {
   readonly missing: readonly string[];
   /** Notes under Research/, as paths relative to the project. */
   readonly research: readonly string[];
+  /**
+   * Conflicting copies of the index note that sit next to it (typically
+   * "<Project> 2.md", left by a sync service), as vault paths. Usually empty.
+   */
+  readonly conflicts: readonly string[];
   /** Goes up by one each time the snapshot changes. */
   readonly revision: number;
 }
@@ -123,6 +128,8 @@ export type RefusalReason =
   | 'inside-project'
   | 'missing-file'
   | 'not-a-project'
+  | 'not-a-copy'
+  | 'unreadable-copy'
   | 'not-found';
 
 /**

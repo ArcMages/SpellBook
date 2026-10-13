@@ -39,6 +39,7 @@ import {
   stepPlacement,
 } from './binderTree';
 import type { StepDirection } from './binderTree';
+import { conflictCopies, mergeConflictCopy as mergeCopyInto } from './conflictCopies';
 import { newFolderId, sanitiseFileName, tidyDisplayName, uniqueName } from './names';
 import { ORDER_STEP, planLocalOrderKeys, readOrder } from './orderKeys';
 import type { OrderedScene } from './orderKeys';
@@ -84,6 +85,7 @@ import type {
 } from './types';
 import { VaultFileMissingError } from './vaultPort';
 import type { MarkdownFileInfo, VaultEvent, VaultPort } from './vaultPort';
+import { stripFrontmatter } from './wordCount';
 
 export { MANUSCRIPT_FOLDER, PROJECT_FOLDERS, TODO_FILE } from './projectLayout';
 
@@ -106,6 +108,14 @@ export interface NewProjectOptions {
    * creates the project as "<name> 2", "<name> 3" and so on instead.
    */
   readonly numberIfTaken?: boolean;
+}
+
+/** What merging a conflicting copy of the index came to. */
+export interface MergedCopy {
+  /** The scene paths that were added to the binder, relative to the project folder. */
+  readonly added: string[];
+  /** True when the copy's text (below its properties) was not the same as the index note's. */
+  readonly textDiffers: boolean;
 }
 
 export interface StoreDeps {
@@ -265,13 +275,31 @@ export class ProjectStore {
 
   // ------------------------------------------------------------------ reading
 
-  /** The projects in the vault, sorted by title. */
+  /**
+   * The projects in the vault, sorted by title. A conflicting copy of a
+   * project's index (see src/core/conflictCopies.ts) is not a project of its
+   * own and is left out; the project it is a copy of reports it instead.
+   */
   listProjects(): ProjectSummary[] {
-    return [...this.projects.values()].map(summaryOf).sort((a, b) => {
-      const byTitle = a.title.localeCompare(b.title);
-      if (byTitle !== 0) return byTitle;
-      return a.indexPath < b.indexPath ? -1 : a.indexPath > b.indexPath ? 1 : 0;
-    });
+    const copies = conflictCopies(this.projects.values());
+    return [...this.projects.values()]
+      .filter((known) => !copies.has(known.indexPath))
+      .map(summaryOf)
+      .sort((a, b) => {
+        const byTitle = a.title.localeCompare(b.title);
+        if (byTitle !== 0) return byTitle;
+        return a.indexPath < b.indexPath ? -1 : a.indexPath > b.indexPath ? 1 : 0;
+      });
+  }
+
+  /**
+   * The index note that the note at `indexPath` is a conflicting copy of, or
+   * null when it is not such a copy. Which of two index notes is the copy
+   * goes by their names (never by which one is open), so every device comes
+   * to the same answer.
+   */
+  mainIndexOf(indexPath: string): string | null {
+    return conflictCopies(this.projects.values()).get(indexPath) ?? null;
   }
 
   /** The open project, or null. A new object whenever something changed. */
@@ -822,6 +850,95 @@ export class ProjectStore {
     }, inProject);
   }
 
+  /**
+   * Merge a conflicting copy of the open project's index into the index, and
+   * move the copy to the trash.
+   *
+   * Every scene path that only the copy lists is added at the end of the top
+   * level of the binder, in one read-modify-write of the index; nothing the
+   * index lists is removed or moved. The copy is read from the file itself.
+   * It is only trashed once the index has been saved, and never when it
+   * could not be understood: a copy that cannot be read is left where it is.
+   *
+   * Only the binder is merged. The copy's own text (the notes a writer may
+   * keep in the index note) goes to the trash with it; `textDiffers` tells
+   * whether that text was different from the index note's, so that the
+   * writer can be told where to find it.
+   *
+   * @param copyPath the vault path of the copy, as the snapshot's `conflicts` gives it
+   * @returns the scene paths that were added (relative to the project folder)
+   */
+  mergeConflictCopy(copyPath: string, inProject?: string): Promise<IntentResult<MergedCopy>> {
+    return this.run(async (): Promise<IntentResult<MergedCopy>> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+
+      // Only a note that is known as a copy of this very index is ever merged and trashed.
+      if (this.mainIndexOf(copyPath) !== active.indexPath) {
+        if (!this.vault.exists(copyPath)) return noop('not-found', 'That copy is no longer in the vault.');
+        return refused('not-a-copy', `"${copyPath}" is not a conflicting copy of this project's index.`);
+      }
+
+      const name = noteTitle(copyPath);
+      let frontmatter: Frontmatter | null;
+      try {
+        frontmatter = await this.vault.readFrontmatter(copyPath);
+      } catch (error) {
+        if (error instanceof VaultFileMissingError) return noop('not-found', 'That copy is no longer in the vault.');
+        return refused(
+          'unreadable-copy',
+          `The copy "${name}" could not be read (${messageOf(error)}). Nothing was changed, and the copy was left where it is.`,
+        );
+      }
+      if (!isProjectIndex(frontmatter)) {
+        return refused(
+          'not-a-copy',
+          `"${name}" is no longer marked as a Spellbook project. Nothing was changed, and the note was left where it is.`,
+        );
+      }
+      const parsed = parseProjectIndex(frontmatter);
+      if (!parsed.ok) {
+        return refused(
+          'unreadable-copy',
+          `The copy "${name}" could not be understood: ${parsed.error} Nothing was changed, and the copy was left where it is.`,
+        );
+      }
+
+      let added: string[] = [];
+      const merged = await this.mutateBinder<undefined>((onDisk) => {
+        const outcome = mergeCopyInto(onDisk, parsed.binder);
+        added = [...outcome.added];
+        // Nothing new in the copy: the index is not written at all.
+        if (added.length === 0) return noop('unchanged', '');
+        return { status: 'done', binder: outcome.binder, value: undefined };
+      });
+      if (merged.status === 'failed' || merged.status === 'refused') return merged;
+      if (merged.status === 'done') this.scheduleOrderSync(added);
+
+      // Looked at before the copy goes: is its text the same as the index note's?
+      let textDiffers: boolean;
+      try {
+        const mine = stripFrontmatter(await this.vault.readText(active.indexPath));
+        const theirs = stripFrontmatter(await this.vault.readText(copyPath));
+        textDiffers = mine.trim() !== theirs.trim();
+      } catch {
+        // It cannot be told: better to send the writer to look than to say nothing.
+        textDiffers = true;
+      }
+
+      try {
+        await this.vault.trash(copyPath);
+      } catch (error) {
+        return failed(
+          (added.length > 0 ? 'The scenes of the copy were added to the binder, but the' : 'The') +
+            ` copy could not be moved to the trash (${messageOf(error)}). It is still at "${copyPath}".`,
+        );
+      }
+      return done({ added, textDiffers });
+    }, inProject);
+  }
+
   /** Write any outstanding order keys now instead of waiting for the delay. */
   syncOrderKeysNow(): Promise<void> {
     return this.enqueue(() => this.flushOrderKeys());
@@ -1153,6 +1270,10 @@ export class ProjectStore {
       .filter((file) => isInside(RESEARCH_FOLDER, file.rel))
       .map((file) => file.rel)
       .sort();
+    const conflicts = [...conflictCopies(this.projects.values())]
+      .filter(([, main]) => main === active.indexPath)
+      .map(([copy]) => copy)
+      .sort();
 
     const body = {
       indexPath: active.indexPath,
@@ -1165,6 +1286,7 @@ export class ProjectStore {
       unfiled,
       missing,
       research,
+      conflicts,
     };
     const signature = JSON.stringify(body);
     if (this.snapshot !== null && signature === this.snapshotSignature) return;

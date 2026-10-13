@@ -436,7 +436,9 @@ describe('the "more" button of a row', () => {
       expect(button, title).toBeDefined();
       expect(button?.attrs['aria-label'], title).toBe('More options');
       expect(button?.attrs['role'], title).toBe('button');
-      expect(button?.attrs['tabindex'], title).toBe(0);
+      // Reached with the Tab key from its own row, once the keyboard is on
+      // that row (tests/binderKeys.test.ts): a long binder is one Tab stop.
+      expect(button?.attrs['tabindex'], title).toBe(-1);
       expect(button?.attrs['aria-haspopup'], title).toBe('menu');
       expect(button?.icon, title).toBe('ellipsis');
       expect(button?.hasClass('clickable-icon'), title).toBe(true);

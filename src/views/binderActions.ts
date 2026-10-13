@@ -58,6 +58,8 @@ interface Scope {
 export class BinderActions {
   private readonly host: ActionsHost;
   private readonly openedListeners = new Set<() => void>();
+  /** True while conflicting copies are being merged. */
+  private merging = false;
 
   constructor(host: ActionsHost) {
     this.host = host;
@@ -262,6 +264,22 @@ export class BinderActions {
     if (this.report(result) || stayed) this.select(inProject, ref);
   }
 
+  /**
+   * A scene or a folder was dragged to a place in the binder: move it there
+   * (with everything in it). One change of the index; no file is moved.
+   */
+  async moveTo(inProject: string, ref: NodeRef, placement: Placement): Promise<void> {
+    const scope = this.writable(inProject);
+    if (!scope) return;
+    const result = await scope.services.store.moveNode(ref, placement, inProject);
+    // Dropped where it already was: nothing to say.
+    if (result.status === 'noop' && result.reason === 'unchanged') {
+      this.select(inProject, ref);
+      return;
+    }
+    if (this.report(result)) this.select(inProject, ref);
+  }
+
   // ---------------------------------------------------------------- removing
 
   /** Ask first, then take a scene out of the binder and move its note to the trash. */
@@ -312,12 +330,56 @@ export class BinderActions {
   }
 
   /** Put an unfiled manuscript note into the binder, at the end of the top level. */
-  async addUnfiled(inProject: string, path: string): Promise<void> {
+  addUnfiled(inProject: string, path: string): Promise<void> {
+    return this.fileUnfiledAt(inProject, path, { at: 'end', parentId: null });
+  }
+
+  /** Put an unfiled manuscript note into the binder at a place (where it was dragged to). */
+  async fileUnfiledAt(inProject: string, path: string, placement: Placement): Promise<void> {
     const scope = this.writable(inProject);
     if (!scope) return;
-    const result = await scope.services.store.addUnfiledToBinder(path, { at: 'end', parentId: null }, inProject);
+    const result = await scope.services.store.addUnfiledToBinder(path, placement, inProject);
     const there = result.status === 'noop' && result.reason === 'already-in-binder';
     if (this.report(result) || there) this.select(inProject, sceneRef(path));
+  }
+
+  // ------------------------------------------------------- conflicting copies
+
+  /**
+   * Merge conflicting copies of the project's index into it, one after the
+   * other: what only a copy lists is added at the end of the binder, and the
+   * copy goes to the trash. Says what came of each.
+   *
+   * @param copies the vault paths of the copies, as the project's snapshot gives them
+   */
+  async mergeCopies(inProject: string, copies: readonly string[]): Promise<void> {
+    // A second tap while the first is still at work would only find the copy gone.
+    if (this.merging) return;
+    const scope = this.writable(inProject);
+    if (!scope) return;
+    this.merging = true;
+    try {
+      for (const copy of copies) {
+        const result = await scope.services.store.mergeConflictCopy(copy, inProject);
+        if (!this.report(result)) {
+          if (result.status === 'noop') continue;
+          return;
+        }
+        const name = noteTitle(copy);
+        const added = result.value.added.length;
+        const what =
+          added === 0
+            ? 'it listed nothing that the binder did not have'
+            : `${added === 1 ? '1 scene was' : `${added} scenes were`} added at the end of the manuscript`;
+        // Only the binder is merged. Notes written into the copy itself are not lost, but they are in the trash now.
+        const text = result.value.textDiffers
+          ? " Its own text was not the same as the index note's: if you wrote notes there, you will find them in the trash."
+          : '';
+        new Notice(`Merged the copy "${name}": ${what}. The copy was moved to the trash.${text}`, PROBLEM_NOTICE_MS);
+      }
+    } finally {
+      this.merging = false;
+    }
   }
 
   // ----------------------------------------------------------------- helpers

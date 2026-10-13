@@ -16,8 +16,12 @@ import { FolderPickerModal } from '../src/ui/folderPickerModal';
 import { TextPromptModal } from '../src/ui/textPromptModal';
 import { BinderView } from '../src/views/binderView';
 import {
+  carry,
   countOf,
   heading,
+  inRow,
+  layOut,
+  letGo,
   moreOf,
   one,
   picture,
@@ -35,6 +39,9 @@ import {
   Modal as StubModal,
   Notice as StubNotice,
   Platform as StubPlatform,
+  fakeDocument,
+  fakeWindow,
+  resetFakeDocument,
   resetPlatform,
 } from './obsidianStub';
 import type {
@@ -117,6 +124,7 @@ beforeEach(() => {
   StubNotice.shown.length = 0;
   StubModal.opened.length = 0;
   StubMenu.shown.length = 0;
+  resetFakeDocument();
 });
 
 afterEach(() => {
@@ -846,6 +854,105 @@ describe('editing the binder, through to the notes', () => {
     await until(() => picture(pane)[1] === '  Ending 2', 'the binder to follow');
     expect(picture(pane).slice(0, 5)).toEqual(['v Manuscript 10', '  Ending 2', '  v From the phone 8', '    Opening 5', '    Middle 3']);
     expect(fake.calls).toEqual([]); // following writes nothing
+  });
+});
+
+describe('dragging in the binder, through to the notes', () => {
+  const lines = (pane: FakeElement): string[] => picture(pane).map((line) => line.replace(' *', ''));
+
+  it('moves a dragged scene with one change of the index, and touches no note', async () => {
+    const { fake, pane } = await withBinder(threeScenes());
+    layOut(pane);
+    const opening = rowOf(pane, 'Opening');
+    const y = inRow(rowOf(pane, 'Middle'), 0.75);
+    carry(opening, 60, y);
+    expect(fakeDocument.body.withClass('spellbook-drag-ghost')).toHaveLength(1);
+    expect(fake.calls).toEqual([]); // nothing changes while it is carried
+    letGo(opening, 60, y);
+    await until(() => lines(pane)[1] === '  Middle 3', 'the scene to move');
+
+    expect(binderOf(fake)).toEqual(['Manuscript/Middle.md', 'Manuscript/Opening.md', 'Manuscript/Ending.md']);
+    expect(fake.calls).toEqual(['processFrontMatter Novel/Novel.md']);
+    expect(selectedTitle(pane)).toBe('Opening');
+    expect(fake.textOf('Novel/Manuscript/Opening.md').endsWith('---\nIt was a dark night.\n')).toBe(true);
+    expect(fake.workspace.opened).toEqual([]); // dragging opens nothing
+    expect(fakeDocument.body.children).toEqual([]);
+  });
+
+  it('files an unfiled note where it is dropped', async () => {
+    const { fake, pane } = await withBinder(threeScenes());
+    layOut(pane);
+    const loose = rowOf(pane, 'Loose');
+    const y = inRow(rowOf(pane, 'Middle'), 0.25);
+    carry(loose, 60, y);
+    letGo(loose, 60, y);
+    await until(() => !picture(pane).includes('v Unfiled'), 'the note to be filed');
+    expect(binderOf(fake)).toEqual(['Manuscript/Opening.md', 'Manuscript/Loose.md', 'Manuscript/Middle.md', 'Manuscript/Ending.md']);
+    expect(fake.calls).toEqual(['processFrontMatter Novel/Novel.md']);
+    expect(fake.textOf('Novel/Manuscript/Loose.md')).toBe('Not in the binder.');
+  });
+
+  it('leaves nothing on the page when the plugin is switched off in the middle of a drag', async () => {
+    const { plugin, pane } = await withBinder(threeScenes());
+    layOut(pane);
+    carry(rowOf(pane, 'Opening'), 60, inRow(rowOf(pane, 'Ending'), 0.75));
+    expect(fakeDocument.body.children.length).toBeGreaterThan(0);
+    plugin.unload();
+    await until(() => pane.children.length === 0, 'the binder to be emptied');
+    expect(fakeDocument.body.children).toEqual([]);
+    expect(fakeDocument.listenerCount()).toBe(0);
+    expect(fakeWindow.listenerCount()).toBe(0);
+  });
+});
+
+describe('a conflicting copy of the index, through to the notes', () => {
+  function withCopy(): FakeObsidian {
+    const fake = threeScenes();
+    // What another device left behind: its own order, and the loose note filed.
+    fake.addNote(
+      'Novel/Novel 2.md',
+      note({ spellbook: 'project', version: 1, title: 'My Novel', binder: ['Manuscript/Ending.md', 'Manuscript/Loose.md', 'Manuscript/Opening.md'] }, 'Index text.'),
+    );
+    return fake;
+  }
+
+  const banner = (pane: FakeElement): FakeElement[] => pane.withClass('spellbook-conflict-banner');
+  const button = (pane: FakeElement, name: string): FakeElement =>
+    one(pane, 'spellbook-binder-alerts').all().filter((element) => element.tag === 'button' && element.text === name)[0] as FakeElement;
+
+  it('is shown as a notice, not as a second project', async () => {
+    const { plugin, pane } = await withBinder(withCopy());
+    expect(storeOf(plugin).listProjects().map((project) => project.indexPath)).toEqual(['Novel/Novel.md']);
+    expect(storeOf(plugin).project?.indexPath).toBe('Novel/Novel.md');
+    expect(banner(pane)).toHaveLength(1);
+    expect(one(banner(pane)[0] as FakeElement, 'spellbook-binder-banner-title').text).toBe(
+      "A conflicting copy of this project's structure was found.",
+    );
+    expect(heading(pane).fullText).toBe('My Novel');
+  });
+
+  it('is merged into the index and moved to Obsidian\'s trash, never deleted', async () => {
+    const { fake, pane } = await withBinder(withCopy());
+    tap(button(pane, 'Merge'));
+    await until(() => fake.trashed.length > 0, 'the copy to be trashed');
+    await until(() => banner(pane).length === 0, 'the notice to go');
+
+    expect(binderOf(fake)).toEqual(['Manuscript/Opening.md', 'Manuscript/Middle.md', 'Manuscript/Ending.md', 'Manuscript/Loose.md']);
+    expect(fake.calls).toEqual(['processFrontMatter Novel/Novel.md', 'trashFile Novel/Novel 2.md']);
+    expect(fake.trashed).toEqual(['Novel/Novel 2.md']);
+    expect(fake.textOf('Novel/Novel.md').endsWith('---\nIndex text.')).toBe(true); // the index note's own text is as it was
+    expect(notices()).toEqual([
+      'Merged the copy "Novel 2": 1 scene was added at the end of the manuscript. The copy was moved to the trash.',
+    ]);
+  });
+
+  it('is left alone when the notice is dismissed', async () => {
+    const { fake, pane } = await withBinder(withCopy());
+    tap(button(pane, 'Dismiss'));
+    expect(banner(pane)).toEqual([]);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(fake.calls).toEqual([]);
+    expect(fake.vault.getFileByPath('Novel/Novel 2.md')).not.toBeNull();
   });
 });
 

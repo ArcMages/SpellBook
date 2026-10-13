@@ -3,18 +3,30 @@
 //   header   the project's name (a button that lists the projects when the
 //            vault has more than one), and the toolbar: New scene, New folder
 //            and a "more" menu
+//   alerts   a notice that stays in view, for a conflicting copy of the
+//            project's index
 //   tree     Manuscript (the binder's scenes and folders), then Unfiled
 //            (manuscript notes the binder does not list), then Research
 //
 // Everything it shows comes from the project store; it draws itself again
-// whenever the store says something changed, keeping the scroll position and
-// what was folded shut. The panel itself changes nothing in the vault: its
-// buttons and menus hand over to the binder's actions
+// whenever the store says something changed, keeping the scroll position,
+// what was folded shut and where the keyboard was. Rows that are still
+// wanted are used again as they are, so a change of order moves the rows and
+// builds nothing. The panel itself changes nothing in the vault: its buttons,
+// menus and drops hand over to the binder's actions
 // (src/views/binderActions.ts), which go through the store.
 //
 // Every row that stands for something has a "more" button that opens its
 // menu; a right-click opens the same menu. One row is the selected row: the
 // one last tapped, opened or acted on (src/core/binderSelection.ts).
+//
+// Scenes and folders can be dragged to another place in the binder, and
+// unfiled notes can be dragged into it (src/ui/dragDrop.ts does the
+// dragging, src/core/dropTarget.ts works out the place).
+//
+// With the keyboard: Up and Down go from row to row, Left and Right fold and
+// unfold (and step out of and into a folder), Enter opens. Only one row at a
+// time is a stop for the Tab key, so a long binder is one stop, not hundreds.
 //
 // Text in any language: every row whose title is the writer's own text lets
 // that text choose its direction, so a Hebrew title sits at the right end of
@@ -23,7 +35,7 @@
 // Obsidian itself.
 
 import { ItemView, Keymap, Menu, Notice, Platform } from 'obsidian';
-import type { PaneType, WorkspaceLeaf } from 'obsidian';
+import type { PaneType, UserEvent, WorkspaceLeaf } from 'obsidian';
 import {
   binderTotals,
   describeCount,
@@ -39,11 +51,15 @@ import type { ResearchNode } from '../core/binderModel';
 import type { BinderSelection } from '../core/binderSelection';
 import { folderRef, sceneRef } from '../core/binderTree';
 import type { DevicePrefs } from '../core/devicePrefs';
-import { noteTitle, relativeTo } from '../core/paths';
+import { canDrop, placementKey, resolveDrop } from '../core/dropTarget';
+import type { DropBounds, DropRow, DropSpot, ScreenPoint } from '../core/dropTarget';
+import { baseName, noteTitle, relativeTo } from '../core/paths';
 import type { ProjectSession } from '../core/projectSession';
 import type { ProjectStore } from '../core/projectStore';
 import type { NodeRef, ProjectSnapshot, ProjectSummary, TreeNode } from '../core/types';
 import type { WordCountCache } from '../core/wordCountCache';
+import { DragDrop } from '../ui/dragDrop';
+import type { DragClock, DropHint, Picked } from '../ui/dragDrop';
 import {
   ACTION_ICONS,
   BINDER_ICON,
@@ -69,6 +85,10 @@ export const BINDER_VIEW_NAME = 'Binder';
 /** What the "more" button of a row, and of the toolbar, is called (read out, and shown as a tooltip). */
 export const MORE_LABEL = 'More options';
 
+/** What the panel says when a conflicting copy of the project's index is found: for one copy, and for several. */
+export const CONFLICT_MESSAGE = "A conflicting copy of this project's structure was found.";
+export const CONFLICTS_MESSAGE = "Conflicting copies of this project's structure were found.";
+
 /** How long a notice about something that went wrong stays up, in milliseconds. */
 const PROBLEM_NOTICE_MS = 10000;
 
@@ -79,6 +99,13 @@ export interface BinderServices {
   readonly wordCounts: WordCountCache;
   readonly prefs: DevicePrefs;
   readonly selection: BinderSelection;
+  /** The timers that dragging runs on. */
+  readonly clock: DragClock;
+  /**
+   * The conflicting copies the writer has waved away, by their vault paths.
+   * Kept until Obsidian closes; never saved.
+   */
+  readonly dismissedCopies: Set<string>;
 }
 
 /** What the binder needs from the plugin. */
@@ -99,6 +126,7 @@ interface Elements {
   readonly root: HTMLElement;
   readonly heading: HTMLElement;
   readonly toolbar: HTMLElement;
+  readonly alerts: HTMLElement;
   readonly scroll: HTMLElement;
   readonly body: HTMLElement;
 }
@@ -133,7 +161,26 @@ interface Selectable {
   readonly around: readonly Fold[];
 }
 
+/** What a drag picks up. */
+type Dragged =
+  /** A scene or a folder of the binder. */
+  | { readonly kind: 'node'; readonly ref: NodeRef; readonly title: string }
+  /** A manuscript note the binder does not list. `path` is relative to the project folder. */
+  | { readonly kind: 'unfiled'; readonly path: string; readonly title: string };
+
+/** Where a row of the binder is in it: what a drop next to it refers to. */
+interface TreePlace {
+  readonly ref: NodeRef;
+  /** The id of the folder the row sits in; null for the top level. */
+  readonly parentId: string | null;
+}
+
 interface RowOptions {
+  /**
+   * A name for the row that stays the same from one drawing to the next:
+   * what kind of row it is and what it stands for ("scene:<path>").
+   */
+  readonly id: string;
   /** Classes for the whole item (the row together with what is nested under it). */
   readonly itemCls: string;
   /** Classes for the row itself. */
@@ -151,8 +198,19 @@ interface RowOptions {
   readonly select?: NodeRef;
   /** Set for a row with a "more" button: makes its menu, for the project as it is at that moment. */
   readonly menu?: (context: MenuContext) => Menu;
+  /** What a tap on the row (or Enter) does, after any folding and selecting. */
+  readonly tap?: (event: UserEvent) => void;
+  /** What a click with the middle button (the wheel) does. */
+  readonly middle?: () => void;
+  /** Called once, when the row is built: for what only this kind of row has. */
+  readonly dress?: (row: Row) => void;
+  /** Set for a row that can be dragged: what a drag picks up. */
+  readonly drag?: Dragged;
+  /** Set for a row of the binder (a scene, a folder or a missing entry): where it is in it. */
+  readonly place?: TreePlace;
 }
 
+/** A row as it was built. It is kept and used again for as long as the list shows it. */
 interface Row {
   readonly item: HTMLElement;
   readonly self: HTMLElement;
@@ -168,6 +226,32 @@ interface Row {
   readonly children: HTMLElement | null;
   /** How the row is folded and unfolded; null for a row that cannot be. */
   readonly fold: Fold | null;
+  /** The row's "more" button, if it has one. */
+  readonly more: HTMLElement | null;
+  /** What a tap on the row does, and Enter while the keyboard is on it. */
+  readonly activate: (event: UserEvent) => void;
+}
+
+/** A row in the list as it is drawn now: what the keyboard and a drag need to know about it. */
+interface ShownRow {
+  readonly id: string;
+  /** Its place in the list, counted from the top (rows inside something folded shut are counted too). */
+  readonly position: number;
+  readonly row: Row;
+  /** What the row sits in, from the outside in: its section, then the folders. */
+  readonly around: readonly Fold[];
+  readonly select: NodeRef | null;
+  readonly drag: Dragged | null;
+  readonly place: TreePlace | null;
+}
+
+/** Where the rows of the binder are while something is dragged over them. */
+interface DropLayout {
+  /** The rows that can be seen, top to bottom; heights are counted from the top of the list's contents. */
+  readonly rows: readonly DropRow[];
+  /** For each of those rows: the row itself, and where it starts and how wide it is in the window. */
+  readonly places: ReadonlyArray<{ readonly row: ShownRow; readonly x: number; readonly width: number }>;
+  readonly bounds: DropBounds;
 }
 
 export class BinderView extends ItemView {
@@ -200,6 +284,29 @@ export class BinderView extends ItemView {
   /** True while the selected row still has to be scrolled to, because the panel could not be measured. */
   private scrollPending = false;
 
+  /** The rows of the last drawing, by their names, to be used again in the next. */
+  private built = new Map<string, Row>();
+  /** While drawing: the rows of the drawing before that have not been used again yet. */
+  private spare = new Map<string, Row>();
+  /** Every row in the list, top to bottom. */
+  private shown: ShownRow[] = [];
+  private shownBySelf = new Map<HTMLElement, ShownRow>();
+  private shownById = new Map<string, ShownRow>();
+  /** The Manuscript section's own row, while a project that can be changed is on show. */
+  private manuscript: Row | null = null;
+  /** The one row the Tab key stops at: where the keyboard is, or was last. */
+  private cursor: ShownRow | null = null;
+  /** The name of that row, to find it again after the list was drawn anew. */
+  private cursorId: string | null = null;
+  /** What the alerts above the list were last drawn for. */
+  private alertsFor = '';
+
+  private drag: DragDrop<Dragged> | null = null;
+  /** Where the rows are, while something is dragged. */
+  private dropLayout: DropLayout | null = null;
+  /** The last place a drop was checked for, and whether it would change anything. */
+  private dropCheck: { readonly key: string; readonly ok: boolean } | null = null;
+
   constructor(leaf: WorkspaceLeaf, host: BinderHost) {
     super(leaf);
     this.host = host;
@@ -224,6 +331,7 @@ export class BinderView extends ItemView {
     this.closed = false;
     this.narrow = false;
     this.scrollPending = false;
+    this.alertsFor = '';
     const pane = this.contentEl;
     pane.empty();
     pane.addClass('spellbook-binder-pane');
@@ -238,9 +346,21 @@ export class BinderView extends ItemView {
     // not borrow the class of Obsidian's own rows of buttons, so that no rule
     // Obsidian has for those rows (on phones, say) can move or hide this one.
     const toolbar = header.createDiv({ cls: 'spellbook-binder-toolbar' });
+    const alerts = root.createDiv({ cls: 'spellbook-binder-alerts' });
     const scroll = root.createDiv({ cls: 'spellbook-binder-scroll' });
     const body = scroll.createDiv({ cls: 'spellbook-binder-body' });
-    this.els = { root, heading, toolbar, scroll, body };
+    this.els = { root, heading, toolbar, alerts, scroll, body };
+
+    // The keyboard: one listener for all the rows.
+    body.addEventListener('keydown', (event) => {
+      this.onKey(event);
+    });
+    // Wherever the keyboard goes in the list (with Tab, or by a click), that
+    // row becomes the one the Tab key comes back to.
+    body.addEventListener('focusin', (event) => {
+      const found = this.rowAt(event.target);
+      if (found) this.setCursor(found.shown);
+    });
 
     // The layout for a narrow pane goes by the pane's measured width, never
     // by the kind of device.
@@ -267,10 +387,16 @@ export class BinderView extends ItemView {
     this.renderTimer = null;
     this.observer?.disconnect();
     this.observer = null;
+    // Ends a drag that is on, and takes its ghost and its listeners away.
+    this.drag?.destroy();
+    this.drag = null;
     // Nobody is looking at word counts any more.
     this.services?.wordCounts.track([]);
     this.services = null;
     this.forgetRows();
+    this.built = new Map();
+    this.spare = new Map();
+    this.cursorId = null;
     this.els = null;
     this.shownProject = null;
     this.contentEl.empty();
@@ -284,10 +410,32 @@ export class BinderView extends ItemView {
   /** Start following the store. Runs once, when the plugin's services exist. */
   private attach(): void {
     const services = this.host.services;
-    if (this.closed || this.services || !services) return;
+    const els = this.els;
+    if (this.closed || this.services || !services || !els) return;
     this.services = services;
     // Only what is asked for from now on is scrolled to.
     this.revealed = services.selection.revealCount;
+    this.drag = new DragDrop<Dragged>({
+      container: els.scroll,
+      scroller: els.scroll,
+      clock: services.clock,
+      pick: (target) => this.pickUp(target),
+      ghost: (ghost, picked) => {
+        ghost.createDiv({ cls: 'spellbook-drag-ghost-title', text: picked.data.title, attr: { dir: 'auto' } });
+      },
+      start: () => {
+        this.dropCheck = null;
+        this.measureForDrop();
+      },
+      hover: (picked, point) => this.hintAt(picked.data, point),
+      drop: (picked, point) => {
+        this.dropAt(picked.data, point);
+      },
+      end: () => {
+        this.dropLayout = null;
+        this.dropCheck = null;
+      },
+    });
     this.stops.push(
       // Both kinds of change matter: the open project is the tree, and the
       // list of projects decides whether the header offers a choice.
@@ -347,16 +495,26 @@ export class BinderView extends ItemView {
   private render(): void {
     const els = this.els;
     if (!els || this.closed) return;
+    // The rows are about to change places: a drag over them has lost its footing.
+    this.drag?.cancel();
     const services = this.services;
     const project = services?.store.project ?? null;
     const sameProject = project !== null && project.indexPath === this.shownProject;
     // Keep the place in the list, unless this is another project.
     const scrollTop = sameProject ? els.scroll.scrollTop : 0;
+    // Taking a row out of the list takes the keyboard away from it: remember where it was.
+    const keyboardAt = this.keyboardPlace(els);
     this.shownProject = project?.indexPath ?? null;
 
     this.renderHeader(els.heading, services, project);
     this.renderToolbar(els.toolbar, services, project);
+    this.renderAlerts(els.alerts, services, project);
 
+    // The rows of the last drawing are used again where the list still has
+    // them. They come back without the marks they carried.
+    this.clearMarks();
+    this.spare = sameProject ? this.built : new Map();
+    this.built = new Map();
     els.body.empty();
     this.forgetRows();
     if (!services) {
@@ -366,12 +524,24 @@ export class BinderView extends ItemView {
     } else {
       this.renderProject(els.body, services, project);
     }
+    this.spare = new Map();
     els.scroll.scrollTop = scrollTop;
 
     this.activePath = this.app.workspace.getActiveFile()?.path ?? null;
     this.markActive(!sameProject);
     this.showSelection();
+    this.placeCursor(keyboardAt);
     this.trackCounts(services, project);
+  }
+
+  /** Take the marks of the active note, the selected row and the Tab stop off the rows that carry them. */
+  private clearMarks(): void {
+    for (const el of this.marked) el.removeClass('is-active', 'spellbook-has-active');
+    this.marked = [];
+    this.selectedRow?.removeClass('spellbook-is-selected');
+    this.selectedRow = null;
+    if (this.cursor) this.setTabStop(this.cursor, false);
+    this.cursor = null;
   }
 
   private forgetRows(): void {
@@ -381,6 +551,12 @@ export class BinderView extends ItemView {
     this.manuscriptCount = null;
     this.marked = [];
     this.selectedRow = null;
+    this.shown = [];
+    this.shownBySelf = new Map();
+    this.shownById = new Map();
+    this.manuscript = null;
+    this.cursor = null;
+    this.dropLayout = null;
   }
 
   private say(parent: HTMLElement, text: string, cls = 'spellbook-binder-message'): HTMLElement {
@@ -577,6 +753,69 @@ export class BinderView extends ItemView {
     this.render();
   }
 
+  // ------------------------------------------------------------------- alerts
+
+  /**
+   * What stays in view above the list: a notice for each conflicting copy of
+   * the project's index that the writer has not waved away, with a button to
+   * merge it and one to hide the notice until Obsidian is next started.
+   */
+  private renderAlerts(alerts: HTMLElement, services: BinderServices | null, project: ProjectSnapshot | null): void {
+    const copies =
+      services && project ? project.conflicts.filter((path) => !services.dismissedCopies.has(path)) : [];
+    // Drawn anew only when it says something else, so that a screen reader
+    // does not read the same notice out again with every change of the list.
+    const drawnFor = project && copies.length > 0 ? JSON.stringify([project.indexPath, project.readOnly, copies]) : '';
+    if (drawnFor === this.alertsFor) return;
+    this.alertsFor = drawnFor;
+    alerts.empty();
+    if (!services || !project || copies.length === 0) return;
+
+    const banner = alerts.createDiv({
+      cls: 'spellbook-binder-banner spellbook-conflict-banner',
+      attr: { role: 'alert' },
+    });
+    showIcon(banner.createDiv({ cls: 'spellbook-binder-banner-icon' }), ...WARNING_ICON);
+    const text = banner.createDiv({ cls: 'spellbook-binder-banner-text' });
+    text.createDiv({
+      cls: 'spellbook-binder-banner-title',
+      text: copies.length === 1 ? CONFLICT_MESSAGE : CONFLICTS_MESSAGE,
+    });
+    for (const copy of copies) {
+      // The copy's name starts with the project's, which is the writer's own text.
+      text.createDiv({ cls: 'spellbook-binder-banner-file', text: baseName(copy), attr: { dir: 'auto' } });
+    }
+    // A project whose own index cannot be understood is never written, so there is nothing to merge into.
+    if (!project.readOnly) {
+      text.createDiv({
+        cls: 'spellbook-binder-banner-hint',
+        text:
+          'Merge adds the scenes that only the copy lists to the end of the manuscript, ' +
+          'then moves the copy to the trash. Nothing is removed or put in another order.',
+      });
+    }
+    const buttons = text.createDiv({ cls: 'spellbook-binder-banner-buttons' });
+    if (!project.readOnly) {
+      const merge = buttons.createEl('button', {
+        cls: 'mod-cta spellbook-banner-button',
+        text: 'Merge',
+        attr: { type: 'button' },
+      });
+      merge.addEventListener('click', () => {
+        safely('Merge', () => this.host.actions.mergeCopies(project.indexPath, copies));
+      });
+    }
+    const dismiss = buttons.createEl('button', {
+      cls: 'spellbook-banner-button',
+      text: 'Dismiss',
+      attr: { type: 'button' },
+    });
+    dismiss.addEventListener('click', () => {
+      for (const copy of copies) services.dismissedCopies.add(copy);
+      this.renderAlerts(alerts, this.services, this.services?.store.project ?? null);
+    });
+  }
+
   // --------------------------------------------------------------- no project
 
   private renderNoProject(body: HTMLElement, services: BinderServices): void {
@@ -626,6 +865,7 @@ export class BinderView extends ItemView {
 
     if (!project.readOnly) {
       const manuscript = this.addRow(body, {
+        id: 'section:manuscript',
         itemCls: 'spellbook-section',
         selfCls: 'spellbook-section-self',
         titleCls: 'spellbook-section-title',
@@ -634,15 +874,17 @@ export class BinderView extends ItemView {
         counted: true,
         fold: { indexPath, key: foldKey.section('manuscript') },
       });
+      this.manuscript = manuscript;
       this.manuscriptCount = manuscript.count;
       if (project.tree.length === 0) {
         this.say(manuscript.children ?? body, 'No scenes yet.', 'spellbook-binder-message spellbook-binder-hint');
       }
-      this.addBinderNodes(manuscript.children ?? body, project.tree, foldsOf(manuscript), services, indexPath);
+      this.addBinderNodes(manuscript.children ?? body, project.tree, foldsOf(manuscript), services, indexPath, null);
     }
 
     if (project.unfiled.length > 0) {
       const unfiled = this.addRow(body, {
+        id: 'section:unfiled',
         itemCls: 'spellbook-section',
         selfCls: 'spellbook-section-self',
         titleCls: 'spellbook-section-title',
@@ -652,13 +894,20 @@ export class BinderView extends ItemView {
         fold: { indexPath, key: foldKey.section('unfiled') },
       });
       for (const path of project.unfiled) {
-        this.addNoteRow(unfiled.children ?? body, path, noteTitle(path), true, foldsOf(unfiled), services, (context) =>
-          unfiledMenu(context, path),
-        );
+        const title = noteTitle(path);
+        this.addNoteRow(unfiled.children ?? body, foldsOf(unfiled), services, {
+          id: `unfiled:${path}`,
+          path,
+          title,
+          counted: true,
+          menu: (context) => unfiledMenu(context, path),
+          drag: { kind: 'unfiled', path, title },
+        });
       }
     }
 
     const research = this.addRow(body, {
+      id: 'section:research',
       itemCls: 'spellbook-section',
       selfCls: 'spellbook-section-self',
       titleCls: 'spellbook-section-title',
@@ -707,14 +956,24 @@ export class BinderView extends ItemView {
     around: readonly Fold[],
     services: BinderServices,
     indexPath: string,
+    parentId: string | null,
   ): void {
     for (const node of nodes) {
       if (node.kind === 'scene') {
         const path = node.path;
+        const place: TreePlace = { ref: sceneRef(path), parentId };
         if (node.missing) {
-          this.addMissingRow(parent, path, node.title, around);
+          this.addMissingRow(parent, path, node.title, around, place);
         } else {
-          this.addNoteRow(parent, path, node.title, true, around, services, (context) => sceneMenu(context, path));
+          this.addNoteRow(parent, around, services, {
+            id: `scene:${path}`,
+            path,
+            title: node.title,
+            counted: true,
+            menu: (context) => sceneMenu(context, path),
+            drag: { kind: 'node', ref: sceneRef(path), title: node.title },
+            place,
+          });
         }
         continue;
       }
@@ -722,6 +981,7 @@ export class BinderView extends ItemView {
       const row = this.addRow(
         parent,
         {
+          id: `folder:${id}`,
           itemCls: 'nav-folder spellbook-folder',
           selfCls: 'nav-folder-title',
           titleCls: 'nav-folder-title-content',
@@ -731,11 +991,13 @@ export class BinderView extends ItemView {
           fold: { indexPath, key: foldKey.folder(id) },
           select: folderRef(id),
           menu: (context) => folderMenu(context, id),
+          drag: { kind: 'node', ref: folderRef(id), title: node.name },
+          place: { ref: folderRef(id), parentId },
         },
         around,
       );
       if (row.count) this.folderCounts.set(id, row.count);
-      this.addBinderNodes(row.children ?? parent, node.children, [...around, ...foldsOf(row)], services, indexPath);
+      this.addBinderNodes(row.children ?? parent, node.children, [...around, ...foldsOf(row)], services, indexPath, id);
     }
   }
 
@@ -749,12 +1011,19 @@ export class BinderView extends ItemView {
     for (const node of nodes) {
       if (node.kind === 'note') {
         const path = node.path;
-        this.addNoteRow(parent, path, node.title, false, around, services, (context) => researchMenu(context, path));
+        this.addNoteRow(parent, around, services, {
+          id: `research:${path}`,
+          path,
+          title: node.title,
+          counted: false,
+          menu: (context) => researchMenu(context, path),
+        });
         continue;
       }
       const row = this.addRow(
         parent,
         {
+          id: `research-folder:${node.path}`,
           itemCls: 'nav-folder spellbook-folder',
           selfCls: 'nav-folder-title',
           titleCls: 'nav-folder-title-content',
@@ -772,38 +1041,44 @@ export class BinderView extends ItemView {
   /** A row for a note that exists: tapping it opens the note. */
   private addNoteRow(
     parent: HTMLElement,
-    path: string,
-    title: string,
-    counted: boolean,
     around: readonly Fold[],
     services: BinderServices,
-    menu: (context: MenuContext) => Menu,
+    note: {
+      readonly id: string;
+      /** The note's path relative to the project folder. */
+      readonly path: string;
+      readonly title: string;
+      readonly counted: boolean;
+      readonly menu: (context: MenuContext) => Menu;
+      readonly drag?: Dragged;
+      readonly place?: TreePlace;
+    },
   ): void {
-    const ref = sceneRef(path);
+    const path = note.path;
     const row = this.addRow(
       parent,
       {
+        id: note.id,
         itemCls: 'nav-file spellbook-note',
         selfCls: 'nav-file-title is-clickable',
         titleCls: 'nav-file-title-content',
-        title,
+        title: note.title,
         ownText: true,
-        counted,
-        select: ref,
-        menu,
+        counted: note.counted,
+        select: sceneRef(path),
+        menu: note.menu,
+        tap: (event) => {
+          this.openNote(path, Keymap.isModEvent(event));
+        },
+        // A click with the middle button (the wheel) opens a new tab, as elsewhere in Obsidian.
+        middle: () => {
+          this.openNote(path, 'tab');
+        },
+        drag: note.drag,
+        place: note.place,
       },
       around,
     );
-    row.self.addEventListener('click', (event) => {
-      this.select(ref);
-      this.openNote(path, Keymap.isModEvent(event));
-    });
-    // A click with the middle button (the wheel) opens a new tab, as elsewhere in Obsidian.
-    row.self.addEventListener('auxclick', (event) => {
-      if (event.button !== 1) return;
-      event.preventDefault();
-      this.openNote(path, 'tab');
-    });
 
     const vaultPath = services.store.vaultPathOf(path);
     if (vaultPath === null) return;
@@ -814,43 +1089,96 @@ export class BinderView extends ItemView {
   }
 
   /** A row for a binder entry whose note is not in the vault: greyed, with a warning. */
-  private addMissingRow(parent: HTMLElement, path: string, title: string, around: readonly Fold[]): void {
-    const ref = sceneRef(path);
-    const row = this.addRow(
+  private addMissingRow(
+    parent: HTMLElement,
+    path: string,
+    title: string,
+    around: readonly Fold[],
+    place: TreePlace,
+  ): void {
+    this.addRow(
       parent,
       {
+        id: `missing:${path}`,
         itemCls: 'nav-file spellbook-note spellbook-is-missing',
         selfCls: 'nav-file-title',
         titleCls: 'nav-file-title-content',
         title,
         ownText: true,
         counted: false,
-        select: ref,
+        select: sceneRef(path),
         menu: (context) => missingMenu(context, path),
+        // There is nothing to open, but a tap should not go unanswered.
+        tap: () => {
+          new Notice(`"${title}": ${MISSING_LABEL}.`);
+        },
+        dress: (row) => {
+          row.self.setAttr('aria-disabled', 'true');
+          row.slot.addClass('spellbook-missing-icon');
+          row.slot.setAttr('aria-label', MISSING_LABEL);
+          showIcon(row.slot, ...WARNING_ICON);
+          row.main.createDiv({ cls: 'spellbook-row-note', text: MISSING_LABEL });
+        },
+        // It cannot be dragged, but other rows can be dropped next to it.
+        place,
       },
       around,
     );
-    row.self.setAttr('aria-disabled', 'true');
-    row.slot.addClass('spellbook-missing-icon');
-    row.slot.setAttr('aria-label', MISSING_LABEL);
-    showIcon(row.slot, ...WARNING_ICON);
-    row.main.createDiv({ cls: 'spellbook-row-note', text: MISSING_LABEL });
-    // There is nothing to open, but a tap should not go unanswered.
-    row.self.addEventListener('click', () => {
-      this.select(ref);
-      new Notice(`"${title}": ${MISSING_LABEL}.`);
-    });
+  }
+
+  /**
+   * Put a row into the list: the one the last drawing built for the same
+   * thing when there is one, a new one otherwise.
+   *
+   * @param around what the row sits in, from the outside in: its section, then the folders
+   */
+  private addRow(parent: HTMLElement, options: RowOptions, around: readonly Fold[] = []): Row {
+    // The title is part of the name: a folder that was renamed gets a new row.
+    const name = `${options.id}\n${options.title}`;
+    let row = this.spare.get(name);
+    if (row) {
+      this.spare.delete(name);
+      // What was nested in it is put back, or not, by whoever asked for this row.
+      row.children?.empty();
+      parent.appendChild(row.item);
+    } else {
+      row = this.buildRow(parent, options);
+    }
+    if (!this.built.has(name)) this.built.set(name, row);
+
+    const select = options.select ?? null;
+    // Should a note have two rows (a research note that the binder also
+    // lists), the first one drawn, the binder's, is the one that is selected.
+    if (select && !this.rows.has(rowKey(select))) this.rows.set(rowKey(select), { self: row.self, around });
+    if (row.fold) this.showFold(row.fold, this.services?.prefs.isCollapsed(row.fold.indexPath, row.fold.key) === true);
+
+    const shown: ShownRow = {
+      id: options.id,
+      position: this.shown.length,
+      row,
+      around,
+      select,
+      drag: options.drag ?? null,
+      place: options.place ?? null,
+    };
+    this.shown.push(shown);
+    this.shownBySelf.set(row.self, shown);
+    if (!this.shownById.has(options.id)) this.shownById.set(options.id, shown);
+    return row;
   }
 
   /**
    * Build one row with Obsidian's own tree classes (so that themes apply)
    * next to the plugin's (which the stylesheet lays the row out with).
-   *
-   * @param around what the row sits in, from the outside in: its section, then the folders
    */
-  private addRow(parent: HTMLElement, options: RowOptions, around: readonly Fold[] = []): Row {
+  private buildRow(parent: HTMLElement, options: RowOptions): Row {
     const item = parent.createDiv({ cls: `tree-item spellbook-row ${options.itemCls}` });
-    const self = item.createDiv({ cls: `tree-item-self spellbook-row-self ${options.selfCls}` });
+    const self = item.createDiv({
+      cls: `tree-item-self spellbook-row-self ${options.selfCls}`,
+      // The keyboard can be put on a row, but only one row at a time is a
+      // stop for the Tab key (see setCursor).
+      attr: { tabindex: -1 },
+    });
     const slot = self.createDiv({ cls: 'spellbook-row-slot' });
     const main = self.createDiv({ cls: 'spellbook-row-main' });
     const body = main.createDiv({ cls: 'spellbook-row-body' });
@@ -870,40 +1198,54 @@ export class BinderView extends ItemView {
     }
 
     const select = options.select;
-    // Should a note have two rows (a research note that the binder also
-    // lists), the first one drawn, the binder's, is the one that is selected.
-    if (select && !this.rows.has(rowKey(select))) this.rows.set(rowKey(select), { self, around });
-
     let children: HTMLElement | null = null;
     let fold: Fold | null = null;
     if (options.fold) {
-      const made: Fold = { item, self, slot, indexPath: options.fold.indexPath, key: options.fold.key };
-      fold = made;
+      fold = { item, self, slot, indexPath: options.fold.indexPath, key: options.fold.key };
       self.addClass('mod-collapsible', 'is-clickable');
       slot.addClass('tree-item-icon', 'collapse-icon', 'spellbook-fold-icon');
       showIcon(slot, ...FOLD_ICON);
       children = item.createDiv({ cls: 'tree-item-children spellbook-children' });
-      this.showFold(made, this.services?.prefs.isCollapsed(made.indexPath, made.key) === true);
-      self.addEventListener('click', () => {
+    }
+
+    const made = fold;
+    const activate = (event: UserEvent): void => {
+      if (made) {
         const prefs = this.services?.prefs;
         if (!prefs) return;
-        const next = !prefs.isCollapsed(made.indexPath, made.key);
-        prefs.setCollapsed(made.indexPath, made.key, next);
-        this.showFold(made, next);
-        if (select) this.select(select);
+        this.setFold(made, !prefs.isCollapsed(made.indexPath, made.key));
+      }
+      if (select) this.select(select);
+      options.tap?.(event);
+    };
+    if (made || select || options.tap) {
+      self.addEventListener('click', (event) => {
+        activate(event);
+      });
+    }
+    const middle = options.middle;
+    if (middle) {
+      self.addEventListener('auxclick', (event) => {
+        if (event.button !== 1) return;
+        event.preventDefault();
+        middle();
       });
     }
 
     const menu = options.menu;
+    let more: HTMLElement | null = null;
     if (menu) {
       // The "more" button comes last in the row, so it sits at the far end
       // from the fold arrow, whichever way Obsidian itself reads.
-      const more = this.addButton(self, 'spellbook-row-more', MORE_LABEL, ROW_MORE_ICON, () => {
-        const made = this.menuFor(menu, select);
-        if (made) this.showMenuAt(made, more);
+      const button = this.addButton(self, 'spellbook-row-more', MORE_LABEL, ROW_MORE_ICON, () => {
+        const shown = this.menuFor(menu, select);
+        if (shown) this.showMenuAt(shown, button);
       });
-      more.setAttr('aria-haspopup', 'menu');
-      // A right-click (or, where the device sends one, a long press) opens the same menu.
+      button.setAttr('aria-haspopup', 'menu');
+      // Reached with Tab from its own row, while the keyboard is on that row.
+      button.setAttr('tabindex', -1);
+      more = button;
+      // A right-click opens the same menu.
       self.addEventListener('contextmenu', (event) => {
         event.preventDefault();
         safely(MORE_LABEL, () => {
@@ -915,7 +1257,10 @@ export class BinderView extends ItemView {
       // button's room empty, so that its count lines up with those below it.
       self.createDiv({ cls: 'spellbook-row-more-space' });
     }
-    return { item, self, slot, body, main, title, count, children, fold };
+
+    const row: Row = { item, self, slot, body, main, title, count, children, fold, more, activate };
+    options.dress?.(row);
+    return row;
   }
 
   /**
@@ -930,10 +1275,34 @@ export class BinderView extends ItemView {
     return menu({ actions: this.host.actions, project });
   }
 
+  // ------------------------------------------------------------------ folding
+
   private showFold(fold: Fold, collapsed: boolean): void {
     fold.item.toggleClass('is-collapsed', collapsed);
     fold.slot.toggleClass('is-collapsed', collapsed);
     fold.self.setAttr('aria-expanded', collapsed ? 'false' : 'true');
+  }
+
+  private isFolded(fold: Fold): boolean {
+    return fold.item.hasClass('is-collapsed');
+  }
+
+  /** Fold something shut or open it, and remember that on this device. Nothing is drawn again. */
+  private setFold(fold: Fold, collapsed: boolean): void {
+    const prefs = this.services?.prefs;
+    if (!prefs) return;
+    prefs.setCollapsed(fold.indexPath, fold.key, collapsed);
+    this.showFold(fold, collapsed);
+    // A row that is folded away cannot be where the Tab key stops.
+    if (collapsed && this.cursor?.around.includes(fold)) {
+      const own = this.shownBySelf.get(fold.self);
+      if (own) this.setCursor(own);
+    }
+  }
+
+  /** True for a row inside something that is folded shut. */
+  private isHidden(shown: ShownRow): boolean {
+    return shown.around.some((fold) => this.isFolded(fold));
   }
 
   // --------------------------------------------------------------- word counts
@@ -1090,6 +1459,303 @@ export class BinderView extends ItemView {
     } else if (this.scrollPending) {
       this.scrollPending = !this.scrollTo(row.self);
     }
+    // The selected row is where the Tab key comes into the list.
+    const shown = this.shownBySelf.get(row.self);
+    if (shown) this.setCursor(shown);
+  }
+
+  // ----------------------------------------------------------------- keyboard
+
+  /**
+   * The row an element belongs to: the row itself, or the row around it.
+   * `onButton` tells whether the element is the row's "more" button (or
+   * something in it).
+   */
+  private rowAt(target: EventTarget | null): { shown: ShownRow; onButton: boolean } | null {
+    const stop = this.els?.body ?? null;
+    for (let at = target as HTMLElement | null; at && at !== stop; at = at.parentElement) {
+      const shown = this.shownBySelf.get(at);
+      if (shown) return { shown, onButton: shown.row.more?.contains(target as Node) === true };
+    }
+    return null;
+  }
+
+  private setTabStop(shown: ShownRow, on: boolean): void {
+    shown.row.self.setAttr('tabindex', on ? 0 : -1);
+    shown.row.more?.setAttr('tabindex', on ? 0 : -1);
+  }
+
+  /**
+   * Make a row the one the Tab key stops at (together with its "more"
+   * button). A row inside something folded shut cannot be reached, so the
+   * folder that hides it stands in for it.
+   */
+  private setCursor(wanted: ShownRow): void {
+    let shown = wanted;
+    for (const fold of wanted.around) {
+      if (!this.isFolded(fold)) continue;
+      shown = this.shownBySelf.get(fold.self) ?? wanted;
+      break;
+    }
+    if (this.cursor === shown) return;
+    if (this.cursor) this.setTabStop(this.cursor, false);
+    this.cursor = shown;
+    this.cursorId = shown.id;
+    this.setTabStop(shown, true);
+  }
+
+  /** Where the keyboard is in the list, if it is in it: the row, and whether it is on the row's button. */
+  private keyboardPlace(els: Elements): { id: string; onButton: boolean } | null {
+    const active = els.body.ownerDocument.activeElement;
+    if (!active || !els.body.contains(active)) return null;
+    const found = this.rowAt(active);
+    return found ? { id: found.shown.id, onButton: found.onButton } : null;
+  }
+
+  /**
+   * After a drawing: give the Tab key a row to stop at, and put the keyboard
+   * back on the row it was on before the list was taken apart.
+   */
+  private placeCursor(keyboardAt: { id: string; onButton: boolean } | null): void {
+    if (!this.cursor) {
+      const again = this.cursorId === null ? undefined : this.shownById.get(this.cursorId);
+      const first = again ?? this.shown[0];
+      if (first) this.setCursor(first);
+    }
+    if (!keyboardAt) return;
+    const back = this.shownById.get(keyboardAt.id);
+    if (!back || this.isHidden(back)) return;
+    const element = keyboardAt.onButton ? (back.row.more ?? back.row.self) : back.row.self;
+    // Without scrolling: the list is put back where it was by the drawing itself.
+    element.focus({ preventScroll: true });
+  }
+
+  /** Put the keyboard on a row: it becomes the selected row and is scrolled into view. */
+  private focusRow(shown: ShownRow): void {
+    this.setCursor(shown);
+    shown.row.self.focus({ preventScroll: true });
+    this.scrollTo(shown.row.self);
+    if (shown.select) this.select(shown.select);
+  }
+
+  /** True when Obsidian itself reads from right to left, so that "forward" is the Left key. */
+  private readsRightToLeft(): boolean {
+    const root = this.els?.root;
+    if (!root) return false;
+    return root.ownerDocument.defaultView?.getComputedStyle(root).direction === 'rtl';
+  }
+
+  /**
+   * A key was pressed while the keyboard was in the list. Up and Down go to
+   * the next row that can be seen; the arrow that points "forward" unfolds a
+   * row or steps into it, the one that points "back" folds it or steps out
+   * to the folder around it; Enter does what a tap does (with Cmd or Ctrl: a
+   * scene opens in a new tab).
+   */
+  private onKey(event: KeyboardEvent): void {
+    if (event.defaultPrevented || event.altKey || event.shiftKey) return;
+    const found = this.rowAt(event.target);
+    if (!found) return;
+    const { shown, onButton } = found;
+    const mod = event.ctrlKey || event.metaKey;
+
+    if (event.key === 'Enter') {
+      // On the "more" button, Enter is the button's.
+      if (onButton) return;
+      event.preventDefault();
+      shown.row.activate(event);
+      return;
+    }
+    if (mod) return;
+    switch (event.key) {
+      case 'ArrowDown':
+        this.stepFrom(shown, 1);
+        break;
+      case 'ArrowUp':
+        this.stepFrom(shown, -1);
+        break;
+      case 'ArrowRight':
+      case 'ArrowLeft': {
+        const forward = (event.key === 'ArrowRight') !== this.readsRightToLeft();
+        if (forward) this.unfoldOrStepIn(shown);
+        else this.foldOrStepOut(shown);
+        break;
+      }
+      default:
+        return;
+    }
+    // The arrows move within the list; they must not also scroll it.
+    event.preventDefault();
+  }
+
+  /** Go to the next row above or below that is not folded away. */
+  private stepFrom(from: ShownRow, step: 1 | -1): void {
+    for (let at = from.position + step; at >= 0 && at < this.shown.length; at += step) {
+      const next = this.shown[at];
+      if (!next || this.isHidden(next)) continue;
+      this.focusRow(next);
+      return;
+    }
+  }
+
+  private unfoldOrStepIn(shown: ShownRow): void {
+    const fold = shown.row.fold;
+    if (!fold) return;
+    if (this.isFolded(fold)) {
+      this.setFold(fold, false);
+      return;
+    }
+    const next = this.shown[shown.position + 1];
+    if (next?.around.includes(fold)) this.focusRow(next);
+  }
+
+  private foldOrStepOut(shown: ShownRow): void {
+    const fold = shown.row.fold;
+    if (fold && !this.isFolded(fold)) {
+      this.setFold(fold, true);
+      return;
+    }
+    const around = shown.around[shown.around.length - 1];
+    const parent = around ? this.shownBySelf.get(around.self) : undefined;
+    if (parent) this.focusRow(parent);
+  }
+
+  // ----------------------------------------------------------------- dragging
+
+  /** What a press on something in the list would pick up, if anything. */
+  private pickUp(target: EventTarget | null): Picked<Dragged> | null {
+    const project = this.services?.store.project;
+    // Nothing can be moved in a project that cannot be changed.
+    if (!project || project.readOnly || project.indexPath !== this.shownProject) return null;
+    const found = this.rowAt(target);
+    // A press on the "more" button is for the button.
+    if (!found || found.onButton || !found.shown.drag) return null;
+    return { el: found.shown.row.self, data: found.shown.drag };
+  }
+
+  /**
+   * Measure where the rows of the binder are, once for a whole drag. Heights
+   * are kept as they are within the list's contents, so they stay right
+   * while the list scrolls; they are only measured again when a folder
+   * opens under the pointer.
+   */
+  private measureForDrop(): void {
+    const els = this.els;
+    const manuscript = this.manuscript;
+    this.dropLayout = null;
+    if (!els || !manuscript) return;
+    const box = els.scroll.getBoundingClientRect();
+    // What to add to a height in the window to get the height in the list's contents.
+    const scrolled = els.scroll.scrollTop - box.top;
+    const rows: DropRow[] = [];
+    const places: Array<{ row: ShownRow; x: number; width: number }> = [];
+    let bottom = Number.NEGATIVE_INFINITY;
+    for (const shown of this.shown) {
+      if (!shown.place || this.isHidden(shown)) continue;
+      const at = shown.row.self.getBoundingClientRect();
+      if (!(at.height > 0)) continue;
+      rows.push({
+        ref: shown.place.ref,
+        parentId: shown.place.parentId,
+        top: at.top + scrolled,
+        bottom: at.bottom + scrolled,
+      });
+      places.push({ row: shown, x: at.left, width: at.width });
+      bottom = Math.max(bottom, at.bottom);
+    }
+    const head = manuscript.self.getBoundingClientRect();
+    const whole = manuscript.item.getBoundingClientRect();
+    // The panel is hidden: there is nothing to drop on.
+    if (!(head.height > 0)) return;
+    this.dropLayout = {
+      rows,
+      places,
+      bounds: {
+        top: head.top + scrolled,
+        // A little below the last row still counts, as "the end of the manuscript".
+        bottom: Math.max(bottom, whole.bottom, head.bottom) + scrolled + head.height / 2,
+      },
+    };
+  }
+
+  /**
+   * Where a drop at a place on the screen would land, if it would change
+   * anything. Also gives the edges of what can be seen of the list, and what
+   * to add to a height in the window to get the height in the list's contents.
+   */
+  private spotAt(
+    dragged: Dragged,
+    point: ScreenPoint,
+  ): { spot: DropSpot; top: number; bottom: number; scrolled: number } | null {
+    const els = this.els;
+    const layout = this.dropLayout;
+    const project = this.services?.store.project;
+    if (!els || !layout || !project || project.readOnly || project.indexPath !== this.shownProject) return null;
+    const box = els.scroll.getBoundingClientRect();
+    // Beside the list, or above or below what can be seen of it, is nowhere.
+    if (point.x < box.left || point.x > box.right || point.y < box.top || point.y > box.bottom) return null;
+    const scrolled = els.scroll.scrollTop - box.top;
+    const spot = resolveDrop(layout.rows, point.y + scrolled, layout.bounds);
+    if (!spot) return null;
+    if (dragged.kind === 'node') {
+      // Asked again and again while the pointer rests on one place: remember the answer.
+      const key = placementKey(spot.placement);
+      if (this.dropCheck?.key !== key) {
+        this.dropCheck = { key, ok: canDrop(project.tree, dragged.ref, spot.placement) };
+      }
+      if (!this.dropCheck.ok) return null;
+    }
+    return { spot, top: box.top, bottom: box.bottom, scrolled };
+  }
+
+  /** What to show for the place the pointer is at while something is dragged. */
+  private hintAt(dragged: Dragged, point: ScreenPoint): DropHint | null {
+    const layout = this.dropLayout;
+    const manuscript = this.manuscript;
+    const found = this.spotAt(dragged, point);
+    if (!found || !layout || !manuscript) return null;
+    const { spot } = found;
+    const mark = spot.mark;
+
+    let line: DropHint['line'] = null;
+    let into: HTMLElement | null = null;
+    if (mark.kind === 'line') {
+      const like = layout.places[mark.alignWith];
+      // Kept within what can be seen of the list: the edge of a row that is half out of view is not.
+      const y = Math.max(found.top, Math.min(found.bottom, mark.y - found.scrolled));
+      if (like) line = { x: like.x, y, width: like.width };
+    } else if (mark.kind === 'into') {
+      into = layout.places[mark.row]?.row.row.self ?? null;
+    } else {
+      into = manuscript.self;
+    }
+
+    // Something folded shut under the pointer opens when the pointer stays on it.
+    const under = spot.over >= 0 ? layout.places[spot.over]?.row.row.fold : mark.kind === 'tree' ? manuscript.fold : null;
+    const spring =
+      under && this.isFolded(under)
+        ? {
+            key: under.key,
+            open: (): void => {
+              this.setFold(under, false);
+              this.measureForDrop();
+            },
+          }
+        : null;
+    return { line, into, spring };
+  }
+
+  /** Something was dropped: hand it to the one action that fits. */
+  private dropAt(dragged: Dragged, point: ScreenPoint): void {
+    const found = this.spotAt(dragged, point);
+    const at = this.shownProject;
+    if (!found || at === null) return;
+    const placement = found.spot.placement;
+    safely('Moving', () =>
+      dragged.kind === 'unfiled'
+        ? this.host.actions.fileUnfiledAt(at, dragged.path, placement)
+        : this.host.actions.moveTo(at, dragged.ref, placement),
+    );
   }
 
   // ------------------------------------------------------------- opening notes

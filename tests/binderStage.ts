@@ -11,6 +11,7 @@ import { ProjectSession } from '../src/core/projectSession';
 import { ProjectStore } from '../src/core/projectStore';
 import { WordCountCache } from '../src/core/wordCountCache';
 import { ConfirmModal } from '../src/ui/confirmModal';
+import type { DragClock } from '../src/ui/dragDrop';
 import { FolderPickerModal } from '../src/ui/folderPickerModal';
 import { TextPromptModal } from '../src/ui/textPromptModal';
 import { BinderActions } from '../src/views/binderActions';
@@ -21,7 +22,7 @@ import { moreOf, press, tap, toolbarButton } from './binderScreen';
 import { FakeObsidian } from './fakeObsidianApp';
 import type { FakeLeaf } from './fakeObsidianApp';
 import { ManualTimers, MemoryVault } from './memoryVault';
-import { Menu as StubMenu, Modal as StubModal, Notice as StubNotice } from './obsidianStub';
+import { Menu as StubMenu, Modal as StubModal, Notice as StubNotice, resetFakeDocument } from './obsidianStub';
 import type {
   ButtonComponent,
   FakeElement,
@@ -100,6 +101,9 @@ export interface Stage {
   pane: FakeElement;
 }
 
+/** How long one frame of the test's own clock lasts, in milliseconds. */
+export const FRAME_MS = 16;
+
 export interface StageOptions {
   storage?: MemoryDeviceStorage;
   /** Where the binder's pane is. Default: the left sidebar. */
@@ -122,7 +126,25 @@ export async function stage(vault: MemoryVault = new MemoryVault(), options: Sta
   const session = new ProjectSession(store, prefs);
   const wordCounts = new WordCountCache({ vault, setTimer: timers.set });
   const selection = new BinderSelection();
-  const services: BinderServices = { store, session, wordCounts, prefs, selection };
+  // Dragging runs on the test's own timers: a frame is one sixtieth of a second.
+  let frameTime = 0;
+  const clock: DragClock = {
+    setTimer: timers.set,
+    nextFrame: (callback) =>
+      timers.set(() => {
+        frameTime += FRAME_MS;
+        callback(frameTime);
+      }, FRAME_MS),
+  };
+  const services: BinderServices = {
+    store,
+    session,
+    wordCounts,
+    prefs,
+    selection,
+    clock,
+    dismissedCopies: new Set(),
+  };
 
   const fake = new FakeObsidian();
   if (options.active !== undefined) fake.workspace.setActiveFile(fileAt(options.active));
@@ -193,11 +215,12 @@ export const HEBREW = 'Novel/Manuscript/מכתב לאחותי.md';
 
 export const notices = (): string[] => StubNotice.shown.map((notice) => notice.message);
 
-/** Forget the notices, menus and windows of earlier tests. Call it before each test. */
+/** Forget the notices, menus and windows of earlier tests, and where the keyboard was. Call it before each test. */
 export function clearScreen(): void {
   StubNotice.shown.length = 0;
   StubMenu.shown.length = 0;
   StubModal.opened.length = 0;
+  resetFakeDocument();
 }
 
 // ------------------------------------------------------------------- menus

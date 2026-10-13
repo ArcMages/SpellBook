@@ -254,6 +254,44 @@
   color: var(--text-muted);
 }
 
+/* What stays in view between the header and the list: the notice for a
+   conflicting copy of the project's index. Takes no space while it is empty. */
+.spellbook-binder-alerts {
+  flex: 0 0 auto;
+  padding-block: var(--size-4-2) 0;
+  padding-inline: var(--size-4-2);
+}
+
+.spellbook-binder-alerts:empty {
+  display: none;
+}
+
+.spellbook-binder-alerts .spellbook-binder-banner {
+  margin-block-end: 0;
+}
+
+/* A copy is something to look at, not something that is broken. */
+.spellbook-binder-banner.spellbook-conflict-banner {
+  border-inline-start-color: var(--text-warning);
+}
+
+.spellbook-conflict-banner .spellbook-binder-banner-icon {
+  color: var(--text-warning);
+}
+
+.spellbook-binder-banner-hint {
+  margin-block-start: var(--size-2-3);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-binder-banner-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+  margin-block-start: var(--size-4-2);
+}
+
 /* ---------------------------------------------------------- Binder: rows */
 
 /* One row. The classes Obsidian's own trees use sit next to these, so themes
@@ -274,6 +312,11 @@
   font-size: var(--nav-item-size);
   font-weight: var(--nav-item-weight);
   line-height: var(--line-height-tight);
+  /* A finger that rests on a row picks the row up. It must not also select
+     the row's text, or bring up the phone's own bubble for it. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .spellbook-binder .spellbook-row > .spellbook-row-self.is-clickable {
@@ -293,6 +336,75 @@
   background-color: var(--nav-item-background-active);
   color: var(--nav-item-color-active);
   font-weight: var(--nav-item-weight-active);
+}
+
+/* The row the keyboard is on, when it got there with the keyboard. */
+.spellbook-binder .spellbook-row > .spellbook-row-self:focus-visible {
+  outline: var(--size-2-1) solid var(--background-modifier-border-focus);
+  outline-offset: calc(-1 * var(--size-2-1));
+}
+
+/* ------------------------------------------------------ Binder: dragging */
+
+/* The row that was picked up stays where it is, dimmed, until it is dropped. */
+.spellbook-binder .spellbook-row > .spellbook-row-self.spellbook-is-dragged {
+  opacity: 0.5;
+}
+
+/* The folder (or the empty manuscript) a drop would go into. */
+.spellbook-binder .spellbook-row > .spellbook-row-self.spellbook-is-drop-target {
+  background-color: var(--background-modifier-hover);
+  outline: var(--size-2-1) solid var(--interactive-accent);
+  outline-offset: calc(-1 * var(--size-2-1));
+}
+
+/* While a mouse drags, the pointer shows that it is holding something. */
+.spellbook-binder .spellbook-drag-active .spellbook-row > .spellbook-row-self.spellbook-row-self {
+  cursor: grabbing;
+}
+
+/* What is being dragged, floating under the pointer. It sits at the top of
+   the page, outside the binder, and is put in its place by the plugin's
+   code; nothing can be tapped through it. */
+.spellbook-drag-ghost {
+  position: fixed;
+  z-index: var(--layer-dragged-item, 80);
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding-block: var(--size-2-2);
+  padding-inline: var(--size-4-3);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background-color: var(--background-primary);
+  box-shadow: var(--shadow-s);
+  color: var(--text-normal);
+  font-size: var(--nav-item-size);
+  line-height: var(--line-height-tight);
+  opacity: 0.9;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.spellbook-drag-ghost-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The thin line that shows where a drop would put the dragged thing. */
+.spellbook-drop-line {
+  position: fixed;
+  z-index: var(--layer-dragged-item, 80);
+  height: var(--size-2-1);
+  margin-block-start: calc(var(--size-2-1) / -2);
+  border-radius: var(--size-2-1);
+  background-color: var(--interactive-accent);
+  pointer-events: none;
+  will-change: transform;
 }
 
 /* The space at the start of every row: a fold arrow, a warning sign, or
@@ -460,7 +572,8 @@
    other screen that is mainly used by touch. With a mouse they stay compact. */
 .spellbook-binder.spellbook-is-mobile .spellbook-row-self,
 .spellbook-binder.spellbook-is-mobile .spellbook-binder-heading .spellbook-project-switch,
-.spellbook-binder.spellbook-is-mobile .spellbook-binder-create {
+.spellbook-binder.spellbook-is-mobile .spellbook-binder-create,
+.spellbook-binder.spellbook-is-mobile .spellbook-banner-button {
   min-height: var(--spellbook-touch-target);
 }
 
@@ -478,7 +591,8 @@
 @media (pointer: coarse) {
   .spellbook-binder .spellbook-row-self,
   .spellbook-binder .spellbook-binder-heading .spellbook-project-switch,
-  .spellbook-binder .spellbook-binder-create {
+  .spellbook-binder .spellbook-binder-create,
+  .spellbook-binder .spellbook-banner-button {
     min-height: var(--spellbook-touch-target);
   }
 

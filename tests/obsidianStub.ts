@@ -88,6 +88,143 @@ export interface FakeRect {
   height: number;
 }
 
+/** What addEventListener and removeEventListener take as their third argument. */
+export type FakeListenerOptions = boolean | { capture?: boolean; passive?: boolean };
+
+interface Registered {
+  readonly listener: (event: unknown) => unknown;
+  /** True for a listener that hears an event on its way down to its target. */
+  readonly capture: boolean;
+  /** The third argument it was added with, as given. */
+  readonly options: FakeListenerOptions | undefined;
+}
+
+function isCapture(options: FakeListenerOptions | undefined): boolean {
+  return options === true || (typeof options === 'object' && options.capture === true);
+}
+
+/** Something that events can be listened for on: an element, the document or the window. */
+export class FakeTarget {
+  private readonly registered = new Map<string, Registered[]>();
+
+  addEventListener(type: string, listener: (event: never) => unknown, options?: FakeListenerOptions): void {
+    const entry: Registered = {
+      listener: listener as (event: unknown) => unknown,
+      capture: isCapture(options),
+      options,
+    };
+    this.registered.set(type, [...(this.registered.get(type) ?? []), entry]);
+  }
+
+  /** As in a browser: takes away the listener that was added with the same function and the same "capture". */
+  removeEventListener(type: string, listener: (event: never) => unknown, options?: FakeListenerOptions): void {
+    const capture = isCapture(options);
+    const kept = (this.registered.get(type) ?? []).filter(
+      (entry) => entry.listener !== listener || entry.capture !== capture,
+    );
+    if (kept.length === 0) this.registered.delete(type);
+    else this.registered.set(type, kept);
+  }
+
+  /**
+   * Hand an event straight to the listeners of this one target, and to no
+   * other: nothing travels up or down. (See FakeElement.fire for an event
+   * that travels the way it does in a browser.)
+   */
+  dispatch(type: string, event: unknown = {}): void {
+    for (const entry of [...(this.registered.get(type) ?? [])]) entry.listener(event);
+  }
+
+  /** How many listeners are waiting, for one type of event or for all. */
+  listenerCount(type?: string): number {
+    if (type !== undefined) return this.registered.get(type)?.length ?? 0;
+    let count = 0;
+    for (const entries of this.registered.values()) count += entries.length;
+    return count;
+  }
+
+  /** The third argument each listener for this type of event was added with. */
+  listenerOptions(type: string): Array<FakeListenerOptions | undefined> {
+    return (this.registered.get(type) ?? []).map((entry) => entry.options);
+  }
+
+  /** Forget every listener (between tests). */
+  clearListeners(): void {
+    this.registered.clear();
+  }
+
+  /** One step of an event's journey: the listeners here that hear it in this phase. */
+  deliver(type: string, event: FakeEvent, phase: 'down' | 'target' | 'up'): void {
+    for (const entry of [...(this.registered.get(type) ?? [])]) {
+      if (event.immediateStopped) return;
+      if (phase === 'target' || entry.capture === (phase === 'down')) {
+        event.currentTarget = this;
+        entry.listener(event);
+      }
+    }
+  }
+}
+
+/** An event as FakeElement.fire() hands it to listeners. Whatever the test put in is on it as well. */
+export interface FakeEvent {
+  type: string;
+  target: FakeElement;
+  currentTarget: FakeTarget | null;
+  cancelable: boolean;
+  defaultPrevented: boolean;
+  /** True once a listener has called stopPropagation(). */
+  stopped: boolean;
+  immediateStopped: boolean;
+  preventDefault(): void;
+  stopPropagation(): void;
+  stopImmediatePropagation(): void;
+  [extra: string]: unknown;
+}
+
+/** A stand-in for the browser window an element lives in. */
+export class FakeWindow extends FakeTarget {
+  /** As in a browser, as far as the plugin asks: which way an element's text runs. */
+  getComputedStyle(element: FakeElement): { direction: string } {
+    for (let at: FakeElement | null = element; at; at = at.parent) {
+      const dir = at.attrs['dir'];
+      if (dir === 'rtl' || dir === 'ltr') return { direction: dir };
+    }
+    return { direction: 'ltr' };
+  }
+}
+
+/** A stand-in for the document an element lives in. */
+export class FakeDocument extends FakeTarget {
+  readonly defaultView: FakeWindow;
+  /** Lazily made, because FakeElement is declared further down. */
+  private bodyElement: FakeElement | null = null;
+  /** The element that has the keyboard's focus, if any. */
+  activeElement: FakeElement | null = null;
+
+  constructor(view: FakeWindow) {
+    super();
+    this.defaultView = view;
+  }
+
+  get body(): FakeElement {
+    this.bodyElement ??= new FakeElement('body');
+    return this.bodyElement;
+  }
+}
+
+/** The one window and the one document every stand-in element belongs to. */
+export const fakeWindow = new FakeWindow();
+export const fakeDocument = new FakeDocument(fakeWindow);
+
+/** Put the stand-in document back as it was: nothing in it, nobody listening, nothing focused. */
+export function resetFakeDocument(): void {
+  fakeDocument.body.empty();
+  fakeDocument.body.classes.clear();
+  fakeDocument.activeElement = null;
+  fakeDocument.clearListeners();
+  fakeWindow.clearListeners();
+}
+
 /**
  * A stand-in for an HTML element. The tests run without a browser, so this
  * only remembers what was done to it: text, classes, attributes, children and
@@ -97,7 +234,7 @@ export interface FakeRect {
  * It lays nothing out. Sizes and positions are whatever a test sets:
  * `clientWidth`, `scrollTop` and `rect`.
  */
-export class FakeElement {
+export class FakeElement extends FakeTarget {
   readonly tag: string;
   text = '';
   value = '';
@@ -108,7 +245,7 @@ export class FakeElement {
   parent: FakeElement | null = null;
   /** The icon put into this element with setIcon(), if any. */
   icon: string | null = null;
-  scrollTop = 0;
+  private scrolled = 0;
   clientWidth = 0;
   rect: FakeRect = { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 };
   readonly classes = new Set<string>();
@@ -116,18 +253,89 @@ export class FakeElement {
   readonly children: FakeElement[] = [];
   /** The Setting rows built inside this element, in order. */
   readonly settings: Setting[] = [];
-  private readonly listeners = new Map<string, Array<(event: unknown) => unknown>>();
+  /** Styles set from code, by their names in JavaScript ("transform", "width"). */
+  readonly style: Record<string, string> = {};
+  /** The pointers this element has asked to keep hearing from (setPointerCapture). */
+  readonly capturedPointers = new Set<number>();
 
   constructor(tag = 'div') {
+    super();
     this.tag = tag;
   }
 
+  /** How far the element is scrolled. As in a browser, it cannot be scrolled to above its top. */
+  get scrollTop(): number {
+    return this.scrolled;
+  }
+
+  set scrollTop(value: number) {
+    this.scrolled = Math.max(0, value);
+  }
+
+  get ownerDocument(): FakeDocument {
+    return fakeDocument;
+  }
+
+  get parentElement(): FakeElement | null {
+    return this.parent;
+  }
+
   empty(): void {
-    for (const child of this.children) child.parent = null;
+    for (const child of this.children) {
+      child.loseKeyboard();
+      child.parent = null;
+    }
     this.children.length = 0;
     this.settings.length = 0;
     this.text = '';
     this.icon = null;
+  }
+
+  /** As in a browser: the child leaves where it was and becomes the last child here. */
+  appendChild(child: FakeElement): FakeElement {
+    child.remove();
+    child.parent = this;
+    this.children.push(child);
+    return child;
+  }
+
+  /** Take this element out of whatever it is in. */
+  remove(): void {
+    const parent = this.parent;
+    if (!parent) return;
+    this.loseKeyboard();
+    const at = parent.children.indexOf(this);
+    if (at >= 0) parent.children.splice(at, 1);
+    this.parent = null;
+  }
+
+  /** As in a browser: something that is taken off the page cannot keep the keyboard. */
+  private loseKeyboard(): void {
+    const active = fakeDocument.activeElement;
+    if (active && this.contains(active)) active.blur();
+  }
+
+  /** Obsidian's name for remove(). */
+  detach(): void {
+    this.remove();
+  }
+
+  /** True for this element itself and for everything inside it. */
+  contains(other: FakeElement | null): boolean {
+    for (let at = other; at; at = at.parent) if (at === this) return true;
+    return false;
+  }
+
+  setPointerCapture(pointerId: number): void {
+    this.capturedPointers.add(pointerId);
+  }
+
+  releasePointerCapture(pointerId: number): void {
+    this.capturedPointers.delete(pointerId);
+  }
+
+  hasPointerCapture(pointerId: number): boolean {
+    return this.capturedPointers.has(pointerId);
   }
 
   setText(text: string): void {
@@ -185,22 +393,70 @@ export class FakeElement {
     return this.createEl('span', info);
   }
 
-  addEventListener(type: string, listener: (event: unknown) => unknown): void {
-    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
+  /**
+   * Send an event on the journey it makes in a browser: from the window down
+   * to this element (heard by listeners added with "capture"), then back up
+   * (heard by the others), until a listener stops it. Use this where it
+   * matters that one listener can keep an event from another; dispatch()
+   * hands an event to this element's own listeners only.
+   *
+   * @param init what the event carries (clientX, key, ...). A preventDefault
+   *             or stopPropagation given here is called as well, so a test
+   *             can count the calls.
+   * @returns the event, to see what the listeners did with it
+   */
+  fire(type: string, init: Record<string, unknown> = {}): FakeEvent {
+    const given = init as { preventDefault?: () => unknown; stopPropagation?: () => unknown; cancelable?: boolean };
+    const event: FakeEvent = {
+      ...init,
+      type,
+      target: this,
+      currentTarget: null,
+      cancelable: given.cancelable ?? true,
+      defaultPrevented: false,
+      stopped: false,
+      immediateStopped: false,
+      preventDefault: () => {
+        if (event.cancelable) event.defaultPrevented = true;
+        given.preventDefault?.();
+      },
+      stopPropagation: () => {
+        event.stopped = true;
+        given.stopPropagation?.();
+      },
+      stopImmediatePropagation: () => {
+        event.stopped = true;
+        event.immediateStopped = true;
+      },
+    };
+    const around: FakeTarget[] = [];
+    for (let at = this.parent; at; at = at.parent) around.unshift(at);
+    around.unshift(fakeWindow, fakeDocument);
+    for (const target of around) {
+      if (event.stopped) return event;
+      target.deliver(type, event, 'down');
+    }
+    if (event.stopped) return event;
+    this.deliver(type, event, 'target');
+    for (const target of around.reverse()) {
+      if (event.stopped) return event;
+      target.deliver(type, event, 'up');
+    }
+    return event;
   }
 
-  /** Deliver an event to the listeners, as the browser would. */
-  dispatch(type: string, event: unknown = {}): void {
-    for (const listener of this.listeners.get(type) ?? []) listener(event);
-  }
-
-  /** How many listeners are waiting for an event of this type. */
-  listenerCount(type: string): number {
-    return this.listeners.get(type)?.length ?? 0;
-  }
-
+  /** As in a browser: the element gets the keyboard, and says so with a "focusin" that travels up. */
   focus(): void {
+    const before = fakeDocument.activeElement;
+    if (before && before !== this) before.focused = false;
     this.focused = true;
+    fakeDocument.activeElement = this;
+    if (before !== this) this.fire('focusin');
+  }
+
+  blur(): void {
+    this.focused = false;
+    if (fakeDocument.activeElement === this) fakeDocument.activeElement = null;
   }
 
   /** As on a text field: all of its text becomes the selection. */
