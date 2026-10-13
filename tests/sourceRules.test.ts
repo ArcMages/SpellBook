@@ -105,6 +105,7 @@ describe('source layout', () => {
       'features/timeline/index.ts',
       'features/outliner/index.ts',
       'features/schemes/index.ts',
+      'features/report/index.ts',
     ]) {
       expect(names, expected).toContain(expected);
     }
@@ -294,6 +295,7 @@ describe('the whole plugin', () => {
       'features/outliner',
       'features/planner',
       'features/progress',
+      'features/report',
       'features/schemes',
       'features/timeline',
     ]);
@@ -440,6 +442,7 @@ describe('the stylesheet is put together from one file per screen', () => {
       'outliner.css',
       'schemes.css',
       'modes.css',
+      'report.css',
     ]);
     // No stylesheet is left out, and none is listed that is not there.
     expect(readdirSync(stylesDir).filter((name) => name.endsWith('.css')).sort()).toEqual([...STYLE_FILES].sort());
@@ -477,7 +480,7 @@ describe('the stylesheet is put together from one file per screen', () => {
   });
 
   it('gives each screen a stylesheet of its own, so that screens built side by side never share a file', () => {
-    for (const feature of ['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes']) {
+    for (const feature of ['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'report']) {
       expect(STYLE_FILES, feature).toContain(`${feature}.css`);
     }
   });

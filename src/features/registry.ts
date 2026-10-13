@@ -30,6 +30,7 @@ import { outlinerFeature } from './outliner/index';
 import { plannerFeature } from './planner/index';
 import { progressFeature } from './progress/index';
 import { schemesFeature } from './schemes/index';
+import { reportFeature } from './report/index';
 import { timelineFeature } from './timeline/index';
 
 /** The device's clock and timers. Features never read the clock themselves. */
@@ -145,6 +146,7 @@ export const FEATURES: readonly Feature[] = [
   outlinerFeature,
   schemesFeature,
   modesFeature,
+  reportFeature,
 ];
 
 /** What registerFeatures needs: a FeatureContext without the parts the registry makes itself. */
