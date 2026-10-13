@@ -560,6 +560,25 @@
   display: none;
 }
 
+/* The line that fills it on phones and tablets: the scene's word count and
+   dates, then the session and project totals. Each piece is a name and its
+   value, kept together; the pieces wrap onto more lines in a narrow drawer. */
+.spellbook-inspector-slot .spellbook-summary-item {
+  display: inline-block;
+  margin-inline-end: var(--size-4-3);
+  white-space: nowrap;
+}
+
+.spellbook-inspector-slot .spellbook-summary-label {
+  margin-inline-end: var(--size-2-2);
+  color: var(--text-faint);
+}
+
+.spellbook-inspector-slot .spellbook-summary-value {
+  color: var(--text-normal);
+  font-variant-numeric: tabular-nums;
+}
+
 .spellbook-inspector-scroll {
   flex: 1 1 auto;
   min-height: 0;

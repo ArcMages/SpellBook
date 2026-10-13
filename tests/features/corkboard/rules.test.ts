@@ -35,18 +35,32 @@ function importsOf(source: string): string[] {
   return [...source.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)].map((match) => match[1] ?? '');
 }
 
+/**
+ * The files that plug the screens into the plugin: the host on top of the
+ * project store, the opening of the panes, the line at the top of the
+ * inspector, and the registration. Every other file is a screen (or a piece
+ * of one) and knows only its host.
+ */
+const wiring = ['index.ts', 'panes.ts', 'storeHost.ts', 'summaryLine.ts'];
+const screens = files.filter((name) => !wiring.includes(name));
+
 describe('the source of the corkboard feature', () => {
-  it('is made of the expected files, and leaves index.ts to whoever wires it in', () => {
+  it('is made of the expected files: the screens, and what plugs them into the plugin', () => {
     expect(files).toEqual([
       'cardElements.ts',
       'corkboardView.ts',
       'dropGap.ts',
       'host.ts',
+      'index.ts',
       'inspectorView.ts',
+      'panes.ts',
       'parts.ts',
+      'storeHost.ts',
+      'summaryLine.ts',
       'synopsisModal.ts',
       'tagListsModal.ts',
     ]);
+    expect(screens).toHaveLength(8);
   });
 
   it('has the agreed view type ids', () => {
@@ -80,30 +94,81 @@ describe('the source of the corkboard feature', () => {
     }
   });
 
-  it('knows the project only through its host: no store, no vault, no device storage', () => {
+  it('lets the screens know the project only through their host: no store, no vault, no device storage', () => {
     const allowed = [
       /^obsidian$/,
       /^\.\/\w+$/,
       /^\.\.\/\.\.\/core\/cards$/,
       /^\.\.\/\.\.\/core\/(binderModel|dropTarget|names|types)$/,
-      /^\.\.\/\.\.\/ui\/(confirmModal|dragDrop|icons|keys|safely|textPromptModal)$/,
-      // For one thing only: the wording of the warning on an entry whose note is missing.
-      /^\.\.\/\.\.\/views\/binderActions$/,
+      // missingNote: the wording of the warning on an entry whose note is missing, shared with the binder.
+      /^\.\.\/\.\.\/ui\/(confirmModal|dragDrop|icons|keys|missingNote|safely|textPromptModal)$/,
     ];
-    for (const name of files) {
+    for (const name of screens) {
       const code = codeOf(name);
       for (const target of importsOf(code)) {
         expect(allowed.some((pattern) => pattern.test(target)), `${name} imports ${target}`).toBe(true);
+        // A screen never reaches for the files that plug it in.
+        expect(wiring.includes(`${target.slice(2)}.ts`), `${name} imports ${target}`).toBe(false);
       }
       expect(/\b(ProjectStore|ProjectSession|VaultPort|WordCountCache|DevicePrefs)\b/.test(code), name).toBe(false);
-      expect(/\bapp\s*\.\s*(vault|fileManager|metadataCache)\b/.test(code), name).toBe(false);
-      expect(/\.\s*(processFrontMatter|trashFile|renameFile)\s*\(/.test(code), name).toBe(false);
+      expect(/\b(store|vault|storage|wordCounts)\s*\.\s*\w+\s*\(/.test(code), name).toBe(false);
     }
-    expect(importsOf(codeOf('cardElements.ts')).filter((target) => target.includes('/views/'))).toHaveLength(1);
-    expect(files.filter((name) => importsOf(codeOf(name)).some((target) => target.includes('/views/')))).toEqual([
-      'cardElements.ts',
-      'corkboardView.ts',
+  });
+
+  it('reaches nothing outside its own folder but the core, the shared pieces of screen and the registry', () => {
+    // No file of the feature imports the binder's views, the plugin's entry or another feature.
+    const allowed = [/^obsidian$/, /^\.\/\w+$/, /^\.\.\/\.\.\/core\/[\w/]+$/, /^\.\.\/\.\.\/ui\/\w+$/, /^\.\.\/registry$/];
+    for (const name of files) {
+      for (const target of importsOf(codeOf(name))) {
+        expect(allowed.some((pattern) => pattern.test(target)), `${name} imports ${target}`).toBe(true);
+      }
+    }
+    // Only what plugs the screens in is handed the plugin's working parts.
+    expect(files.filter((name) => importsOf(codeOf(name)).includes('../registry'))).toEqual([
+      'index.ts',
+      'storeHost.ts',
+      'summaryLine.ts',
     ]);
+  });
+
+  it('changes the vault only through the project store, and reads it only through the vault doorway', () => {
+    // The host is handed the vault doorway to read notes and to listen. Its
+    // writing methods are never called: a change is an intent of the store.
+    const doorwayWrites = /\.\s*(updateFrontmatter|updateText|createFile|createFolder|rename|trash)\s*\(/;
+    for (const name of files) {
+      const code = codeOf(name);
+      expect(doorwayWrites.test(code), name).toBe(false);
+      // Obsidian's own vault, file manager and index are never touched from here.
+      expect(/\bapp\s*\.\s*(vault|fileManager|metadataCache)\b/.test(code), name).toBe(false);
+      expect(/\.\s*(processFrontMatter|trashFile|renameFile|getMarkdownFiles|getFileCache)\s*\(/.test(code), name).toBe(false);
+      // What one device remembers goes through the storage it is handed, never the synced plugin data.
+      expect(/\.\s*(saveData|loadData)\s*\(/.test(code), name).toBe(false);
+    }
+    expect(doorwayWrites.test('await this.context.vault.updateFrontmatter(path, change);')).toBe(true);
+    expect(doorwayWrites.test('submit: (value) => this.rename(kind, tag.name, value),')).toBe(true);
+
+    const host = codeOf('storeHost.ts');
+    // The vault doorway: reading a text and listening, nothing else.
+    const doorwayCalls = [...host.matchAll(/\bvault\s*\.\s*(\w+)\s*\(/g)].map((match) => match[1] ?? '');
+    expect([...new Set(doorwayCalls)].sort()).toEqual(['on', 'readText']);
+    // The store: reading, listening, and the intents that change something.
+    const storeCalls = [...host.matchAll(/\bstore\s*\.\s*(\w+)\s*\(/g)].map((match) => match[1] ?? '');
+    expect([...new Set(storeCalls)].sort()).toEqual([
+      'moveNode',
+      'onChange',
+      'projectData',
+      'projectNotes',
+      'updateNoteProperties',
+      'updateProjectData',
+      'vaultPathOf',
+    ]);
+    // The device's own storage: the card size, and nothing else.
+    const storageCalls = [...host.matchAll(/\bstorage\s*\.\s*(\w+)\s*\(\s*(\w+)/g)].map((match) => `${match[1]} ${match[2]}`);
+    expect(storageCalls.sort()).toEqual(['load CARD_SIZE_KEY', 'save CARD_SIZE_KEY']);
+    // The other files that plug the screens in call none of them.
+    for (const name of wiring.filter((file) => file !== 'storeHost.ts')) {
+      expect(/\b(vault|storage|wordCounts)\s*\.\s*\w+\s*\(/.test(codeOf(name)), name).toBe(false);
+    }
   });
 
   it("never puts the writer's text on the screen as a page of its own", () => {
@@ -136,7 +201,9 @@ describe('the source of the corkboard feature', () => {
       // Classes of the plugin's own; Obsidian's are used next to them so that themes apply.
       const obsidianOwn = new Set(['clickable-icon', 'dropdown', 'checkbox-container', 'is-enabled', 'is-disabled']);
       const classLists = [...code.matchAll(/\bcls:\s*(?:'([^']*)'|`([^`]*)`)/g)].map((match) => match[1] ?? match[2] ?? '');
-      expect(classLists.length + (name === 'host.ts' || name === 'dropGap.ts' ? 1 : 0), name).toBeGreaterThan(0);
+      // Some files put nothing on the screen themselves: the host interface, the hit-test, and three of the files that plug the screens in.
+      const drawsNothing = ['host.ts', 'dropGap.ts', 'index.ts', 'panes.ts', 'storeHost.ts'];
+      expect(classLists.length + (drawsNothing.includes(name) ? 1 : 0), name).toBeGreaterThan(0);
       for (const list of classLists) {
         // (What a class list takes in from a variable is checked where the variable is given.)
         for (const cls of list.replace(/\$\{[^}]*\}/g, ' ').split(/\s+/)) {

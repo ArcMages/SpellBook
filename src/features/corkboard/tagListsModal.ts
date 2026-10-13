@@ -292,7 +292,7 @@ export class TagListsModal extends Modal {
         label: `New name for the ${words.one}`,
         value: tag.name,
         confirm: 'Rename',
-        submit: (value) => this.rename(kind, tag.name, value),
+        submit: (value) => this.applyRename(kind, tag.name, value),
       }).open();
     });
     add('Change colour', ['palette', 'droplet'], () => {
@@ -347,7 +347,8 @@ export class TagListsModal extends Modal {
     }).open();
   }
 
-  private async rename(kind: TagKind, name: string, newName: string): Promise<string | null> {
+  /** Give a status or a label another name, in the list and in every scene that uses it. */
+  private async applyRename(kind: TagKind, name: string, newName: string): Promise<string | null> {
     const list = this.listOf(kind);
     if (!list) return 'No project is open.';
     // The engine also works out the change every scene that uses the old name needs.

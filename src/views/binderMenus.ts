@@ -88,6 +88,9 @@ export function folderMenu(context: MenuContext, id: string): Menu {
   const { actions, project } = context;
   const at = project.indexPath;
   const menu = new Menu();
+  // Offered when the corkboard is there to show the folder on.
+  const show = actions.showOnCorkboard;
+  if (show) add(menu, 'Show on corkboard', ['layout-grid'], () => show(at, id));
   add(menu, 'New scene inside', ACTION_ICONS.newScene, () => {
     actions.newScene(at, { at: 'end', parentId: id });
   });

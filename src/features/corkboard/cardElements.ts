@@ -13,7 +13,7 @@
 import { describeCount, formatCount } from '../../core/binderModel';
 import type { CardTag, FolderCard, SceneCard } from '../../core/cards';
 import { ROW_MORE_ICON, WARNING_ICON, showIcon } from '../../ui/icons';
-import { MISSING_LABEL } from '../../views/binderActions';
+import { MISSING_LABEL } from '../../ui/missingNote';
 import { MORE_LABEL, SWATCH_CLASS, iconButton, setColor, setShown, setTextOnce } from './parts';
 
 export const CARD_CLASS = 'spellbook-card';

@@ -27,11 +27,11 @@ import { noteTitle } from '../core/paths';
 import type { IntentResult, NodeRef, Placement, ProjectSnapshot } from '../core/types';
 import { ConfirmModal } from '../ui/confirmModal';
 import { FolderPickerModal } from '../ui/folderPickerModal';
+import { MISSING_LABEL } from '../ui/missingNote';
 import { TextPromptModal } from '../ui/textPromptModal';
 import type { BinderServices } from './binderView';
 
-/** Shown on a binder entry whose note is not in the vault. */
-export const MISSING_LABEL = 'File not found (it may still be syncing)';
+export { MISSING_LABEL } from '../ui/missingNote';
 
 /** How long a notice about something that went wrong stays up, in milliseconds. */
 const PROBLEM_NOTICE_MS = 10000;
@@ -47,7 +47,15 @@ export interface ActionsHost {
   readonly services: BinderServices | null;
   /** Show the note at a vault path. Resolves with false when it could not be shown. */
   openNote(path: string, where: PaneType | boolean): Promise<boolean>;
+  /** The screens that plugged themselves in, once they have. What one offers is asked for by name when it is needed. */
+  readonly features?: { readonly services: { get<T>(name: string): T | undefined } } | null;
 }
+
+/** The name under which the corkboard offers to show a binder folder (see src/features/corkboard). */
+export const SHOW_ON_CORKBOARD = 'corkboard.showFolder';
+
+/** What the corkboard offers under that name: show a folder of a project, by the project's index path and the folder's id. */
+export type ShowOnCorkboard = (inProject: string, folderId: string) => unknown;
 
 /** The open project and the services, checked at the start of an action. */
 interface Scope {
@@ -74,6 +82,11 @@ export class BinderActions {
   }
 
   // ----------------------------------------------------------------- opening
+
+  /** What shows a binder folder on the corkboard; null when there is no corkboard to show it on. */
+  get showOnCorkboard(): ShowOnCorkboard | null {
+    return this.host.features?.services.get<ShowOnCorkboard>(SHOW_ON_CORKBOARD) ?? null;
+  }
 
   /**
    * Show a note of the project.
