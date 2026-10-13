@@ -21,7 +21,7 @@ import type { Frontmatter } from '../src/core/types';
 import { VaultFileMissingError } from '../src/core/vaultPort';
 import type { MarkdownFileInfo, VaultEvent, VaultListener, VaultPort } from '../src/core/vaultPort';
 
-export type WriteOp = 'createFile' | 'createFolder' | 'rename' | 'trash' | 'updateFrontmatter';
+export type WriteOp = 'createFile' | 'createFolder' | 'rename' | 'trash' | 'updateFrontmatter' | 'updateText';
 
 export interface WriteRecord {
   readonly op: WriteOp;
@@ -40,6 +40,32 @@ interface StoredFile {
   body: string;
   /** True when the properties block is broken YAML. */
   corrupt: boolean;
+  /**
+   * The file's whole text exactly as it was last written with updateText,
+   * so that it reads back letter for letter. Undefined for a file whose text
+   * is put together from its properties and its body.
+   */
+  raw?: string;
+  /** The day the file was created, as YYYY-MM-DD, when a test has set one. */
+  created?: string;
+}
+
+/** A whole text taken apart into its properties block (as readText writes one) and the rest. */
+function takeApart(text: string): { frontmatter: Frontmatter | null; body: string } {
+  const match = /^---\n([\s\S]*?)\n?---\n?/.exec(text);
+  if (!match) return { frontmatter: null, body: text };
+  const frontmatter: Frontmatter = {};
+  for (const line of (match[1] ?? '').split('\n')) {
+    const colon = line.indexOf(':');
+    if (colon < 1) continue;
+    const value = line.slice(colon + 1).trim();
+    try {
+      frontmatter[line.slice(0, colon).trim()] = JSON.parse(value) as unknown;
+    } catch {
+      frontmatter[line.slice(0, colon).trim()] = value;
+    }
+  }
+  return { frontmatter, body: text.slice(match[0].length) };
 }
 
 interface ExternalOptions {
@@ -93,6 +119,7 @@ export class MemoryVault implements VaultPort {
         file.corrupt = false;
       }
       if (content.body !== undefined) file.body = content.body;
+      delete file.raw;
       if (options.silent) return;
       this.emit({ type: 'modify', path });
       this.index(path);
@@ -217,6 +244,17 @@ export class MemoryVault implements VaultPort {
     return this.requireFile(path).body;
   }
 
+  /** A file's whole text, properties block included, as readText gives it. */
+  textOf(path: string): string {
+    return this.compose(this.requireFile(path));
+  }
+
+  /** Say on which day a file was created (as YYYY-MM-DD); the vault knows of none otherwise. */
+  setCreatedDay(path: string, day: string): this {
+    this.requireFile(path).created = day;
+    return this;
+  }
+
   has(path: string): boolean {
     return this.files.has(path) || this.folders.has(path);
   }
@@ -264,6 +302,14 @@ export class MemoryVault implements VaultPort {
     return [...this.folders];
   }
 
+  listFiles(folder: string): string[] {
+    return [...this.files.keys()].filter((path) => parentPath(path) === folder);
+  }
+
+  createdDay(path: string): string | null {
+    return this.files.get(path)?.created ?? null;
+  }
+
   exists(path: string): boolean {
     const wanted = clashKey(path);
     for (const file of this.files.keys()) if (clashKey(file) === wanted) return true;
@@ -273,8 +319,12 @@ export class MemoryVault implements VaultPort {
 
   async readText(path: string): Promise<string> {
     this.reads.readText++;
-    const file = this.requireFile(path);
+    return this.compose(this.requireFile(path));
+  }
+
+  private compose(file: StoredFile): string {
     if (file.corrupt) return `---\nbinder: [unclosed\n---\n${file.body}`;
+    if (file.raw !== undefined) return file.raw;
     if (file.frontmatter === null) return file.body;
     const lines = Object.entries(file.frontmatter).map(([key, value]) => `${key}: ${JSON.stringify(value)}`);
     return `---\n${lines.join('\n')}\n---\n${file.body}`;
@@ -338,7 +388,34 @@ export class MemoryVault implements VaultPort {
     this.maybeFail('updateFrontmatter', path);
     this.writes.push({ op: 'updateFrontmatter', path });
     file.frontmatter = clone(draft);
+    delete file.raw;
     this.emit({ type: 'modify', path });
+    this.index(path);
+    return true;
+  }
+
+  async updateText(path: string, change: (current: string | null) => string | null): Promise<boolean> {
+    if (this.folders.has(path)) throw new Error(`"${path}" is a folder, not a file.`);
+    const file = this.files.get(path);
+    // The callback always sees the file as it is on disk right now.
+    const current = file ? this.compose(file) : null;
+    const text = change(current);
+    if (text === null || text === current) return false;
+    // The save itself can fail after the callback has run, as on a real disk.
+    this.maybeFail('updateText', path);
+    const parts = takeApart(text);
+    if (file) {
+      this.writes.push({ op: 'updateText', path });
+      Object.assign(file, { ...parts, corrupt: false, raw: text });
+      this.emit({ type: 'modify', path });
+    } else {
+      if (this.exists(path)) throw new Error(`File already exists: ${path}`);
+      const parent = parentPath(path);
+      if (parent !== '' && !this.folders.has(parent)) throw new Error(`Folder does not exist: ${parent}`);
+      this.writes.push({ op: 'updateText', path });
+      this.files.set(path, { ...parts, corrupt: false, raw: text });
+      this.emit({ type: 'create', path, folder: false });
+    }
     this.index(path);
     return true;
   }

@@ -18,6 +18,8 @@ export class TAbstractFile {
 export class TFile extends TAbstractFile {
   basename = '';
   extension = '';
+  /** When the file was created and last changed (milliseconds since 1970), and its size. */
+  stat = { ctime: 0, mtime: 0, size: 0 };
 }
 
 export class TFolder extends TAbstractFile {
@@ -65,8 +67,16 @@ export function getFrontMatterInfo(content: string): FrontMatterInfo {
 // The plugin's timers call window.setTimeout, as code that runs in Obsidian
 // should. Plain Node has no `window`, so the stand-in provides one: Node's own
 // global object, which has the same timer functions.
-const nodeGlobals = globalThis as { window?: unknown };
+const nodeGlobals = globalThis as { window?: unknown; createFragment?: unknown };
 if (nodeGlobals.window === undefined) nodeGlobals.window = globalThis;
+
+// Obsidian adds createFragment() to every page: a piece of page that is not
+// on the page yet, to be filled in and handed over (to a menu item, say).
+nodeGlobals.createFragment = (callback?: (fragment: FakeElement) => void): FakeElement => {
+  const fragment = new FakeElement('#fragment');
+  callback?.(fragment);
+  return fragment;
+};
 
 /** What createEl, createDiv and createSpan accept: Obsidian's DomElementInfo, or just a class name. */
 export type FakeElementInfo =
@@ -88,6 +98,143 @@ export interface FakeRect {
   height: number;
 }
 
+/** What addEventListener and removeEventListener take as their third argument. */
+export type FakeListenerOptions = boolean | { capture?: boolean; passive?: boolean };
+
+interface Registered {
+  readonly listener: (event: unknown) => unknown;
+  /** True for a listener that hears an event on its way down to its target. */
+  readonly capture: boolean;
+  /** The third argument it was added with, as given. */
+  readonly options: FakeListenerOptions | undefined;
+}
+
+function isCapture(options: FakeListenerOptions | undefined): boolean {
+  return options === true || (typeof options === 'object' && options.capture === true);
+}
+
+/** Something that events can be listened for on: an element, the document or the window. */
+export class FakeTarget {
+  private readonly registered = new Map<string, Registered[]>();
+
+  addEventListener(type: string, listener: (event: never) => unknown, options?: FakeListenerOptions): void {
+    const entry: Registered = {
+      listener: listener as (event: unknown) => unknown,
+      capture: isCapture(options),
+      options,
+    };
+    this.registered.set(type, [...(this.registered.get(type) ?? []), entry]);
+  }
+
+  /** As in a browser: takes away the listener that was added with the same function and the same "capture". */
+  removeEventListener(type: string, listener: (event: never) => unknown, options?: FakeListenerOptions): void {
+    const capture = isCapture(options);
+    const kept = (this.registered.get(type) ?? []).filter(
+      (entry) => entry.listener !== listener || entry.capture !== capture,
+    );
+    if (kept.length === 0) this.registered.delete(type);
+    else this.registered.set(type, kept);
+  }
+
+  /**
+   * Hand an event straight to the listeners of this one target, and to no
+   * other: nothing travels up or down. (See FakeElement.fire for an event
+   * that travels the way it does in a browser.)
+   */
+  dispatch(type: string, event: unknown = {}): void {
+    for (const entry of [...(this.registered.get(type) ?? [])]) entry.listener(event);
+  }
+
+  /** How many listeners are waiting, for one type of event or for all. */
+  listenerCount(type?: string): number {
+    if (type !== undefined) return this.registered.get(type)?.length ?? 0;
+    let count = 0;
+    for (const entries of this.registered.values()) count += entries.length;
+    return count;
+  }
+
+  /** The third argument each listener for this type of event was added with. */
+  listenerOptions(type: string): Array<FakeListenerOptions | undefined> {
+    return (this.registered.get(type) ?? []).map((entry) => entry.options);
+  }
+
+  /** Forget every listener (between tests). */
+  clearListeners(): void {
+    this.registered.clear();
+  }
+
+  /** One step of an event's journey: the listeners here that hear it in this phase. */
+  deliver(type: string, event: FakeEvent, phase: 'down' | 'target' | 'up'): void {
+    for (const entry of [...(this.registered.get(type) ?? [])]) {
+      if (event.immediateStopped) return;
+      if (phase === 'target' || entry.capture === (phase === 'down')) {
+        event.currentTarget = this;
+        entry.listener(event);
+      }
+    }
+  }
+}
+
+/** An event as FakeElement.fire() hands it to listeners. Whatever the test put in is on it as well. */
+export interface FakeEvent {
+  type: string;
+  target: FakeElement;
+  currentTarget: FakeTarget | null;
+  cancelable: boolean;
+  defaultPrevented: boolean;
+  /** True once a listener has called stopPropagation(). */
+  stopped: boolean;
+  immediateStopped: boolean;
+  preventDefault(): void;
+  stopPropagation(): void;
+  stopImmediatePropagation(): void;
+  [extra: string]: unknown;
+}
+
+/** A stand-in for the browser window an element lives in. */
+export class FakeWindow extends FakeTarget {
+  /** As in a browser, as far as the plugin asks: which way an element's text runs. */
+  getComputedStyle(element: FakeElement): { direction: string } {
+    for (let at: FakeElement | null = element; at; at = at.parent) {
+      const dir = at.attrs['dir'];
+      if (dir === 'rtl' || dir === 'ltr') return { direction: dir };
+    }
+    return { direction: 'ltr' };
+  }
+}
+
+/** A stand-in for the document an element lives in. */
+export class FakeDocument extends FakeTarget {
+  readonly defaultView: FakeWindow;
+  /** Lazily made, because FakeElement is declared further down. */
+  private bodyElement: FakeElement | null = null;
+  /** The element that has the keyboard's focus, if any. */
+  activeElement: FakeElement | null = null;
+
+  constructor(view: FakeWindow) {
+    super();
+    this.defaultView = view;
+  }
+
+  get body(): FakeElement {
+    this.bodyElement ??= new FakeElement('body');
+    return this.bodyElement;
+  }
+}
+
+/** The one window and the one document every stand-in element belongs to. */
+export const fakeWindow = new FakeWindow();
+export const fakeDocument = new FakeDocument(fakeWindow);
+
+/** Put the stand-in document back as it was: nothing in it, nobody listening, nothing focused. */
+export function resetFakeDocument(): void {
+  fakeDocument.body.empty();
+  fakeDocument.body.classes.clear();
+  fakeDocument.activeElement = null;
+  fakeDocument.clearListeners();
+  fakeWindow.clearListeners();
+}
+
 /**
  * A stand-in for an HTML element. The tests run without a browser, so this
  * only remembers what was done to it: text, classes, attributes, children and
@@ -97,16 +244,18 @@ export interface FakeRect {
  * It lays nothing out. Sizes and positions are whatever a test sets:
  * `clientWidth`, `scrollTop` and `rect`.
  */
-export class FakeElement {
+export class FakeElement extends FakeTarget {
   readonly tag: string;
   text = '';
   value = '';
   disabled = false;
   focused = false;
+  /** True once select() was called on it (a text field whose text was selected). */
+  selected = false;
   parent: FakeElement | null = null;
   /** The icon put into this element with setIcon(), if any. */
   icon: string | null = null;
-  scrollTop = 0;
+  private scrolled = 0;
   clientWidth = 0;
   rect: FakeRect = { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 };
   readonly classes = new Set<string>();
@@ -114,18 +263,89 @@ export class FakeElement {
   readonly children: FakeElement[] = [];
   /** The Setting rows built inside this element, in order. */
   readonly settings: Setting[] = [];
-  private readonly listeners = new Map<string, Array<(event: unknown) => unknown>>();
+  /** Styles set from code, by their names in JavaScript ("transform", "width"). */
+  readonly style: Record<string, string> = {};
+  /** The pointers this element has asked to keep hearing from (setPointerCapture). */
+  readonly capturedPointers = new Set<number>();
 
   constructor(tag = 'div') {
+    super();
     this.tag = tag;
   }
 
+  /** How far the element is scrolled. As in a browser, it cannot be scrolled to above its top. */
+  get scrollTop(): number {
+    return this.scrolled;
+  }
+
+  set scrollTop(value: number) {
+    this.scrolled = Math.max(0, value);
+  }
+
+  get ownerDocument(): FakeDocument {
+    return fakeDocument;
+  }
+
+  get parentElement(): FakeElement | null {
+    return this.parent;
+  }
+
   empty(): void {
-    for (const child of this.children) child.parent = null;
+    for (const child of this.children) {
+      child.loseKeyboard();
+      child.parent = null;
+    }
     this.children.length = 0;
     this.settings.length = 0;
     this.text = '';
     this.icon = null;
+  }
+
+  /** As in a browser: the child leaves where it was and becomes the last child here. */
+  appendChild(child: FakeElement): FakeElement {
+    child.remove();
+    child.parent = this;
+    this.children.push(child);
+    return child;
+  }
+
+  /** Take this element out of whatever it is in. */
+  remove(): void {
+    const parent = this.parent;
+    if (!parent) return;
+    this.loseKeyboard();
+    const at = parent.children.indexOf(this);
+    if (at >= 0) parent.children.splice(at, 1);
+    this.parent = null;
+  }
+
+  /** As in a browser: something that is taken off the page cannot keep the keyboard. */
+  private loseKeyboard(): void {
+    const active = fakeDocument.activeElement;
+    if (active && this.contains(active)) active.blur();
+  }
+
+  /** Obsidian's name for remove(). */
+  detach(): void {
+    this.remove();
+  }
+
+  /** True for this element itself and for everything inside it. */
+  contains(other: FakeElement | null): boolean {
+    for (let at = other; at; at = at.parent) if (at === this) return true;
+    return false;
+  }
+
+  setPointerCapture(pointerId: number): void {
+    this.capturedPointers.add(pointerId);
+  }
+
+  releasePointerCapture(pointerId: number): void {
+    this.capturedPointers.delete(pointerId);
+  }
+
+  hasPointerCapture(pointerId: number): boolean {
+    return this.capturedPointers.has(pointerId);
   }
 
   setText(text: string): void {
@@ -183,22 +403,75 @@ export class FakeElement {
     return this.createEl('span', info);
   }
 
-  addEventListener(type: string, listener: (event: unknown) => unknown): void {
-    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
+  /**
+   * Send an event on the journey it makes in a browser: from the window down
+   * to this element (heard by listeners added with "capture"), then back up
+   * (heard by the others), until a listener stops it. Use this where it
+   * matters that one listener can keep an event from another; dispatch()
+   * hands an event to this element's own listeners only.
+   *
+   * @param init what the event carries (clientX, key, ...). A preventDefault
+   *             or stopPropagation given here is called as well, so a test
+   *             can count the calls.
+   * @returns the event, to see what the listeners did with it
+   */
+  fire(type: string, init: Record<string, unknown> = {}): FakeEvent {
+    const given = init as { preventDefault?: () => unknown; stopPropagation?: () => unknown; cancelable?: boolean };
+    const event: FakeEvent = {
+      ...init,
+      type,
+      target: this,
+      currentTarget: null,
+      cancelable: given.cancelable ?? true,
+      defaultPrevented: false,
+      stopped: false,
+      immediateStopped: false,
+      preventDefault: () => {
+        if (event.cancelable) event.defaultPrevented = true;
+        given.preventDefault?.();
+      },
+      stopPropagation: () => {
+        event.stopped = true;
+        given.stopPropagation?.();
+      },
+      stopImmediatePropagation: () => {
+        event.stopped = true;
+        event.immediateStopped = true;
+      },
+    };
+    const around: FakeTarget[] = [];
+    for (let at = this.parent; at; at = at.parent) around.unshift(at);
+    around.unshift(fakeWindow, fakeDocument);
+    for (const target of around) {
+      if (event.stopped) return event;
+      target.deliver(type, event, 'down');
+    }
+    if (event.stopped) return event;
+    this.deliver(type, event, 'target');
+    for (const target of around.reverse()) {
+      if (event.stopped) return event;
+      target.deliver(type, event, 'up');
+    }
+    return event;
   }
 
-  /** Deliver an event to the listeners, as the browser would. */
-  dispatch(type: string, event: unknown = {}): void {
-    for (const listener of this.listeners.get(type) ?? []) listener(event);
-  }
-
-  /** How many listeners are waiting for an event of this type. */
-  listenerCount(type: string): number {
-    return this.listeners.get(type)?.length ?? 0;
-  }
-
+  /** As in a browser: the element gets the keyboard, and says so with a "focusin" that travels up. */
   focus(): void {
+    const before = fakeDocument.activeElement;
+    if (before && before !== this) before.focused = false;
     this.focused = true;
+    fakeDocument.activeElement = this;
+    if (before !== this) this.fire('focusin');
+  }
+
+  blur(): void {
+    this.focused = false;
+    if (fakeDocument.activeElement === this) fakeDocument.activeElement = null;
+  }
+
+  /** As on a text field: all of its text becomes the selection. */
+  select(): void {
+    this.selected = true;
   }
 
   getBoundingClientRect(): FakeRect {
@@ -240,6 +513,8 @@ export interface StubCommand {
   id: string;
   name: string;
   callback?: () => unknown;
+  /** As in Obsidian: asked with true whether the command can run now, and with false to run it. */
+  checkCallback?: (checking: boolean) => boolean | void;
 }
 
 /** A button on the ribbon, as added with addRibbonIcon(). */
@@ -441,11 +716,23 @@ export function setIcon(parent: FakeElement, iconId: string): void {
 
 export class MenuItem {
   title = '';
+  icon: string | null = null;
   checked: boolean | null = null;
+  disabled = false;
+  warning = false;
   private clicked: ((event: unknown) => unknown) | null = null;
 
-  setTitle(title: string): this {
-    this.title = title;
+  /** What the title was built from, when it was given as a piece of page instead of plain text. */
+  titleEl: FakeElement | null = null;
+
+  setTitle(title: string | FakeElement): this {
+    this.titleEl = typeof title === 'string' ? null : title;
+    this.title = typeof title === 'string' ? title : title.fullText;
+    return this;
+  }
+
+  setIcon(icon: string | null): this {
+    this.icon = icon;
     return this;
   }
 
@@ -454,14 +741,24 @@ export class MenuItem {
     return this;
   }
 
+  setDisabled(disabled: boolean): this {
+    this.disabled = disabled;
+    return this;
+  }
+
+  setWarning(warning: boolean): this {
+    this.warning = warning;
+    return this;
+  }
+
   onClick(callback: (event: unknown) => unknown): this {
     this.clicked = callback;
     return this;
   }
 
-  /** As if the writer picked this item. */
+  /** As if the writer picked this item. A disabled item does nothing. */
   click(): void {
-    this.clicked?.({});
+    if (!this.disabled) this.clicked?.({});
   }
 }
 
@@ -471,11 +768,21 @@ export class Menu {
 
   readonly items: MenuItem[] = [];
   position: { x: number; y: number; width?: number } | null = null;
+  /** The event handed to showAtMouseEvent(), when the menu was shown that way. */
+  mouseEvent: unknown = null;
+  /** The items and the lines between them, top to bottom; null stands for a line. */
+  private readonly layout: Array<MenuItem | null> = [];
 
   addItem(callback: (item: MenuItem) => unknown): this {
     const item = new MenuItem();
     this.items.push(item);
+    this.layout.push(item);
     callback(item);
+    return this;
+  }
+
+  addSeparator(): this {
+    this.layout.push(null);
     return this;
   }
 
@@ -485,9 +792,27 @@ export class Menu {
     return this;
   }
 
-  showAtMouseEvent(_event: unknown): this {
+  showAtMouseEvent(event: unknown): this {
+    this.mouseEvent = event;
     Menu.shown.push(this);
     return this;
+  }
+
+  // --- helpers for the tests
+
+  /**
+   * The menu as a reader sees it, top to bottom: each item's title, "---"
+   * for a line between items, and "(off)" after an item that cannot be picked.
+   */
+  get outline(): string[] {
+    return this.layout.map((entry) => (entry === null ? '---' : `${entry.title}${entry.disabled ? ' (off)' : ''}`));
+  }
+
+  /** The item with this title, or a failed test. */
+  item(title: string): MenuItem {
+    const found = this.items.filter((item) => item.title === title);
+    if (found.length !== 1) throw new Error(`expected one menu item "${title}", found ${found.length}`);
+    return found[0] as MenuItem;
   }
 }
 
@@ -559,6 +884,67 @@ export class Modal {
   onClose(): void {}
 }
 
+/** What a fuzzy list hands to renderSuggestion and onChooseSuggestion. */
+export interface FuzzyMatch<T> {
+  item: T;
+  match: { score: number; matches: Array<[number, number]> };
+}
+
+/**
+ * A list to pick from, as Obsidian's quick switcher is. Nothing is shown:
+ * `shownFor()` gives the list a query would leave, and `pick()` chooses.
+ * (Obsidian matches loosely, letter by letter; the stand-in simply looks for
+ * the query inside the text, ignoring capitals.)
+ */
+export abstract class FuzzySuggestModal<T> extends Modal {
+  readonly inputEl = new FakeElement('input');
+  readonly resultContainerEl = new FakeElement();
+  emptyStateText = 'No results found.';
+  limit = 100;
+
+  setPlaceholder(placeholder: string): void {
+    this.inputEl.setAttr('placeholder', placeholder);
+  }
+
+  abstract getItems(): T[];
+  abstract getItemText(item: T): string;
+  abstract onChooseItem(item: T, event: unknown): void;
+
+  getSuggestions(query: string): Array<FuzzyMatch<T>> {
+    const wanted = query.trim().toLowerCase();
+    return this.getItems()
+      .filter((item) => this.getItemText(item).toLowerCase().includes(wanted))
+      .map((item) => ({ item, match: { score: 0, matches: [] } }));
+  }
+
+  renderSuggestion(match: FuzzyMatch<T>, el: FakeElement): void {
+    el.setText(this.getItemText(match.item));
+  }
+
+  onChooseSuggestion(match: FuzzyMatch<T>, event: unknown): void {
+    this.onChooseItem(match.item, event);
+  }
+
+  // --- helpers for the tests
+
+  /** The rows the list shows for what was typed, as drawn by renderSuggestion. */
+  shownFor(query = ''): FakeElement[] {
+    return this.getSuggestions(query).map((match) => {
+      const row = this.resultContainerEl.createDiv({ cls: 'suggestion-item' });
+      this.renderSuggestion(match, row);
+      return row;
+    });
+  }
+
+  /** As if the writer picked the row with this text: the window closes, then the choice is handed on. */
+  pick(text: string): void {
+    const match = this.getSuggestions('').find((candidate) => this.getItemText(candidate.item) === text);
+    if (!match) throw new Error(`the list has no "${text}"`);
+    this.close();
+    this.onChooseSuggestion(match, {});
+  }
+}
+
 export class TextComponent {
   readonly inputEl = new FakeElement('input');
   private changed: ((value: string) => unknown) | null = null;
@@ -626,6 +1012,11 @@ export class ButtonComponent {
 
   setCta(): this {
     this.buttonEl.addClass('mod-cta');
+    return this;
+  }
+
+  setWarning(): this {
+    this.buttonEl.addClass('mod-warning');
     return this;
   }
 

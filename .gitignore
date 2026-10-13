@@ -3,6 +3,8 @@ node_modules/
 
 # Build output (created by "npm run build")
 main.js
+# The stylesheet is joined by the build from the files in src/styles
+/styles.css
 
 # Plugin data written by Obsidian; never commit it
 data.json

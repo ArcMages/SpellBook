@@ -6,7 +6,10 @@
 //   - properties are changed with fileManager.processFrontMatter (a note's
 //     text is never touched),
 //   - notes are removed with fileManager.trashFile (never deleted outright),
-//   - notes are renamed with fileManager.renameFile (links are kept working).
+//   - notes are renamed with fileManager.renameFile (links are kept working),
+//   - a whole text is only ever replaced in the plugin's own files (the to-do
+//     list and the word logs), in one place: updateText below, which reads,
+//     changes and saves in one step with vault.process.
 
 import { TFile, TFolder, getFrontMatterInfo, normalizePath, parseYaml, stringifyYaml } from 'obsidian';
 import type { App, EventRef, Events, TAbstractFile } from 'obsidian';
@@ -14,8 +17,9 @@ import { clashKey, isInside } from '../core/paths';
 import type { Frontmatter } from '../core/types';
 import { VaultFileMissingError } from '../core/vaultPort';
 import type { MarkdownFileInfo, VaultEvent, VaultListener, VaultPort } from '../core/vaultPort';
+import { localDay } from './systemClock';
 
-/** Thrown inside processFrontMatter to leave a note untouched. Never leaves this file. */
+/** Thrown inside processFrontMatter or process to leave a file untouched. Never leaves this file. */
 class LeaveUntouched extends Error {}
 
 function isRecord(value: unknown): value is Frontmatter {
@@ -150,6 +154,19 @@ export class ObsidianVault implements VaultPort {
     return this.app.vault.getAllFolders(false).map((folder) => folder.path);
   }
 
+  listFiles(folder: string): string[] {
+    const found = this.find(folder);
+    if (!(found instanceof TFolder)) return [];
+    return found.children.filter((child): child is TFile => child instanceof TFile).map((file) => file.path);
+  }
+
+  createdDay(path: string): string | null {
+    const file = this.find(path);
+    if (!(file instanceof TFile)) return null;
+    const created = file.stat?.ctime;
+    return typeof created === 'number' && Number.isFinite(created) && created > 0 ? localDay(created) : null;
+  }
+
   exists(path: string): boolean {
     const wanted = normalizePath(path);
     if (this.find(path)) return true;
@@ -208,6 +225,50 @@ export class ObsidianVault implements VaultPort {
         // Throwing here is how processFrontMatter is told to write nothing.
         if (!isRecord(frontmatter) || !change(frontmatter)) throw new LeaveUntouched();
         saved = true;
+      });
+    } catch (error) {
+      if (error instanceof LeaveUntouched) return false;
+      throw error;
+    }
+    return saved;
+  }
+
+  /**
+   * The one place in the plugin that replaces a file's whole text. Only the
+   * project store calls it, and only for the plugin's own files (the to-do
+   * list and the word logs): see updateDataFile in src/core/projectStore.ts.
+   */
+  async updateText(path: string, change: (current: string | null) => string | null): Promise<boolean> {
+    const existing = this.find(path);
+    if (existing !== null && !(existing instanceof TFile)) {
+      throw new Error(`"${path}" is a folder, not a file.`);
+    }
+    if (existing === null) {
+      const text = change(null);
+      if (text === null) return false;
+      try {
+        await this.app.vault.create(normalizePath(path), text);
+        return true;
+      } catch (error) {
+        // The file may have arrived (from another device) at this very
+        // moment. If it is there now, change it as it is; never replace it
+        // with what was worked out for a file that did not exist.
+        if (!(this.find(path) instanceof TFile)) throw error;
+      }
+    }
+    return this.changeText(this.requireFile(path), change);
+  }
+
+  /** Read, change and save an existing file's text in one step; nothing is written when `change` gives null. */
+  private async changeText(file: TFile, change: (current: string | null) => string | null): Promise<boolean> {
+    let saved = false;
+    try {
+      await this.app.vault.process(file, (current) => {
+        const text = change(current);
+        // Throwing here is how the vault is told to write nothing.
+        if (text === null || text === current) throw new LeaveUntouched();
+        saved = true;
+        return text;
       });
     } catch (error) {
       if (error instanceof LeaveUntouched) return false;

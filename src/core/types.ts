@@ -98,6 +98,11 @@ export interface ProjectSnapshot extends ProjectSummary {
   readonly missing: readonly string[];
   /** Notes under Research/, as paths relative to the project. */
   readonly research: readonly string[];
+  /**
+   * Conflicting copies of the index note that sit next to it (typically
+   * "<Project> 2.md", left by a sync service), as vault paths. Usually empty.
+   */
+  readonly conflicts: readonly string[];
   /** Goes up by one each time the snapshot changes. */
   readonly revision: number;
 }
@@ -113,15 +118,19 @@ export type NoopReason =
 /** Why an intent was refused before anything was written. */
 export type RefusalReason =
   | 'no-project'
+  | 'other-project'
   | 'read-only'
   | 'invalid-name'
   | 'invalid-path'
+  | 'invalid-key'
   | 'invalid-move'
   | 'exists'
   | 'parent-missing'
   | 'inside-project'
   | 'missing-file'
   | 'not-a-project'
+  | 'not-a-copy'
+  | 'unreadable-copy'
   | 'not-found';
 
 /**
@@ -140,4 +149,15 @@ export type IntentResult<T = undefined> =
 /** What a store listener is told. Listeners then read the store again. */
 export type StoreChange =
   | { readonly type: 'projects' } // the list of projects in the vault changed
-  | { readonly type: 'project' }; // the open project changed (or was opened or closed)
+  | {
+      // the open project changed (or was opened or closed)
+      readonly type: 'project';
+      /**
+       * Set when the open project is the one that was open before, at another
+       * path: its index note or its folder was renamed or moved. This is the
+       * index path it had until now. Whatever is remembered about a project
+       * by its index path (what was folded shut, which row was selected)
+       * belongs under the new path from here on.
+       */
+      readonly movedFrom?: string;
+    };

@@ -10,7 +10,7 @@ const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const div = (a: number, b: number): number => Math.floor(a / b);
 
 /** Days from 1970-01-01 to the given date. `month` is 1 to 12. */
-function daysFromCivil(year: number, month: number, day: number): number {
+export function daysFromCivil(year: number, month: number, day: number): number {
   const y = month <= 2 ? year - 1 : year;
   const era = div(y, 400);
   const yearOfEra = y - era * 400;
@@ -20,7 +20,7 @@ function daysFromCivil(year: number, month: number, day: number): number {
 }
 
 /** The date that is `days` days after 1970-01-01, as [year, month, day]. */
-function civilFromDays(days: number): [number, number, number] {
+export function civilFromDays(days: number): [number, number, number] {
   const z = days + 719468;
   const era = div(z, 146097);
   const dayOfEra = z - era * 146097;
@@ -49,6 +49,35 @@ export function isDateText(text: string): boolean {
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
   const [y, m, d] = civilFromDays(daysFromCivil(year, month, day));
   return y === year && m === month && d === day;
+}
+
+/**
+ * The day number of a date written as YYYY-MM-DD: the days from 1970-01-01
+ * to it (negative before then). Null for text that is not a real date.
+ */
+export function dayNumber(date: string): number | null {
+  const match = DATE_PATTERN.exec(date);
+  if (!match || !isDateText(date)) return null;
+  return daysFromCivil(Number(match[1]), Number(match[2]), Number(match[3]));
+}
+
+/** The date with this day number, as YYYY-MM-DD. Null when it is not a whole number or falls outside the years 0 to 9999. */
+export function dateOfDayNumber(day: number): string | null {
+  if (!Number.isInteger(day)) return null;
+  const [year, month, dayOfMonth] = civilFromDays(day);
+  if (year < 0 || year > 9999) return null;
+  return formatLocalDate(year, month, dayOfMonth);
+}
+
+/**
+ * How many days lie from one date to another, both written as YYYY-MM-DD:
+ * 0 for the same day, negative when `to` is the earlier one. Null when
+ * either is not a real date.
+ */
+export function daysBetween(from: string, to: string): number | null {
+  const start = dayNumber(from);
+  const end = dayNumber(to);
+  return start === null || end === null ? null : end - start;
 }
 
 /**

@@ -59,6 +59,19 @@ export interface VaultPort {
   listFolders(): string[];
 
   /**
+   * Every file directly inside a folder (not those in its sub-folders), of
+   * any kind, as vault paths. Empty when there is no such folder. Cheap;
+   * reads no files.
+   */
+  listFiles(folder: string): string[];
+
+  /**
+   * The day a file was created, on this device's calendar, as YYYY-MM-DD.
+   * Null when there is no such file or the vault does not know.
+   */
+  createdDay(path: string): string | null;
+
+  /**
    * Whether a file or folder is at this path. Upper and lower case are not
    * told apart ("letter.md" exists when "Letter.md" does), because that is
    * how phones and Macs store files. Use it to avoid name clashes.
@@ -106,6 +119,24 @@ export interface VaultPort {
    * missing, its properties cannot be read, or the save fails.
    */
   updateFrontmatter(path: string, change: (frontmatter: Frontmatter) => boolean): Promise<boolean>;
+
+  /**
+   * Read, change and save the WHOLE text of a file in one step, against the
+   * file as it is on disk at that moment. A file that is not there yet is
+   * created (its folder must exist).
+   *
+   * This replaces everything in the file, so it is only for files the plugin
+   * itself owns (its to-do list and its word logs). It must never be used on
+   * a scene or any other note the writer writes in: the project store is the
+   * only caller, and it refuses every other path.
+   *
+   * `change` receives the current text, or null when there is no such file.
+   * It returns the new text, or null to leave things exactly as they are
+   * (nothing is written, and a missing file is not created).
+   *
+   * Resolves with whether the file was written. Rejects when the save fails.
+   */
+  updateText(path: string, change: (current: string | null) => string | null): Promise<boolean>;
 
   /** Listen to vault events. Returns a function that stops listening. */
   on(listener: VaultListener): () => void;

@@ -37,6 +37,60 @@ describe('MemoryVault as a VaultPort', () => {
     expect(new MemoryVault().listFolders()).toEqual([]);
   });
 
+  it('lists the files directly inside a folder, of any kind', () => {
+    const vault = new MemoryVault().seed('A/One.md').seed('A/log.json').seed('A/Sub/Two.md').seed('AB/Three.md');
+    expect(vault.listFiles('A')).toEqual(['A/One.md', 'A/log.json']);
+    expect(vault.listFiles('A/Sub')).toEqual(['A/Sub/Two.md']);
+    expect(vault.listFiles('Nowhere')).toEqual([]);
+  });
+
+  it('changes a whole text in one step, and reads it back letter for letter', async () => {
+    const { vault, events } = watched(new MemoryVault().seed('A/List.md', { frontmatter: { n: 1 }, body: 'one\n' }));
+    const seen: Array<string | null> = [];
+    const saved = await vault.updateText('A/List.md', (current) => {
+      seen.push(current);
+      return `${current ?? ''}two\n`;
+    });
+    expect(saved).toBe(true);
+    expect(seen).toEqual(['---\nn: 1\n---\none\n']);
+    expect(await vault.readText('A/List.md')).toBe('---\nn: 1\n---\none\ntwo\n');
+    expect(vault.frontmatterOf('A/List.md')).toEqual({ n: 1 }); // the properties block is still understood
+    expect(vault.bodyOf('A/List.md')).toBe('one\ntwo\n');
+    expect(vault.writes).toEqual([{ op: 'updateText', path: 'A/List.md' }]);
+    expect(events.map((event) => event.type)).toEqual(['modify', 'metadata']);
+
+    // A later change to its properties is read back as well.
+    await vault.updateFrontmatter('A/List.md', (frontmatter) => {
+      frontmatter['n'] = 2;
+      return true;
+    });
+    expect(await vault.readText('A/List.md')).toBe('---\nn: 2\n---\none\ntwo\n');
+  });
+
+  it('creates a file that is not there when its text is changed, and writes nothing for null or the same text', async () => {
+    const { vault, events } = watched(new MemoryVault().seedFolder('A'));
+    expect(await vault.updateText('A/New.txt', () => null)).toBe(false);
+    expect(vault.has('A/New.txt')).toBe(false);
+    expect(await vault.updateText('A/New.txt', (current) => (current === null ? 'made\n' : null))).toBe(true);
+    expect(vault.textOf('A/New.txt')).toBe('made\n');
+    expect(await vault.updateText('A/New.txt', (current) => current)).toBe(false);
+    expect(vault.writes).toEqual([{ op: 'updateText', path: 'A/New.txt' }]);
+    expect(events).toEqual([{ type: 'create', path: 'A/New.txt', folder: false }]);
+
+    await expect(vault.updateText('No folder/x.md', () => 'x')).rejects.toThrow(/Folder does not exist/);
+    await expect(vault.updateText('A', () => 'x')).rejects.toThrow(/folder/);
+    vault.failNext('updateText');
+    await expect(vault.updateText('A/New.txt', () => 'other')).rejects.toThrow();
+    expect(vault.textOf('A/New.txt')).toBe('made\n');
+  });
+
+  it('knows the day a file was created only when a test has said so', () => {
+    const vault = new MemoryVault().seed('A/One.md');
+    expect(vault.createdDay('A/One.md')).toBeNull();
+    expect(vault.setCreatedDay('A/One.md', '2026-10-01').createdDay('A/One.md')).toBe('2026-10-01');
+    expect(vault.createdDay('Nowhere.md')).toBeNull();
+  });
+
   it('hands out copies: changing what it returns does not change the vault', async () => {
     const vault = new MemoryVault().seed('Note.md', { frontmatter: { list: [1, 2] } });
     const read = await vault.readFrontmatter('Note.md');
