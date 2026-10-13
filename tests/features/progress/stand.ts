@@ -27,7 +27,6 @@ import { registerFeatures } from '../../../src/features/registry';
 import type { FeatureClock, RegisteredFeatures } from '../../../src/features/registry';
 import { MemoryVault } from '../../memoryVault';
 import { FakeElement, Plugin as StubPlugin, fakeDocument } from '../../obsidianStub';
-import type { FakeTarget } from '../../obsidianStub';
 import { MemoryDeviceStorage, fixedRandom, openSeeded, quiet } from '../../storeHarness';
 import type { SeedOptions } from '../../storeHarness';
 
@@ -76,35 +75,11 @@ export class TestClock implements FeatureClock {
   }
 }
 
-/** The shared stand-in plugin, with the parts of Obsidian's Plugin the feature needs on top. */
-export class FakePlugin extends StubPlugin {
-  /** What was handed to registerEditorExtension, in order. */
-  readonly editorExtensions: Extension[] = [];
-  /** The app's status bar: the items the plugin added are its children. */
-  readonly statusBar = new FakeElement('div');
-  private readonly domEvents: Array<{ target: FakeTarget; type: string; callback: (event: never) => unknown }> = [];
-
-  registerEditorExtension(extension: Extension): void {
-    this.editorExtensions.push(extension);
-  }
-
-  addStatusBarItem(): FakeElement {
-    return this.statusBar.createDiv({ cls: 'status-bar-item' });
-  }
-
-  registerDomEvent(target: FakeTarget, type: string, callback: (event: never) => unknown): void {
-    target.addEventListener(type, callback);
-    this.domEvents.push({ target, type, callback });
-  }
-
-  /** As Obsidian does on unload: what was registered through the plugin is taken away again. */
-  override unload(): void {
-    super.unload();
-    for (const { target, type, callback } of this.domEvents.splice(0)) target.removeEventListener(type, callback);
-    this.statusBar.empty();
-    this.editorExtensions.length = 0;
-  }
-}
+/**
+ * The shared stand-in plugin: it has the status bar, the place for editor
+ * extensions and the page's events the feature needs (tests/obsidianStub.ts).
+ */
+export class FakePlugin extends StubPlugin {}
 
 interface WorkspaceRef {
   name: string;

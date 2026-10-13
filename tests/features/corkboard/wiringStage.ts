@@ -39,26 +39,9 @@ export interface Room {
  * added here, for these tests only.
  */
 export function makeRoom(workspace: FakeWorkspace): Room {
-  const room: Room = { noRoomOnTheRight: false, layoutSaves: 0 };
-  const opener = workspace.getLeaf.bind(workspace);
-  const roomy = workspace as unknown as {
-    getLeaf(where?: unknown): unknown;
-    getRightLeaf(split: boolean): FakeLeaf | null;
-    requestSaveLayout(): void;
-  };
-  roomy.getLeaf = (where?: unknown) => {
-    const plain = opener(where);
-    // The tab the writer is in (or a split, or a window): only ever used to show a note.
-    if (where !== 'tab' && where !== true) return plain;
-    // A new tab in the main area: it can show a note, or one of the plugin's views.
-    const leaf = workspace.addLeaf(workspace.rootSplit);
-    return Object.assign(leaf, { openFile: plain.openFile });
-  };
-  roomy.getRightLeaf = () => (room.noRoomOnTheRight ? null : workspace.addLeaf(workspace.rightSplit));
-  roomy.requestSaveLayout = () => {
-    room.layoutSaves++;
-  };
-  return room;
+  // The shared stand-in workspace (tests/fakeObsidianApp.ts) has all of it
+  // now; a Room is the workspace itself, under the names these tests use.
+  return workspace;
 }
 
 // ------------------------------------------------------------------- a novel

@@ -165,15 +165,9 @@ export async function wire(options: WireOptions = {}): Promise<Wired> {
   vault.clearWrites();
 
   const fake = new FakeObsidian();
-  // The stand-in workspace hands out leaves for notes only. A view in the
-  // main area needs a pane that can hold it: a new tab is one in the root.
-  const leavesAskedFor: unknown[] = [];
-  const workspace = fake.workspace;
-  const forNotes = workspace.getLeaf.bind(workspace);
-  (workspace as unknown as { getLeaf: (where?: unknown) => unknown }).getLeaf = (where?: unknown) => {
-    leavesAskedFor.push(where ?? false);
-    return where === 'tab' || where === true ? workspace.addLeaf(workspace.rootSplit) : forNotes(where);
-  };
+  // The stand-in workspace hands out a pane of the main area for a new tab,
+  // and keeps what it was asked for.
+  const leavesAskedFor = fake.workspace.leavesAskedFor;
 
   const plugin = new StubPlugin(fake.app, MANIFEST);
   if (options.refuseViews === true) {

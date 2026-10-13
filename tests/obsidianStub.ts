@@ -9,6 +9,24 @@
 // test what the plugin does with frontmatter; it does not test Obsidian's own
 // YAML formatting.
 
+import { StateField } from '@codemirror/state';
+import type { Extension } from '@codemirror/state';
+
+/** What an editor knows about the note it shows. */
+export interface StubEditorInfo {
+  file: { path: string } | null;
+}
+
+/**
+ * As in Obsidian: every markdown editor carries this field, and it says
+ * which note the editor shows. (A real CodeMirror field: the editors of the
+ * tests are real CodeMirror states without a screen.)
+ */
+export const editorInfoField = StateField.define<StubEditorInfo>({
+  create: () => ({ file: null }),
+  update: (value) => value,
+});
+
 export class TAbstractFile {
   path = '';
   name = '';
@@ -77,6 +95,21 @@ nodeGlobals.createFragment = (callback?: (fragment: FakeElement) => void): FakeE
   callback?.(fragment);
   return fragment;
 };
+
+// Node draws no screen, so it has no "before the next frame". The plugin's
+// clock (src/obsidian/systemClock.ts) asks the window for one: here a frame
+// is simply the next turn of the timers. A test that wants its own puts it
+// in place with vi.stubGlobal.
+const frameGlobals = globalThis as {
+  requestAnimationFrame?: (callback: (time: number) => void) => unknown;
+  cancelAnimationFrame?: (id: unknown) => void;
+};
+if (frameGlobals.requestAnimationFrame === undefined) {
+  frameGlobals.requestAnimationFrame = (callback) => setTimeout(() => callback(Date.now()), 0);
+  frameGlobals.cancelAnimationFrame = (id) => {
+    clearTimeout(id as ReturnType<typeof setTimeout>);
+  };
+}
 
 /** What createEl, createDiv and createSpan accept: Obsidian's DomElementInfo, or just a class name. */
 export type FakeElementInfo =
@@ -543,11 +576,34 @@ export class Plugin {
   readonly viewTypes: string[] = [];
   /** Every event handed to registerEvent, for tests that check nothing is left attached. */
   readonly registeredEvents: StubEventRef[] = [];
+  /** What was handed to registerEditorExtension, in order. Emptied on unload. */
+  readonly editorExtensions: Extension[] = [];
+  /** The app's status bar: the items the plugin added are its children. Emptied on unload. */
+  readonly statusBar = new FakeElement('div');
+  private readonly domEvents: Array<{ target: FakeTarget; type: string; callback: (event: never) => unknown }> = [];
   private readonly cleanups: Array<() => unknown> = [];
 
   constructor(app: unknown, manifest: unknown) {
     this.app = app;
     this.manifest = manifest;
+  }
+
+  registerEditorExtension(extension: Extension): void {
+    this.editorExtensions.push(extension);
+  }
+
+  addStatusBarItem(): FakeElement {
+    return this.statusBar.createDiv({ cls: 'status-bar-item' });
+  }
+
+  /** How many listeners on the page (or a window, or an element) were registered through the plugin and are still attached. */
+  get domEventCount(): number {
+    return this.domEvents.length;
+  }
+
+  registerDomEvent(target: FakeTarget, type: string, callback: (event: never) => unknown): void {
+    target.addEventListener(type, callback);
+    this.domEvents.push({ target, type, callback });
   }
 
   private get viewRegistry(): ViewRegistry | undefined {
@@ -587,13 +643,18 @@ export class Plugin {
   /**
    * What Obsidian does when the plugin is disabled: the plugin's own clean-up
    * runs, its listeners are detached, its ribbon buttons go, and its view
-   * types stop existing, which closes any of its views that are open.
+   * types stop existing, which closes any of its views that are open. Its
+   * listeners on the page, its status bar items and its editor extensions go
+   * the same way.
    */
   unload(): void {
     for (const cleanup of this.cleanups.splice(0).reverse()) cleanup();
     for (const ref of this.registeredEvents.splice(0)) ref.e?.offref(ref);
     for (const icon of this.ribbonIcons) icon.shown = false;
     for (const type of this.viewTypes.splice(0)) this.viewRegistry?.unregisterViewCreator?.(type);
+    for (const { target, type, callback } of this.domEvents.splice(0)) target.removeEventListener(type, callback);
+    this.statusBar.empty();
+    this.editorExtensions.length = 0;
   }
 }
 
@@ -1036,6 +1097,32 @@ export class ButtonComponent {
   }
 }
 
+/** The switch of a settings row. `flip()` is what the writer does. */
+export class ToggleComponent {
+  readonly toggleEl = new FakeElement('div');
+  private value = false;
+  private changed: ((value: boolean) => unknown) | null = null;
+
+  setValue(value: boolean): this {
+    this.value = value;
+    return this;
+  }
+
+  getValue(): boolean {
+    return this.value;
+  }
+
+  onChange(callback: (value: boolean) => unknown): this {
+    this.changed = callback;
+    return this;
+  }
+
+  flip(): void {
+    this.value = !this.value;
+    this.changed?.(this.value);
+  }
+}
+
 /** One row of a settings page or a form. */
 export class Setting {
   readonly settingEl: FakeElement;
@@ -1043,6 +1130,15 @@ export class Setting {
   readonly descEl: FakeElement;
   readonly controlEl: FakeElement;
   readonly components: Array<TextComponent | DropdownComponent | ButtonComponent> = [];
+  /** The switches of the row (kept apart from `components`, which older tests count). */
+  readonly toggles: ToggleComponent[] = [];
+
+  addToggle(callback: (component: ToggleComponent) => unknown): this {
+    const component = new ToggleComponent();
+    this.toggles.push(component);
+    callback(component);
+    return this;
+  }
 
   constructor(containerEl: FakeElement) {
     containerEl.settings.push(this);

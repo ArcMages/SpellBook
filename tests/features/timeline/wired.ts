@@ -85,14 +85,9 @@ export interface Wired {
  * is given a pane there, as in Obsidian. Only for these tests: the shared
  * stand-in file is left as it is.
  */
-export function giveMainAreaTabs(fake: FakeObsidian): void {
-  const workspace = fake.workspace;
-  const forNotes = workspace.getLeaf.bind(workspace);
-  workspace.getLeaf = ((where?: unknown) => {
-    const notes = forNotes(where);
-    if (where !== 'tab' && where !== true) return notes;
-    return Object.assign(workspace.addLeaf(workspace.rootSplit), notes);
-  }) as typeof workspace.getLeaf;
+export function giveMainAreaTabs(_fake: FakeObsidian): void {
+  // Nothing to add any more: the shared stand-in workspace (tests/
+  // fakeObsidianApp.ts) hands out a pane of the main area for a new tab itself.
 }
 
 /**

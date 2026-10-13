@@ -10,14 +10,21 @@ import { progressFeature } from '../src/features/progress/index';
 import { FEATURES, registerFeatures } from '../src/features/registry';
 import type { Feature, FeatureContext, FeatureHost, SettingsSection } from '../src/features/registry';
 import { timelineFeature } from '../src/features/timeline/index';
+import { FakeObsidian } from './fakeObsidianApp';
+import { Plugin as StubPlugin, resetFakeDocument } from './obsidianStub';
 import { MemoryDeviceStorage, TODAY, fixedRandom, makeStore } from './storeHarness';
 
 afterEach(() => {
   vi.restoreAllMocks();
+  resetFakeDocument();
 });
 
 interface Stand {
   host: FeatureHost;
+  /** The stand-in app the features are handed. */
+  fake: FakeObsidian;
+  /** The stand-in plugin: it can hold views, commands, a status bar item and an editor extension. */
+  plugin: StubPlugin;
   storage: MemoryDeviceStorage;
   opened: Array<{ path: string; where: unknown }>;
   /** How often the device id was asked for from the host. */
@@ -29,11 +36,13 @@ function stand(): Stand {
   const { store, vault, timers } = makeStore();
   const storage = new MemoryDeviceStorage();
   const opened: Array<{ path: string; where: unknown }> = [];
+  const fake = new FakeObsidian();
+  const plugin = new StubPlugin(fake.app, { id: 'spellbook-novel-writer', name: 'Spellbook', version: '0.1.0' });
   let made = 0;
   let id: string | null = null;
   const host: FeatureHost = {
-    plugin: { name: 'the plugin' } as never,
-    app: { name: 'the app' } as never,
+    plugin: plugin as never,
+    app: fake.app,
     store,
     vault,
     storage,
@@ -48,7 +57,7 @@ function stand(): Stand {
       return true;
     },
   };
-  return { host, storage, opened, idsMade: () => made };
+  return { host, fake, plugin, storage, opened, idsMade: () => made };
 }
 
 const feature = (id: string, register: (context: FeatureContext) => void = () => undefined): Feature => ({ id, register });
@@ -59,14 +68,43 @@ describe('the list of features', () => {
     expect(FEATURES.map((entry) => entry.id)).toEqual(['corkboard', 'progress', 'planner', 'timeline']);
   });
 
-  it('registers as it stands, leaving no trace: the screens do nothing yet', () => {
-    const { host, storage, idsMade } = stand();
+  it('registers as it stands: every screen plugs itself in, and none leaves a trace on the device', () => {
+    const { host, fake, plugin, storage, idsMade } = stand();
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const registered = registerFeatures(FEATURES, host);
+    expect(logged).not.toHaveBeenCalled(); // no screen failed to start
     expect(registered.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline']);
-    expect(registered.settingsSections).toEqual([]);
-    expect(storage.saves).toEqual([]); // not even an id for the device was made
+
+    // What the screens registered through the plugin.
+    expect(plugin.viewTypes).toEqual(['spellbook-corkboard', 'spellbook-inspector', 'spellbook-planner', 'spellbook-timeline']);
+    const commandIds = plugin.commands.map((command) => command.id);
+    expect(commandIds).toEqual(
+      expect.arrayContaining(['open-corkboard', 'open-inspector', 'set-writing-targets', 'open-planner', 'open-timeline']),
+    );
+    expect(new Set(commandIds).size).toBe(commandIds.length); // no two share an id
+    expect(registered.settingsSections.map((section) => [section.id, section.title])).toEqual([
+      ['progress', 'Writing progress'],
+    ]);
+    // The writing progress watches the editor and has its place in the bottom bar.
+    expect(plugin.editorExtensions).toHaveLength(1);
+    expect(plugin.statusBar.children).toHaveLength(1);
+    expect(registered.services.get('progress.sceneLine')).toBeDefined();
+    expect(registered.services.get('progress.stats')).toBeDefined();
+
+    // No trace: no pane was opened, nothing was saved on the device, not even an id for it was made.
+    expect(fake.workspace.leaves).toEqual([]);
+    expect(storage.saves).toEqual([]);
     expect(idsMade()).toBe(0);
+
+    // Letting go: the features first (as the plugin does), then what Obsidian takes away itself.
     registered.release();
+    plugin.unload();
+    expect(registered.settingsSections).toEqual([]);
+    expect(registered.services.get('progress.stats')).toBeUndefined();
+    expect(fake.workspace.listenerCount()).toBe(0);
+    expect(plugin.statusBar.children).toEqual([]);
+    expect(plugin.domEventCount).toBe(0);
+    expect(fake.workspace.optionsUpdated).toBe(1); // the editors were told to drop the extension
   });
 });
 

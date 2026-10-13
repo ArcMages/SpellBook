@@ -213,20 +213,33 @@ describe('loading and unloading', () => {
   });
 
   it('plugs the screens in once the store is ready, and lets go of them on unload', () => {
-    const { fake, plugin } = load(novelVault());
+    const { fake, plugin, stub } = load(novelVault());
     expect(plugin.features).toBeNull(); // not before Obsidian has finished starting
 
     fake.finishStartup();
     expect(plugin.features?.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline']);
-    expect(plugin.features?.settingsSections).toEqual([]);
+    // The writing progress is the one screen with settings of its own.
+    expect(plugin.features?.settingsSections.map((section) => [section.id, section.title])).toEqual([
+      ['progress', 'Writing progress'],
+    ]);
+    // It watches the editor, has its place in the bottom bar, and listens to the workspace.
+    expect(stub.editorExtensions).toHaveLength(1);
+    expect(stub.statusBar.children).toHaveLength(1);
+    expect(['file-open', 'layout-change', 'quit'].map((name) => fake.workspace.listenerCount(name))).toEqual([1, 1, 1]);
     // Plugging them in leaves no trace on the device: no id was made for it yet.
     expect(fake.localStorage.size).toBe(0);
+    expect(fake.workspace.leaves).toEqual([]);
 
     const features = plugin.features;
     features?.services.provide('thing', 1);
     plugin.unload();
     expect(plugin.features).toBeNull();
     expect(features?.services.get('thing')).toBeUndefined();
+    expect(features?.settingsSections).toEqual([]);
+    expect(stub.editorExtensions).toEqual([]);
+    expect(stub.statusBar.children).toEqual([]);
+    expect(stub.domEventCount).toBe(0);
+    expect(fake.workspace.listenerCount()).toBe(0);
   });
 
   it('never starts if it was unloaded before Obsidian finished starting', () => {
@@ -614,7 +627,10 @@ describe('the binder', () => {
 
   it('is emptied, not removed, when the plugin is switched off, and nothing is left listening', async () => {
     const { fake, plugin, stub, pane, leaf } = await withBinder();
-    expect(fake.workspace.listenerCount()).toBe(1);
+    // The binder's one listener, next to the three of the writing progress
+    // (which note is in front, a tab closing, Obsidian quitting).
+    expect(fake.workspace.listenerCount()).toBe(4);
+    expect(fake.workspace.listenerCount('file-open')).toBe(2);
 
     plugin.unload();
     await until(() => pane.children.length === 0, 'the binder to be emptied');
@@ -1300,6 +1316,7 @@ describe('the settings page', () => {
     fake.addNote('Loose.md', note({ spellbook: 'project', version: 1, binder: [] }));
     const { stub } = loadReady(fake);
     const { tab, rows, element } = page(stub);
+    expect(fake.localStorage.size).toBe(0);
 
     tab.display();
 
@@ -1309,19 +1326,30 @@ describe('the settings page', () => {
       { name: 'Loose', desc: 'At the top of the vault', heading: false },
       { name: 'My Novel', desc: 'Novel', heading: false },
       { name: 'הרומן שלי', desc: 'Hebrew/הרומן שלי', heading: false },
+      // After the projects: the one section a screen added, under its own heading.
+      { name: 'Writing progress', desc: '', heading: true },
     ]);
     // titles and folders are the writer's own text: each picks its own direction
-    for (const row of element.settings.slice(2)) {
+    for (const row of element.settings.slice(2, 5)) {
       expect(row.nameEl.attrs['dir']).toBe('auto');
       expect(row.descEl.attrs['dir']).toBe('auto');
     }
+    // The section's own rows are drawn in a place of its own: one switch, off until the writer turns it on.
+    const section = one(element, 'spellbook-settings-progress');
+    expect(section.settings.map((row) => row.nameEl.text)).toEqual(['Count pasted text']);
+    const toggle = section.settings[0]?.toggles[0];
+    expect(toggle?.getValue()).toBe(false);
+    toggle?.flip();
+    expect(fake.localStorage.size).toBe(1); // the choice is kept on this device
+    tab.display();
+    expect(one(element, 'spellbook-settings-progress').settings[0]?.toggles[0]?.getValue()).toBe(true);
   });
 
   it('explains how to make a project when there are none', () => {
     const { stub } = loadReady();
     const { tab, rows } = page(stub);
     tab.display();
-    expect(rows()).toHaveLength(3);
+    expect(rows().map((row) => row.name)).toEqual(['Spellbook', 'Projects in this vault', '', 'Writing progress']);
     expect(rows()[2]?.name).toBe('');
     expect(rows()[2]?.desc).toMatch(/No projects yet/);
     expect(rows()[2]?.desc).toMatch(/"Spellbook: Create project"/);
@@ -1339,22 +1367,30 @@ describe('the settings page', () => {
   it('follows the vault while it is open, and stops when it is closed', async () => {
     const { plugin, stub } = loadReady();
     const { tab, rows } = page(stub);
+    /** The rows between the "Projects in this vault" heading and the first heading a screen added. */
+    const projects = (): Row[] => {
+      const after = rows().slice(2);
+      const next = after.findIndex((row) => row.heading);
+      return next < 0 ? after : after.slice(0, next);
+    };
     tab.display();
-    expect(rows()).toHaveLength(3);
+    expect(rows()).toHaveLength(4);
+    expect(projects().map((row) => row.name)).toEqual(['']); // "No projects yet"
 
     await plugin.createProject('First');
-    expect(rows().slice(2)).toEqual([{ name: 'First', desc: 'First', heading: false }]);
+    expect(projects()).toEqual([{ name: 'First', desc: 'First', heading: false }]);
+    expect(rows().filter((row) => row.heading).map((row) => row.name)).toEqual(['Projects in this vault', 'Writing progress']);
 
     tab.display(); // opened again: still one listener's worth of rows
     await plugin.createProject('Second');
-    expect(rows().slice(2).map((row) => row.name)).toEqual(['First', 'Second']);
+    expect(projects().map((row) => row.name)).toEqual(['First', 'Second']);
 
     tab.hide();
     expect(rows()).toEqual([]);
     await plugin.createProject('Third');
     expect(rows()).toEqual([]); // closed: nothing is drawn behind the writer's back
     tab.display();
-    expect(rows().slice(2).map((row) => row.name)).toEqual(['First', 'Second', 'Third']);
+    expect(projects().map((row) => row.name)).toEqual(['First', 'Second', 'Third']);
   });
 
   describe('with sections that features added', () => {

@@ -18,6 +18,7 @@
 
 import { TFile, TFolder, getFrontMatterInfo, parseYaml, stringifyYaml } from 'obsidian';
 import type { App, CachedMetadata, TAbstractFile } from 'obsidian';
+import { FakeElement } from './obsidianStub';
 
 interface Ref {
   name: string;
@@ -278,6 +279,7 @@ export class FakeLeaf {
     private readonly workspace: FakeWorkspace,
     readonly app: unknown,
     readonly split: FakeSplit,
+    private readonly noteOpener: NoteOpener['openFile'] | null = null,
   ) {}
 
   getRoot(): FakeSplit {
@@ -289,6 +291,8 @@ export class FakeLeaf {
   }
 
   async setViewState(state: { type: string; active?: boolean }): Promise<void> {
+    // A new tab that was only handed out so far takes its place now.
+    if (!this.detached && !this.workspace.leaves.includes(this)) this.workspace.leaves.push(this);
     await this.view?.close();
     this.view = null;
     this.type = state.type;
@@ -298,13 +302,25 @@ export class FakeLeaf {
     await this.view.open();
   }
 
+  /** Show a note in this pane. Only a pane of the main area can (see FakeWorkspace.getLeaf). */
+  async openFile(file: TFile, state?: unknown): Promise<void> {
+    if (!this.noteOpener) throw new Error('this pane is not one that shows notes');
+    await this.noteOpener(file, state);
+  }
+
   detach(): void {
     if (this.detached) return;
     this.detached = true;
-    this.workspace.leaves.splice(this.workspace.leaves.indexOf(this), 1);
+    const at = this.workspace.leaves.indexOf(this);
+    if (at >= 0) this.workspace.leaves.splice(at, 1);
     void this.view?.close();
     this.view = null;
   }
+}
+
+/** What the plugin asks of a pane to show a note in it. */
+export interface NoteOpener {
+  openFile(file: TFile, state?: unknown): Promise<void>;
 }
 
 /** One call to leaf.openFile(), with where the leaf came from. */
@@ -332,8 +348,20 @@ export class FakeWorkspace extends FakeEvents {
   readonly viewCreators = new Map<string, (leaf: unknown) => unknown>();
   /** Set to make getLeftLeaf() return null, as Obsidian may. */
   noRoomOnTheLeft = false;
+  /** Set to make getRightLeaf() return null, as Obsidian may. */
+  noRoomOnTheRight = false;
   /** The leaves handed to revealLeaf(), in order. */
   readonly revealed: FakeLeaf[] = [];
+  /** Everything getLeaf() was asked for, in order (false = the tab in use). */
+  readonly leavesAskedFor: unknown[] = [];
+  /** How often a view asked for the layout to be saved. */
+  layoutSaves = 0;
+  /** How often the editors were asked to take their extensions anew. */
+  optionsUpdated = 0;
+  /** The element the whole workspace is drawn in; it belongs to the page. */
+  readonly containerEl = new FakeElement('div');
+  /** The notes open in tabs, as vault paths (see showNote and closeNoteTab). */
+  noteTabs: string[] = [];
 
   private waiting: Array<() => unknown> = [];
 
@@ -341,24 +369,67 @@ export class FakeWorkspace extends FakeEvents {
     super();
   }
 
-  getLeaf(newLeaf?: unknown): { openFile(file: TFile, state?: unknown): Promise<void> } {
-    return {
+  /**
+   * A pane of the main area. Asked for a new tab ('tab' or true) it is a
+   * real pane in the root, which can hold one of the plugin's views as well
+   * as a note; anything else is the tab in use (or a split, or a window),
+   * which the plugin only ever uses to show a note.
+   */
+  getLeaf(newLeaf?: unknown): NoteOpener {
+    this.leavesAskedFor.push(newLeaf ?? false);
+    const opener: NoteOpener = {
       openFile: async (file: TFile, state?: unknown): Promise<void> => {
         this.opened.push(file.path);
         this.openCalls.push({ path: file.path, where: newLeaf ?? false, state });
         this.setActiveFile(file);
       },
     };
+    if (newLeaf !== 'tab' && newLeaf !== true) return opener;
+    // The pane only takes up room once it holds something: a note that is
+    // opened in it is a note tab, not one of the plugin's panes.
+    return new FakeLeaf(this, this.app, this.rootSplit, opener.openFile);
+  }
+
+  /** A new pane in the right sidebar, or null when there is no room for one. */
+  getRightLeaf(_split: boolean): FakeLeaf | null {
+    if (this.noRoomOnTheRight) return null;
+    return this.addLeaf(this.rightSplit);
+  }
+
+  requestSaveLayout(): void {
+    this.layoutSaves++;
+  }
+
+  updateOptions(): void {
+    this.optionsUpdated++;
+  }
+
+  /**
+   * Every pane, as Obsidian hands them out: the plugin's own, and one for
+   * each note that is open in a tab.
+   */
+  iterateAllLeaves(callback: (leaf: unknown) => unknown): void {
+    for (const leaf of [...this.leaves]) callback(leaf);
+    for (const path of this.noteTabs) {
+      callback({ view: { file: { path } }, getViewState: () => ({ type: 'markdown', state: { file: path } }) });
+    }
   }
 
   getActiveFile(): TFile | null {
     return this.activeFile;
   }
 
+  /** A tab with a note is closed without another note coming to the front. */
+  closeNoteTab(path: string): void {
+    this.noteTabs = this.noteTabs.filter((tab) => tab !== path);
+    this.trigger('layout-change');
+  }
+
   /** The writer moves to another note (or to none): Obsidian announces it. */
   setActiveFile(file: TFile | null): void {
     if (file === this.activeFile) return;
     this.activeFile = file;
+    if (file !== null && !this.noteTabs.includes(file.path)) this.noteTabs.push(file.path);
     this.trigger('file-open', file);
   }
 
