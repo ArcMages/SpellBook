@@ -6,6 +6,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { folderRef, sceneRef } from '../src/core/binderTree';
 import { ORDER_DEBOUNCE_MS, RENAME_SETTLE_MS } from '../src/core/projectStore';
+import { SNAPSHOT_ACTIONS } from '../src/views/binderActions';
+import type { SnapshotActions } from '../src/views/binderActions';
 import { MISSING_LABEL, MORE_LABEL } from '../src/views/binderView';
 import {
   last,
@@ -555,6 +557,61 @@ describe('the menus', () => {
     expect(menu.item('Delete scene').warning).toBe(true);
     expect(menu.items.filter((item) => item.warning).map((item) => item.title)).toEqual(['Delete scene']);
     expect(menu.items.every((item) => item.icon !== null)).toBe(true);
+  });
+
+  it('of a scene, when the snapshots are there: "Take snapshot" and "Snapshots", for that scene', async () => {
+    const s = await stage(novel());
+    const asked: string[] = [];
+    const offered = new Map<string, unknown>();
+    s.host.features = { services: { get: <T>(name: string) => offered.get(name) as T | undefined } };
+    const snapshots: SnapshotActions = {
+      take: (path) => asked.push(`take ${path}`),
+      show: (path) => asked.push(`show ${path}`),
+    };
+
+    // Nobody offers them yet: the menu is as it was.
+    expect(menuOf(s.pane, 'The Letter').outline).not.toContain('Take snapshot');
+    expect(menuOf(s.pane, 'The Letter').outline).not.toContain('Snapshots');
+
+    // They are asked for when the menu opens, so one that arrives later is found.
+    offered.set(SNAPSHOT_ACTIONS, snapshots);
+    const menu = menuOf(s.pane, 'The Letter');
+    expect(menu.outline).toEqual([
+      'Open in new tab',
+      'New scene below',
+      '---',
+      'Rename',
+      'Move up',
+      'Move down',
+      'Move to folder',
+      '---',
+      'Take snapshot',
+      'Snapshots',
+      '---',
+      'Delete scene',
+    ]);
+    expect(menu.item('Take snapshot').icon).toBe('camera');
+    expect(menu.item('Snapshots').icon).toBe('history');
+    expect(menu.items.filter((item) => item.warning).map((item) => item.title)).toEqual(['Delete scene']);
+    expect(asked).toEqual([]); // nothing until one is chosen
+
+    menu.item('Take snapshot').click();
+    menu.item('Snapshots').click();
+    menuOf(s.pane, 'מכתב לאחותי').item('Take snapshot').click();
+    expect(asked).toEqual(['take Manuscript/The Letter.md', 'show Manuscript/The Letter.md', `take ${HEBREW_REL}`]);
+    // Choosing one changes nothing in the vault by itself.
+    await rest(s);
+    expect(s.vault.writes).toEqual([]);
+
+    // Only a scene with a note has them: not a folder, a missing entry, an unfiled note or a research note.
+    for (const row of ['Part one', 'Ghost', 'Loose', 'Trains']) {
+      expect(menuOf(s.pane, row).outline, row).not.toContain('Take snapshot');
+      expect(menuOf(s.pane, row).outline, row).not.toContain('Snapshots');
+    }
+
+    // And they go again with the snapshots.
+    offered.delete(SNAPSHOT_ACTIONS);
+    expect(menuOf(s.pane, 'The Letter').outline).not.toContain('Take snapshot');
   });
 
   it('of a folder', async () => {

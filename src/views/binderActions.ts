@@ -57,6 +57,17 @@ export const SHOW_ON_CORKBOARD = 'corkboard.showFolder';
 /** What the corkboard offers under that name: show a folder of a project, by the project's index path and the folder's id. */
 export type ShowOnCorkboard = (inProject: string, folderId: string) => unknown;
 
+/** The name under which the snapshots are offered (see src/features/snapshots). */
+export const SNAPSHOT_ACTIONS = 'snapshots.actions';
+
+/** What the snapshots offer under that name, for a scene by its path relative to the project folder. */
+export interface SnapshotActions {
+  /** Ask for a name and take a snapshot of the scene. */
+  take(scenePath: string): void;
+  /** Show the scene's snapshots. */
+  show(scenePath: string): void;
+}
+
 /** What a kind of thing kept in the index is called in a notice: one of them, and several. */
 const BROUGHT_OVER: Readonly<Record<string, readonly [string, string]>> = {
   statuses: ['status', 'statuses'],
@@ -114,6 +125,11 @@ export class BinderActions {
   /** What shows a binder folder on the corkboard; null when there is no corkboard to show it on. */
   get showOnCorkboard(): ShowOnCorkboard | null {
     return this.host.features?.services.get<ShowOnCorkboard>(SHOW_ON_CORKBOARD) ?? null;
+  }
+
+  /** What takes and shows the snapshots of a scene; null when the snapshots are not there. */
+  get snapshots(): SnapshotActions | null {
+    return this.host.features?.services.get<SnapshotActions>(SNAPSHOT_ACTIONS) ?? null;
   }
 
   /**
