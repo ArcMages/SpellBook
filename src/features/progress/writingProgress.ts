@@ -60,6 +60,12 @@ export const RECOUNT_AFTER_MS = 1000;
 /** The name under which the writing progress asks for word counts (see WordCountCache.track). */
 export const WORD_COUNT_ASKER = 'progress';
 
+/** How long after midnight "today" is looked at again: a little late rather than a moment too early. */
+export const AFTER_MIDNIGHT_MS = 1000;
+
+/** How often the date is looked at when the clock cannot tell how long it is until midnight. */
+export const DAY_CHECK_MS = 60000;
+
 /** The note in front, and what is shown about it. */
 interface OpenNote {
   /** The note's vault path. */
@@ -130,8 +136,10 @@ export class WritingProgress {
   private shownLine = '';
   private statsDirty = false;
   private readingLog = false;
-  /** The date at the last change in the editor, to notice midnight passing. */
+  /** The date as it was last looked at, to notice midnight passing. */
   private day: string;
+  /** Cancels the timer that waits for the date to change. */
+  private cancelDayWatch: (() => void) | null = null;
   private cancelRedraw: (() => void) | null = null;
   private cancelRecount: (() => void) | null = null;
   private closed = false;
@@ -225,6 +233,7 @@ export class WritingProgress {
 
     this.followProject(false);
     this.lookAt(app.workspace.getActiveFile()?.path ?? null);
+    this.watchDay();
   }
 
   /** The plugin is unloading: save what is not saved yet, then let go of everything. */
@@ -236,6 +245,8 @@ export class WritingProgress {
     this.ledger.stop();
 
     this.closed = true;
+    this.cancelDayWatch?.();
+    this.cancelDayWatch = null;
     this.cancelRedraw?.();
     this.cancelRedraw = null;
     this.cancelRecount?.();
@@ -260,14 +271,50 @@ export class WritingProgress {
   private onEdit(edit: EditorEdit): void {
     if (this.closed) return;
     this.ledger.edit(edit);
-    const today = this.context.clock.today();
-    if (today !== this.day) {
-      // Midnight has passed since the last change: yesterday's words are saved at once.
-      this.day = today;
-      this.ledger.soon();
-    }
+    // Midnight may have passed since the date was last looked at (the timer for it can run late).
+    const today = this.newDay();
     // What the writer did marks the scene as edited today; what came from elsewhere does not.
     if (edit.kind !== 'external') this.dates.typed(edit.path, today);
+  }
+
+  /**
+   * Look at the date. When it is another day than when it was last looked
+   * at, yesterday's words are saved at once and every figure that is about
+   * "today" starts again: the line is drawn anew, and whoever reads the log
+   * (the planner) is told. Nothing is counted or drawn here itself, so it is
+   * safe inside the editor's update.
+   *
+   * @returns today's date
+   */
+  private newDay(): string {
+    const today = this.context.clock.today();
+    if (today !== this.day) {
+      this.day = today;
+      this.ledger.soon();
+      this.statsDirty = true;
+      this.refresh();
+    }
+    return today;
+  }
+
+  /**
+   * Wait for the date to change, so that "today" rolls over at midnight
+   * also when nothing is typed and nothing else happens. One timer, set for
+   * just after midnight; where the clock cannot say when that is, the date
+   * is looked at once a minute instead.
+   */
+  private watchDay(): void {
+    if (this.closed || this.cancelDayWatch !== null) return;
+    const { clock } = this.context;
+    const left = clock.untilTomorrow?.();
+    const wait = left !== undefined && Number.isFinite(left) && left >= 0 ? left + AFTER_MIDNIGHT_MS : DAY_CHECK_MS;
+    this.cancelDayWatch = clock.setTimer(() => {
+      this.cancelDayWatch = null;
+      if (this.closed) return;
+      this.newDay();
+      // Fired a little early (the device's clock was set back)? Then the wait simply starts again.
+      this.watchDay();
+    }, wait);
   }
 
   /** Another note is in front (or none is): the scenes that were typed in and left get their date. */
@@ -289,7 +336,9 @@ export class WritingProgress {
       this.dates.handle({ type: 'background' });
       void this.ledger.flush();
     } else {
-      // Time has passed, perhaps a whole night.
+      // Time has passed, perhaps a whole night: a timer that should have fired
+      // while the device slept may not have yet.
+      this.newDay();
       this.ledger.poke();
       this.statsDirty = true;
       this.refresh();

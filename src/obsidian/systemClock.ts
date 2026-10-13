@@ -19,6 +19,23 @@ export function nowMs(): number {
   return Date.now();
 }
 
+/**
+ * How long it is from a moment until the date changes on this device: until
+ * the next midnight on its own calendar, in milliseconds. (Not always what
+ * is left of 24 hours: a day is an hour shorter or longer when the clocks
+ * change.)
+ */
+export function untilNextDay(time: number): number {
+  const moment = new Date(time);
+  const midnight = new Date(moment.getFullYear(), moment.getMonth(), moment.getDate() + 1);
+  return Math.max(0, midnight.getTime() - time);
+}
+
+/** How long it is until the date changes on this device, in milliseconds. */
+export function untilTomorrow(): number {
+  return untilNextDay(Date.now());
+}
+
 /** Call `callback` once after `ms` milliseconds. Returns a function that cancels it. */
 export function setTimer(callback: () => void, ms: number): () => void {
   const id = window.setTimeout(callback, ms);

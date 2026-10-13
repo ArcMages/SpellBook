@@ -493,7 +493,7 @@ export class ProjectStore {
   async readDataFile(path: string): Promise<IntentResult<string | null>> {
     const active = this.active;
     if (!active) return refused('no-project', 'No project is open.');
-    const rel = this.dataFilePath(active, path);
+    const rel = this.dataFilePath(active.folder, active.indexPath, this.effectiveBinder(active), path, false);
     if (typeof rel !== 'string') return rel;
     try {
       return done(await this.vault.readText(joinPath(active.folder, rel)));
@@ -1287,24 +1287,96 @@ export class ProjectStore {
       const active = this.active;
       const blocked = this.whyNotWritable(active);
       if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
-      const rel = this.dataFilePath(active, path);
+      const rel = this.dataFilePath(active.folder, active.indexPath, this.effectiveBinder(active), path, false);
       if (typeof rel !== 'string') return rel;
-
-      const target = joinPath(active.folder, rel);
-      let created = false;
-      try {
-        const folder = parentPath(target);
-        if (folder !== active.folder && !this.vault.exists(folder)) await this.vault.createFolder(folder);
-        const saved = await this.vault.updateText(target, (current) => {
-          created = current === null;
-          return change(current);
-        });
-        if (!saved) return noop('unchanged', 'Nothing needed to change.');
-      } catch (error) {
-        return failed(`"${rel}" could not be saved: ${messageOf(error)}`);
-      }
-      return done({ created });
+      return this.writeDataFile(active.folder, rel, change);
     }, inProject);
+  }
+
+  /**
+   * Change the whole text of a word-log file ("Stats/<file name>") of the
+   * project whose index note is at `indexPath`, whether or not that project
+   * is the open one. It is for the words typed in the manuscript of a project
+   * while another one was open: they belong in that project's own log.
+   *
+   * It reaches no further than updateDataFile does, and for a project that
+   * is not open it reaches less far: only a file directly inside that
+   * project's Stats folder, never its To-do.md, never a scene or any other
+   * note. The refusals are the same, and for a project that is not open they
+   * are checked against its index note as it is on disk at that moment:
+   *  - a path that is not directly inside the Stats folder, or that is not
+   *    safe, or that the project's binder lists as a scene;
+   *  - an index note that is no longer a Spellbook project, or is only a
+   *    conflicting copy of one;
+   *  - an index that cannot be understood (the project is read-only then).
+   *
+   * `change` works as for updateDataFile.
+   *
+   * @param indexPath the vault path of the project's index note, as listProjects() gives it
+   * @param path      "Stats/<file name>", relative to that project's folder
+   */
+  updateStatsFile(
+    indexPath: string,
+    path: string,
+    change: (current: string | null) => string | null,
+  ): Promise<IntentResult<DataFileWrite>> {
+    return this.run(async (): Promise<IntentResult<DataFileWrite>> => {
+      const active = this.active;
+      if (active !== null && active.indexPath === indexPath) {
+        // The open project: exactly as updateDataFile, for a Stats file.
+        const blocked = this.whyNotWritable(active);
+        if (blocked) return blocked;
+        const rel = this.dataFilePath(active.folder, active.indexPath, this.effectiveBinder(active), path, true);
+        if (typeof rel !== 'string') return rel;
+        return this.writeDataFile(active.folder, rel, change);
+      }
+
+      const gone = refused('not-a-project', 'That project is no longer in this vault.');
+      const known = this.projects.get(indexPath);
+      if (!known || conflictCopies(this.projects.values()).has(indexPath)) return gone;
+      // Not what was known of the project a while ago, but its index as it is now.
+      let frontmatter: Frontmatter | null;
+      try {
+        frontmatter = await this.vault.readFrontmatter(indexPath);
+      } catch (error) {
+        if (error instanceof VaultFileMissingError) return gone;
+        return failed(`The project's index note could not be read (${messageOf(error)}).`);
+      }
+      if (frontmatter === null || !isProjectIndex(frontmatter)) return gone;
+      const parsed = parseProjectIndex(frontmatter);
+      if (!parsed.ok) return refused('read-only', READ_ONLY_MESSAGE);
+
+      const folder = summaryOf(known).folder;
+      const rel = this.dataFilePath(folder, indexPath, parsed.binder, path, true);
+      if (typeof rel !== 'string') return rel;
+      return this.writeDataFile(folder, rel, change);
+    });
+  }
+
+  /**
+   * Write one of the plugin's own data files, whose path has passed
+   * dataFilePath. The folder it is in (the Stats folder) is made first when
+   * it is missing.
+   */
+  private async writeDataFile(
+    projectFolder: string,
+    rel: string,
+    change: (current: string | null) => string | null,
+  ): Promise<IntentResult<DataFileWrite>> {
+    const target = joinPath(projectFolder, rel);
+    let created = false;
+    try {
+      const folder = parentPath(target);
+      if (folder !== projectFolder && !this.vault.exists(folder)) await this.vault.createFolder(folder);
+      const saved = await this.vault.updateText(target, (current) => {
+        created = current === null;
+        return change(current);
+      });
+      if (!saved) return noop('unchanged', 'Nothing needed to change.');
+    } catch (error) {
+      return failed(`"${rel}" could not be saved: ${messageOf(error)}`);
+    }
+    return done({ created });
   }
 
   /**
@@ -1480,25 +1552,36 @@ export class ProjectStore {
    * directly inside the Stats folder (not in a folder inside it). Anything
    * the binder lists as a scene is refused whatever its place, and so is
    * every other path: this is what keeps the text of scenes and notes out of
-   * reach of updateDataFile. Returns the tidy relative path, or a refusal.
+   * reach of updateDataFile and updateStatsFile. Returns the tidy relative
+   * path, or a refusal.
+   *
+   * @param folder    the project's folder
+   * @param indexPath the project's index note
+   * @param binder    the project's binder, as it is now
+   * @param statsOnly true when only a file in the Stats folder will do (To-do.md is refused too)
    */
   private dataFilePath(
-    active: ActiveProject,
+    folder: string,
+    indexPath: string,
+    binder: Binder,
     path: string,
+    statsOnly: boolean,
   ): string | { status: 'refused'; reason: RefusalReason; message: string } {
     const no = refused(
       'invalid-path',
-      `"${path}" is not one of Spellbook's own files. Only ${TODO_FILE} and the files in the ${STATS_FOLDER} folder are.`,
+      statsOnly
+        ? `"${path}" is not a word log. Only the files in the ${STATS_FOLDER} folder are.`
+        : `"${path}" is not one of Spellbook's own files. Only ${TODO_FILE} and the files in the ${STATS_FOLDER} folder are.`,
     );
     const rel = normaliseRelativePath(path);
     if (rel === null || !isSafeRelativePath(rel)) return no;
-    const isTodo = rel === TODO_FILE;
+    const isTodo = !statsOnly && rel === TODO_FILE;
     const isStats = parentPath(rel) === STATS_FOLDER && rel.length > STATS_FOLDER.length + 1;
     if (!isTodo && !isStats) return no;
-    if (clashKey(joinPath(active.folder, rel)) === clashKey(active.indexPath)) return no;
+    if (clashKey(joinPath(folder, rel)) === clashKey(indexPath)) return no;
     // Capitals are not told apart, because phones and Macs do not tell them apart on disk either.
     const wanted = clashKey(rel);
-    if (flattenScenes(this.effectiveBinder(active)).some((scene) => clashKey(scene) === wanted)) return no;
+    if (flattenScenes(binder).some((scene) => clashKey(scene) === wanted)) return no;
     return rel;
   }
 

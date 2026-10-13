@@ -8,39 +8,32 @@
 
 import { monthRange } from '../../core/planner';
 import type { DayWords, YearMonth } from '../../core/planner';
+// The service's name and its shape are declared once, in the core, for the
+// screen that offers it and for this one that reads it.
+import { STATS_SERVICE } from '../../core/progress';
+import type { StatsService, StatsSummary } from '../../core/progress';
 import type { PlannerStats, TargetProgress } from './plannerHost';
 
 /** The name under which the writing-progress screen offers its numbers to the other screens. */
-export const PROGRESS_STATS_SERVICE = 'progress.stats';
+export const PROGRESS_STATS_SERVICE = STATS_SERVICE;
 
 /** The key of the project index that holds the word targets. The planner only reads its "daily" part. */
 export const TARGETS_KEY = 'targets';
 
-/** The numbers the writing-progress screen sums up for a day. Any of them may be missing. */
-export interface ProgressSummary {
-  /** How many days in a row, up to today, something was written. */
-  readonly streak?: unknown;
-  /** The average number of words in a day. */
-  readonly average?: unknown;
-  /** The words of the week today falls in: a number, or the manuscript and all notes apart. */
-  readonly weekTotal?: unknown;
-  /** The words of the month today falls in. The planner sums the month on show itself (see statsFrom). */
-  readonly monthTotal?: unknown;
-  /** The number of words aimed for in a day. */
-  readonly dailyTarget?: unknown;
-  /** Whether today's target is met. */
-  readonly dailyTargetMet?: unknown;
-}
+/**
+ * The numbers the writing-progress screen sums up for a day: the service's
+ * own summary. The planner reads it number by number and leaves out whatever
+ * is not there or is not what it should be (see statsFrom), because the
+ * service is looked up by name and is only as good as whoever provided it.
+ */
+export type ProgressSummary = Partial<StatsSummary>;
 
-/** What the writing-progress screen offers under PROGRESS_STATS_SERVICE, as far as the planner uses it. */
-export interface ProgressStats {
-  /** The words of every day from `from` to `to` (both YYYY-MM-DD, both included). */
-  wordsByDay(from: string, to: string): Promise<ReadonlyMap<string, DayWords>>;
-  /** The numbers summed up as of a day (YYYY-MM-DD). */
-  summary?(today: string): Promise<ProgressSummary | null | undefined>;
-  /** Call `listener` whenever the numbers change. Returns a function that stops the calls. */
-  onChange?(listener: () => void): () => void;
-}
+/**
+ * What the writing-progress screen offers under PROGRESS_STATS_SERVICE: the
+ * service as the core declares it. Only `wordsByDay` is asked for before it
+ * is used (see asProgressStats); the other two are checked when they are called.
+ */
+export type ProgressStats = Pick<StatsService, 'wordsByDay'> & Partial<Pick<StatsService, 'summary' | 'onChange'>>;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -139,7 +132,12 @@ export interface StatsParts {
   readonly monthDays: ReadonlyMap<string, DayWords> | null;
   /** The words written today. */
   readonly todayWords: DayWords | null;
-  readonly summary: ProgressSummary | null;
+  /**
+   * What the service's `summary` answered. It should be a ProgressSummary;
+   * whatever it is, it is read number by number, and what is not a number
+   * (or, for the target being met, not yes or no) is left out.
+   */
+  readonly summary: ProgressSummary | Readonly<Record<string, unknown>> | null;
   /** The value stored under the index's "targets" key. */
   readonly targets: unknown;
 }
@@ -154,21 +152,21 @@ export interface StatsParts {
  * words written today.
  */
 export function statsFrom(parts: StatsParts): PlannerStats {
-  const summary: ProgressSummary = isRecord(parts.summary) ? parts.summary : {};
+  const summary: Readonly<Record<string, unknown>> = isRecord(parts.summary) ? parts.summary : {};
   const range = monthRange(parts.month.year, parts.month.month);
-  const summed = countOf(summary.dailyTarget);
+  const summed = countOf(summary['dailyTarget']);
   const goal = dailyTargetOf(parts.targets) ?? (summed !== null && summed >= 1 ? summed : null);
   const written = countOf(parts.todayWords?.manuscript);
   let target: TargetProgress | null = null;
   if (goal !== null && written !== null) {
-    const met = summary.dailyTargetMet;
+    const met = summary['dailyTargetMet'];
     target = { goal, written, met: typeof met === 'boolean' ? met : written >= goal };
   }
   return {
     month: parts.monthDays === null ? null : sumWords(parts.monthDays, range.from, range.to),
-    week: totalOf(summary.weekTotal),
-    streak: countOf(summary.streak),
-    average: countOf(summary.average),
+    week: totalOf(summary['weekTotal']),
+    streak: countOf(summary['streak']),
+    average: countOf(summary['average']),
     target,
   };
 }

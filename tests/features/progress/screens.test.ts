@@ -11,7 +11,8 @@ import { FakeElement, Modal, Notice, Platform, resetFakeDocument, resetPlatform 
 import type { ButtonComponent, Setting } from '../../obsidianStub';
 import type { MemoryVault } from '../../memoryVault';
 import type { SettingWithToggles } from './obsidianExtras';
-import { DAY, makeStand } from './stand';
+import { AFTER_MIDNIGHT_MS, DAY_CHECK_MS } from '../../../src/features/progress/writingProgress';
+import { DAY, SIX_HOURS, asText, makeStand, setHidden } from './stand';
 import type { Stand } from './stand';
 
 vi.mock('obsidian', async (importOriginal) => {
@@ -297,6 +298,83 @@ describe('the bottom bar', () => {
     await drawn(stand);
     stand.bar()?.dispatch('click');
     expect(targetsWindow()).toBeInstanceOf(TargetsModal);
+  });
+
+  it('starts "Today" again at midnight, also when nothing is typed and nothing else happens', async () => {
+    const stand = await standUp({ extra: { targets: { daily: 2 } } });
+    stand.workspace.show(OPENING);
+    stand.editor(OPENING).type('One two three. ');
+    await stand.pass(PAUSE);
+    await stand.pass(QUIET);
+    const bar = stand.bar();
+    if (!bar) throw new Error('no status bar item');
+    expect(bar.fullText).toContain('Today 3 / 2');
+    expect(bar.withClass('spellbook-status-today')[0]?.hasClass('spellbook-is-met')).toBe(true);
+    expect(stand.logDays('2026-10')).toEqual([{ date: DAY, manuscriptAdded: 3, manuscriptDeleted: 0, otherAdded: 0, otherDeleted: 0 }]);
+
+    await stand.pass(10 * 60_000); // the save and everything that follows it have come to rest
+    let lineTold = 0;
+    let statsTold = 0;
+    stand.sceneLine().onChange(() => lineTold++);
+    stand.stats().onChange(() => statsTold++);
+    // A long evening in which nothing is typed: nothing changes, nobody is told.
+    await stand.pass(SIX_HOURS - 11 * 60_000);
+    expect(bar.fullText).toContain('Today 3 / 2');
+    expect([lineTold, statsTold]).toEqual([0, 0]);
+
+    // Midnight. Nobody touches the keyboard.
+    stand.clock.date = '2026-10-14';
+    await stand.pass(60_000 + AFTER_MIDNIGHT_MS + FRAME);
+    expect(bar.fullText).toContain('Today 0 / 2');
+    expect(bar.fullText).toContain('Session 3'); // the session goes on
+    expect(bar.withClass('spellbook-status-today')[0]?.hasClass('spellbook-is-met')).toBe(false);
+    // The inspector's line and the planner's figures are told, so they roll over too.
+    expect(lineTold).toBe(1);
+    expect(statsTold).toBe(1);
+    expect(asText(stand.sceneLine().current())).toContain('Today 0 / 2');
+    expect((await stand.stats().summary('2026-10-14')).dailyTargetMet).toBe(false);
+    expect((await stand.stats().summary('2026-10-14')).streak).toBe(1); // yesterday still counts
+
+    // Yesterday's words stay yesterday's, and the wait starts again for the next midnight.
+    expect(stand.logDays('2026-10')).toEqual([{ date: DAY, manuscriptAdded: 3, manuscriptDeleted: 0, otherAdded: 0, otherDeleted: 0 }]);
+    expect(stand.clock.pending).toBe(1);
+    stand.clock.date = '2026-10-15';
+    await stand.pass(SIX_HOURS + AFTER_MIDNIGHT_MS + FRAME);
+    expect(statsTold).toBe(2);
+  });
+
+  it('looks at the date once a minute when the clock cannot say how long it is until midnight', async () => {
+    const stand = await standUp({ toMidnight: null, extra: { targets: { daily: 2 } } });
+    stand.workspace.show(OPENING);
+    stand.editor(OPENING).type('One two three. ');
+    await stand.pass(PAUSE);
+    await stand.pass(QUIET);
+    const bar = stand.bar();
+    if (!bar) throw new Error('no status bar item');
+    expect(bar.fullText).toContain('Today 3 / 2');
+    await stand.pass(10 * DAY_CHECK_MS);
+    expect(bar.fullText).toContain('Today 3 / 2');
+
+    stand.clock.date = '2026-10-14';
+    await stand.pass(DAY_CHECK_MS + FRAME);
+    expect(bar.fullText).toContain('Today 0 / 2');
+  });
+
+  it('rolls over when the app comes back into view after a night out of sight', async () => {
+    const stand = await standUp({ extra: { targets: { daily: 2 } } });
+    stand.workspace.show(OPENING);
+    stand.editor(OPENING).type('One two three. ');
+    await stand.pass(PAUSE);
+    await stand.pass(QUIET);
+    const bar = stand.bar();
+    if (!bar) throw new Error('no status bar item');
+    setHidden(true);
+    await stand.rest();
+    // A phone asleep runs no timers: the date changes and nothing fires.
+    stand.clock.date = '2026-10-14';
+    setHidden(false);
+    await drawn(stand);
+    expect(bar.fullText).toContain('Today 0 / 2');
   });
 
   it('is not there on a phone, where the inspector shows the line instead', async () => {

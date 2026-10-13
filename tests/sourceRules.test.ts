@@ -230,9 +230,54 @@ describe('the whole plugin', () => {
     expect(callers).toEqual(['core/projectStore.ts']);
     const store = codeOf(path.join(srcDir, 'core', 'projectStore.ts'));
     expect((store.match(/\.\s*updateText\s*\(/g) ?? []).length).toBe(1);
-    const method = /updateDataFile\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
-    expect(method).toMatch(/this\.dataFilePath\(active, path\)/);
-    expect(method.indexOf('dataFilePath')).toBeLessThan(method.indexOf('updateText'));
+    // In the store it sits in one private routine, which is reached from two
+    // methods only: updateDataFile (the open project's To-do.md and word
+    // logs) and updateStatsFile (a word log of a project named by its index).
+    const writer = /\n  private async writeDataFile\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
+    expect(writer).toMatch(/\.updateText\(/);
+    const methodOf = (name: string): string => new RegExp(`\\n  ${name}\\([\\s\\S]*?\\n  \\}\\n`).exec(store)?.[0] ?? '';
+    const writesIn = (code: string): number => (code.match(/this\.writeDataFile\(/g) ?? []).length;
+    const open = methodOf('updateDataFile');
+    const named = methodOf('updateStatsFile');
+    expect(writesIn(open)).toBe(1);
+    expect(writesIn(named)).toBe(2); // the open project, or another one
+    expect(writesIn(store)).toBe(3); // and nowhere else
+    // Each write comes right after its own check of the path (dataFilePath), whose refusal is returned first.
+    for (const method of [open, named]) {
+      const pieces = method.split('this.writeDataFile(').slice(0, -1);
+      for (const piece of pieces) {
+        expect(piece).toMatch(/const rel = this\.dataFilePath\([^;]*\);\s*if \(typeof rel !== 'string'\) return rel;\s*return $/);
+      }
+    }
+    // A project named by its index gets a word log written and nothing else: never To-do.md.
+    expect(named.match(/this\.dataFilePath\([^;]*\)/g)?.every((call) => /, true\)$/.test(call))).toBe(true);
+    expect(open).toMatch(/this\.dataFilePath\([^;]*, false\)/);
+  });
+
+  it('declares what the writing progress offers the other screens once, in the core', () => {
+    // The two services are looked up by name. The names, and the shapes of
+    // what is found under them, are written down in one file that every
+    // screen may import; neither the screen that offers them nor a screen
+    // that uses them spells out a name or declares a shape of its own.
+    const home = 'core/progress/services.ts';
+    const names = /'progress\.(sceneLine|stats)'/;
+    const shapes = /\binterface\s+(SceneLineService|StatsService|StatsSummary|SceneLine|SceneLineSegment|ProgressStats|ProgressSummary)\b/;
+    for (const file of allFiles) {
+      const code = codeOf(file);
+      expect(names.test(code), `${relative(file)} spells out a service name`).toBe(relative(file) === home);
+      expect(shapes.test(code), `${relative(file)} declares a service shape`).toBe(relative(file) === home);
+    }
+    const declared = codeOf(path.join(srcDir, 'core', 'progress', 'services.ts'));
+    expect(declared).toMatch(/export const SCENE_LINE_SERVICE = 'progress\.sceneLine'/);
+    expect(declared).toMatch(/export const STATS_SERVICE = 'progress\.stats'/);
+    for (const shape of ['SceneLineService', 'StatsService', 'StatsSummary', 'DayWords']) {
+      expect(declared, shape).toMatch(new RegExp(`export interface ${shape}\\b`));
+    }
+    // Both sides go by it: the provider, the inspector's line and the planner.
+    const usesCore = /from '\.\.\/\.\.\/core\/progress(\/index)?'/;
+    for (const user of ['features/progress/services.ts', 'features/corkboard/summaryLine.ts', 'features/planner/plannerNumbers.ts']) {
+      expect(usesCore.test(codeOf(path.join(srcDir, user))), user).toBe(true);
+    }
   });
 
   it('keeps every feature in its own folder, away from the other features', () => {

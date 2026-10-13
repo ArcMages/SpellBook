@@ -18,7 +18,7 @@ import type { RegisteredFeatures } from './features/registry';
 import { ObsidianDeviceStorage } from './obsidian/deviceStorage';
 import { ObsidianVault } from './obsidian/obsidianVault';
 import { openNote } from './obsidian/openNote';
-import { localToday, nextFrame, nowMs, setTimer } from './obsidian/systemClock';
+import { localToday, nextFrame, nowMs, setTimer, untilTomorrow } from './obsidian/systemClock';
 import { SpellbookSettingTab } from './settings';
 import { CreateProjectModal } from './ui/createProjectModal';
 import { BINDER_ICON } from './ui/icons';
@@ -243,7 +243,7 @@ export default class SpellbookPlugin extends Plugin implements BinderHost, Actio
       vault,
       storage,
       deviceId: () => (deviceId ??= deviceIdOf(storage, Math.random)),
-      clock: { today: localToday, now: nowMs, setTimer, nextFrame },
+      clock: { today: localToday, now: nowMs, setTimer, nextFrame, untilTomorrow },
       wordCounts,
       openNote: (path, where) => this.openNote(path, where),
     });

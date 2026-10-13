@@ -16,7 +16,9 @@
 //    from the writer need a count before and after. They wait in a queue for
 //    a moment and are counted from there, outside the editor's update.
 //  - When the plan says so, the counted words are saved: this device's file
-//    for the month, in the open project's Stats folder, and no other file.
+//    for the month, in the Stats folder of the project the words were typed
+//    for (the open project, or the project whose manuscript the note is in),
+//    and no other file.
 
 import { pathKey } from '../../core/paths';
 import {
@@ -462,14 +464,35 @@ export class WordLedger {
 
   // --------------------------------------------------------------------- saving
 
-  /** Whether an entry can be saved now: only the open project's log can be written. */
-  private savable(entry: LogEntry): boolean {
-    const project = this.deps.store.project;
-    return project !== null && !project.readOnly && pathKey(entry.project) === pathKey(project.folder);
+  /**
+   * Tells where an entry can be saved now: the index note of the project it
+   * was counted for, or null when its log cannot be written at the moment.
+   *
+   * Words go into the log of the project they were typed for. Usually that
+   * is the open project. Words typed in the manuscript of another project of
+   * the vault are for that project: they are saved in its own log straight
+   * away, so that they are not lost when the plugin unloads before the
+   * writer opens that project. A project that is gone from the vault, and an
+   * open project that is read-only, cannot be written to.
+   */
+  private logFinder(): (entry: LogEntry) => string | null {
+    const { store } = this.deps;
+    const open = store.project;
+    let others: Map<string, string> | null = null;
+    return (entry) => {
+      const wanted = pathKey(entry.project);
+      if (open !== null && pathKey(open.folder) === wanted) return open.readOnly ? null : open.indexPath;
+      if (others === null) {
+        others = new Map();
+        for (const project of store.listProjects()) others.set(pathKey(project.folder), project.indexPath);
+      }
+      return others.get(wanted) ?? null;
+    };
   }
 
   private hasSavable(): boolean {
-    return this.tracker.unwritten().some((entry) => this.savable(entry));
+    const indexOf = this.logFinder();
+    return this.tracker.unwritten().some((entry) => indexOf(entry) !== null);
   }
 
   private runSave(entries: readonly LogEntry[]): Promise<void> {
@@ -493,53 +516,55 @@ export class WordLedger {
     const problems: string[] = [];
     try {
       const { store } = this.deps;
-      const project = store.project;
-      const groups = new Map<string, { month: string; entries: LogEntry[] }>();
-      if (project !== null && !project.readOnly) {
-        const device = this.deps.deviceId();
-        for (const entry of entries) {
-          if (!this.savable(entry)) continue;
-          const month = monthOf(entry.date);
-          const name = month === null ? null : statsFileName(month, device);
-          if (month === null || name === null) {
-            problems.push(`The words of ${entry.date} could not be given a log file.`);
-            continue;
-          }
-          const path = `${STATS_FOLDER}/${name}`;
-          const group = groups.get(path) ?? { month, entries: [] };
-          group.entries.push(entry);
-          groups.set(path, group);
+      const indexOf = this.logFinder();
+      // One group for every log file: a project, and a month of this device.
+      const groups = new Map<string, { indexPath: string; path: string; month: string; entries: LogEntry[] }>();
+      /** This device's id: made only when a log file really needs its name. */
+      let device: string | null = null;
+      for (const entry of entries) {
+        const indexPath = indexOf(entry);
+        if (indexPath === null) continue;
+        device ??= this.deps.deviceId();
+        const month = monthOf(entry.date);
+        const name = month === null ? null : statsFileName(month, device);
+        if (month === null || name === null) {
+          problems.push(`The words of ${entry.date} could not be given a log file.`);
+          continue;
         }
-        // Every file is asked of the store at once, so that when the plugin
-        // is unloading nothing is left to start later.
-        await Promise.all(
-          [...groups].map(async ([path, group]) => {
-            const box: { update: StatsUpdate | null } = { update: null };
-            const result = await store.updateDataFile(
-              path,
-              (current) => {
-                const update = updateStatsText(current, { device, deviceName: '', month: group.month }, group.entries);
-                box.update = update;
-                return update.status === 'write' ? update.text : null;
-              },
-              project.indexPath,
-            );
-            const update = box.update;
-            if (result.status === 'done' || (result.status === 'noop' && update !== null && update.status !== 'refused')) {
-              done.push(...group.entries);
-              if (result.status === 'done' && update?.status === 'write') {
-                saved.push({ indexPath: project.indexPath, path, file: update.file });
-              }
-            } else if (result.status === 'noop' && update?.status === 'refused') {
-              problems.push(`The word log "${path}" was not changed: ${update.reason}`);
-            } else if (result.status !== 'noop') {
-              problems.push(`The words you wrote could not be added to the word log yet: ${result.message}`);
-            } else {
-              problems.push(`The word log "${path}" could not be read.`);
-            }
-          }),
-        );
+        const path = `${STATS_FOLDER}/${name}`;
+        const key = `${indexPath}\n${path}`;
+        const group = groups.get(key) ?? { indexPath, path, month, entries: [] };
+        group.entries.push(entry);
+        groups.set(key, group);
       }
+      const owner = device ?? '';
+      // Every file is asked of the store at once, so that when the plugin
+      // is unloading nothing is left to start later.
+      await Promise.all(
+        [...groups.values()].map(async (group) => {
+          const { indexPath, path } = group;
+          const box: { update: StatsUpdate | null } = { update: null };
+          // The store writes "Stats/<file>" of the project named, the open one or not, and nothing else.
+          const result = await store.updateStatsFile(indexPath, path, (current) => {
+            const update = updateStatsText(current, { device: owner, deviceName: '', month: group.month }, group.entries);
+            box.update = update;
+            return update.status === 'write' ? update.text : null;
+          });
+          const update = box.update;
+          if (result.status === 'done' || (result.status === 'noop' && update !== null && update.status !== 'refused')) {
+            done.push(...group.entries);
+            if (result.status === 'done' && update?.status === 'write') {
+              saved.push({ indexPath, path, file: update.file });
+            }
+          } else if (result.status === 'noop' && update?.status === 'refused') {
+            problems.push(`The word log "${path}" was not changed: ${update.reason}`);
+          } else if (result.status !== 'noop') {
+            problems.push(`The words you wrote could not be added to the word log yet: ${result.message}`);
+          } else {
+            problems.push(`The word log "${path}" could not be read.`);
+          }
+        }),
+      );
     } catch (error) {
       console.error('Spellbook: the word log could not be saved', error);
       problems.push('The word log could not be saved.');

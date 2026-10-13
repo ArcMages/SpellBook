@@ -39,6 +39,14 @@ export interface FeatureClock {
   setTimer(callback: () => void, ms: number): () => void;
   /** Call `callback` once, just before the screen is next drawn. Returns a function that cancels it. */
   nextFrame(callback: (time: number) => void): () => void;
+  /**
+   * How long it is until the date changes on this device (the next midnight
+   * on its own calendar), in milliseconds. A feature that shows "today" sets
+   * a timer by it, so that the figure starts again at midnight also when
+   * nothing else happens. Where a clock cannot tell, the feature looks at
+   * `today()` now and then instead.
+   */
+  readonly untilTomorrow?: (() => number) | undefined;
 }
 
 /** A part of the plugin's settings tab that belongs to one feature. */

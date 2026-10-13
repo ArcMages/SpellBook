@@ -306,7 +306,7 @@ describe('notes and projects that move', () => {
     await stand.pass(QUIET);
     expect(stand.logDays('2026-10')).toEqual([day(DAY, { manuscriptAdded: 2 })]);
     await stand.pass(60_000);
-    expect(stand.clock.pending).toBe(0); // nothing is left waiting for the note
+    expect(stand.clock.pending).toBe(1); // nothing is left waiting for the note: only the timer for midnight runs
   });
 
   it('saves into the project\'s folder under its new name when the folder is renamed', async () => {
@@ -324,27 +324,68 @@ describe('notes and projects that move', () => {
     expect(stand.vault.hasFolder('Novel')).toBe(false);
   });
 
-  it('keeps the words of a project that is not open until it is, and puts them in its own log', async () => {
-    const stand = await standUp({
+  const withSecondBook = (): Promise<Stand> =>
+    standUp({
       prepare: (vault) => {
         seedProject(vault, { folder: 'Second', title: 'Second Book', scenes: { Start: 1024 } });
       },
     });
+  const secondLog = (stand: Stand): string => `Second/Stats/2026-10 ${stand.deviceId}.md`;
+
+  it('puts the words typed in the manuscript of a project that is not open into that project\'s own log, without waiting for it to be opened', async () => {
+    const stand = await withSecondBook();
     stand.editor('Second/Manuscript/Start.md').type('One two three. ');
     stand.editor(OPENING).type('Four five. ');
     await stand.pass(PAUSE);
     await stand.pass(QUIET);
-    // The open project's words are saved; the other project's log cannot be written from here.
+    // Each project's words are in its own log, saved in the same go.
     expect(stand.logDays('2026-10')).toEqual([day(DAY, { manuscriptAdded: 2 })]);
-    expect(stand.vault.hasFolder('Second/Stats')).toBe(false);
+    expect(parseStatsFile(stand.vault.textOf(secondLog(stand))).days).toEqual([day(DAY, { manuscriptAdded: 3 })]);
+    // Of the other project, the log file is all that was touched.
+    expect(stand.vault.writes.filter((write) => write.path.startsWith('Second/'))).toEqual([
+      { op: 'createFolder', path: 'Second/Stats' },
+      { op: 'updateText', path: secondLog(stand) },
+    ]);
+    expect(Notice.shown).toEqual([]);
     await stand.pass(60_000);
-    expect(stand.clock.pending).toBe(0); // waiting for the project, not trying over and over
+    expect(stand.clock.pending).toBe(1); // all saved: nothing is waiting to be tried again (the one timer is for midnight)
 
+    // Opening that project later adds nothing a second time.
     expect((await stand.store.openProject('Second/Second.md')).status).toBe('done');
     await stand.pass(QUIET);
-    const path = `Second/Stats/2026-10 ${stand.deviceId}.md`;
-    expect(parseStatsFile(stand.vault.textOf(path)).days).toEqual([day(DAY, { manuscriptAdded: 3 })]);
+    expect(parseStatsFile(stand.vault.textOf(secondLog(stand))).days).toEqual([day(DAY, { manuscriptAdded: 3 })]);
     expect(stand.logDays('2026-10')).toEqual([day(DAY, { manuscriptAdded: 2 })]);
+  });
+
+  it('saves them when the plugin unloads before that project was ever opened', async () => {
+    const stand = await withSecondBook();
+    stand.editor('Second/Manuscript/Start.md').type('One two three. ');
+    // Switched off while the words are still only counted, not saved.
+    await stand.unload();
+    expect(parseStatsFile(stand.vault.textOf(secondLog(stand))).days).toEqual([day(DAY, { manuscriptAdded: 3 })]);
+    expect(stand.logDays('2026-10')).toBeNull(); // nothing was typed for the open project
+  });
+
+  it('holds them while that project\'s index cannot be understood, says so once, and saves them when it can', async () => {
+    const stand = await withSecondBook();
+    stand.vault.external.editFrontmatter('Second/Second.md', (frontmatter) => {
+      frontmatter['binder'] = 'not a list of scenes';
+    });
+    await stand.rest();
+    stand.editor('Second/Manuscript/Start.md').type('One two three. ');
+    await stand.pass(PAUSE);
+    await stand.pass(QUIET);
+    expect(stand.vault.hasFolder('Second/Stats')).toBe(false); // refused: nothing is written into a project that cannot be read
+    expect(Notice.shown).toHaveLength(1);
+    await stand.pass(10 * 60_000);
+    expect(Notice.shown).toHaveLength(1); // tried again now and then, quietly
+
+    stand.vault.external.editFrontmatter('Second/Second.md', (frontmatter) => {
+      frontmatter['binder'] = ['Manuscript/Start.md'];
+    });
+    await stand.rest();
+    await stand.pass(10 * 60_000);
+    expect(parseStatsFile(stand.vault.textOf(secondLog(stand))).days).toEqual([day(DAY, { manuscriptAdded: 3 })]);
   });
 
   it('holds on to the texts of a few notes only, and still counts right in a note it let go of', async () => {
@@ -529,7 +570,7 @@ describe('a save that fails', () => {
     await stand.pass(QUIET);
     await stand.pass(60_000);
     expect(stand.vault.writes).toEqual([]);
-    expect(stand.clock.pending).toBe(0); // and it does not keep trying
+    expect(stand.clock.pending).toBe(1); // and it does not keep trying (the one timer is for midnight)
   });
 });
 

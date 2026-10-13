@@ -32,6 +32,9 @@ import type { SeedOptions } from '../../storeHarness';
 
 export const DAY = '2026-10-13';
 
+/** How long before midnight the stand's clock starts, in milliseconds. */
+export const SIX_HOURS = 6 * 60 * 60 * 1000;
+
 /** The clock and the timers of the feature, moved by the test. */
 export class TestClock implements FeatureClock {
   /** Today's date, as the device would say it. */
@@ -55,6 +58,17 @@ export class TestClock implements FeatureClock {
   /** The screen is drawn sixty times a second. */
   readonly nextFrame = (callback: (time: number) => void): (() => void) =>
     this.setTimer(() => callback(this.time), 16);
+
+  /**
+   * How long it is until midnight: six hours when a test starts, unless it
+   * says otherwise; null for a clock that cannot tell. Midnight itself is the
+   * test's doing: it sets `date` to the next day and lets the time pass.
+   */
+  toMidnight: number | null = SIX_HOURS;
+  get untilTomorrow(): (() => number) | undefined {
+    const left = this.toMidnight;
+    return left === null ? undefined : () => left;
+  }
 
   /** How many timers are waiting. */
   get pending(): number {
@@ -284,6 +298,8 @@ export interface StandOptions extends SeedOptions {
   prepare?: (vault: MemoryVault) => void;
   /** A seed for this device's id: another seed is another device. */
   device?: number;
+  /** How long until midnight when the feature starts; null for a clock that cannot tell. Six hours when left out. */
+  toMidnight?: number | null;
 }
 
 /** The line of figures as text, one piece per entry. */
@@ -304,6 +320,7 @@ export async function makeStand(options: StandOptions = {}): Promise<Stand> {
   const { store, indexPath } = await openSeeded({ scenes: { Opening: 1024, 'The Letter': 2048 }, ...options }, vault);
 
   const clock = new TestClock();
+  if (options.toMidnight !== undefined) clock.toMidnight = options.toMidnight;
   const storage = new MemoryDeviceStorage();
   const workspace = new FakeWorkspace();
   const plugin = new FakePlugin({ workspace }, { id: 'spellbook-novel-writer', name: 'Spellbook', version: '0.1.0' });

@@ -290,6 +290,26 @@ export type {
   StatusLineInput,
 } from './statusLine';
 
+// ------------------------------------------- what is offered to other screens
+
+export {
+  /** The name under which the line of figures is offered to the other screens. */
+  SCENE_LINE_SERVICE,
+  /** The name under which the daily word log is offered to the other screens. */
+  STATS_SERVICE,
+} from './services';
+
+export type {
+  /** The line of figures for the open note, and a way to be told when it changes. */
+  SceneLineService,
+  /** The net words of one day: in the manuscript, and in all notes. */
+  DayWords,
+  /** The streak, the average and the totals of this week and this month. */
+  StatsSummary,
+  /** The daily word log of the open project, on all devices. */
+  StatsService,
+} from './services';
+
 export {
   /** A whole number with thousands separators: "1,234,567". */
   formatNumber,

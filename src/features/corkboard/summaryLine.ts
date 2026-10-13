@@ -8,36 +8,27 @@
 // offers it, nothing is shown.
 
 import { Platform } from 'obsidian';
+// The line's name and its shape are declared once, in the core, for the
+// screen that offers it and for this one that shows it.
+import { SCENE_LINE_SERVICE } from '../../core/progress/index';
+import type { SceneLineService, StatusSegment } from '../../core/progress/index';
 import type { FeatureClock, FeatureServices } from '../registry';
 
-/** The name the line is offered under. */
-export const SCENE_LINE_SERVICE = 'progress.sceneLine';
-
-/** One piece of the line: what it is, in English, and its value, ready to show. */
-export interface SceneLineSegment {
-  readonly label: string;
-  readonly value: string;
-}
-
-/** What is offered under SCENE_LINE_SERVICE. */
-export interface SceneLine {
-  /** The pieces of the line as they are now, in the order to show them. */
-  current(): readonly SceneLineSegment[];
-  /** Be told when the line changes. Returns the function that stops it. */
-  onChange(listener: () => void): () => void;
-}
-
-function isSceneLine(value: unknown): value is SceneLine {
+/**
+ * Whether what was found under the line's name can be used as the line. It
+ * is looked up by name, so it is checked before it is trusted.
+ */
+function isSceneLine(value: unknown): value is SceneLineService {
   if (typeof value !== 'object' || value === null) return false;
-  const line = value as Partial<SceneLine>;
+  const line = value as Partial<SceneLineService>;
   return typeof line.current === 'function' && typeof line.onChange === 'function';
 }
 
-function draw(slot: HTMLElement, line: SceneLine): void {
-  let segments: readonly SceneLineSegment[] = [];
+function draw(slot: HTMLElement, line: SceneLineService): void {
+  let segments: readonly StatusSegment[] = [];
   try {
     const now: unknown = line.current();
-    if (Array.isArray(now)) segments = now as SceneLineSegment[];
+    if (Array.isArray(now)) segments = now as StatusSegment[];
   } catch (error) {
     console.error('Spellbook: the word count line could not be read', error);
   }

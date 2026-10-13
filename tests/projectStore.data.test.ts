@@ -476,6 +476,148 @@ describe("updateDataFile: the plugin's own files", () => {
   });
 });
 
+describe('updateStatsFile: the word log of a project named by its index', () => {
+  const SECOND = 'Second/Second.md';
+  const LOG = 'Stats/2026-10 ab12cd34ef.md';
+
+  /** The furnished novel, open, with a second project next to it that is not. */
+  async function twoProjects(second: Parameters<typeof seedProject>[1] = {}): Promise<Awaited<ReturnType<typeof openSeeded>>> {
+    const vault = furnished()
+      .seed('Second/To-do.md', { body: '- [ ] theirs\n' })
+      .seed('Second/Research/Maps.md', { body: 'facts of the second book' });
+    seedProject(vault, { folder: 'Second', title: 'Second Book', scenes: { Start: 1024 }, ...second });
+    const opened = await openSeeded(scenes, vault);
+    vault.clearWrites();
+    return opened;
+  }
+
+  it('writes a word log of a project that is not open, creating its Stats folder when it has none', async () => {
+    const { store, vault } = await twoProjects();
+    expect(store.project?.indexPath).toBe(INDEX);
+    const seen: Array<string | null> = [];
+    const result = await store.updateStatsFile(SECOND, LOG, (current) => {
+      seen.push(current);
+      return '2026-10-13 3 0\n';
+    });
+    expect(valueOf(result)).toEqual({ created: true });
+    expect(seen).toEqual([null]);
+    expect(vault.textOf(`Second/${LOG}`)).toBe('2026-10-13 3 0\n');
+    expect(vault.writes).toEqual([
+      { op: 'createFolder', path: 'Second/Stats' },
+      { op: 'updateText', path: `Second/${LOG}` },
+    ]);
+    // The open project is still the open one, and its own log of the same name is untouched.
+    expect(store.project?.indexPath).toBe(INDEX);
+    expect(vault.textOf(`Novel/${LOG}`)).toBe('2026-10-12 250 300\n');
+
+    // Again: against the text as it is on disk then.
+    valueOf(await store.updateStatsFile(SECOND, LOG, (current) => `${current ?? ''}2026-10-14 5 0\n`));
+    expect(vault.textOf(`Second/${LOG}`)).toBe('2026-10-13 3 0\n2026-10-14 5 0\n');
+    expect(await store.updateStatsFile(SECOND, LOG, () => null)).toMatchObject({ status: 'noop', reason: 'unchanged' });
+  });
+
+  it('writes the open project\'s log too, exactly as updateDataFile does', async () => {
+    const { store, vault } = await twoProjects();
+    valueOf(await store.updateStatsFile(INDEX, LOG, (current) => `${current ?? ''}2026-10-13 9 0\n`));
+    expect(vault.textOf(`Novel/${LOG}`)).toBe('2026-10-12 250 300\n2026-10-13 9 0\n');
+    expect(vault.writes).toEqual([{ op: 'updateText', path: `Novel/${LOG}` }]);
+  });
+
+  it("REFUSES everything that is not a file directly inside that project's Stats folder, To-do.md included", async () => {
+    const { store, vault } = await twoProjects();
+    vault.seed('Second/Stats/Deep/inside.md', { body: 'in a folder of its own' });
+    const before = new Map(vault.paths().map((path) => [path, vault.textOf(path)]));
+    for (const index of [SECOND, INDEX]) {
+      for (const path of [
+        'To-do.md', // the to-do list is only ever written for the open project, through updateDataFile
+        'Manuscript/Start.md',
+        'Manuscript/A.md',
+        'Manuscript/New.md',
+        'Research/Maps.md',
+        'Second.md',
+        'Novel.md',
+        'Stats/Deep/inside.md',
+        'Stats',
+        'Stats/',
+        'stats/2026-10.md',
+        'Stats/../Manuscript/Start.md',
+        'Stats/../../Novel/To-do.md',
+        '../Novel/Stats/2026-10 ab12cd34ef.md',
+        '/Second/Stats/x.md',
+        'Stats\\2026-10.md',
+        '',
+        '.',
+      ]) {
+        const written = await store.updateStatsFile(index, path, () => 'REPLACED');
+        expect(written, `${index}: ${JSON.stringify(path)}`).toMatchObject({ status: 'refused', reason: 'invalid-path' });
+      }
+    }
+    expect(vault.writes).toEqual([]);
+    expect(new Map(vault.paths().map((path) => [path, vault.textOf(path)]))).toEqual(before);
+  });
+
+  it('refuses a file in Stats that the project\'s binder lists as a scene, going by its index as it is on disk', async () => {
+    const { store, vault } = await twoProjects();
+    vault.seed('Second/Stats/A chapter.md', { body: 'Prose.' });
+    // Filed as a scene on another device, a moment ago: the store has not read this index since it started.
+    vault.external.editFrontmatter(SECOND, (frontmatter) => {
+      frontmatter['binder'] = ['Manuscript/Start.md', 'Stats/A chapter.md'];
+    });
+    vault.clearWrites();
+    for (const path of ['Stats/A chapter.md', 'Stats/a CHAPTER.md']) {
+      expect(await store.updateStatsFile(SECOND, path, () => 'REPLACED'), path).toMatchObject({
+        status: 'refused',
+        reason: 'invalid-path',
+      });
+    }
+    expect(vault.bodyOf('Second/Stats/A chapter.md')).toBe('Prose.');
+    expect(vault.writes).toEqual([]);
+    expect((await store.updateStatsFile(SECOND, LOG, () => 'x')).status).toBe('done');
+  });
+
+  it('refuses a project whose index cannot be understood, one that is gone, and a note that is no project', async () => {
+    const { store, vault } = await twoProjects({ binder: { not: 'a list' } });
+    expect(await store.updateStatsFile(SECOND, LOG, () => 'x')).toMatchObject({ status: 'refused', reason: 'read-only' });
+    for (const index of ['Ghost/Ghost.md', 'Novel/Research/Trains.md', 'Second/To-do.md', '', '../Second/Second.md']) {
+      expect(await store.updateStatsFile(index, LOG, () => 'x'), index).toMatchObject({ status: 'refused', reason: 'not-a-project' });
+    }
+    // No longer marked as a project on disk, though the store has not caught up yet.
+    vault.external.editFrontmatter(SECOND, (frontmatter) => {
+      delete frontmatter['spellbook'];
+    });
+    vault.clearWrites();
+    expect(await store.updateStatsFile(SECOND, LOG, () => 'x')).toMatchObject({ status: 'refused', reason: 'not-a-project' });
+    expect(vault.writes).toEqual([]);
+    expect(vault.hasFolder('Second/Stats')).toBe(false);
+
+    // The open project, read-only: refused as for updateDataFile.
+    const broken = furnished();
+    seedProject(broken, { binder: { not: 'a list' }, scenes: { A: 1024 } });
+    const other = makeStore(broken);
+    valueOf(await other.store.openProject(INDEX));
+    expect(await other.store.updateStatsFile(INDEX, LOG, () => 'x')).toMatchObject({ status: 'refused', reason: 'read-only' });
+    expect(broken.writes).toEqual([]);
+  });
+
+  it('never writes into a conflicting copy of an index, and says so when the file could not be saved', async () => {
+    const { store, vault } = await twoProjects();
+    vault.external.create('Second/Second (conflicted copy).md', {
+      frontmatter: { spellbook: 'project', version: 1, title: 'Second Book', binder: [] },
+    });
+    await settle(store);
+    vault.clearWrites();
+    expect(store.mainIndexOf('Second/Second (conflicted copy).md')).toBe(SECOND);
+    expect(await store.updateStatsFile('Second/Second (conflicted copy).md', LOG, () => 'x')).toMatchObject({
+      status: 'refused',
+      reason: 'not-a-project',
+    });
+    expect(vault.writes).toEqual([]);
+    vault.failNext('updateText', `Second/${LOG}`);
+    expect((await store.updateStatsFile(SECOND, LOG, () => 'new text')).status).toBe('failed');
+    expect(vault.has(`Second/${LOG}`)).toBe(false);
+  });
+});
+
 describe('readDataFile', () => {
   it('gives the whole text of To-do.md and of a word log, and null for one that is not there', async () => {
     const { store, vault } = await openSeeded(scenes, furnished());

@@ -199,7 +199,11 @@ describe('what plugs the planner in', () => {
     // One place asks the services, and it is a method that is called whenever the counts are needed.
     expect((wiring.match(/\bservices\s*\.\s*get\b/g) ?? []).length).toBe(1);
     expect(wiring).toMatch(/private lookUp\(\)[^{]*\{[^}]*services\s*\.\s*get<unknown>\(PROGRESS_STATS_SERVICE\)/);
-    expect(codeOf('plannerNumbers.ts')).toMatch(/PROGRESS_STATS_SERVICE = 'progress\.stats'/);
+    // The name is not spelled out a second time here: it is the one the core declares for both sides.
+    const numbers = codeOf('plannerNumbers.ts');
+    expect(numbers).toMatch(/PROGRESS_STATS_SERVICE = STATS_SERVICE\b/);
+    expect(numbers).toMatch(/import \{ STATS_SERVICE \} from '\.\.\/\.\.\/core\/progress'/);
+    expect(numbers).not.toMatch(/'progress\.stats'/);
     // The feature itself never asks: it only hands the services on.
     expect(/\bservices\s*\.\s*(get|provide)\b/.test(codeOf('index.ts'))).toBe(false);
   });

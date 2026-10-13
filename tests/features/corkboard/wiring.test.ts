@@ -30,8 +30,9 @@ import {
 } from '../../../src/features/corkboard/inspectorView';
 import { NO_ROOM_FOR_INSPECTOR } from '../../../src/features/corkboard/panes';
 import { CARD_SIZE_KEY, TEXT_SETTLE_MS, TEXT_SLICE } from '../../../src/features/corkboard/storeHost';
-import { SCENE_LINE_SERVICE } from '../../../src/features/corkboard/summaryLine';
-import type { SceneLine, SceneLineSegment } from '../../../src/features/corkboard/summaryLine';
+// The line's name and shape: declared once in the core, for the screen that offers it and the one that shows it.
+import { SCENE_LINE_SERVICE } from '../../../src/core/progress/index';
+import type { SceneLineService, StatusSegment } from '../../../src/core/progress/index';
 import { TagListsModal } from '../../../src/features/corkboard/tagListsModal';
 import { WORD_COUNT_DEBOUNCE_MS, WORD_COUNT_SLICE_NOTES } from '../../../src/core/wordCountCache';
 import { SHOW_ON_CORKBOARD } from '../../../src/views/binderActions';
@@ -798,20 +799,20 @@ describe('showing a binder folder on the corkboard', () => {
 
 describe('the line at the top of the inspector', () => {
   /** A stand-in for what the writing progress screen offers. */
-  class FakeLine implements SceneLine {
-    segments: SceneLineSegment[] = [
-      { label: 'Words', value: '1,204' },
-      { label: 'Session', value: '+300' },
+  class FakeLine implements SceneLineService {
+    segments: StatusSegment[] = [
+      { id: 'scene', label: 'Words', value: '1,204' },
+      { id: 'session', label: 'Session', value: '+300' },
     ];
     readonly listeners = new Set<() => void>();
-    current = (): readonly SceneLineSegment[] => this.segments;
+    current = (): readonly StatusSegment[] => this.segments;
     onChange = (listener: () => void): (() => void) => {
       this.listeners.add(listener);
       return () => {
         this.listeners.delete(listener);
       };
     };
-    set(segments: SceneLineSegment[]): void {
+    set(segments: StatusSegment[]): void {
       this.segments = segments;
       for (const listener of [...this.listeners]) listener();
     }
@@ -836,7 +837,7 @@ describe('the line at the top of the inspector', () => {
     // Numbers and dates read left to right in every language.
     expect(one(pane, SUMMARY_SLOT_CLASS).withClass('spellbook-summary-item')[0]?.attrs['dir']).toBe('ltr');
 
-    line.set([{ label: 'Words', value: '1,250' }]);
+    line.set([{ id: 'scene', label: 'Words', value: '1,250' }]);
     expect(shown(pane)).toEqual([['Words', '1,250']]);
 
     // Closing the inspector stops it listening.
