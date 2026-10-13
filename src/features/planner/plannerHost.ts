@@ -3,8 +3,9 @@
 // The screen (the calendar and the to-do list) never reads a note, the
 // project store or the clock itself. It reads what the host hands it, asks
 // the host to make changes, and draws again when the host says something
-// changed. Whoever wires the screen into the plugin implements PlannerHost;
-// the tests use a stand-in (tests/features/planner/fakeHost.ts).
+// changed. In the plugin the host is PlannerWiring (plannerWiring.ts), built
+// on the project store; the screen's own tests use a stand-in (FakeHost in
+// tests/features/planner/plannerStage.ts).
 //
 // How a change is made, for both To-do.md and the day marks: the screen hands
 // over a function that takes what is stored right now and returns the
@@ -92,7 +93,7 @@ export interface PlannerHost {
   /** Today on this device, as YYYY-MM-DD. Read again at every drawing. */
   readonly today: string;
 
-  /** The weekday the calendar's weeks start on: 0 is Sunday, 1 Monday, up to 6 for Saturday. From the settings. */
+  /** The weekday the calendar's weeks start on: 0 is Sunday, 1 Monday, up to 6 for Saturday. From the language Obsidian is set to. */
   readonly firstDayOfWeek: number;
 
   /**

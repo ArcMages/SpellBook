@@ -1,20 +1,30 @@
 // Rules about the planner's stylesheet (src/styles/planner.css), checked by
-// reading it. They are the rules tests/sourceRules.test.ts holds styles.css
-// to, so that the planner's styles can be added to that file as they are.
+// reading it. The build joins it with the stylesheets of the other screens
+// into styles.css (scripts/styles.mjs), which is generated and not kept in
+// the repository; tests/sourceRules.test.ts checks the whole. These are the
+// planner's own rules, and that its part keeps to itself.
 
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { STYLES_DIR, STYLE_FILES } from '../../../scripts/styles.mjs';
 import { MARK_COLORS } from '../../../src/core/planner';
 import { MARK_CLASSES, TINT_CLASSES } from '../../../src/features/planner/plannerModel';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..', '..', '..');
 const plannerDir = path.join(root, 'src', 'features', 'planner');
+const stylesDir = path.join(root, STYLES_DIR);
+const PLANNER_STYLES = 'planner.css';
 const withoutComments = (text: string): string => text.replace(/\/\*[\s\S]*?\*\//g, '');
-const css = withoutComments(readFileSync(path.join(root, 'src', 'styles', 'planner.css'), 'utf8'));
-const mainCss = withoutComments(readFileSync(path.join(root, 'styles.css'), 'utf8'));
+const css = withoutComments(readFileSync(path.join(stylesDir, PLANNER_STYLES), 'utf8'));
+/** The stylesheets the planner's is joined with: what is shared, the binder and the other screens. */
+const otherCss = withoutComments(
+  STYLE_FILES.filter((name) => name !== PLANNER_STYLES)
+    .map((name) => readFileSync(path.join(stylesDir, name), 'utf8'))
+    .join('\n'),
+);
 
 interface Rule {
   selectors: string[];
@@ -220,39 +230,31 @@ describe('src/styles/planner.css', () => {
   });
 });
 
-describe('added to styles.css', () => {
-  // The planner's styles are meant to be appended to styles.css. These are
-  // the checks of tests/sourceRules.test.ts that look at the file as a whole:
-  // they must still hold with the planner's rules in it.
-  const both = `${mainCss}\n${css}`;
-  const allRules = rulesOf(both);
+describe('joined with the stylesheets of the other screens', () => {
+  it('is one of the parts the build joins into styles.css', () => {
+    expect(STYLE_FILES).toContain(PLANNER_STYLES);
+    expect(rulesOf(otherCss).length).toBeGreaterThan(50);
+  });
 
-  it('declares no rule twice', () => {
+  it('declares no rule that another stylesheet declares too', () => {
     const mine = new Set(rules.flatMap((rule) => rule.selectors));
-    for (const rule of rulesOf(mainCss)) {
+    for (const rule of rulesOf(otherCss)) {
       for (const selector of rule.selectors) expect(mine.has(selector), selector).toBe(false);
     }
   });
 
-  it("leaves the binder's touch rule as the only one that uses the binder's figure", () => {
-    const touchRules = allRules.filter((rule) => /min-height:\s*var\(--spellbook-touch-target\)/.test(rule.body));
-    const coarse = /@media\s*\(pointer:\s*coarse\)\s*\{([\s\S]*?\})\s*\}/.exec(both)?.[1] ?? '';
-    for (const rule of touchRules) {
-      const guarded = rule.selectors.every((selector) => selector.includes('.spellbook-is-mobile')) || coarse.includes(rule.body);
-      expect(guarded, rule.selectors.join(', ')).toBe(true);
-    }
+  it("uses its own figures for what a finger taps and for the phone's bar, and leaves the binder's alone", () => {
+    // tests/sourceRules.test.ts allows the binder's figures in the binder's own rules only.
+    expect(/--spellbook-touch-target\b/.test(css)).toBe(false);
+    expect(/--spellbook-phone-bar-room\b/.test(css)).toBe(false);
+    expect(otherCss).toMatch(/--spellbook-touch-target:\s*44px/);
+    expect(otherCss).toMatch(/--spellbook-phone-bar-room:\s*80px/);
   });
 
-  it("leaves the binder's room for the phone's bar the binder's alone", () => {
-    const padded = allRules.filter((candidate) => /--spellbook-phone-bar-room\)/.test(candidate.body));
-    expect(padded.map((candidate) => candidate.selectors)).toEqual([['.spellbook-binder.spellbook-is-phone .spellbook-binder-scroll']]);
-  });
-
-  it('adds no second thing that only shows on hover', () => {
-    const changesWhatIsSeen = /\b(display|visibility|opacity|pointer-events)\s*:/;
-    const exceptions = allRules.filter(
-      (rule) => rule.selectors.some((selector) => selector.includes(':hover')) && changesWhatIsSeen.test(rule.body),
-    );
-    expect(exceptions).toHaveLength(1);
+  it('declares no variable that another stylesheet declares too', () => {
+    const declaredIn = (text: string): Set<string> => new Set([...text.matchAll(/(?:^|[;{\s])(--spellbook-[A-Za-z0-9-]+)\s*:/g)].map((match) => match[1] ?? ''));
+    const others = declaredIn(otherCss);
+    expect(others.size).toBeGreaterThan(0);
+    for (const name of declaredIn(css)) expect(others.has(name), name).toBe(false);
   });
 });
