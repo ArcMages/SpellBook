@@ -332,6 +332,35 @@ describe('plugged into the project', () => {
     expect(host.getData()?.world).toEqual(['World/Mara.md', 'World/Places/Saltwick.md', 'World/Tom.md']);
   });
 
+  it('in a vault where two projects each have a "Mara", shows and filters by this project\'s own', async () => {
+    const vault = novelVault();
+    vault.seed('Novel/World/Characters/Mara.md', { frontmatter: { type: 'character' }, body: 'A smuggler.' });
+    vault.seed('Other/World/Characters/Mara.md', { frontmatter: { type: 'character' }, body: 'A queen.' });
+    vault.external.editFrontmatter('Novel/Timeline/The war begins.md', (frontmatter) => {
+      frontmatter['entities'] = ['[[Mara]]'];
+    });
+    vault.external.editFrontmatter('Novel/Timeline/Siege.md', (frontmatter) => {
+      frontmatter['entities'] = ['[[Novel/World/Characters/Mara]]'];
+    });
+    // An event of the novel that names the other book's Mara, by her path.
+    vault.external.editFrontmatter('Novel/Timeline/ילדות.md', (frontmatter) => {
+      frontmatter['entities'] = ['[[Other/World/Characters/Mara]]'];
+    });
+    const w = await wireOpen(NOVEL, vault);
+    expect(hostOf(w).getData()?.folder).toBe('Novel');
+    expect(hostOf(w).getData()?.world).toEqual(['World/Characters/Mara.md']);
+    const s = await openTimeline(w);
+    expect(chipsOf(cardOf(s, 'The war begins'))).toEqual(['Mara']);
+
+    // The filter offers this project's Mara, and the name the stray link gives, apart.
+    click(button(s, FILTER_LABEL));
+    expect(rowNames()).toEqual(['Mara', 'Mara']);
+    click(rows()[0] as FakeElement);
+    windowParts().confirm.click();
+    await settle(s);
+    expect(titles(s).sort()).toEqual(['Siege', 'The war begins']);
+  });
+
   it('stores the calendar in the project index and nowhere else, and takes it away again', async () => {
     const w = await wireOpen();
     const host = hostOf(w);

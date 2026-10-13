@@ -56,6 +56,39 @@ describe('the entities an event names', () => {
     expect(index.resolve('מרים').path).toBe('World/מרים.md');
   });
 
+  it('in a vault with two projects that each have a "Mara", leads to this project\'s own', () => {
+    // The paths are those of this project's World folder, from the project's folder on.
+    const own = createEntityIndex(['World/Characters/Mara.md', 'World/Places/Saltwick.md'], 'Novel');
+    const mara = own.resolve('Mara');
+    expect(mara.path).toBe('World/Characters/Mara.md');
+    // A bare name, or a path that says no more than the note's own, is this project's note...
+    for (const target of ['mara', 'Characters/Mara', 'World/Characters/Mara.md', 'Novel/World/Characters/Mara', 'novel/world/characters/mara.md']) {
+      expect(own.resolve(target).key, target).toBe(mara.key);
+    }
+    // ...and a path into the other project is not: it is shown by its name, without a note.
+    for (const target of ['Atlas/World/Characters/Mara', 'Atlas/World/Characters/Mara.md', 'Books/Atlas/World/Characters/Mara', 'Old/Novel/World/Characters/Mara']) {
+      const other = own.resolve(target);
+      expect([other.name, other.path], target).toEqual(['Mara', null]);
+      expect(other.key, target).not.toBe(mara.key);
+    }
+    // The filter goes by the same keys: an event that names the other project's Mara is not one of this Mara's.
+    const theirs = event('Crossing', { entities: ['[[Atlas/World/Characters/Mara]]'] });
+    const ours = event('Fire', { entities: ['[[Mara]]'] });
+    expect(eventHasEntity(ours, new Set([mara.key]), own)).toBe(true);
+    expect(eventHasEntity(theirs, new Set([mara.key]), own)).toBe(false);
+    expect(eventEntities(theirs, own).map((entity) => entity.path)).toEqual([null]);
+    // Taking this project's Mara for an event leaves the other link out, and writes a plain one.
+    expect(setEntitiesPatch({ entities: ['[[Atlas/World/Characters/Mara]]'] }, [mara.key], own)).toEqual({ entities: ['[[Mara]]'] });
+  });
+
+  it('knows a project that lies inside other folders by the end of where it is', () => {
+    const nested = createEntityIndex(['World/Mara.md'], 'Books/Novel');
+    for (const target of ['Books/Novel/World/Mara', 'Novel/World/Mara']) expect(nested.resolve(target).path, target).toBe('World/Mara.md');
+    for (const target of ['Books/Atlas/World/Mara', 'Shelf/Books/Novel/World/Mara', 'Atlas/Novel/World/Mara']) {
+      expect(nested.resolve(target).path, target).toBeNull();
+    }
+  });
+
   it('still shows an entity whose note is not there, by the name its link gives', () => {
     const ghost = index.resolve('World/Ghost');
     expect(ghost).toEqual({ key: ghost.key, name: 'Ghost', path: null });

@@ -167,7 +167,7 @@ export function readContent(data: TimelineData, filter: readonly string[] = []):
   const calendar = reading.calendar;
   const whole = readTimeline(data.events, data.scenes, calendar);
 
-  const entityIndex = createEntityIndex(data.world ?? []);
+  const entityIndex = createEntityIndex(data.world ?? [], data.folder);
   const entities = new Map<string, readonly EventEntity[]>();
   const extra = new Map<string, EventEntity>();
   for (const event of [...whole.dated, ...whole.undated]) {
