@@ -109,6 +109,7 @@ describe('source layout', () => {
       'features/export/index.ts',
       'features/prose/index.ts',
       'features/scrivenings/index.ts',
+      'features/snapshots/index.ts',
     ]) {
       expect(names, expected).toContain(expected);
     }
@@ -287,6 +288,52 @@ describe('the whole plugin', () => {
     expect(check).toMatch(/EXPORT_EXTENSIONS\.includes\(/);
   });
 
+  it('replaces the text of a note the writer writes in through one path only: restoring a scene from a snapshot', () => {
+    // Obsidian's vault.process is still used in one place (the rule above).
+    // A second method of the vault doorway reaches it, replaceText, which
+    // never creates a file. Only the project store calls that, once, in
+    // replaceSceneText: no screen and no feature can.
+    const callers = allFiles.filter((file) => /\.\s*replaceText\s*\(/.test(codeOf(file))).map(relative);
+    expect(callers).toEqual(['core/projectStore.ts']);
+    const store = codeOf(path.join(srcDir, 'core', 'projectStore.ts'));
+    expect((store.match(/\.\s*replaceText\s*\(/g) ?? []).length).toBe(1);
+    const method = /\n  replaceSceneText\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
+    expect(method).toMatch(/saved = await this\.vault\.replaceText\(file\.path, change\);/);
+    // Before it: the project can be written, the path stays inside it, the
+    // note is a scene (and not a snapshot), it is there, and it is no index.
+    const before = method.split('this.vault.replaceText(')[0] ?? '';
+    expect(before).toMatch(/const blocked = this\.whyNotWritable\(active\);\s*if \(blocked \|\| !active\) return /);
+    expect(before).toMatch(/const rel = this\.checkedPath\(active, path, true\);\s*if \(typeof rel !== 'string'\) return rel;/);
+    expect(before).toMatch(/if \(!this\.isSceneNote\(active, rel\) \|\| isInside\(SNAPSHOTS_FOLDER, rel\)\) \{\s*return refused\('invalid-path'/);
+    expect(before).toMatch(/const file = this\.projectFiles\(active\)\.get\(pathKey\(rel\)\);\s*if \(!file\) \{\s*return refused\('missing-file'/);
+    expect(before).toMatch(/if \(this\.projects\.has\(file\.path\)\) \{\s*return refused\('invalid-path'/);
+    // In the doorway it goes through the same routine as the plugin's own files, for a file that is there.
+    const doorway = codeOf(path.join(srcDir, 'obsidian', 'obsidianVault.ts'));
+    const replace = /\n  async replaceText\([\s\S]*?\n  \}\n/.exec(doorway)?.[0] ?? '';
+    expect(replace).toMatch(/return this\.changeText\(this\.requireFile\(path\), /);
+    expect(replace).not.toMatch(/\.create\(/);
+    // A feature reaches it through the store alone, and only the snapshots do.
+    const users = allFiles.filter((file) => /\.\s*replaceSceneText\s*\(/.test(codeOf(file))).map(relative);
+    expect(users).toEqual(['features/snapshots/keeper.ts']);
+  });
+
+  it('writes and trashes snapshots in one folder only, through the store', () => {
+    const store = codeOf(path.join(srcDir, 'core', 'projectStore.ts'));
+    const check = /\n  private snapshotNotePath\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
+    expect(check).toMatch(/parts\.length !== 3 \|\| parts\[0\] !== SNAPSHOTS_FOLDER \|\| !isSafeRelativePath\(path\) \|\| !isMarkdownPath\(path\)\) return no;/);
+    expect(check).toMatch(/sanitiseFileName\(folder, ''\) !== folder \|\| sanitiseFileName\(name, ''\) !== name\) return no;/);
+    for (const name of ['createSnapshotNote', 'trashSnapshotNote']) {
+      const method = new RegExp(`\\n  ${name}\\([\\s\\S]*?\\n  \\}\\n`).exec(store)?.[0] ?? '';
+      // The path is checked, and its refusal returned, before anything else is done with it.
+      expect(method, name).toMatch(/const rel = this\.snapshotNotePath\(active, [^;]*\);\s*if \(typeof rel !== 'string'\) return rel;/);
+      const write = name === 'createSnapshotNote' ? 'this.vault.createFile(' : 'this.vault.trash(';
+      expect(method.indexOf('this.snapshotNotePath('), name).toBeGreaterThan(0);
+      expect(method.indexOf(write), name).toBeGreaterThan(method.indexOf("if (typeof rel !== 'string') return rel;"));
+    }
+    const users = allFiles.filter((file) => /\.\s*(createSnapshotNote|trashSnapshotNote)\s*\(/.test(codeOf(file))).map(relative);
+    expect(users).toEqual(['features/snapshots/keeper.ts']);
+  });
+
   it('declares what the writing progress offers the other screens once, in the core', () => {
     // The two services are looked up by name. The names, and the shapes of
     // what is found under them, are written down in one file that every
@@ -330,6 +377,7 @@ describe('the whole plugin', () => {
       'features/report',
       'features/schemes',
       'features/scrivenings',
+      'features/snapshots',
       'features/timeline',
     ]);
     for (const file of featureFiles) {
@@ -359,7 +407,7 @@ describe('the whole plugin', () => {
     // A feature is handed the vault doorway to list notes, read them and
     // listen for changes. Everything that writes goes through the project
     // store, which checks what may be written.
-    const writes = /\.\s*(updateFrontmatter|updateText|createFile|createBinary|createFolder|rename|trash)\s*\(/;
+    const writes = /\.\s*(updateFrontmatter|updateText|replaceText|createFile|createBinary|createFolder|rename|trash)\s*\(/;
     for (const file of featureFiles) {
       expect(writes.test(codeOf(file)), relative(file)).toBe(false);
     }
@@ -479,6 +527,7 @@ describe('the stylesheet is put together from one file per screen', () => {
       'export.css',
       'prose.css',
       'scrivenings.css',
+      'snapshots.css',
     ]);
     // No stylesheet is left out, and none is listed that is not there.
     expect(readdirSync(stylesDir).filter((name) => name.endsWith('.css')).sort()).toEqual([...STYLE_FILES].sort());
@@ -516,7 +565,7 @@ describe('the stylesheet is put together from one file per screen', () => {
   });
 
   it('gives each screen a stylesheet of its own, so that screens built side by side never share a file', () => {
-    for (const feature of ['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'report', 'export', 'prose', 'scrivenings']) {
+    for (const feature of ['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'report', 'export', 'prose', 'scrivenings', 'snapshots']) {
       expect(STYLE_FILES, feature).toContain(`${feature}.css`);
     }
   });

@@ -20,7 +20,7 @@ import { options } from './lines';
 const SCREEN_LINES = 60;
 const WHOLE_SCENE_MS = 1500;
 const SCREEN_MS = 150;
-const KEY_MS = 30;
+const KEY_MS = 100; // roomy: the whole suite runs many files at once, and a busy machine took 49 ms
 
 function linesOf(text: string): PassageLine[] {
   const lines = text.split('\n');

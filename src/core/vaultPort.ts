@@ -149,6 +149,23 @@ export interface VaultPort {
    */
   updateText(path: string, change: (current: string | null) => string | null): Promise<boolean>;
 
+  /**
+   * Read, change and save the whole text of a note that is there, in one
+   * step, against the file as it is on disk at that moment. Nothing is ever
+   * created: rejects with VaultFileMissingError when there is no such file.
+   *
+   * This replaces a note's text, so it has one use only: putting back an
+   * earlier version of a scene that the writer asked to restore. The project
+   * store is the only caller, and it accepts nothing but a scene of the open
+   * project: see replaceSceneText there.
+   *
+   * `change` receives the current text and returns the new text, or null to
+   * leave the file exactly as it is (nothing is written).
+   *
+   * Resolves with whether the file was written. Rejects when the save fails.
+   */
+  replaceText(path: string, change: (current: string) => string | null): Promise<boolean>;
+
   /** Listen to vault events. Returns a function that stops listening. */
   on(listener: VaultListener): () => void;
 }

@@ -33,6 +33,7 @@ import { progressFeature } from './progress/index';
 import { schemesFeature } from './schemes/index';
 import { reportFeature } from './report/index';
 import { proseFeature } from './prose/index';
+import { snapshotsFeature } from './snapshots/index';
 import { timelineFeature } from './timeline/index';
 import { scriveningsFeature } from './scrivenings/index';
 
@@ -153,6 +154,7 @@ export const FEATURES: readonly Feature[] = [
   exportFeature,
   proseFeature,
   scriveningsFeature,
+  snapshotsFeature,
 ];
 
 /** What registerFeatures needs: a FeatureContext without the parts the registry makes itself. */

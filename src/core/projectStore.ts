@@ -17,6 +17,8 @@
 //  - Unfiled notes and Missing entries are worked out when reading, and never
 //    "fixed" on disk without being asked.
 //  - A note's text is never changed. Deleting a scene moves it to the trash.
+//    (One exception, asked for by the writer each time: restoring a scene
+//    from a snapshot, through replaceSceneText and nothing else.)
 //  - A scene note's "order" property is only written for something the writer
 //    did on this device, and only in the notes that change needs.
 
@@ -71,6 +73,7 @@ import {
   MANUSCRIPT_FOLDER,
   PROJECT_FOLDERS,
   RESEARCH_FOLDER,
+  SNAPSHOTS_FOLDER,
   STATS_FOLDER,
   TIMELINE_FOLDER,
   TODO_FILE,
@@ -1527,6 +1530,171 @@ export class ProjectStore {
         return failed(`The note "${name}" could not be created: ${messageOf(error)}`);
       }
       return done({ path: relativeTo(active.folder, createdPath) ?? rel });
+    }, inProject);
+  }
+
+  // ---------------------------------------------------------------- snapshots
+
+  /**
+   * Save a snapshot of a scene: a new note at
+   * "Snapshots/<folder>/<name>.md" in the open project, with the properties
+   * and the text given. The two folders are made first when they are missing.
+   *
+   * This is the only way a snapshot is written, and it reaches no further
+   * than one folder deep inside the Snapshots folder. Nothing is ever
+   * replaced: it is refused ("exists") when something of that name is there,
+   * whatever its capitals, so that the caller can try the next name. Refused
+   * as well for a folder or a note name that is not a tidy file name as it
+   * stands (see sanitiseFileName; tidy it first) or that names a place (a
+   * slash, ".."), for properties that would mark the note as a project, for
+   * a place the binder lists as a scene, for a read-only project, and when
+   * no project is open.
+   *
+   * @param folder the scene's own folder inside Snapshots
+   * @param name   the note's name, without ".md"
+   * @returns the new note's path relative to the project folder
+   */
+  createSnapshotNote(
+    folder: string,
+    name: string,
+    frontmatter: Readonly<Frontmatter>,
+    body: string,
+    inProject?: string,
+  ): Promise<IntentResult<{ path: string }>> {
+    return this.run(async (): Promise<IntentResult<{ path: string }>> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = this.snapshotNotePath(active, `${SNAPSHOTS_FOLDER}/${folder}/${name}.md`);
+      if (typeof rel !== 'string') return rel;
+      if (isProjectIndex(frontmatter)) {
+        return refused('inside-project', 'A note in a project cannot be marked as a project itself.');
+      }
+      const target = joinPath(active.folder, rel);
+      if (this.vault.exists(target)) {
+        return refused('exists', `There is already a snapshot called "${name}".`);
+      }
+      let createdPath: string;
+      try {
+        for (const part of [SNAPSHOTS_FOLDER, parentPath(rel)]) {
+          const wanted = joinPath(active.folder, part);
+          if (!this.vault.exists(wanted)) await this.vault.createFolder(wanted);
+        }
+        // The vault itself refuses to create a file where something already is.
+        createdPath = await this.vault.createFile(target, body, copyOf(frontmatter) as Frontmatter);
+      } catch (error) {
+        return failed(`The snapshot could not be saved: ${messageOf(error)}`);
+      }
+      return done({ path: relativeTo(active.folder, createdPath) ?? rel });
+    }, inProject);
+  }
+
+  /**
+   * Move a snapshot to the trash (it is never deleted outright). Only a note
+   * one folder deep inside the open project's Snapshots folder can be
+   * trashed this way: every other path is refused, and so is a note the
+   * binder lists as a scene.
+   *
+   * @param path "Snapshots/<folder>/<name>.md", relative to the project folder
+   */
+  trashSnapshotNote(path: string, inProject?: string): Promise<IntentResult> {
+    return this.run(async (): Promise<IntentResult> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = this.snapshotNotePath(active, path);
+      if (typeof rel !== 'string') return rel;
+      const file = this.projectFiles(active).get(pathKey(rel));
+      if (!file) return noop('not-found', 'That snapshot is no longer in the project.');
+      if (this.projects.has(file.path)) {
+        return refused('invalid-path', `"${rel}" is a project index, not a snapshot.`);
+      }
+      try {
+        await this.vault.trash(file.path);
+      } catch (error) {
+        if (error instanceof VaultFileMissingError) return noop('not-found', 'That snapshot is no longer in the project.');
+        return failed(`The snapshot could not be moved to the trash: ${messageOf(error)}`);
+      }
+      return done(undefined);
+    }, inProject);
+  }
+
+  /**
+   * Check a path given for a snapshot. Only a note exactly one folder deep
+   * inside the Snapshots folder passes ("Snapshots/<folder>/<name>.md"), and
+   * only when both names are tidy file names as they stand: this is what
+   * keeps createSnapshotNote and trashSnapshotNote away from every other
+   * place in the vault. Returns the tidy relative path, or a refusal.
+   */
+  private snapshotNotePath(
+    active: ActiveProject,
+    path: string,
+  ): string | { status: 'refused'; reason: RefusalReason; message: string } {
+    const no = refused('invalid-path', `"${path}" is not a snapshot. Snapshots are the notes in the folders of the ${SNAPSHOTS_FOLDER} folder.`);
+    const parts = path.split('/');
+    if (parts.length !== 3 || parts[0] !== SNAPSHOTS_FOLDER || !isSafeRelativePath(path) || !isMarkdownPath(path)) return no;
+    const folder = parts[1] ?? '';
+    const name = noteTitle(parts[2] ?? '');
+    if (folder === '' || name === '' || parts[2] !== `${name}.md`) return no;
+    // A name that the tidying would change holds something it should not: a colon, a leading dot.
+    if (sanitiseFileName(folder, '') !== folder || sanitiseFileName(name, '') !== name) return no;
+    if (clashKey(joinPath(active.folder, path)) === clashKey(active.indexPath)) return no;
+    const wanted = clashKey(path);
+    if (flattenScenes(this.effectiveBinder(active)).some((scene) => clashKey(scene) === wanted)) return no;
+    return path;
+  }
+
+  /**
+   * Replace the text of a scene of the open project with an earlier version
+   * of it: what restoring a snapshot does. This is the one place where the
+   * plugin replaces the text of a note the writer writes in, so it is kept
+   * narrow:
+   *  - only a scene is accepted: a note the binder lists, or a note in the
+   *    Manuscript folder, that is there. Never the project index or a copy
+   *    of it, never a snapshot, a to-do list, a research or a timeline note,
+   *    and never anything outside the open project;
+   *  - nothing is ever created;
+   *  - `change` is handed the scene's text as it is on disk at the very
+   *    moment of writing, and decides then: it returns the new text, or null
+   *    to leave the scene exactly as it is (for example because the text is
+   *    no longer the one the writer was shown). It may be called more than
+   *    once.
+   *
+   * Refused as well for a read-only project and when no project is open.
+   *
+   * @param path the scene's path relative to the project folder, as the snapshot gives it
+   */
+  replaceSceneText(
+    path: string,
+    change: (current: string) => string | null,
+    inProject?: string,
+  ): Promise<IntentResult> {
+    return this.run(async (): Promise<IntentResult> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = this.checkedPath(active, path, true);
+      if (typeof rel !== 'string') return rel;
+      if (!this.isSceneNote(active, rel) || isInside(SNAPSHOTS_FOLDER, rel)) {
+        return refused('invalid-path', `"${path}" is not a scene of this project.`);
+      }
+      const file = this.projectFiles(active).get(pathKey(rel));
+      if (!file) {
+        return refused('missing-file', `"${rel}" has no note in this project (it may still be syncing).`);
+      }
+      if (this.projects.has(file.path)) {
+        return refused('invalid-path', `"${rel}" is a project index, not a scene of this project.`);
+      }
+      let saved: boolean;
+      try {
+        saved = await this.vault.replaceText(file.path, change);
+      } catch (error) {
+        if (error instanceof VaultFileMissingError) {
+          return noop('not-found', 'That scene is no longer in the project.');
+        }
+        return failed(`The text of "${noteTitle(file.rel)}" could not be replaced: ${messageOf(error)}`);
+      }
+      return saved ? done(undefined) : noop('unchanged', 'Nothing needed to change.');
     }, inProject);
   }
 

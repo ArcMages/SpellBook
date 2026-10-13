@@ -11,7 +11,10 @@
 //     list and the word logs), in one place: updateText below, which reads,
 //     changes and saves in one step with vault.process,
 //   - a file is written from bytes in one place only: createBinary below,
-//     which makes a new exported manuscript and can replace nothing.
+//     which makes a new exported manuscript and can replace nothing,
+//   - the text of a note the writer writes in is replaced for one thing
+//     only, restoring a scene from a snapshot: replaceText below, which goes
+//     through the same one step and never creates a file.
 
 import { TFile, TFolder, getFrontMatterInfo, normalizePath, parseYaml, stringifyYaml } from 'obsidian';
 import type { App, EventRef, Events, TAbstractFile } from 'obsidian';
@@ -275,6 +278,15 @@ export class ObsidianVault implements VaultPort {
       }
     }
     return this.changeText(this.requireFile(path), change);
+  }
+
+  /**
+   * Replaces the text of a note that is there; it never creates one. Only
+   * the project store calls it, and only to restore a scene from a snapshot:
+   * see replaceSceneText in src/core/projectStore.ts.
+   */
+  async replaceText(path: string, change: (current: string) => string | null): Promise<boolean> {
+    return this.changeText(this.requireFile(path), (current) => change(current ?? ''));
   }
 
   /** Read, change and save an existing file's text in one step; nothing is written when `change` gives null. */
