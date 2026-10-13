@@ -1,0 +1,11 @@
+# Dependencies (restored with "npm install")
+node_modules/
+
+# Build output (created by "npm run build")
+main.js
+
+# Plugin data written by Obsidian; never commit it
+data.json
+
+# macOS
+.DS_Store

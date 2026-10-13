@@ -1,0 +1,9 @@
+/*
+ * Spellbook, a novel writer.
+ *
+ * Styles for the plugin's views. Rules for this file:
+ *   - every class starts with "spellbook-";
+ *   - colours and spacing come only from Obsidian's CSS variables, so the
+ *     plugin follows the user's theme in light and dark mode;
+ *   - nothing may depend on hover alone, and every layout must work at phone width.
+ */

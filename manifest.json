@@ -1,0 +1,9 @@
+{
+  "id": "spellbook-novel-writer",
+  "name": "Spellbook",
+  "version": "0.1.0",
+  "minAppVersion": "1.8.7",
+  "description": "Plan and write novels: binder, corkboard, word counts, calendar and timelines.",
+  "author": "Mage",
+  "isDesktopOnly": false
+}

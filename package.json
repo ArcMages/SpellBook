@@ -1,0 +1,22 @@
+{
+  "name": "spellbook-novel-writer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Spellbook, a novel writer: an Obsidian plugin to plan and write novels.",
+  "main": "main.js",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tests/tsconfig.json",
+    "build": "npm run typecheck && node esbuild.config.mjs production",
+    "dev": "node esbuild.config.mjs",
+    "test": "vitest run",
+    "deploy": "npm run build && node scripts/deploy.mjs"
+  },
+  "author": "Mage",
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "esbuild": "0.28.2",
+    "obsidian": "1.14.4",
+    "typescript": "7.0.2",
+    "vitest": "5.0.4"
+  }
+}
