@@ -6,6 +6,7 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 
 ## Learn
 
+- [Installing Spellbook](docs/installing.md). For testers: with BRAT, which updates by itself, or by copying three files; on a computer, an iPhone or an iPad.
 - [Tutorial: your first novel in Spellbook](docs/tutorial.md). A walk-through from an empty vault to a Word file for a reader, in numbered steps.
 - [User guide](docs/guide.md). The reference: every screen, every command, how your writing is stored, and the known limits.
 - [Customising: making Spellbook your own](docs/customising.md). Colour schemes, keyboard shortcuts, the bottom bar, statuses and labels, and where each setting lives.
@@ -111,7 +112,7 @@ Spellbook is written to work on all three. It uses no desktop-only features of O
 
 ## Installing by hand
 
-Spellbook is not in the community plugin list, so for now it is installed by copying three files.
+Spellbook is not in the community plugin list, so for now it is installed by copying three files. The full steps, including the BRAT way that updates by itself and how to install on an iPhone or iPad, are in [Installing Spellbook](docs/installing.md).
 
 1. Get `main.js`, `manifest.json` and `styles.css` (build them from source as described below).
 2. In your vault, make the folder `<vault>/.obsidian/plugins/spellbook-novel-writer/`.
