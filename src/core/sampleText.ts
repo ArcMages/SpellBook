@@ -429,6 +429,8 @@ export interface SampleEvent {
   /** The titles of the scenes that tell it. */
   readonly scenes?: readonly string[];
   readonly tags?: readonly string[];
+  /** The names of the entities of the world that are in it (see SAMPLE_ENTITIES). */
+  readonly entities?: readonly string[];
   /** The note's text. */
   readonly body: string;
 }
@@ -437,7 +439,7 @@ export interface SampleEvent {
  * The ten events of the story, in the autumn and winter of 1923. Among them:
  * one that lasts six weeks (the survey), one that sits in two timelines
  * (Mara's arrival), one with a Hebrew title, and two that are only known to
- * the month.
+ * the month. Nine of them say which entities of the world are in them.
  */
 export const SAMPLE_EVENTS: readonly SampleEvent[] = [
   {
@@ -445,6 +447,7 @@ export const SAMPLE_EVENTS: readonly SampleEvent[] = [
     date: '1922-11',
     timelines: [BACKSTORY],
     tags: ['lighthouse'],
+    entities: ['The Old Lighthouse', 'The Keeper', 'The Logbook'],
     body: 'The keeper is pensioned off, the windows are boarded and the door is chained. His log goes to the archive.',
   },
   {
@@ -452,6 +455,7 @@ export const SAMPLE_EVENTS: readonly SampleEvent[] = [
     date: '1923-02-10',
     timelines: [BACKSTORY],
     tags: ['chart'],
+    entities: ['The Old Chart'],
     body: 'The last time anyone checked the chart of the bay against the bay itself.',
   },
   {
@@ -460,6 +464,7 @@ export const SAMPLE_EVENTS: readonly SampleEvent[] = [
     timelines: [MAIN_PLOT],
     scenes: ['Prologue'],
     tags: ['storm'],
+    entities: ['Saltwick'],
     body: 'One night moves the sandbars. By morning the channel is somewhere else and one boat has not come home.',
   },
   {
@@ -467,6 +472,7 @@ export const SAMPLE_EVENTS: readonly SampleEvent[] = [
     date: '1923-10-14',
     timelines: [MAIN_PLOT, SURVEY],
     scenes: ['The Last Ferry'],
+    entities: ['Mara', 'Tobias', 'Saltwick'],
     body: 'On the last ferry of the day, with her instruments in two cases.',
   },
   {
@@ -476,6 +482,7 @@ export const SAMPLE_EVENTS: readonly SampleEvent[] = [
     timelines: [SURVEY],
     scenes: ['First Soundings', 'Low Water'],
     tags: ['chart'],
+    entities: ['Mara', 'The Harbour Master'],
     body: 'The six weeks the harbour master gives Mara to redraw the chart.',
   },
   {
@@ -484,6 +491,7 @@ export const SAMPLE_EVENTS: readonly SampleEvent[] = [
     timelines: [MAIN_PLOT],
     scenes: ['The Village on the Old Map'],
     tags: ['ארכיון'],
+    entities: ['Noa', 'The Archive', 'The Drowned Village'],
     body: 'בארכיון, בין הספרים הלחים: מפה שמצויר בה כפר במקום שיש בו היום רק מים.',
   },
   {
@@ -491,6 +499,7 @@ export const SAMPLE_EVENTS: readonly SampleEvent[] = [
     date: '1923-11-08',
     timelines: [SURVEY],
     scenes: ['Low Water'],
+    entities: ['Mara'],
     body: 'Mara walks out onto the new sandbar. The drowned lane does not show yet.',
   },
   {
@@ -506,6 +515,7 @@ export const SAMPLE_EVENTS: readonly SampleEvent[] = [
     timelines: [MAIN_PLOT],
     scenes: ['The Bell Stops', 'What the Keeper Wrote'],
     tags: ['storm'],
+    entities: ['The Old Lighthouse'],
     body: 'The night the ferry bell stops, and someone lights the old lighthouse.',
   },
   {
@@ -514,6 +524,7 @@ export const SAMPLE_EVENTS: readonly SampleEvent[] = [
     timelines: [SURVEY],
     scenes: ['The Chart on the Wall'],
     tags: ['chart'],
+    entities: ['The Drowned Village'],
     body: 'With the drowned village on it, under its old name.',
   },
 ];
@@ -565,3 +576,231 @@ export const SAMPLE_MARKS: ReadonlyArray<{ readonly inDays: number; readonly col
 
 /** The targets: for the whole manuscript, for a day, and how many days from today the deadline is (about five months). */
 export const SAMPLE_TARGETS = { project: 80000, daily: 1000, deadlineInDays: 150 } as const;
+
+// ------------------------------------------------------------------ the world
+//
+// The people, places, groups and things of the story, so that the World
+// browser, a scene's "In this scene" and the timeline's cards have something
+// to show. Each becomes a note in the World folder, in the folder of its type.
+
+/** One of the four types every project has, by its id. */
+export type SampleEntityType = 'character' | 'place' | 'faction' | 'item';
+
+/** An entity of the world: a note in the World folder. */
+export interface SampleEntity {
+  readonly type: SampleEntityType;
+  /** The note's name. No other note of the sample has it, so that a link by name leads here. */
+  readonly name: string;
+  /** What its type's properties say, by name: "role", "kind", "summary" and so on. The others stay empty. */
+  readonly fields: Readonly<Record<string, string | number>>;
+  /** The other names it goes by. */
+  readonly aliases?: readonly string[];
+  /** What the note says under "Description". */
+  readonly description: string;
+}
+
+/**
+ * The thirteen entities: six characters (the three the scenes are told by,
+ * two more of the town, and Noa's sister, whose name and summary are in
+ * Hebrew), four places, one faction and two items.
+ */
+export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
+  {
+    type: 'character',
+    name: 'Mara',
+    fields: {
+      role: 'Chart maker',
+      age: 34,
+      appearance: 'Ink on her cuffs; never without a notebook.',
+      goal: 'To draw the bay as it really is.',
+      summary: 'Sent to Saltwick to redraw the sea chart after the storm. Careful, impatient, new to the town.',
+    },
+    description: 'Mara makes sea charts. She trusts what she has measured herself and very little else.',
+  },
+  {
+    type: 'character',
+    name: 'Tobias',
+    fields: {
+      role: 'Ferryman',
+      age: 41,
+      appearance: 'Weathered hands, an old oilskin coat.',
+      goal: 'To keep the ferry crossing, and one secret kept.',
+      summary: 'Runs the ferry to Saltwick. Knows the sandbars by feel and was out on the water on the night of the storm.',
+    },
+    description: 'Tobias has taken the ferry across the channel since he was a boy. He counts the boats in every evening.',
+  },
+  {
+    type: 'character',
+    name: 'Noa',
+    fields: {
+      role: 'Archivist',
+      age: 29,
+      appearance: 'Reading glasses pushed up into her hair.',
+      goal: 'To find out what the town does not say.',
+      summary: 'Keeps the town archive, and writes home to her sister in Hebrew.',
+    },
+    aliases: ['נועה'],
+    description: 'Noa came to Saltwick to put the archive in order. She lives in the small room above it.',
+  },
+  {
+    type: 'character',
+    name: 'The Harbour Master',
+    fields: {
+      role: 'Harbour master',
+      goal: 'A finished chart in six weeks, with one thing left off it.',
+      summary: 'Gives Mara her work and her deadline, and has his own reasons for both.',
+    },
+    aliases: ['Harbour master'],
+    description: 'The harbour master runs the harbour office and, most days, the town.',
+  },
+  {
+    type: 'character',
+    name: 'The Keeper',
+    fields: {
+      role: 'Lighthouse keeper',
+      summary: 'The last keeper of the old lighthouse. Gone before the story starts; his log is still in the archive.',
+    },
+    aliases: ['The lighthouse keeper'],
+    description: 'Nobody in the town says his name. What is known of him is what he wrote.',
+  },
+  {
+    type: 'character',
+    name: 'תמר',
+    fields: {
+      role: 'אחותה של נועה',
+      summary: 'אחותה הצעירה של נועה. נשארה בבית, ונועה כותבת לה מכתבים מהעיירה.',
+    },
+    aliases: ['אחותי'],
+    description: 'תמר אינה מופיעה בסיפור עצמו: היא מי שנועה כותבת אליה, ומי שמחכה לתשובות.',
+  },
+  {
+    type: 'place',
+    name: 'Saltwick',
+    fields: {
+      kind: 'Harbour town',
+      region: 'The bay',
+      summary: 'A small harbour town where people say little and remember everything.',
+    },
+    description: 'One street along the front, a sea wall, a bakery, a chandlery and the harbour office. The ferry is the only quick way in.',
+  },
+  {
+    type: 'place',
+    name: 'The Archive',
+    fields: {
+      kind: 'Town archive',
+      region: 'Saltwick',
+      summary: 'Ledgers, maps and logs, some of them wet since the storm. Noa keeps it.',
+    },
+    description: 'A long room by the harbour, with a small room above it. The lower shelves flood.',
+  },
+  {
+    type: 'place',
+    name: 'The Old Lighthouse',
+    fields: {
+      kind: 'Lighthouse',
+      region: 'Saltwick',
+      summary: 'Closed, boarded and chained a year before the story starts.',
+    },
+    description: 'It stands at the end of the point. Its light has not been lit since the keeper was pensioned off.',
+  },
+  {
+    type: 'place',
+    name: 'The Drowned Village',
+    fields: {
+      kind: 'Lost village',
+      region: 'The bay',
+      summary: 'A church and seven houses on an old map, where there is now only water.',
+    },
+    aliases: ['The village under the water'],
+    description: 'At the lowest spring tides the stones of its lane show under the water.',
+  },
+  {
+    type: 'faction',
+    name: 'The Harbour Office',
+    fields: {
+      kind: 'Town authority',
+      leader: 'The harbour master',
+      summary: 'Pays for the new chart, and decides what the town is told.',
+    },
+    description: 'The office that keeps the harbour, its dues and its records.',
+  },
+  {
+    type: 'item',
+    name: 'The Old Chart',
+    fields: {
+      kind: 'Sea chart',
+      owner: 'The harbour office',
+      summary: 'The chart of the bay as it was before the storm. No longer true.',
+    },
+    aliases: ['The old chart'],
+    description: 'Last corrected in February 1923. Every pilot in the bay learned from it.',
+  },
+  {
+    type: 'item',
+    name: 'The Logbook',
+    fields: {
+      kind: 'Logbook',
+      owner: 'The archive',
+      summary: 'The log the old lighthouse keeper kept. Some of its pages have been cut out.',
+    },
+    aliases: ["The keeper's log"],
+    description: 'Damp at the edges. The last page says the sea always gives back what it took.',
+  },
+];
+
+/**
+ * The entities each scene lists, by the scene's title: who and what its
+ * synopsis is about. A few scenes list none, so that the screens have an
+ * empty case to show too.
+ */
+export const SAMPLE_SCENE_ENTITIES: Readonly<Record<string, readonly string[]>> = {
+  Prologue: ['The Old Chart'],
+  'The Last Ferry': ['Mara', 'Tobias', 'Saltwick'],
+  'A Room Above the Chandlery': ['Mara'],
+  'What the Harbour Master Wants': ['The Harbour Master', 'Mara', 'The Harbour Office'],
+  'Tobias Counts the Boats': ['Tobias'],
+  'The Archive Door': ['Noa', 'The Archive'],
+  'First Soundings': ['Mara', 'Tobias'],
+  'Bread and Rumours': ['Noa'],
+  'The Chart That Lies': ['Mara', 'The Old Chart'],
+  'Lamp in the Empty House': ['Tobias'],
+  'Low Water': ['Mara'],
+  "The Keeper's Log": ['Noa', 'The Keeper', 'The Logbook', 'The Archive'],
+  'A Line of Stakes': ['Tobias', 'Mara'],
+  'מכתב לאחותי': ['Noa', 'תמר', 'The Archive', 'The Drowned Village'],
+  'Names of the Rocks': ['Mara'],
+  'The Village on the Old Map': ['Noa', 'The Drowned Village'],
+  'Fog on the Crossing': ['Tobias'],
+  'An Argument About North': ['Mara', 'Tobias'],
+  "The Baker's Daughter": ['Noa'],
+  Triangles: ['Mara'],
+  'What Tobias Did Not Say': ['Tobias', 'Mara'],
+  'The Drowned Lane': ['The Drowned Village'],
+  'Pages Out of Order': ['Noa', 'The Logbook'],
+  'Mending Nets': ['Tobias', 'The Drowned Village'],
+  'Ink and Salt': ['Mara'],
+  'A Second Lamp': ['Noa', 'Tobias'],
+  'Depths by Candlelight': ['Mara'],
+  "The Harbour Master's Offer": ['The Harbour Master', 'Mara'],
+  'Under the Floorboards': ['Noa', 'The Logbook', 'The Archive'],
+  'Slack Water': ['Tobias', 'The Drowned Village'],
+  'Glass Falling': ['Saltwick'],
+  'הלילה שלפני הסערה': ['Noa', 'The Logbook', 'The Keeper'],
+  'The Last Crossing Before': ['Tobias'],
+  Sandbags: ['Mara', 'Noa', 'The Archive'],
+  'What the Keeper Wrote': ['Noa', 'The Keeper', 'The Logbook'],
+  Adrift: ['Tobias'],
+  'The Light': ['The Old Lighthouse'],
+  'Between Two Bars': ['Tobias'],
+  'Morning After': ['Saltwick'],
+  'A New Shore': ['Mara'],
+  'Starting Over': ['Mara'],
+  'The Honest Chart': ['Mara', 'The Harbour Master'],
+  'Tobias Tells It': ['Tobias', 'Mara'],
+  'A Place for the Log': ['Noa', 'The Logbook'],
+  'The Village Gets a Name': ['The Drowned Village'],
+  'The Ferry Timetable': ['Tobias'],
+  'Leaving on the Morning Tide': ['Mara'],
+  'The Chart on the Wall': ['The Harbour Office', 'Saltwick'],
+  Epilogue: ['The Drowned Village'],
+};

@@ -35,6 +35,8 @@ import { MemoryDeviceStorage, TODAY, fixedRandom, quiet, seedProject, tick } fro
 export class Host implements BinderHost, ActionsHost {
   services: BinderServices | null = null;
   readonly actions: BinderActions = new BinderActions(this);
+  /** What the other screens offer the binder, by name; null for a plugin with no other screens. */
+  features: ActionsHost['features'] = null;
   /** How often the "Create project" window was asked for. */
   asked = 0;
   /** How often the sample project was asked for. */

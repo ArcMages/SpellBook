@@ -70,6 +70,17 @@ export function sceneMenu(context: MenuContext, path: string): Menu {
   });
   menu.addSeparator();
   addArranging(menu, context, ref);
+  // Offered when the snapshots are there to take and show them.
+  const snapshots = actions.snapshots;
+  if (snapshots) {
+    menu.addSeparator();
+    add(menu, 'Take snapshot', ['camera'], () => {
+      snapshots.take(path);
+    });
+    add(menu, 'Snapshots', ['history'], () => {
+      snapshots.show(path);
+    });
+  }
   menu.addSeparator();
   add(
     menu,
