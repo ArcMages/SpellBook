@@ -1,6 +1,113 @@
 /* -------------------------------------------------------- Writing progress */
 
-/* The styles of the word-count line and the daily word log
-   (src/features/progress) go here. The rules at the top of base.css apply:
-   classes start with "spellbook-", colours come from Obsidian's variables,
-   sides are "start" and "end", nothing depends on hover alone. */
+/* The styles of the word-count line and the targets window
+   (src/features/progress). The rules at the top of base.css apply: classes
+   start with "spellbook-", colours come from Obsidian's variables, sides are
+   "start" and "end", nothing depends on hover alone. */
+
+/* The bottom bar: one item of Obsidian's status bar, holding the pieces of
+   the line side by side. Obsidian styles the item itself (its size, and the
+   tint it gets when pointed at, because a click on it does something). */
+.spellbook-status {
+  gap: var(--size-4-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nothing to show (no project is open): the item takes no room. */
+.spellbook-status.spellbook-is-empty {
+  display: none;
+}
+
+.spellbook-status .spellbook-status-segment {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--size-2-2);
+  white-space: nowrap;
+}
+
+.spellbook-status .spellbook-status-label {
+  color: var(--text-faint);
+}
+
+/* A target that has been reached. */
+.spellbook-status .spellbook-status-segment.spellbook-is-met .spellbook-status-value {
+  color: var(--text-success);
+}
+
+/* ----------------------------------------------------- The targets window */
+
+.spellbook-targets .spellbook-targets-project {
+  margin-block: 0 var(--size-2-3);
+  font-weight: var(--font-semibold);
+  text-align: start;
+}
+
+.spellbook-targets .spellbook-targets-standing,
+.spellbook-targets .spellbook-targets-problem {
+  margin-block: 0 var(--size-2-3);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+.spellbook-targets .spellbook-targets-problem {
+  color: var(--text-error);
+}
+
+.spellbook-targets .spellbook-targets-field {
+  margin-block: var(--size-4-4);
+}
+
+.spellbook-targets .spellbook-targets-label {
+  display: block;
+  margin-block-end: var(--size-2-2);
+  font-size: var(--font-ui-medium);
+  text-align: start;
+}
+
+/* The title of the scene the last field is about: the writer's own text. */
+.spellbook-targets .spellbook-targets-about {
+  margin-block-end: var(--size-2-2);
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Every field takes the full width of the window, so that nothing is cut
+   off or pushed out of it at the width of a phone. */
+.spellbook-targets .spellbook-targets-input {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  text-align: start;
+}
+
+.spellbook-targets .spellbook-targets-input.spellbook-is-invalid {
+  border-color: var(--text-error);
+}
+
+.spellbook-targets .spellbook-targets-field-message,
+.spellbook-targets .spellbook-targets-message {
+  margin-block-start: var(--size-2-3);
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+  text-align: start;
+}
+
+.spellbook-targets .spellbook-targets-field-message:empty,
+.spellbook-targets .spellbook-targets-message:empty {
+  display: none;
+}
+
+/* On a phone or tablet a field is tall enough for a finger. */
+.spellbook-targets.spellbook-is-mobile {
+  --spellbook-targets-touch: 44px;
+}
+
+.spellbook-targets.spellbook-is-mobile .spellbook-targets-input {
+  min-height: var(--spellbook-targets-touch);
+}
