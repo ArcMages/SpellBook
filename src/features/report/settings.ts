@@ -1,9 +1,9 @@
 // The setting of the writing report: how many words go on a page. It is kept
 // on this device only, like the other choices of the plugin's screens.
 //
-// The writer sets it in the report itself, under the number of pages. The
-// same setting as a row for the plugin's settings tab is here as well
-// (reportSettings); it is not switched on yet.
+// The writer sets it in the report itself, under the number of pages, or in
+// the plugin's settings tab, where the same setting is a row of its own
+// (reportSettings).
 
 import { Setting } from 'obsidian';
 import type { DeviceStorage } from '../../core/devicePrefs';

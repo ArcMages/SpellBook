@@ -105,6 +105,7 @@ describe('the list of features', () => {
       ['progress', 'Writing progress'],
       ['schemes', 'Colour scheme'],
       ['modes', 'Writing modes'],
+      ['report', 'Writing report'],
       ['prose', 'Prose checks'],
       ['snapshots', 'Snapshots'],
     ]);

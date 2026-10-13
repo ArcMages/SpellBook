@@ -14,7 +14,7 @@ import type { App, WorkspaceLeaf } from 'obsidian';
 import type { Feature, FeatureContext } from '../registry';
 import { ReportHost } from './host';
 import { REPORT_VIEW_TYPE, createReportView, reportIcon } from './reportView';
-import { ReportPrefs } from './settings';
+import { ReportPrefs, reportSettings } from './settings';
 
 export { ReportHost } from './host';
 export type { ReportChange, ReportOutcome, ReportSubject } from './host';
@@ -115,5 +115,7 @@ export const reportFeature: Feature = {
         void pane.reveal();
       },
     });
+    // The words on a page can be set in the report itself and in the plugin's settings tab.
+    context.addSettingsSection(reportSettings(prefs));
   },
 };
