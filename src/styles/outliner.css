@@ -1,0 +1,633 @@
+/*
+ * Spellbook: the outliner, the manuscript as a table.
+ *
+ * The rules of styles.css hold here too:
+ *   - every class starts with "spellbook-", every variable with "--spellbook-";
+ *   - colours and spacing come only from Obsidian's CSS variables, so the
+ *     plugin follows the user's theme in light and dark mode;
+ *   - sides are named "start" and "end", never by their physical names, so
+ *     that everything mirrors when Obsidian itself runs the other way;
+ *   - nothing may depend on hover alone, and every layout must work at phone width.
+ *
+ * Two things are set from the plugin's code and not here, because they are
+ * worked out: how far a row is set in (a number of steps, each as wide as
+ * --spellbook-outliner-indent), and how far a target bar is filled.
+ */
+
+/* ------------------------------------------------------------------ Colours */
+
+/* A status or a label has one of eight colours, stored by name. Each name is
+   one of Obsidian's own colours, so it follows the theme. Whatever carries
+   the class may use the colour as var(--spellbook-outliner-tag). */
+.spellbook-outliner-color-red {
+  --spellbook-outliner-tag: var(--color-red);
+}
+
+.spellbook-outliner-color-orange {
+  --spellbook-outliner-tag: var(--color-orange);
+}
+
+.spellbook-outliner-color-yellow {
+  --spellbook-outliner-tag: var(--color-yellow);
+}
+
+.spellbook-outliner-color-green {
+  --spellbook-outliner-tag: var(--color-green);
+}
+
+.spellbook-outliner-color-cyan {
+  --spellbook-outliner-tag: var(--color-cyan);
+}
+
+.spellbook-outliner-color-blue {
+  --spellbook-outliner-tag: var(--color-blue);
+}
+
+.spellbook-outliner-color-purple {
+  --spellbook-outliner-tag: var(--color-purple);
+}
+
+.spellbook-outliner-color-pink {
+  --spellbook-outliner-tag: var(--color-pink);
+}
+
+/* No colour: the quiet grey of a border. */
+.spellbook-outliner-no-color {
+  --spellbook-outliner-tag: var(--background-modifier-border);
+}
+
+/* A small round patch of a colour: in front of a label, and in the menus. */
+.spellbook-outliner-dot {
+  display: inline-block;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: var(--size-4-3);
+  height: var(--size-4-3);
+  margin-inline-end: var(--size-2-3);
+  border: var(--border-width) solid var(--spellbook-outliner-tag);
+  border-radius: 50%;
+  background-color: var(--spellbook-outliner-tag);
+  vertical-align: middle;
+}
+
+.spellbook-outliner-dot.spellbook-outliner-no-color {
+  background-color: transparent;
+}
+
+/* The four bands of progress toward a target: under half, 50 to 79, 80 to 99,
+   and reached. */
+.spellbook-outliner-band-low {
+  --spellbook-outliner-band: var(--color-red);
+}
+
+.spellbook-outliner-band-mid {
+  --spellbook-outliner-band: var(--color-orange);
+}
+
+.spellbook-outliner-band-near {
+  --spellbook-outliner-band: var(--color-yellow);
+}
+
+.spellbook-outliner-band-done {
+  --spellbook-outliner-band: var(--color-green);
+}
+
+/* --------------------------------------------------------------------- Pane */
+
+/* Obsidian's pane around the table: the outliner brings its own margins and
+   does its own scrolling. (The class is repeated to outweigh Obsidian's own
+   rule for pane contents.) */
+.spellbook-outliner-pane.spellbook-outliner-pane {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.spellbook-outliner {
+  --spellbook-outliner-indent: var(--size-4-4);
+  --spellbook-outliner-touch: 44px;
+  --spellbook-outliner-bar-room: 80px;
+  --spellbook-outliner-name-width: 20em;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+/* A narrow pane: the name takes less room, so that the columns beside it show. */
+.spellbook-outliner.spellbook-is-narrow {
+  --spellbook-outliner-name-width: 11em;
+}
+
+/* The project's name, its words and its scenes. */
+.spellbook-outliner-header {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--size-2-2) var(--size-4-3);
+  padding-block: var(--size-4-2) 0;
+  padding-inline: var(--size-4-3);
+}
+
+.spellbook-outliner-heading {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-outliner-summary {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The filter box and the menus beside it. */
+.spellbook-outliner-bar-row {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+}
+
+.spellbook-outliner-search {
+  flex: 1 1 10em;
+  min-width: 8em;
+  max-width: 24em;
+  text-align: start;
+}
+
+.spellbook-outliner-filter.spellbook-is-active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+/* What is on at the moment: the sort, the filter. A tap switches it off. */
+.spellbook-outliner-chips {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: var(--size-2-3);
+  padding-block: 0 var(--size-4-2);
+  padding-inline: var(--size-4-3);
+}
+
+.spellbook-outliner-chip {
+  height: auto;
+  padding-block: var(--size-2-1);
+  padding-inline: var(--size-4-2);
+  border-radius: var(--radius-l);
+  background-color: var(--background-modifier-hover);
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-outliner-message {
+  flex: 0 0 auto;
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+  color: var(--text-muted);
+  text-align: start;
+}
+
+/* -------------------------------------------------------------------- Table */
+
+/* The table scrolls both ways inside this box; the header row, the Name
+   column and the Total row stay in place. */
+.spellbook-outliner-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border-block-start: var(--border-width) solid var(--background-modifier-border);
+}
+
+/* On a phone, Obsidian's own bar floats over the bottom of the pane: the
+   table ends above it, so that the Total row and the last scenes can be read
+   and tapped. Obsidian's own figures where it gives them, and the plugin's
+   own as the least. */
+.spellbook-outliner.spellbook-is-phone .spellbook-outliner-scroll {
+  margin-block-end: max(
+    var(--spellbook-outliner-bar-room),
+    calc(var(--mobile-navbar-height, 0px) + var(--safe-area-inset-bottom, 0px))
+  );
+}
+
+.spellbook-outliner-table {
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Every cell is opaque, so that the rows that scroll under a cell that stays
+   in place do not show through it. */
+.spellbook-outliner-cell {
+  box-sizing: border-box;
+  padding-block: var(--size-2-2);
+  padding-inline: var(--size-4-2);
+  border: 0;
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  font-weight: var(--font-normal);
+  text-align: start;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* The header row stays at the top. */
+.spellbook-outliner-head {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  padding: 0;
+  background-color: var(--background-secondary);
+  color: var(--text-muted);
+  font-weight: var(--font-medium);
+}
+
+.spellbook-outliner-head-button {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-2);
+  padding-block: var(--size-2-3);
+  padding-inline: var(--size-4-2);
+  cursor: pointer;
+}
+
+.spellbook-outliner-head-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spellbook-outliner-sort-mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--text-accent);
+}
+
+.spellbook-outliner-sort-mark .svg-icon {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+/* The Name column stays at the start while the rest scrolls sideways. */
+.spellbook-outliner-col-name {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  max-width: var(--spellbook-outliner-name-width);
+  overflow: hidden;
+  border-inline-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+/* Where the header row and the Name column meet, and where the Total row and
+   the Name column meet: above both. */
+.spellbook-outliner-head.spellbook-outliner-col-name {
+  z-index: 3;
+}
+
+/* The Total row stays at the foot. */
+.spellbook-outliner-total > .spellbook-outliner-cell {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 2;
+  border-block-start: var(--border-width) solid var(--background-modifier-border);
+  border-block-end: 0;
+  background-color: var(--background-secondary);
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-outliner-total > .spellbook-outliner-col-name {
+  z-index: 3;
+}
+
+/* A folder and the manuscript: rows of sums, set apart from the scenes. */
+.spellbook-outliner-folder > .spellbook-outliner-cell,
+.spellbook-outliner-manuscript > .spellbook-outliner-cell {
+  background-color: var(--background-secondary);
+  font-weight: var(--font-medium);
+}
+
+/* An entry whose note is missing is greyed, as in the binder. */
+.spellbook-outliner-row.spellbook-is-missing > .spellbook-outliner-cell {
+  color: var(--text-faint);
+}
+
+/* Numbers stand at the end of their cell, so that their digits line up. */
+.spellbook-outliner-col-number,
+.spellbook-outliner-col-words,
+.spellbook-outliner-col-tasks,
+.spellbook-outliner-col-readTime {
+  text-align: end;
+}
+
+.spellbook-outliner-col-number .spellbook-outliner-head-button,
+.spellbook-outliner-col-words .spellbook-outliner-head-button,
+.spellbook-outliner-col-tasks .spellbook-outliner-head-button,
+.spellbook-outliner-col-readTime .spellbook-outliner-head-button,
+.spellbook-outliner-col-target .spellbook-outliner-head-button {
+  justify-content: flex-end;
+}
+
+.spellbook-outliner-col-number {
+  color: var(--text-faint);
+}
+
+.spellbook-outliner-col-compile {
+  text-align: center;
+}
+
+.spellbook-outliner-col-compile .spellbook-outliner-head-button {
+  justify-content: center;
+}
+
+.spellbook-outliner-compile {
+  margin: 0;
+  vertical-align: middle;
+}
+
+/* ---------------------------------------------------------------- Name cell */
+
+.spellbook-outliner-name {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-2);
+  min-width: 0;
+}
+
+.spellbook-outliner-title,
+.spellbook-outliner-folder-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-outliner-title {
+  cursor: pointer;
+}
+
+.spellbook-outliner-row.spellbook-is-missing .spellbook-outliner-title {
+  color: var(--text-faint);
+  font-style: italic;
+  cursor: default;
+}
+
+.spellbook-outliner-missing,
+.spellbook-outliner-count {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-normal);
+}
+
+/* The "more" button stands at the end of the name, always in view. */
+.spellbook-outliner-more {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+}
+
+.spellbook-outliner-fold {
+  flex: 0 0 auto;
+}
+
+/* The arrow of a folder points down; folded shut, it points sideways. */
+.spellbook-outliner-fold[aria-expanded='false'] .svg-icon {
+  transform: rotate(-90deg);
+}
+
+/* -------------------------------------------------------------------- Cells */
+
+/* A status: a pill in the status's own colour, at low strength. (Where the
+   mixing of colours is not known, the pill keeps its coloured edge.) */
+.spellbook-outliner-status {
+  display: inline-block;
+  box-sizing: border-box;
+  max-width: 14em;
+  overflow: hidden;
+  padding-block: 0;
+  padding-inline: var(--size-4-2);
+  border: var(--border-width) solid var(--spellbook-outliner-tag);
+  border-radius: var(--radius-l);
+  background-color: transparent;
+  background-color: color-mix(in srgb, var(--spellbook-outliner-tag) 20%, transparent);
+  line-height: var(--line-height-tight);
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.spellbook-outliner-label {
+  display: inline-flex;
+  align-items: center;
+  max-width: 14em;
+  vertical-align: middle;
+}
+
+.spellbook-outliner-label-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The target: the percentage, with a bar behind it that is filled that far
+   (its width is set by the plugin's code) and coloured by its band. */
+.spellbook-outliner-col-target {
+  min-width: 6em;
+}
+
+.spellbook-outliner-target {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: var(--size-2-2);
+  overflow: hidden;
+  padding-block: var(--size-2-1);
+  padding-inline: var(--size-2-3);
+  border-radius: var(--radius-s);
+  box-shadow: inset 0 0 0 var(--border-width) var(--background-modifier-border);
+}
+
+.spellbook-outliner-bar {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  background-color: var(--spellbook-outliner-band);
+  opacity: 0.3;
+}
+
+.spellbook-outliner-percent,
+.spellbook-outliner-of {
+  position: relative;
+}
+
+.spellbook-outliner-of {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+/* A synopsis and the value of a property: one line, cut short with an ellipsis. */
+.spellbook-outliner-col-synopsis {
+  min-width: 12em;
+  max-width: 26em;
+  overflow: hidden;
+}
+
+.spellbook-outliner-col-property {
+  max-width: 16em;
+  overflow: hidden;
+}
+
+.spellbook-outliner-text {
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-outliner-tags {
+  display: flex;
+  gap: var(--size-2-2);
+}
+
+.spellbook-outliner-tag {
+  padding-block: 0;
+  padding-inline: var(--size-2-3);
+  border-radius: var(--tag-radius, var(--radius-l));
+  background-color: var(--tag-background);
+  color: var(--tag-color);
+  font-size: var(--font-ui-smaller);
+}
+
+/* ------------------------------------------------------------------ Editing */
+
+/* A cell that a tap edits. */
+.spellbook-outliner-editable {
+  cursor: pointer;
+}
+
+.spellbook-outliner-editable:focus-visible,
+.spellbook-outliner-title:focus-visible,
+.spellbook-outliner-head-button:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+/* While a field is open in a cell, the field is all the cell shows. */
+.spellbook-outliner-cell.spellbook-is-editing > * {
+  display: none;
+}
+
+.spellbook-outliner-cell.spellbook-is-editing > .spellbook-outliner-input {
+  display: block;
+}
+
+.spellbook-outliner-cell.spellbook-is-editing {
+  overflow: visible;
+}
+
+.spellbook-outliner-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 6em;
+  margin: 0;
+  font: inherit;
+  text-align: start;
+}
+
+.spellbook-outliner-col-synopsis .spellbook-outliner-input {
+  min-width: 16em;
+  resize: vertical;
+  white-space: pre-wrap;
+}
+
+/* ----------------------------------------------------------------- Dragging */
+
+/* While rows can be moved by hand, a finger that rests on a row picks it up:
+   it must not also select the row's text or raise the phone's own bubble. */
+.spellbook-outliner.spellbook-is-reorderable .spellbook-outliner-row {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The row that is being dragged is dimmed (it can still be seen). */
+.spellbook-outliner-row.spellbook-outliner-dragging > .spellbook-outliner-cell {
+  opacity: 0.5;
+}
+
+/* The folder a dropped row would go into. */
+.spellbook-outliner-row.spellbook-is-drop-target > .spellbook-outliner-cell {
+  background-color: var(--background-secondary-alt);
+  box-shadow: inset 0 calc(var(--border-width) * -2) 0 var(--interactive-accent);
+}
+
+/* ---------------------------------------------------------- Mouse and touch */
+
+/* A row under the mouse is tinted. Nothing is shown or hidden by hovering. */
+@media (hover: hover) {
+  .spellbook-outliner-scene:hover > .spellbook-outliner-cell {
+    background-color: var(--background-secondary);
+  }
+
+  .spellbook-outliner-row:not(.spellbook-is-missing) .spellbook-outliner-title:hover {
+    color: var(--text-accent);
+    text-decoration: underline;
+  }
+
+  .spellbook-outliner-head-button:hover {
+    color: var(--text-normal);
+  }
+}
+
+/* On a touch screen, every row and everything that is tapped is tall enough
+   for a finger. */
+@media (pointer: coarse) {
+  .spellbook-outliner .spellbook-outliner-cell {
+    height: var(--spellbook-outliner-touch);
+  }
+
+  .spellbook-outliner .spellbook-outliner-head-button {
+    min-height: var(--spellbook-outliner-touch);
+  }
+
+  .spellbook-outliner .spellbook-outliner-more,
+  .spellbook-outliner .spellbook-outliner-fold {
+    min-width: var(--spellbook-outliner-touch);
+    min-height: var(--spellbook-outliner-touch);
+  }
+
+  .spellbook-outliner .spellbook-outliner-search,
+  .spellbook-outliner .spellbook-outliner-filter,
+  .spellbook-outliner .spellbook-outliner-columns,
+  .spellbook-outliner .spellbook-outliner-chip,
+  .spellbook-outliner .spellbook-outliner-input {
+    min-height: var(--spellbook-outliner-touch);
+  }
+}
+
+/* The same on phones and tablets, whatever they say about their pointer. */
+.spellbook-outliner.spellbook-is-mobile .spellbook-outliner-cell {
+  height: var(--spellbook-outliner-touch);
+}
+
+/* Out of sight. (Repeated, so that it outweighs whatever lays the thing out.) */
+.spellbook-outliner-off.spellbook-outliner-off.spellbook-outliner-off {
+  display: none;
+}
