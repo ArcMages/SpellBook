@@ -1,0 +1,144 @@
+/*
+ * Spellbook: prose checks, the marks in the editor.
+ *
+ * The rules of styles.css hold here too:
+ *   - every class starts with "spellbook-", every variable with "--spellbook-";
+ *   - colours come only from Obsidian's CSS variables, so the marks follow
+ *     the user's theme in light and dark mode;
+ *   - sides are named "start" and "end", never by their physical names;
+ *   - nothing may depend on hover alone.
+ *
+ * Two more, for marks that sit in the text the writer is typing:
+ *   - no colour is the only sign of a check: every check has a line of its
+ *     own (wavy, dashed, double, dotted under the words; solid or dashed
+ *     over a sentence), so they can be told apart without seeing colour.
+ *     The four word types are colour by nature; pointing at a word or
+ *     tapping it names its type;
+ *   - nothing here animates, and nothing changes the size of a letter: a
+ *     mark must never make the line that is being typed move.
+ *
+ * Where the bubble stands on the page is set from the plugin's code, because
+ * it is worked out from where the pointer is.
+ */
+
+/* ------------------------------------------------------------------ Colours */
+
+/* One variable for each kind of mark, on the editor that shows the checks.
+   A colour scheme may give any of them another value. */
+.spellbook-prose {
+  --spellbook-prose-noun: var(--color-blue);
+  --spellbook-prose-verb: var(--color-green);
+  --spellbook-prose-adjective: var(--color-purple);
+  --spellbook-prose-adverb: var(--color-orange);
+  --spellbook-prose-filler: var(--color-yellow);
+  --spellbook-prose-passive: var(--color-red);
+  --spellbook-prose-repeated: var(--color-cyan);
+  --spellbook-prose-overused: var(--color-orange);
+  --spellbook-prose-long: var(--color-pink);
+  --spellbook-prose-run: var(--color-blue);
+  --spellbook-prose-line: 2px;
+}
+
+/* ---------------------------------------------------------------- Word types */
+
+.spellbook-prose .spellbook-prose-noun {
+  color: var(--spellbook-prose-noun);
+}
+
+.spellbook-prose .spellbook-prose-verb {
+  color: var(--spellbook-prose-verb);
+}
+
+.spellbook-prose .spellbook-prose-adjective {
+  color: var(--spellbook-prose-adjective);
+}
+
+.spellbook-prose .spellbook-prose-adverb {
+  color: var(--spellbook-prose-adverb);
+}
+
+/* -------------------------------------------------------- Checks on words */
+
+/* Each line sits at its own distance under the words, so that two checks on
+   one word (a filler word inside a passive) can both be seen. */
+.spellbook-prose .spellbook-prose-filler,
+.spellbook-prose .spellbook-prose-passive,
+.spellbook-prose .spellbook-prose-repeated,
+.spellbook-prose .spellbook-prose-overused {
+  text-decoration-line: underline;
+  text-decoration-thickness: var(--spellbook-prose-line);
+  text-decoration-skip-ink: none;
+}
+
+.spellbook-prose .spellbook-prose-filler {
+  text-decoration-style: wavy;
+  text-decoration-color: var(--spellbook-prose-filler);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.spellbook-prose .spellbook-prose-passive {
+  text-decoration-style: dashed;
+  text-decoration-color: var(--spellbook-prose-passive);
+  text-underline-offset: 0.32em;
+}
+
+.spellbook-prose .spellbook-prose-repeated {
+  text-decoration-style: double;
+  text-decoration-color: var(--spellbook-prose-repeated);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.14em;
+}
+
+.spellbook-prose .spellbook-prose-overused {
+  text-decoration-style: dotted;
+  text-decoration-color: var(--spellbook-prose-overused);
+  text-underline-offset: 0.42em;
+}
+
+/* ---------------------------------------------------- Checks on sentences */
+
+/* A sentence is tinted, and has a line over it: solid for a long sentence,
+   dashed for a run of sentences of one length. The line is above the words,
+   where no other check draws. */
+.spellbook-prose .spellbook-prose-long,
+.spellbook-prose .spellbook-prose-run {
+  text-decoration-line: overline;
+  text-decoration-thickness: 1px;
+}
+
+.spellbook-prose .spellbook-prose-long {
+  background-color: color-mix(in srgb, var(--spellbook-prose-long) 14%, transparent);
+  text-decoration-style: solid;
+  text-decoration-color: var(--spellbook-prose-long);
+}
+
+.spellbook-prose .spellbook-prose-run {
+  background-color: color-mix(in srgb, var(--spellbook-prose-run) 12%, transparent);
+  text-decoration-style: dashed;
+  text-decoration-color: var(--spellbook-prose-run);
+}
+
+/* ------------------------------------------------------------- The bubble */
+
+/* What a mark says. It is shown by the plugin when a mark is pointed at or
+   tapped, never by a rule here, and it never takes a tap itself. */
+.spellbook-prose-tip {
+  position: fixed;
+  z-index: var(--layer-tooltip);
+  max-width: min(26em, calc(100vw - 16px));
+  padding: var(--size-2-2) var(--size-4-2);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background-color: var(--background-secondary);
+  box-shadow: var(--shadow-s);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+  text-align: start;
+  pointer-events: none;
+}
+
+.spellbook-prose-tip .spellbook-prose-tip-line + .spellbook-prose-tip-line {
+  margin-block-start: var(--size-2-1);
+}
