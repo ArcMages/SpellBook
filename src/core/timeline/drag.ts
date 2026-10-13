@@ -117,8 +117,10 @@ export function laneBands(
 }
 
 /**
- * The lane under the pointer. Between two lanes, and beyond the first or
- * the last, the nearest lane counts. Null only when there are no lanes.
+ * The key of the lane under the pointer. Between two lanes, and beyond the
+ * first or the last, the nearest lane counts. Null only when there are no
+ * lanes. To name the lane in a note (a new event's, say), turn the key into
+ * the lane's name with `laneNameFor`.
  *
  * @param across the pointer's place across the time axis, in the same pixels as the bands
  */
@@ -166,7 +168,11 @@ export type DragOutcome =
       readonly start: StoryDate;
       readonly end: StoryDate | null;
       readonly dateChanged: boolean;
-      /** The key of the lane under the pointer. */
+      /**
+       * The key of the lane under the pointer. It is a key, not the lane's name:
+       * `moveEventToLanePatch` takes it as it is and writes the name; for
+       * anything else that needs the name, use `laneNameFor`.
+       */
       readonly lane: string;
       readonly laneChanged: boolean;
     };

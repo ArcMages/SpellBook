@@ -317,15 +317,20 @@ export function moveDates(start: StoryDate, end: StoryDate | null, target: Story
   }
   const moved =
     storyDateToDayNumber(target) <= lastStartDay ? target : dayNumberToStoryDate(lastStartDay, target.precision);
+  return { start: moved, end: carryStoryDate(end, start, moved) };
+}
 
-  let movedEnd: StoryDate;
-  if (end.precision === 'day') {
-    const day = storyDateToDayNumber(end) + storyDateToDayNumber(moved) - startDay;
-    movedEnd = dayNumberToStoryDate(clampDayNumber(day), 'day');
-  } else if (end.precision === 'month') {
-    movedEnd = monthDate(monthIndexOf(end) + monthIndexOf(moved) - monthIndexOf(start));
-  } else {
-    movedEnd = yearDate(end.year + moved.year - start.year);
+/**
+ * A date taken along while another date moves from `from` to `to`. It keeps
+ * its own precision and moves by the same amount in its own units: days for
+ * a day, months for a month, years for a year. It stops at the ends of the
+ * calendar.
+ */
+export function carryStoryDate(date: StoryDate, from: StoryDate, to: StoryDate): StoryDate {
+  if (date.precision === 'day') {
+    const day = storyDateToDayNumber(date) + storyDateToDayNumber(to) - storyDateToDayNumber(from);
+    return dayNumberToStoryDate(clampDayNumber(day), 'day');
   }
-  return { start: moved, end: movedEnd };
+  if (date.precision === 'month') return monthDate(monthIndexOf(date) + monthIndexOf(to) - monthIndexOf(from));
+  return yearDate(date.year + to.year - from.year);
 }

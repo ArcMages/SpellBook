@@ -5,7 +5,7 @@
 // asked to change exactly as it was written, including entries it does not
 // understand.
 
-import { MANUSCRIPT_KEY, OTHER_KEY, isRecord, laneKey, readName } from './common';
+import { MANUSCRIPT_KEY, MANUSCRIPT_LANE, OTHER_KEY, OTHER_LANE, isRecord, laneKey, readName } from './common';
 import type { FrontmatterPatch, Lane } from './common';
 import type { EventSource, TimelineEvent } from './events';
 
@@ -77,34 +77,60 @@ export function laneAssigner(lanes: readonly Lane[]): (event: TimelineEvent) => 
 }
 
 /**
- * The change that adds an event to a lane, keeping the lanes it is in.
- * Empty when it is there already, and for the Other lane when the project
- * lists no lane of that name: Other only collects, nothing can be put in it.
+ * The name to write in a note for a lane. Give the lane's key (as a drag or
+ * `laneAt` reports it) or its name in any capitals: the result is the name
+ * as the project spells it, "Manuscript" or "Other" for the built-in lanes,
+ * and the text itself, trimmed at its ends, for a lane the project does not
+ * list. The changes to an event's lanes use it, so they can be handed a key.
  *
- * @param frontmatter the note's properties as they are now
- * @param lane        the lane's name
+ * @param lane  the lane's key or name
+ * @param lanes the lanes the project index lists (see `readLanes`)
  */
-export function addEventToLanePatch(frontmatter: unknown, lane: string, context: LaneContext): FrontmatterPatch {
-  const name = lane.trim();
-  const key = laneKey(name);
-  const known = knownKeys(context.lanes);
-  if (name === '' || (key === OTHER_KEY && !known.has(key))) return {};
-  if (context.source === 'scene' && key === MANUSCRIPT_KEY) return {};
-  const entries = entriesOf(frontmatter);
-  if (entries.some((entry) => entry.key === key)) return {};
-  return patchFor(entries, [...entries.map((entry) => entry.raw), name]);
+export function laneNameFor(lane: string, lanes: readonly Lane[]): string {
+  const key = laneKey(lane);
+  if (key === MANUSCRIPT_KEY) return MANUSCRIPT_LANE;
+  if (key === OTHER_KEY) return OTHER_LANE;
+  const listed = lanes.find((candidate) => laneKey(candidate.name) === key);
+  return listed === undefined ? lane.trim() : listed.name;
 }
 
-/** Tells which entries put the event in the lane `key`. For the Other lane those are the unlisted names. */
+/**
+ * Tells which entries of "timelines" put the event in the lane `key`. The
+ * Other lane holds the names the project does not list, and the name Other
+ * itself: the rule `laneAssigner` shows events by, whether or not the
+ * project lists a lane named Other.
+ */
 function inLane(key: string, known: ReadonlySet<string>): (entry: Entry) => boolean {
-  if (key === OTHER_KEY && !known.has(key)) return (entry) => entry.key !== null && !known.has(entry.key);
+  if (key === OTHER_KEY) return (entry) => entry.key !== null && (entry.key === OTHER_KEY || !known.has(entry.key));
   return (entry) => entry.key === key;
 }
 
 /**
+ * The change that adds an event to a lane, keeping the lanes it is in.
+ * Empty when a name on the note puts it there already, and for the Other
+ * lane when the project lists no lane of that name: Other only collects,
+ * nothing can be put in it.
+ *
+ * @param frontmatter the note's properties as they are now
+ * @param lane        the lane's key or name; it is written as the project spells it (see `laneNameFor`)
+ */
+export function addEventToLanePatch(frontmatter: unknown, lane: string, context: LaneContext): FrontmatterPatch {
+  const key = laneKey(lane);
+  const known = knownKeys(context.lanes);
+  if (key === '' || (key === OTHER_KEY && !known.has(key))) return {};
+  if (context.source === 'scene' && key === MANUSCRIPT_KEY) return {};
+  const entries = entriesOf(frontmatter);
+  if (entries.some(inLane(key, known))) return {};
+  return patchFor(entries, [...entries.map((entry) => entry.raw), laneNameFor(lane, context.lanes)]);
+}
+
+/**
  * The change that takes an event out of a lane. Taking it out of the Other
- * lane removes every name the project does not list. Empty when the event
- * does not name the lane, which is always so for a scene and Manuscript.
+ * lane removes every name the project does not list, and the name Other
+ * itself. Empty when the event does not name the lane, which is always so
+ * for a scene and Manuscript.
+ *
+ * @param lane the lane's key or name
  */
 export function removeEventFromLanePatch(frontmatter: unknown, lane: string, context: LaneContext): FrontmatterPatch {
   const leaving = inLane(laneKey(lane), knownKeys(context.lanes));
@@ -123,6 +149,9 @@ export function removeEventFromLanePatch(frontmatter: unknown, lane: string, con
  *
  * A scene always stays in Manuscript: moved from it, the scene is only added
  * to `to`; moved to it, the scene is only taken out of `from`.
+ *
+ * @param from the key or name of the lane the event leaves
+ * @param to   the key or name of the lane it goes to; it is written as the project spells it (see `laneNameFor`)
  */
 export function moveEventToLanePatch(
   frontmatter: unknown,
@@ -130,16 +159,18 @@ export function moveEventToLanePatch(
   to: string,
   context: LaneContext,
 ): FrontmatterPatch {
-  const name = to.trim();
-  const toKey = laneKey(name);
+  const toKey = laneKey(to);
   const fromKey = laneKey(from);
   const known = knownKeys(context.lanes);
-  if (name === '' || toKey === fromKey || (toKey === OTHER_KEY && !known.has(toKey))) return {};
+  if (toKey === '' || toKey === fromKey || (toKey === OTHER_KEY && !known.has(toKey))) return {};
 
+  const name = laneNameFor(to, context.lanes);
   const leaving = inLane(fromKey, known);
+  const arriving = inLane(toKey, known);
   const entries = entriesOf(frontmatter);
   const isThere = context.source === 'scene' && toKey === MANUSCRIPT_KEY;
-  let placed = isThere || entries.some((entry) => entry.key === toKey);
+  // An entry that is about to go does not keep the event in the new lane.
+  let placed = isThere || entries.some((entry) => arriving(entry) && !leaving(entry));
   const after: unknown[] = [];
   for (const entry of entries) {
     if (!leaving(entry)) after.push(entry.raw);

@@ -1,18 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
   TAP_THRESHOLD,
+  addEventToLanePatch,
   dateAtPosition,
   dragDates,
   isTap,
   laneAt,
   laneBands,
+  laneNameFor,
   layoutTimeline,
   makeScale,
+  moveEventToLanePatch,
   precisionForScale,
   resolveDrag,
 } from '../../src/core/timeline';
-import type { DragInput, LaneBand } from '../../src/core/timeline';
-import { date, dayOf, event, measureByLength } from './helpers';
+import type { DragInput, Lane, LaneBand } from '../../src/core/timeline';
+import { HEBREW, POINTED_AS_TYPED, date, dayOf, event, measureByLength } from './helpers';
 
 describe('isTap', () => {
   it('counts a press that barely moved as a tap', () => {
@@ -267,5 +270,46 @@ describe('resolveDrag', () => {
   it('takes another threshold', () => {
     expect(resolveDrag({ ...press, along: 12, threshold: 20 })).toEqual({ kind: 'tap' });
     expect(resolveDrag({ ...press, along: 22, threshold: 20 })).toMatchObject({ kind: 'drag', start: date(1923, 4, 14) });
+  });
+
+  it('names the lane by a key that the lane change takes as it is, and the note gets the lane as the writer spelled it', () => {
+    const lanes: Lane[] = [
+      { name: 'Main Plot', color: null },
+      { name: POINTED_AS_TYPED, color: null },
+    ];
+    const scale = makeScale(10, dayOf(1923, 4, 1));
+    const events = [event('Fire', { date: '1923-04-12', timelines: ['Backstory'] }), event('Flood', { date: '1923-04-12', timelines: [HEBREW.backstory] })];
+    const layout = layoutTimeline(events, lanes, { scale, measure: measureByLength });
+    expect(layout.lanes.map((entry) => entry.lane.name)).toEqual(['Manuscript', 'Main Plot', POINTED_AS_TYPED, 'Other']);
+    const laneBandsNow = laneBands(layout.lanes, { rowSize: 40 });
+
+    const droppedOn = (place: number): string => {
+      const band = laneBandsNow[place];
+      if (band === undefined) throw new Error(`There is no lane at place ${place}.`);
+      const outcome = resolveDrag({
+        start: date(1923, 4, 12),
+        end: null,
+        lane: 'other',
+        along: 0,
+        across: 60,
+        scale,
+        bands: laneBandsNow,
+        pointerAcross: band.start + band.size / 2,
+      });
+      if (outcome.kind !== 'drag') throw new Error('The press was taken for a tap.');
+      return outcome.lane;
+    };
+
+    // Dropped on "Main Plot": the key is not the name, and the note gets the name.
+    expect(droppedOn(1)).toBe('main plot');
+    expect(moveEventToLanePatch({ date: '1923-04-12', timelines: ['Backstory'] }, 'other', droppedOn(1), { lanes })).toEqual({
+      timelines: ['Main Plot'],
+    });
+    // Dropped on the pointed Hebrew lane: the marks stay in the order the writer typed them.
+    expect(droppedOn(2)).not.toBe(POINTED_AS_TYPED);
+    const moved = moveEventToLanePatch({ timelines: [HEBREW.backstory] }, 'other', droppedOn(2), { lanes });
+    expect((moved['timelines'] as string[])[0]).toBe(POINTED_AS_TYPED);
+    expect(laneNameFor(droppedOn(2), lanes)).toBe(POINTED_AS_TYPED);
+    expect(addEventToLanePatch({ timelines: [] }, droppedOn(1), { lanes })).toEqual({ timelines: ['Main Plot'] });
   });
 });

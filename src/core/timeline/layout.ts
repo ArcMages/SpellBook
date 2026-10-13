@@ -195,10 +195,21 @@ class NumberHeap {
 
 // ------------------------------------------------------------------- placing
 
-/** A card before it has a row: one event, or several that merged. */
+/**
+ * A card before it has a row: one event, or several that merged.
+ *
+ * Cards are packed by `from` and `until`, which are measured from day 0 and
+ * not from the start of the view. Day numbers are whole, so these come out
+ * the same wherever the view has slid to, and so do the rows.
+ */
 interface Draft {
   readonly members: Dated[];
-  readonly position: number;
+  /** The day the card starts on. */
+  readonly startDay: number;
+  /** Where the card starts, in pixels from day 0. */
+  readonly from: number;
+  /** Where the card ends, in pixels from day 0. */
+  until: number;
   length: number;
   track: number;
 }
@@ -275,12 +286,12 @@ function assignTracks(drafts: readonly Draft[], gap: number): number {
   const free = new NumberHeap((a, b) => a < b);
   for (const draft of drafts) {
     // Every track whose last card ends before this one starts is free from here on.
-    for (let track = busy.peek(); track !== undefined && endOf(track) + gap <= draft.position; track = busy.peek()) {
+    for (let track = busy.peek(); track !== undefined && endOf(track) + gap <= draft.from; track = busy.peek()) {
       busy.pop();
       free.push(track);
     }
     const track = free.pop() ?? trackEnd.length;
-    trackEnd[track] = draft.position + draft.length;
+    trackEnd[track] = draft.until;
     busy.push(track);
     draft.track = track;
   }
@@ -289,41 +300,47 @@ function assignTracks(drafts: readonly Draft[], gap: number): number {
 
 /** Lay out the events of one lane. Returns the cards in order of position, and how many tracks they need. */
 function placeLane(events: readonly Dated[], settings: Settings): { readonly drafts: Draft[]; readonly tracks: number } {
+  const { pxPerDay } = settings.scale;
   const sorted = [...events].sort(byStart);
   const drafts: Draft[] = [];
+  const draftOf = (item: Dated): Draft => {
+    const from = item.startDay * pxPerDay;
+    return { members: [item], startDay: item.startDay, from, until: from, length: 0, track: 0 };
+  };
   let open: Draft | null = null;
   for (const item of sorted) {
-    const position = dayToPosition(settings.scale, item.startDay);
     const isPoint = item.endDay === item.startDay;
     if (isPoint && settings.clusterDistance > 0) {
       // A cluster reaches no further than the distance from its first event, so it stays one small card.
-      if (open !== null && position - open.position < settings.clusterDistance) {
+      if (open !== null && (item.startDay - open.startDay) * pxPerDay < settings.clusterDistance) {
         open.members.push(item);
         continue;
       }
-      open = { members: [item], position, length: 0, track: 0 };
+      open = draftOf(item);
       drafts.push(open);
       continue;
     }
-    drafts.push({ members: [item], position, length: 0, track: 0 });
+    drafts.push(draftOf(item));
   }
 
   for (const draft of drafts) {
     const only = draft.members[0] as Dated;
     if (draft.members.length > 1) {
       draft.length = measured(settings, clusterLabel(draft.members.length), null);
+      draft.until = draft.from + draft.length;
     } else {
       const card = measured(settings, only.event.title, only.event);
-      const untilEnd = dayToPosition(settings.scale, only.endDay) - draft.position;
-      draft.length = Math.max(card, untilEnd);
+      draft.length = Math.max(card, (only.endDay - only.startDay) * pxPerDay);
+      // A span ends exactly where an event that starts on its last day begins: both are that day times the zoom.
+      draft.until = Math.max(draft.from + card, only.endDay * pxPerDay);
     }
   }
   return { drafts, tracks: assignTracks(drafts, settings.gap) };
 }
 
-function toPlaced(draft: Draft): PlacedItem {
+function toPlaced(draft: Draft, scale: TimeScale): PlacedItem {
   const first = draft.members[0] as Dated;
-  const base = { row: draft.track, position: draft.position, width: draft.length };
+  const base = { row: draft.track, position: dayToPosition(scale, draft.startDay), width: draft.length };
   if (draft.members.length === 1) {
     return { kind: 'event', event: first.event, isSpan: first.endDay > first.startDay, ...base };
   }
@@ -339,8 +356,8 @@ function toPlaced(draft: Draft): PlacedItem {
   };
 }
 
-function toStacked(draft: Draft): StackedItem {
-  const placed = toPlaced(draft);
+function toStacked(draft: Draft, scale: TimeScale): StackedItem {
+  const placed = toPlaced(draft, scale);
   const base = { column: placed.row, position: placed.position, height: placed.width };
   if (placed.kind === 'event') return { kind: 'event', event: placed.event, isSpan: placed.isSpan, ...base };
   return {
@@ -398,7 +415,7 @@ export function layoutTimeline(
   return {
     lanes: shown.map((lane): LaneLayout => {
       const { drafts, tracks } = placeLane(byLane.get(lane.key) ?? [], settings);
-      return { lane, rowCount: tracks, items: drafts.map(toPlaced) };
+      return { lane, rowCount: tracks, items: drafts.map((draft) => toPlaced(draft, settings.scale)) };
     }),
   };
 }
@@ -426,6 +443,7 @@ export function layoutLaneVertical(
   );
   if (lane === undefined) return { lane: null, columnCount: 0, items: [] };
   const byLane = eventsByLane(placed, lanes, new Set([lane.key]));
-  const { drafts, tracks } = placeLane(byLane.get(lane.key) ?? [], settingsOf(options));
-  return { lane, columnCount: tracks, items: drafts.map(toStacked) };
+  const settings = settingsOf(options);
+  const { drafts, tracks } = placeLane(byLane.get(lane.key) ?? [], settings);
+  return { lane, columnCount: tracks, items: drafts.map((draft) => toStacked(draft, settings.scale)) };
 }

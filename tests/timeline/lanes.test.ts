@@ -175,6 +175,47 @@ describe('addLane', () => {
     expect(value).toEqual([...odd, { name: 'Romance' }]);
     odd.forEach((entry, index) => expect(value[index]).toBe(entry));
   });
+
+  it('keeps Other after the rest once the index lists it last, as a colour makes it do', () => {
+    const coloured = ok(recolourLane([{ name: 'Main plot' }, { name: 'Backstory' }], 'Other', 'orange')).value;
+    expect(coloured).toEqual([{ name: 'Main plot' }, { name: 'Backstory' }, { name: 'Other', color: 'orange' }]);
+    const added = ok(addLane(deepFreeze(coloured), 'Romance', 'pink'));
+    expect(added.value).toEqual([
+      { name: 'Main plot' },
+      { name: 'Backstory' },
+      { name: 'Romance', color: 'pink' },
+      { name: 'Other', color: 'orange' },
+    ]);
+    expect(added.lanes.map((lane) => lane.name)).toEqual(['Main plot', 'Backstory', 'Romance', 'Other']);
+    expect(readLanes(added.value).lanes).toEqual(added.lanes);
+    expect(displayLanes(added.lanes).map((lane) => lane.name)).toEqual(['Manuscript', 'Main plot', 'Backstory', 'Romance', 'Other']);
+    // And again for the next lane, in Hebrew.
+    const more = ok(addLane(added.value, HEBREW.backstory));
+    expect(displayLanes(more.lanes).map((lane) => lane.name)).toEqual([
+      'Manuscript',
+      'Main plot',
+      'Backstory',
+      'Romance',
+      HEBREW.backstory,
+      'Other',
+    ]);
+  });
+
+  it('goes just before a last-listed Other, and leaves what follows it in the list where it was', () => {
+    const value = [{ name: 'A' }, 'other', 42, { name: 'a', color: 'red' }];
+    const added = ok(addLane(deepFreeze(value), 'B')).value;
+    expect(added).toEqual([{ name: 'A' }, { name: 'B' }, 'other', 42, { name: 'a', color: 'red' }]);
+    expect(ok(addLane([{ name: 'Other', color: 'red' }], 'A')).value).toEqual([{ name: 'A' }, { name: 'Other', color: 'red' }]);
+  });
+
+  it('adds at the end when the writer gave Other a place that is not the last', () => {
+    const up = ok(moveLane(stored(), 'Other', 1)).value;
+    expect(up[0]).toEqual({ name: 'Other' });
+    expect(ok(addLane(up, 'Romance')).value).toEqual([...up, { name: 'Romance' }]);
+    // A listed Manuscript at the end is no reason to add anywhere else either.
+    const last = [{ name: 'Main plot' }, { name: 'Manuscript', color: 'green' }];
+    expect(ok(addLane(last, 'Romance')).value).toEqual([...last, { name: 'Romance' }]);
+  });
 });
 
 describe('renameLane', () => {
@@ -363,9 +404,90 @@ describe('moveLane', () => {
     expect(readLanes(moved).lanes.map((lane) => lane.name)).toEqual(['C', 'A', 'B']);
   });
 
+  it('takes the repeated entries of a name along, so the lane that is read stays the same one', () => {
+    const value = [{ name: 'Main plot', color: 'purple' }, { name: 'Backstory' }, { name: 'main plot', color: 'red' }, { name: 'Romance' }];
+    const moved = ok(moveLane(deepFreeze(value), 'Main plot', 99));
+    expect(moved.changed).toBe(true);
+    expect(moved.lanes).toEqual([
+      { name: 'Backstory', color: null },
+      { name: 'Romance', color: null },
+      { name: 'Main plot', color: 'purple' },
+    ]);
+    // The stored value reads as exactly those lanes: the lane kept its spelling, its colour and its new place.
+    expect(readLanes(moved.value).lanes).toEqual(moved.lanes);
+    expect(moved.value).toEqual([value[1], value[3], value[0], value[2]]);
+    for (const entry of value) expect(moved.value).toContain(entry);
+  });
+
+  it('puts a lane where it was asked to, whatever is repeated or not understood in the list', () => {
+    const value = deepFreeze([
+      { name: 'A', color: 'purple' },
+      42,
+      { name: 'B' },
+      { name: 'a', color: 'red' },
+      { name: HEBREW.mainPlot, color: 'blue' },
+      { name: 'b', color: 'green' },
+      { nameless: true },
+      { name: 'A' },
+      'C',
+    ]);
+    const before = readLanes(value).lanes;
+    const shown = displayLanes(before, [event('Lost', { date: 1923 })]); // Manuscript, A, B, the Hebrew lane, C, Other
+    expect(shown.map((lane) => lane.name)).toEqual(['Manuscript', 'A', 'B', HEBREW.mainPlot, 'C', 'Other']);
+    for (const lane of shown) {
+      // Other is not in the index here, so only Other itself can be given the place after the listed lanes.
+      const places = lane.kind === 'other' ? shown.length : shown.length - 1;
+      for (let place = 0; place < places; place++) {
+        const told = `${lane.name} to place ${place}`;
+        const change = ok(moveLane(value, lane.name, place));
+        // What is returned is what the stored value reads as.
+        expect(readLanes(change.value).lanes, told).toEqual(change.lanes);
+        // The lane is at the place asked for, and every lane is still itself.
+        const after = displayLanes(change.lanes, [event('Lost', { date: 1923 })]);
+        expect(after[place]?.key, told).toBe(lane.key);
+        for (const kept of before) expect(change.lanes, told).toContainEqual(kept);
+        // Nothing in the list was lost or rewritten.
+        for (const entry of value) expect(change.value, told).toContain(entry);
+      }
+    }
+  });
+
   it('refuses a lane that is not there and a value it cannot read', () => {
     expect(refusal(moveLane(stored(), 'Ghost', 0))).toBe('not-found');
     expect(refusal(moveLane(false, 'Main plot', 0))).toBe('unreadable');
+  });
+});
+
+describe('every change to the lanes', () => {
+  it('returns the lanes exactly as the stored value then reads, repeated names and all', () => {
+    const value = deepFreeze([
+      { name: 'Main plot', color: 'purple' },
+      7,
+      { name: 'Backstory' },
+      { name: 'MAIN PLOT', color: 'red' },
+      { name: 'backstory', color: 'teal' },
+      HEBREW.mainPlot,
+    ]);
+    const changes: LaneChange[] = [
+      addLane(value, 'Romance', 'pink'),
+      renameLane(value, 'Main plot', 'Plot A'),
+      renameLane(value, 'backstory', HEBREW.backstory),
+      recolourLane(value, 'Main plot', 'green'),
+      recolourLane(value, 'Backstory', 'yellow'),
+      recolourLane(value, 'Other', 'orange'),
+      recolourLane(value, 'Manuscript', 'cyan'),
+      moveLane(value, 'Main plot', 3),
+      moveLane(value, 'Backstory', 0),
+      moveLane(value, 'Manuscript', 2),
+      moveLane(value, 'Other', 1),
+      removeLane(value, 'Main plot'),
+      removeLane(value, HEBREW.mainPlot),
+    ];
+    for (const [index, change] of changes.entries()) {
+      const made = ok(change);
+      expect(made.changed, `change ${index}`).toBe(true);
+      expect(readLanes(made.value).lanes, `change ${index}`).toEqual(made.lanes);
+    }
   });
 });
 

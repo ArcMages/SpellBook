@@ -4,13 +4,14 @@ import {
   applyFrontmatterPatch,
   eventLaneKeys,
   laneKey,
+  laneNameFor,
   moveEventToLanePatch,
   readEvent,
   removeEventFromLanePatch,
   renameLaneInEventPatch,
 } from '../../src/core/timeline';
 import type { Lane, LaneContext } from '../../src/core/timeline';
-import { HEBREW, deepFreeze, event, sceneEvent } from './helpers';
+import { HEBREW, POINTED_AS_STORED, POINTED_AS_TYPED, deepFreeze, event, sceneEvent } from './helpers';
 
 const lanes: Lane[] = [
   { name: 'Main plot', color: 'purple' },
@@ -196,6 +197,183 @@ describe('moveEventToLanePatch', () => {
     applyFrontmatterPatch(properties, moveEventToLanePatch(properties, 'Main plot', HEBREW.mainPlot, context));
     expect(properties).toEqual({ date: 1923, timelines: [HEBREW.mainPlot, 'Backstory'], tags: ['war'] });
     expect(eventLaneKeys(readEvent('Timeline/A.md', properties), lanes)).toEqual([laneKey(HEBREW.mainPlot), 'backstory']);
+  });
+});
+
+describe('the Other lane, once the project lists it', () => {
+  // Giving Other a colour or a place of its own writes it into the index.
+  const listed: Lane[] = [
+    { name: 'Main plot', color: null },
+    { name: 'Backstory', color: null },
+    { name: 'Other', color: 'orange' },
+  ];
+  const withOther: LaneContext = { lanes: listed };
+
+  it('still holds every name the project does not list', () => {
+    expect(eventLaneKeys(event('A', { date: 1923, timelines: ['Ghost'] }), listed)).toEqual(['other']);
+    expect(eventLaneKeys(event('A', { timelines: ['Other', 'Ghost'] }), listed)).toEqual(['other']);
+  });
+
+  it('lets an event be taken out of it', () => {
+    expect(removeEventFromLanePatch({ date: 1923, timelines: ['Ghost'] }, 'Other', withOther)).toEqual({ timelines: [] });
+    const odd = { note: 'kept' };
+    expect(removeEventFromLanePatch({ timelines: ['Ghost', 'Main plot', odd, 'OTHER', 'Phantom'] }, 'other', withOther)).toEqual({
+      timelines: ['Main plot', odd],
+    });
+  });
+
+  it('lets an event be moved out of it, and the event is then no longer there', () => {
+    const properties: Record<string, unknown> = { date: 1923, timelines: ['Ghost'] };
+    const patch = moveEventToLanePatch(properties, 'Other', 'Main plot', withOther);
+    expect(patch).toEqual({ timelines: ['Main plot'] });
+    applyFrontmatterPatch(properties, patch);
+    expect(eventLaneKeys(readEvent('Timeline/A.md', properties), listed)).toEqual(['main plot']);
+
+    expect(moveEventToLanePatch({ timelines: ['Other', 'Backstory', 'Ghost'] }, 'Other', 'Main plot', withOther)).toEqual({
+      timelines: ['Main plot', 'Backstory'],
+    });
+    // A scene named an unlisted timeline: it leaves Other and stays in Manuscript.
+    expect(moveEventToLanePatch({ date: 1923, timelines: ['Ghost'] }, 'Other', 'Backstory', { lanes: listed, source: 'scene' })).toEqual({
+      timelines: ['Backstory'],
+    });
+  });
+
+  it('counts an event that names an unlisted timeline as being in it already', () => {
+    expect(addEventToLanePatch({ timelines: ['Ghost'] }, 'Other', withOther)).toEqual({});
+    expect(moveEventToLanePatch({ timelines: ['Main plot', 'Ghost'] }, 'Main plot', 'Other', withOther)).toEqual({
+      timelines: ['Ghost'],
+    });
+    // The entry that is leaving does not count.
+    expect(moveEventToLanePatch({ date: 1923, timelines: ['Ghost'] }, 'Ghost', 'Other', withOther)).toEqual({
+      timelines: ['Other'],
+    });
+  });
+});
+
+describe('the lane changes and the lanes an event shows in', () => {
+  // Whatever the screen shows, taking a card out of a lane or carrying it to
+  // another must be possible: the changes go by the rule the display goes by.
+  const laneSets: Array<[string, Lane[]]> = [
+    ['Other not listed', lanes],
+    ['Other listed', [...lanes, { name: 'Other', color: 'orange' }]],
+    ['Other and Manuscript listed', [{ name: 'other', color: null }, ...lanes, { name: 'MANUSCRIPT', color: 'green' }]],
+    ['no lanes at all', []],
+  ];
+  const notes: Array<Record<string, unknown>> = [
+    {},
+    { timelines: [] },
+    { timelines: ['Ghost'] },
+    { timelines: 'Main plot' },
+    { timelines: ['Other'] },
+    { timelines: ['other', 'Ghost', 'Backstory'] },
+    { timelines: ['Main plot', 'Ghost', { odd: true }, 'Phantom', HEBREW.mainPlot] },
+    { timelines: ['Manuscript', 'MAIN PLOT', 'Main plot'] },
+  ];
+  const sources = ['event', 'scene'] as const;
+  const read = (source: 'event' | 'scene', properties: Record<string, unknown>): string[] => {
+    const made = source === 'scene' ? sceneEvent('A', { date: 1923, ...properties }) : event('A', properties);
+    return made.timelines.length === 0 && source === 'event' ? ['(none)'] : made.timelines.map((name) => laneKey(name));
+  };
+
+  for (const [told, listed] of laneSets) {
+    const shows = (source: 'event' | 'scene', properties: Record<string, unknown>): string[] =>
+      eventLaneKeys(source === 'scene' ? sceneEvent('A', { date: 1923, ...properties }) : event('A', properties), listed);
+    const targets = ['manuscript', 'other', ...listed.map((lane) => laneKey(lane.name))];
+    const otherListed = listed.some((lane) => laneKey(lane.name) === 'other');
+
+    it(`take an event out of every lane it shows in (${told})`, () => {
+      for (const source of sources) {
+        for (const note of notes) {
+          for (const from of shows(source, note)) {
+            const properties = { ...note };
+            applyFrontmatterPatch(properties, removeEventFromLanePatch(deepFreeze({ ...note }), from, { lanes: listed, source }));
+            const after = shows(source, properties);
+            // Two lanes cannot be left: a scene's Manuscript, and Other for an event that names no lane at all.
+            const stays =
+              (source === 'scene' && from === 'manuscript') || (from === 'other' && read(source, properties)[0] === '(none)');
+            expect(after.includes(from), `${source} ${JSON.stringify(note)} out of ${from}`).toBe(stays);
+          }
+        }
+      }
+    });
+
+    it(`move an event from every lane it shows in to every other (${told})`, () => {
+      for (const source of sources) {
+        for (const note of notes) {
+          for (const from of shows(source, note)) {
+            for (const to of targets) {
+              if (to === from) continue;
+              const why = `${source} ${JSON.stringify(note)} from ${from} to ${to}`;
+              const properties = { ...note };
+              const patch = moveEventToLanePatch(deepFreeze({ ...note }), from, to, { lanes: listed, source });
+              applyFrontmatterPatch(properties, patch);
+              const after = shows(source, properties);
+              if (to === 'other' && !otherListed) {
+                expect(patch, why).toEqual({}); // Other only collects
+                continue;
+              }
+              expect(after, why).toContain(to);
+              expect(after.includes(from), why).toBe(source === 'scene' && from === 'manuscript');
+            }
+          }
+        }
+      }
+    });
+  }
+});
+
+describe('a lane given by its key', () => {
+  // A drag reports the lane under the pointer by its key. What is written in
+  // the note is the lane's name as the writer spelled it.
+  const pointed: Lane[] = [...lanes, { name: POINTED_AS_TYPED, color: null }];
+
+  it('is written as the project spells it', () => {
+    expect(laneKey('Main plot')).not.toBe('Main plot');
+    expect(moveEventToLanePatch({ timelines: ['Backstory'] }, 'backstory', laneKey('Main plot'), context)).toEqual({
+      timelines: ['Main plot'],
+    });
+    expect(addEventToLanePatch({ timelines: [] }, laneKey('Main Plot'), context)).toEqual({ timelines: ['Main plot'] });
+    expect(addEventToLanePatch({ timelines: ['Backstory'] }, '  MAIN PLOT ', context)).toEqual({
+      timelines: ['Backstory', 'Main plot'],
+    });
+  });
+
+  it('is written with the marks of a pointed Hebrew name in the order the writer typed them', () => {
+    expect(laneKey(POINTED_AS_TYPED)).not.toBe(POINTED_AS_TYPED);
+    const added = addEventToLanePatch({ timelines: ['Main plot'] }, laneKey(POINTED_AS_TYPED), { lanes: pointed });
+    expect(added).toEqual({ timelines: ['Main plot', POINTED_AS_TYPED] });
+    const moved = moveEventToLanePatch({ timelines: ['Main plot'] }, 'main plot', POINTED_AS_STORED, { lanes: pointed });
+    expect((moved['timelines'] as string[])[0]).toBe(POINTED_AS_TYPED);
+  });
+
+  it('is written as "Manuscript" or "Other" for the built-in lanes', () => {
+    expect(addEventToLanePatch({}, 'manuscript', context)).toEqual({ timelines: ['Manuscript'] });
+    const withOther: LaneContext = { lanes: [...lanes, { name: 'other', color: null }] };
+    expect(moveEventToLanePatch({ timelines: ['Main plot'] }, 'main plot', 'other', withOther)).toEqual({ timelines: ['Other'] });
+  });
+
+  it('is written as given, trimmed at its ends, when the project does not list the lane', () => {
+    expect(addEventToLanePatch({}, '  Ghost  Story ', context)).toEqual({ timelines: ['Ghost  Story'] });
+    expect(addEventToLanePatch({}, ` ${HEBREW.backstory} `, context)).toEqual({ timelines: [HEBREW.backstory] });
+  });
+});
+
+describe('laneNameFor', () => {
+  it('gives the name of a lane from its key or from any spelling of its name', () => {
+    expect(laneNameFor('main plot', lanes)).toBe('Main plot');
+    expect(laneNameFor(' MAIN PLOT ', lanes)).toBe('Main plot');
+    expect(laneNameFor(laneKey(HEBREW.mainPlot), lanes)).toBe(HEBREW.mainPlot);
+    expect(laneNameFor(laneKey(POINTED_AS_TYPED), [{ name: POINTED_AS_TYPED, color: null }])).toBe(POINTED_AS_TYPED);
+    expect(laneNameFor(POINTED_AS_TYPED, [{ name: POINTED_AS_STORED, color: null }])).toBe(POINTED_AS_STORED);
+  });
+
+  it('gives the built-in lanes their own names, and an unlisted lane the text it was given', () => {
+    expect(laneNameFor('manuscript', lanes)).toBe('Manuscript');
+    expect(laneNameFor('OTHER', [])).toBe('Other');
+    expect(laneNameFor('manuscript', [{ name: 'MANUSCRIPT', color: 'green' }])).toBe('Manuscript');
+    expect(laneNameFor(' Ghost ', lanes)).toBe('Ghost');
+    expect(laneNameFor(HEBREW.backstory, lanes)).toBe(HEBREW.backstory);
+    expect(laneNameFor('   ', lanes)).toBe('');
   });
 });
 

@@ -119,9 +119,9 @@ describe('the timeline, from reading a project to writing a change', () => {
     const note = eventNotes[1];
     if (note === undefined) throw new Error('The note is missing.');
     const properties: Record<string, unknown> = { ...note.frontmatter };
-    const newLane = layout.lanes.find((entry) => entry.lane.key === outcome.lane)?.lane.name ?? '';
     applyFrontmatterPatch(properties, redateEventPatch(properties, outcome.start));
-    applyFrontmatterPatch(properties, moveEventToLanePatch(properties, mainPlot.lane.name, newLane, { lanes }));
+    // The lanes go in as the drag gave them: by their keys.
+    applyFrontmatterPatch(properties, moveEventToLanePatch(properties, mainPlot.lane.key, outcome.lane, { lanes }));
     expect(properties).toEqual({
       spellbook: 'event',
       date: '1916-07-21',

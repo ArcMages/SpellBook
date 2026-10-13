@@ -11,7 +11,16 @@ import {
   panBy,
   readLanes,
 } from '../../src/core/timeline';
-import type { Lane, LaneLayout, PlacedCluster, PlacedEvent, PlacedItem, TimelineEvent, TimelineLayout } from '../../src/core/timeline';
+import type {
+  Lane,
+  LaneLayout,
+  PlacedCluster,
+  PlacedEvent,
+  PlacedItem,
+  TimeScale,
+  TimelineEvent,
+  TimelineLayout,
+} from '../../src/core/timeline';
 import {
   HEBREW,
   POINTED_AS_STORED,
@@ -255,6 +264,63 @@ describe('layoutTimeline', () => {
       expect(item.width).toBe(earlier.width);
       expect(item.position - earlier.position).toBeCloseTo(500, 6);
     });
+  });
+
+  it('keeps spans that share an end and a start in one row, at every place the view slides to', () => {
+    // With no gap asked for, a span may start on the very day the one before it ends.
+    const events = [
+      event('War', { date: 1914, end: 1918, timelines: ['Main plot'] }),
+      event('Peace', { date: 1918, end: 1939, timelines: ['Main plot'] }),
+      event(HEBREW.battle, { date: 1939, end: 1945, timelines: ['Main plot'] }),
+    ];
+    const measure = (): number => 24;
+    const rowsAt = (at: TimeScale): number =>
+      lane(layoutTimeline(events, lanes, { scale: at, measure, gap: 0 }), 'Main plot').rowCount;
+
+    const sliding = new Set<number>();
+    for (let step = 0; step < 2000; step++) sliding.add(rowsAt(panBy(makeScale(0.731, -20000), step * 3.3)));
+    expect([...sliding]).toEqual([1]);
+
+    // And at any zoom at which each span is longer than its card.
+    const random = sequence(23);
+    const anywhere = new Set<number>();
+    for (let step = 0; step < 2000; step++) {
+      anywhere.add(rowsAt(makeScale(0.05 + random() * 40, Math.round((random() - 0.5) * 200_000) + random())));
+    }
+    expect([...anywhere]).toEqual([1]);
+    // A gap of any size sends the second span to the next row, as it should.
+    expect(lane(layoutTimeline(events, lanes, { scale: makeScale(0.731, -20000), measure, gap: 1 }), 'Main plot').rowCount).toBe(2);
+  });
+
+  it('gives the very same rows, lengths and clusters wherever the view has slid to', () => {
+    const random = sequence(41);
+    const events: TimelineEvent[] = [];
+    for (let index = 0; index < 400; index++) {
+      const year = 1800 + Math.floor(random() * 200);
+      const properties: Record<string, unknown> = { date: year, timelines: ['Main plot'] };
+      if (random() < 0.4) properties['end'] = year + 1 + Math.floor(random() * 12); // many spans end where others start
+      events.push(event(`${index % 5 === 0 ? HEBREW.opening : 'E'} ${index}`, properties));
+    }
+    // One zoom close enough for single cards, one far enough for clusters.
+    for (const zoom of [0.731, 0.07]) {
+      const home = makeScale(zoom, dayOf(1800));
+      const before = lane(layoutTimeline(events, lanes, { scale: home, measure: measureByLength, gap: 0 }), 'Main plot');
+      if (zoom < DEFAULT_CLUSTER_BELOW_PX_PER_DAY) expect(clusters(before).length).toBeGreaterThan(0);
+      for (const distance of [0.1, 3.3, 500, 777.77, -12_345.678, 1e6 / 3]) {
+        const slid = panBy(home, distance);
+        const after = lane(layoutTimeline(events, lanes, { scale: slid, measure: measureByLength, gap: 0 }), 'Main plot');
+        expect(after.rowCount, `${zoom} slid ${distance}`).toBe(before.rowCount);
+        expect(after.items.length).toBe(before.items.length);
+        after.items.forEach((item, index) => {
+          const earlier = before.items[index] as PlacedItem;
+          expect(item.kind).toBe(earlier.kind);
+          expect(item.row).toBe(earlier.row);
+          expect(item.width).toBe(earlier.width); // exactly, not nearly
+          expect(item.kind === 'cluster' ? item.count : 1).toBe(earlier.kind === 'cluster' ? earlier.count : 1);
+          expect(item.position - earlier.position).toBeCloseTo(distance, 4);
+        });
+      }
+    }
   });
 
   it('never lets two cards of a row overlap, for many events of every kind', () => {

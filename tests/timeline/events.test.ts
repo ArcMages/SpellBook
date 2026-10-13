@@ -7,16 +7,18 @@ import {
   applyFrontmatterPatch,
   createSceneResolver,
   describeEventProblem,
+  dragDates,
   isEmptyPatch,
   isEventPath,
   linkTarget,
+  makeScale,
   newEventFrontmatter,
   readEvent,
   readSceneEvent,
   readTimeline,
   redateEventPatch,
 } from '../../src/core/timeline';
-import type { EventProblem } from '../../src/core/timeline';
+import type { EventProblem, StoryDate } from '../../src/core/timeline';
 import { HEBREW, POINTED_AS_STORED, POINTED_AS_TYPED, date, deepFreeze } from './helpers';
 
 describe('readEvent', () => {
@@ -457,10 +459,85 @@ describe('redateEventPatch', () => {
     expect(redateEventPatch({ date: '1923-04-12', end: 1925 }, date(1923, 9, 1))).toEqual({ date: '1923-09-01' });
   });
 
-  it('leaves alone an end it could not use', () => {
+  it('leaves alone an end it could not read', () => {
     expect(redateEventPatch({ date: '1923-04-12', end: 'later' }, date(1923, 5, 1))).toEqual({ date: '1923-05-01' });
-    expect(redateEventPatch({ date: '1923-04-12', end: '1923-01-01' }, date(1923, 5, 1))).toEqual({ date: '1923-05-01' });
-    expect(redateEventPatch({ date: '1923-04-12', end: '1923-04-12' }, date(1923, 5, 1))).toEqual({ date: '1923-05-01' });
+    expect(redateEventPatch({ date: '1923-04-12', end: '1923-02-30' }, date(1923, 5, 1))).toEqual({ date: '1923-05-01' });
+    expect(redateEventPatch({ date: '1923-04-12', end: null }, date(1923, 5, 1))).toEqual({ date: '1923-05-01' });
+    expect(redateEventPatch({ date: '1923-04-12', end: ['1923-04-20'] }, date(1923, 5, 1))).toEqual({ date: '1923-05-01' });
+  });
+
+  it('takes along an end that makes no span, so a single moment stays one and gains no problem', () => {
+    const cases: Array<[Record<string, unknown>, StoryDate, Record<string, unknown>]> = [
+      // An end on the very day of the date: no span, and nothing wrong with it.
+      [{ date: '1923-04-12', end: '1923-04-12' }, date(1923, 4, 10), { date: '1923-04-10', end: '1923-04-10' }],
+      [{ date: '1923-04-12', end: '1923-04-12' }, date(1923, 4, 15), { date: '1923-04-15', end: '1923-04-15' }],
+      [{ date: 1923, end: '1923-01-01' }, date(1920), { date: 1920, end: '1920-01-01' }],
+      [{ date: 1923, end: 1923 }, date(1925), { date: 1925, end: 1925 }],
+      // An end before the date: shown as a single moment, and reported.
+      [{ date: '1923-04-12', end: '1923-04-01' }, date(1923, 3, 1), { date: '1923-03-01', end: '1923-02-18' }],
+      [{ date: '1923-04-12', end: '1923-01-01' }, date(1923, 5, 1), { date: '1923-05-01', end: '1923-01-20' }],
+      [{ date: '1923-04', end: '1923-02' }, date(1924, 1), { date: '1924-01', end: '1923-11' }],
+      [{ date: 1923, end: 1920 }, date(1930), { date: 1930, end: 1927 }],
+    ];
+    for (const [before, target, after] of cases) {
+      const told = JSON.stringify(before);
+      const was = readEvent('Timeline/A.md', before);
+      expect(was.end, told).toBeNull();
+      const properties = { ...before };
+      applyFrontmatterPatch(properties, redateEventPatch(deepFreeze({ ...before }), target));
+      expect(properties, told).toEqual(after);
+      // Read again, it is the same event at its new date: no span has appeared, no problem has come or gone.
+      const now = readEvent('Timeline/A.md', properties);
+      expect(now.end, told).toBeNull();
+      expect(now.problems, told).toEqual(was.problems);
+    }
+  });
+
+  it('moves such an end in its own units when it is known less exactly than the date', () => {
+    expect(redateEventPatch({ date: '1923-04-12', end: '1923-04' }, date(1923, 6, 20))).toEqual({
+      date: '1923-06-20',
+      end: '1923-06',
+    });
+    expect(redateEventPatch({ date: '1923-04-12', end: 1923 }, date(1925, 6, 20))).toEqual({ date: '1925-06-20', end: 1925 });
+    // Within the same month the end has nowhere to go.
+    expect(redateEventPatch({ date: '1923-04-12', end: '1923-04' }, date(1923, 4, 20))).toEqual({ date: '1923-04-20' });
+  });
+
+  it('stops such an end at the first day of year 1, and keeps a time of day written after it', () => {
+    expect(redateEventPatch({ date: '0001-03-01', end: '0001-01-15' }, date(1, 2, 1))).toEqual({
+      date: '0001-02-01',
+      end: '0001-01-01',
+    });
+    expect(redateEventPatch({ date: '1923-04-12T10:00', end: '1923-04-12T09:00' }, date(1923, 4, 20))).toEqual({
+      date: '1923-04-20T10:00',
+      end: '1923-04-20T09:00',
+    });
+  });
+
+  it('writes a note that reads as the drag showed it, whatever its end was', () => {
+    const scale = makeScale(10, 0); // ten pixels a day
+    const notes: Array<Record<string, unknown>> = [
+      { date: '1923-04-12' },
+      { date: '1923-04-12', end: '1923-04-20' },
+      { date: '1923-04-12', end: '1923-04-12' },
+      { date: '1923-04-12', end: '1923-04-01' },
+      { date: 1923, end: '1923-01-01' },
+      { date: '1923-04', end: '1923-02' },
+    ];
+    for (const note of notes) {
+      const event = readEvent('Timeline/A.md', note);
+      if (event.start === null) throw new Error('The test event has no date.');
+      for (const along of [-40_000, -4200, -420, -20, 30, 190, 4200, 40_000]) {
+        const told = `${JSON.stringify(note)} dragged ${along}`;
+        const shown = dragDates(event.start, event.end, along, scale);
+        const properties = { ...note };
+        applyFrontmatterPatch(properties, redateEventPatch(properties, shown.start));
+        const reread = readEvent('Timeline/A.md', properties);
+        expect(reread.start, told).toEqual(shown.start);
+        expect(reread.end, told).toEqual(shown.end);
+        expect(reread.problems, told).toEqual(event.problems);
+      }
+    }
   });
 
   it('gives an undated event the target as it is', () => {

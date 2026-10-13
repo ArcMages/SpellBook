@@ -20,6 +20,7 @@ import type { Frontmatter } from './../types';
 import { isRecord, laneKey, readName } from './common';
 import type { FrontmatterPatch } from './common';
 import {
+  carryStoryDate,
   compareStoryDates,
   dayNumberToStoryDate,
   isBlankValue,
@@ -382,7 +383,8 @@ export function createSceneResolver(scenePaths: readonly string[]): (link: strin
  * mark, the date and the timelines.
  *
  * @param date      when it happens; null leaves an empty date for the writer to fill in
- * @param timelines the names of the lanes it starts in; empty and repeated names are left out
+ * @param timelines the names of the lanes it starts in, as they are to be written (a lane key is not
+ *   a name: see `laneNameFor`); empty and repeated names are left out
  */
 export function newEventFrontmatter(date: StoryDate | null, timelines: readonly string[] = []): Frontmatter {
   return {
@@ -404,6 +406,10 @@ function encodeLike(date: StoryDate, previous: ParsedDateValue): string | number
  *  - The precision is kept: an event dated to the year stays dated to the
  *    year, whatever `target` is. An undated event takes `target` as it is.
  *  - A span keeps its length: its end moves along (see `moveDates`).
+ *  - An "end" that makes no span (the same day as the date, or an earlier
+ *    one) moves along by the same amount too. Left where it was, it would be
+ *    measured against the new date, and an event that read as a single
+ *    moment could turn into a span.
  *  - Only "date" and "end" are ever named, and only when their value changes.
  *    An "end" that could not be read is left alone, and so is a time of day
  *    written after a date.
@@ -418,15 +424,16 @@ export function redateEventPatch(frontmatter: unknown, target: StoryDate): Front
 
   const start = current.date;
   const wanted = dayNumberToStoryDate(storyDateToDayNumber(target), start.precision);
-  const readEnd = parseDateValue(properties['end']);
-  const end =
-    readEnd !== null && storyDateToDayNumber(readEnd.date) > storyDateToDayNumber(start) ? readEnd : null;
-  const moved = moveDates(start, end === null ? null : end.date, wanted);
+  const end = parseDateValue(properties['end']);
+  const spanEnd = end !== null && storyDateToDayNumber(end.date) > storyDateToDayNumber(start) ? end.date : null;
+  const moved = moveDates(start, spanEnd, wanted);
 
   const patch: Record<string, unknown> = {};
   if (!sameStoryDate(moved.start, start)) patch['date'] = encodeLike(moved.start, current);
-  if (end !== null && moved.end !== null && !sameStoryDate(moved.end, end.date)) {
-    patch['end'] = encodeLike(moved.end, end);
+  if (end !== null) {
+    // The end of a span comes back moved; any other end is taken along here.
+    const movedEnd = moved.end ?? carryStoryDate(end.date, start, moved.start);
+    if (!sameStoryDate(movedEnd, end.date)) patch['end'] = encodeLike(movedEnd, end);
   }
   return patch;
 }

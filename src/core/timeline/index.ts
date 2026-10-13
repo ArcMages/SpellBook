@@ -156,11 +156,13 @@ export { visibleLanes } from './lanes';
 export type { LaneContext } from './eventLanes';
 /** The keys of the lanes an event shows in. */
 export { eventLaneKeys } from './eventLanes';
-/** The change that adds an event to a lane. */
+/** The name to write in a note for a lane, from its key or any spelling of its name. */
+export { laneNameFor } from './eventLanes';
+/** The change that adds an event to a lane, given the lane's key or name. */
 export { addEventToLanePatch } from './eventLanes';
-/** The change that takes an event out of a lane. */
+/** The change that takes an event out of a lane, given the lane's key or name. */
 export { removeEventFromLanePatch } from './eventLanes';
-/** The change that moves an event from one lane to another. */
+/** The change that moves an event from one lane to another, given their keys or names. */
 export { moveEventToLanePatch } from './eventLanes';
 /** The change one event needs when a lane is renamed. */
 export { renameLaneInEventPatch } from './eventLanes';

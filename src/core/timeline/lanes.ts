@@ -207,7 +207,9 @@ const builtInName = (key: string): string => (key === MANUSCRIPT_KEY ? MANUSCRIP
 const hasLane = (slots: readonly Slot[], key: string): boolean => slots.some((slot) => isShown(slot) && slot.key === key);
 
 /**
- * Add a lane at the end of the list. The name is tidied (spaces at the ends
+ * Add a lane after the others: at the end of the list, or just before Other
+ * when the index lists Other last (as it does once Other has a colour), so
+ * that Other stays after the rest. The name is tidied (spaces at the ends
  * and runs of spaces go). Refused when the name is empty or taken.
  *
  * @param value the index's "timelines" value as it is now
@@ -220,7 +222,12 @@ export function addLane(value: unknown, name: string, color: LaneColor | null = 
   const key = laneKey(tidy);
   if (isBuiltIn(key)) return refuse('name-taken', `"${builtInName(key)}" is a built-in lane. Choose another name.`);
   if (hasLane(read.slots, key)) return refuse('name-taken', `There is already a lane named "${tidy}".`);
-  return done([...read.slots, laneSlot(tidy, readLaneColor(color))], true);
+  const added = laneSlot(tidy, readLaneColor(color));
+  const shown = read.slots.filter(isShown);
+  const last = shown[shown.length - 1];
+  if (last === undefined || last.key !== OTHER_KEY) return done([...read.slots, added], true);
+  const place = read.slots.indexOf(last);
+  return done([...read.slots.slice(0, place), added, ...read.slots.slice(place)], true);
 }
 
 /**
@@ -287,7 +294,8 @@ export function recolourLane(value: unknown, name: string, color: LaneColor | nu
 }
 
 /**
- * Move a lane to another place in the order.
+ * Move a lane to another place in the order. Entries that repeat its name
+ * go with it, so the lane reads the same after the move as before.
  *
  * @param toIndex the place it should take, counted from 0 in the list that
  *   `displayLanes` gives (Manuscript first unless the index lists it
@@ -313,10 +321,13 @@ export function moveLane(value: unknown, name: string, toIndex: number): LaneCha
   const target = Number.isFinite(toIndex) ? Math.min(last, Math.max(0, Math.trunc(toIndex))) : last;
   if (shownBefore.indexOf(moving) === target) return done(read.slots, false);
 
-  slots = slots.filter((slot) => slot !== moving);
+  // Every entry of the name goes along, the one that is read first. Left
+  // behind, a repeated entry would come before it and be read in its place.
+  const named = slots.filter((slot) => slot.kind === 'lane' && slot.key === key);
+  slots = slots.filter((slot) => !named.includes(slot));
   const next = slots.filter(isShown)[target];
-  if (next === undefined) slots.push(moving);
-  else slots.splice(slots.indexOf(next), 0, moving);
+  if (next === undefined) slots.push(...named);
+  else slots.splice(slots.indexOf(next), 0, ...named);
 
   // A built-in lane still in its usual place need not be written down.
   const shown = slots.filter(isShown);
