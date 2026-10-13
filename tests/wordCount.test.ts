@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  countPlainWords,
   countWords,
   countWordsByPattern,
   countableText,
   defaultSegmenter,
+  splitAtLineBreaks,
   stripComments,
   stripFrontmatter,
 } from '../src/core/wordCount';
@@ -182,5 +184,61 @@ describe('the helpers', () => {
 
   it('countableText applies both', () => {
     expect(countableText('---\na: 1\n---\nx %%y%% z')).toBe('x   z');
+  });
+
+  it('countPlainWords counts text as it is, properties and all', () => {
+    expect(countPlainWords('One two three.')).toBe(3);
+    expect(countPlainWords('---\na: one\n---\nBody')).toBe(3); // nothing is left out here
+    expect(countPlainWords('One two three.', null)).toBe(3);
+  });
+});
+
+describe('splitAtLineBreaks', () => {
+  const mixed =
+    'היא כתבה מכתב ארוך.\nThen she waited, and waited.\r\n\n我喜欢写小说。\nDon\'t stop: the well-known e-mail came at 3.14.\n' +
+    'בְּרֵאשִׁית בָּרָא\n\nA last line without a break at its end';
+
+  it('gives the text back when it is short enough', () => {
+    expect(splitAtLineBreaks('One two.\nThree.', 100)).toEqual(['One two.\nThree.']);
+    expect(splitAtLineBreaks('', 100)).toEqual(['']);
+  });
+
+  it('cuts only just after a line break, in pieces no longer than asked', () => {
+    const text = 'aaaa\nbbbb\ncccc\ndddd\n';
+    expect(splitAtLineBreaks(text, 10)).toEqual(['aaaa\nbbbb\n', 'cccc\ndddd\n']);
+    expect(splitAtLineBreaks(text, 12)).toEqual(['aaaa\nbbbb\n', 'cccc\ndddd\n']);
+    expect(splitAtLineBreaks(text, 5)).toEqual(['aaaa\n', 'bbbb\n', 'cccc\n', 'dddd\n']);
+  });
+
+  it('keeps a line that is longer than asked in one piece', () => {
+    expect(splitAtLineBreaks('aaaaaaaaaaaa\nbb\ncc', 5)).toEqual(['aaaaaaaaaaaa\n', 'bb\ncc']);
+    expect(splitAtLineBreaks('one endless line with no break at all', 5)).toEqual(['one endless line with no break at all']);
+  });
+
+  it('always gives pieces that join up to the text again', () => {
+    for (const size of [1, 2, 3, 7, 20, 50, 1000]) {
+      const pieces = splitAtLineBreaks(mixed, size);
+      expect(pieces.join(''), `size ${size}`).toBe(mixed);
+      expect(pieces.every((piece) => piece !== ''), `size ${size}`).toBe(true);
+    }
+  });
+
+  it('counting the pieces gives the same total as counting the whole, in any language', () => {
+    const long = `${mixed}\n`.repeat(40);
+    const whole = countPlainWords(long);
+    expect(whole).toBeGreaterThan(500);
+    for (const size of [1, 13, 64, 500, 4096]) {
+      const inPieces = splitAtLineBreaks(long, size).reduce((sum, piece) => sum + countPlainWords(piece), 0);
+      expect(inPieces, `size ${size}`).toBe(whole);
+      // and the same with the simpler counting used where there is no Intl.Segmenter
+      const byPattern = splitAtLineBreaks(long, size).reduce((sum, piece) => sum + countPlainWords(piece, null), 0);
+      expect(byPattern, `size ${size}, fallback`).toBe(countPlainWords(long, null));
+    }
+  });
+
+  it('copes with a silly size', () => {
+    expect(splitAtLineBreaks('a\nb\n', 0)).toEqual(['a\n', 'b\n']);
+    expect(splitAtLineBreaks('a\nb\n', -3)).toEqual(['a\n', 'b\n']);
+    expect(splitAtLineBreaks('a\nb\n', 1.9)).toEqual(['a\n', 'b\n']);
   });
 });

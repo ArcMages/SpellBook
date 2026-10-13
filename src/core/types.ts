@@ -96,6 +96,8 @@ export interface ProjectSnapshot extends ProjectSummary {
   readonly unfiled: readonly string[];
   /** Binder scenes whose note does not exist, in manuscript order. */
   readonly missing: readonly string[];
+  /** Notes under Research/, as paths relative to the project. */
+  readonly research: readonly string[];
   /** Goes up by one each time the snapshot changes. */
   readonly revision: number;
 }

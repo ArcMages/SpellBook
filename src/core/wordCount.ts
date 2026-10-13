@@ -82,6 +82,24 @@ export function countWordsByPattern(text: string): number {
 }
 
 /**
+ * Count the words in text that holds no properties block and no comments
+ * (see countableText).
+ *
+ * @param segmenter the word segmenter to use; pass null to force the fallback pattern
+ */
+export function countPlainWords(
+  text: string,
+  segmenter: WordSegmenter | null = defaultSegmenter(),
+): number {
+  if (segmenter === null) return countWordsByPattern(text);
+  let words = 0;
+  for (const part of segmenter.segment(text)) {
+    if (part.isWordLike) words++;
+  }
+  return words;
+}
+
+/**
  * Count the words in a note.
  *
  * @param markdown  the whole note, as stored
@@ -91,11 +109,31 @@ export function countWords(
   markdown: string,
   segmenter: WordSegmenter | null = defaultSegmenter(),
 ): number {
-  const text = countableText(markdown);
-  if (segmenter === null) return countWordsByPattern(text);
-  let words = 0;
-  for (const part of segmenter.segment(text)) {
-    if (part.isWordLike) words++;
+  return countPlainWords(countableText(markdown), segmenter);
+}
+
+/**
+ * Cut text into pieces of about `size` characters, always just after a line
+ * break. No word runs across a line break, so counting the pieces one by one
+ * gives exactly the same total as counting the whole text. This lets a very
+ * long note be counted a bit at a time instead of in one long go.
+ *
+ * A single line longer than `size` stays whole. The pieces, joined, are the
+ * text again.
+ */
+export function splitAtLineBreaks(text: string, size: number): string[] {
+  const step = Math.max(1, Math.floor(size));
+  const pieces: string[] = [];
+  let start = 0;
+  while (text.length - start > step) {
+    // The last line break inside the next `step` characters...
+    let cut = text.lastIndexOf('\n', start + step - 1);
+    // ...or, for one very long line, the break that ends it.
+    if (cut < start) cut = text.indexOf('\n', start + step);
+    if (cut < 0) break;
+    pieces.push(text.slice(start, cut + 1));
+    start = cut + 1;
   }
-  return words;
+  if (start < text.length || pieces.length === 0) pieces.push(text.slice(start));
+  return pieces;
 }

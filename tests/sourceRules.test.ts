@@ -50,9 +50,16 @@ describe('source layout', () => {
       'core/projectSeed.ts',
       'core/sampleProject.ts',
       'core/newProject.ts',
+      'core/binderModel.ts',
+      'core/devicePrefs.ts',
+      'core/projectSession.ts',
+      'core/wordCountCache.ts',
       'obsidian/obsidianVault.ts',
       'obsidian/openNote.ts',
+      'obsidian/deviceStorage.ts',
       'ui/createProjectModal.ts',
+      'ui/icons.ts',
+      'views/binderView.ts',
     ]) {
       expect(names, expected).toContain(expected);
     }
@@ -156,6 +163,29 @@ describe('the whole plugin', () => {
     expect(lookbehind.test('/(?<name>a)(?=b)(?!c)/')).toBe(false); // named groups and lookaheads are fine
   });
 
+  it('keeps what belongs to one device out of the synced plugin data', () => {
+    // The open project and what is folded shut differ per device. They go
+    // through app.loadLocalStorage / app.saveLocalStorage, in one file.
+    for (const file of allFiles) {
+      const code = codeOf(file);
+      expect(/\.\s*(saveData|loadData)\s*\(/.test(code), `${relative(file)} must not use the plugin's synced data`).toBe(false);
+      if (relative(file) === 'obsidian/deviceStorage.ts') continue;
+      expect(/\b(loadLocalStorage|saveLocalStorage|localStorage)\b/.test(code), relative(file)).toBe(false);
+    }
+    const storage = codeOf(path.join(srcDir, 'obsidian', 'deviceStorage.ts'));
+    expect(storage).toMatch(/app\s*\.\s*loadLocalStorage\(/);
+    expect(storage).toMatch(/app\s*\.\s*saveLocalStorage\(/);
+    expect(/\bwindow\s*\.\s*localStorage\b/.test(storage)).toBe(false); // Obsidian's per-vault storage, not the raw one
+  });
+
+  it('lets the browser scroll nothing but the plugin\'s own lists', () => {
+    // element.scrollIntoView() may also shift whatever the list sits in, such
+    // as a phone's side drawer. The views move their own scroll position instead.
+    for (const file of allFiles) {
+      expect(/\.\s*scrollIntoView\s*\(/.test(codeOf(file)), relative(file)).toBe(false);
+    }
+  });
+
   it('only the views and windows touch the screen, never the core or the vault doorway', () => {
     for (const file of [...coreFiles, ...adapterFiles]) {
       const code = codeOf(file);
@@ -206,9 +236,49 @@ describe('styles.css', () => {
     }
   });
 
+  it('names sides "start" and "end", never left and right, so that everything mirrors in a right-to-left app', () => {
+    const physical = /\b(left|right)\b/;
+    for (const rule of rules) {
+      expect(physical.test(rule.body), `${rule.selectors.join(', ')} { ${rule.body.trim()} }`).toBe(false);
+    }
+    expect(physical.test('margin-left: 4px;')).toBe(true);
+    expect(physical.test('text-align: right;')).toBe(true);
+    expect(physical.test('float: left;')).toBe(true);
+    expect(physical.test('margin-inline-start: 4px; text-align: start;')).toBe(false);
+  });
+
+  it('gives its own variables the plugin\'s prefix', () => {
+    const declared = rules.flatMap((rule) => [...rule.body.matchAll(/(?:^|[;\s])(--[A-Za-z0-9-]+)\s*:/g)].map((match) => match[1] ?? ''));
+    expect(declared.length).toBeGreaterThan(0);
+    for (const name of declared) expect(name.startsWith('--spellbook-'), name).toBe(true);
+  });
+
+  it('makes rows tall enough for a finger on touch screens, and only there', () => {
+    expect(css).toMatch(/--spellbook-touch-target:\s*44px/);
+    const touchRules = rules.filter((rule) => /min-height:\s*var\(--spellbook-touch-target\)/.test(rule.body));
+    expect(touchRules.length).toBeGreaterThanOrEqual(2);
+    // Every such rule is either inside the touch-screen media rule or asks for the mobile class.
+    const coarse = /@media\s*\(pointer:\s*coarse\)\s*\{([\s\S]*?\})\s*\}/.exec(css)?.[1] ?? '';
+    expect(coarse).toMatch(/\.spellbook-row-self/);
+    for (const rule of touchRules) {
+      const guarded = rule.selectors.every((selector) => selector.includes('.spellbook-is-mobile')) || coarse.includes(rule.body);
+      expect(guarded, rule.selectors.join(', ')).toBe(true);
+    }
+  });
+
+  it('never hides or reveals anything on hover alone', () => {
+    // Hover may tint a row. It may not be the only way to see or reach something.
+    for (const rule of rules) {
+      if (!rule.selectors.some((selector) => selector.includes(':hover'))) continue;
+      expect(/\b(display|visibility|opacity|pointer-events)\s*:/.test(rule.body), rule.selectors.join(', ')).toBe(false);
+    }
+  });
+
   it('the checks themselves work', () => {
     expect(rules.length).toBeGreaterThan(0);
     expect(/#[0-9a-fA-F]{3,8}\b|\b(rgb|rgba|hsl|hsla)\(/.test('color: #fff;')).toBe(true);
     expect(/#[0-9a-fA-F]{3,8}\b|\b(rgb|rgba|hsl|hsla)\(/.test('color: var(--text-normal);')).toBe(false);
+    // Rules inside a media rule are checked like any other.
+    expect(rules.some((rule) => rule.selectors.includes('.spellbook-binder .spellbook-row-self.is-clickable:hover'))).toBe(true);
   });
 });

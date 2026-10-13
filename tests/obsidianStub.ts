@@ -62,11 +62,40 @@ export function getFrontMatterInfo(content: string): FrontMatterInfo {
   return { exists: true, frontmatter, from, to: from + frontmatter.length, contentStart: match[0].length };
 }
 
+// The plugin's timers call window.setTimeout, as code that runs in Obsidian
+// should. Plain Node has no `window`, so the stand-in provides one: Node's own
+// global object, which has the same timer functions.
+const nodeGlobals = globalThis as { window?: unknown };
+if (nodeGlobals.window === undefined) nodeGlobals.window = globalThis;
+
+/** What createEl, createDiv and createSpan accept: Obsidian's DomElementInfo, or just a class name. */
+export type FakeElementInfo =
+  | string
+  | {
+      text?: string;
+      value?: string;
+      cls?: string | string[];
+      attr?: Record<string, string | number | boolean | null>;
+    };
+
+/** Where an element is on the screen, as getBoundingClientRect() reports it. */
+export interface FakeRect {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+  width: number;
+  height: number;
+}
+
 /**
  * A stand-in for an HTML element. The tests run without a browser, so this
  * only remembers what was done to it: text, classes, attributes, children and
  * event listeners. It has the helpers Obsidian adds to elements (empty,
- * setText, addClass, setAttr, createEl, createDiv).
+ * setText, addClass, toggleClass, setAttr, createEl, createDiv, createSpan).
+ *
+ * It lays nothing out. Sizes and positions are whatever a test sets:
+ * `clientWidth`, `scrollTop` and `rect`.
  */
 export class FakeElement {
   readonly tag: string;
@@ -74,6 +103,12 @@ export class FakeElement {
   value = '';
   disabled = false;
   focused = false;
+  parent: FakeElement | null = null;
+  /** The icon put into this element with setIcon(), if any. */
+  icon: string | null = null;
+  scrollTop = 0;
+  clientWidth = 0;
+  rect: FakeRect = { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 };
   readonly classes = new Set<string>();
   readonly attrs: Record<string, string | number | boolean | null> = {};
   readonly children: FakeElement[] = [];
@@ -86,9 +121,11 @@ export class FakeElement {
   }
 
   empty(): void {
+    for (const child of this.children) child.parent = null;
     this.children.length = 0;
     this.settings.length = 0;
     this.text = '';
+    this.icon = null;
   }
 
   setText(text: string): void {
@@ -96,28 +133,54 @@ export class FakeElement {
   }
 
   addClass(...classes: string[]): void {
-    for (const cls of classes) this.classes.add(cls);
+    for (const cls of classes) if (cls !== '') this.classes.add(cls);
   }
 
+  removeClass(...classes: string[]): void {
+    for (const cls of classes) this.classes.delete(cls);
+  }
+
+  toggleClass(classes: string | string[], value: boolean): void {
+    for (const cls of Array.isArray(classes) ? classes : [classes]) {
+      if (value) this.addClass(cls);
+      else this.removeClass(cls);
+    }
+  }
+
+  hasClass(cls: string): boolean {
+    return this.classes.has(cls);
+  }
+
+  /** As in Obsidian: null takes the attribute away. */
   setAttr(name: string, value: string | number | boolean | null): void {
-    this.attrs[name] = value;
+    if (value === null) delete this.attrs[name];
+    else this.attrs[name] = value;
   }
 
-  createEl(
-    tag: string,
-    info: { text?: string; value?: string; cls?: string; attr?: Record<string, string | number | boolean | null> } = {},
-  ): FakeElement {
+  getAttr(name: string): string | null {
+    const value = this.attrs[name];
+    return value === undefined || value === null ? null : String(value);
+  }
+
+  createEl(tag: string, info: FakeElementInfo = {}): FakeElement {
+    const options = typeof info === 'string' ? { cls: info } : info;
     const child = new FakeElement(tag);
-    child.text = info.text ?? '';
-    child.value = info.value ?? '';
-    if (info.cls !== undefined) child.addClass(...info.cls.split(' '));
-    Object.assign(child.attrs, info.attr ?? {});
+    child.parent = this;
+    child.text = options.text ?? '';
+    child.value = options.value ?? '';
+    const classes = Array.isArray(options.cls) ? options.cls : (options.cls ?? '').split(' ');
+    child.addClass(...classes);
+    for (const [name, value] of Object.entries(options.attr ?? {})) child.setAttr(name, value);
     this.children.push(child);
     return child;
   }
 
-  createDiv(info: { text?: string; cls?: string } = {}): FakeElement {
+  createDiv(info: FakeElementInfo = {}): FakeElement {
     return this.createEl('div', info);
+  }
+
+  createSpan(info: FakeElementInfo = {}): FakeElement {
+    return this.createEl('span', info);
   }
 
   addEventListener(type: string, listener: (event: unknown) => unknown): void {
@@ -129,8 +192,42 @@ export class FakeElement {
     for (const listener of this.listeners.get(type) ?? []) listener(event);
   }
 
+  /** How many listeners are waiting for an event of this type. */
+  listenerCount(type: string): number {
+    return this.listeners.get(type)?.length ?? 0;
+  }
+
   focus(): void {
     this.focused = true;
+  }
+
+  getBoundingClientRect(): FakeRect {
+    return { ...this.rect };
+  }
+
+  // --- helpers for the tests (not part of the DOM)
+
+  /** This element and everything inside it, in document order. */
+  all(): FakeElement[] {
+    return [this, ...this.children.flatMap((child) => child.all())];
+  }
+
+  /** Everything inside this element (and the element itself) that has all the given classes. */
+  withClass(...classes: string[]): FakeElement[] {
+    return this.all().filter((element) => classes.every((cls) => element.classes.has(cls)));
+  }
+
+  /** The nearest element around this one (or this one) that has the class, or null. */
+  closest(cls: string): FakeElement | null {
+    for (let element: FakeElement | null = this; element; element = element.parent) {
+      if (element.classes.has(cls)) return element;
+    }
+    return null;
+  }
+
+  /** All the text in this element, as a reader would see it. */
+  get fullText(): string {
+    return [this.text, ...this.children.map((child) => child.fullText)].filter((part) => part !== '').join(' ');
   }
 }
 
@@ -145,12 +242,30 @@ export interface StubCommand {
   callback?: () => unknown;
 }
 
+/** A button on the ribbon, as added with addRibbonIcon(). */
+export interface StubRibbonIcon {
+  icon: string;
+  title: string;
+  callback: (event: unknown) => unknown;
+  /** False once the plugin has been unloaded: Obsidian takes the button away. */
+  shown: boolean;
+}
+
+/** What the stand-in asks of a workspace that can show the plugin's views (see tests/fakeObsidianApp.ts). */
+interface ViewRegistry {
+  registerViewCreator?(type: string, creator: (leaf: unknown) => unknown): void;
+  unregisterViewCreator?(type: string): void;
+}
+
 /** The parts of Plugin that src/main.ts uses. */
 export class Plugin {
   app: unknown;
   manifest: unknown;
   readonly settingTabs: unknown[] = [];
   readonly commands: StubCommand[] = [];
+  readonly ribbonIcons: StubRibbonIcon[] = [];
+  /** The view types registered with registerView(). */
+  readonly viewTypes: string[] = [];
   /** Every event handed to registerEvent, for tests that check nothing is left attached. */
   readonly registeredEvents: StubEventRef[] = [];
   private readonly cleanups: Array<() => unknown> = [];
@@ -158,6 +273,10 @@ export class Plugin {
   constructor(app: unknown, manifest: unknown) {
     this.app = app;
     this.manifest = manifest;
+  }
+
+  private get viewRegistry(): ViewRegistry | undefined {
+    return (this.app as { workspace?: ViewRegistry } | undefined)?.workspace;
   }
 
   addSettingTab(tab: unknown): void {
@@ -169,6 +288,19 @@ export class Plugin {
     return command;
   }
 
+  addRibbonIcon(icon: string, title: string, callback: (event: unknown) => unknown): FakeElement {
+    const entry: StubRibbonIcon = { icon, title, callback, shown: true };
+    this.ribbonIcons.push(entry);
+    const element = new FakeElement();
+    element.icon = icon;
+    return element;
+  }
+
+  registerView(type: string, creator: (leaf: unknown) => unknown): void {
+    this.viewTypes.push(type);
+    this.viewRegistry?.registerViewCreator?.(type, creator);
+  }
+
   register(callback: () => unknown): void {
     this.cleanups.push(callback);
   }
@@ -177,10 +309,185 @@ export class Plugin {
     this.registeredEvents.push(ref);
   }
 
-  /** What Obsidian does when the plugin is disabled. */
+  /**
+   * What Obsidian does when the plugin is disabled: the plugin's own clean-up
+   * runs, its listeners are detached, its ribbon buttons go, and its view
+   * types stop existing, which closes any of its views that are open.
+   */
   unload(): void {
     for (const cleanup of this.cleanups.splice(0).reverse()) cleanup();
     for (const ref of this.registeredEvents.splice(0)) ref.e?.offref(ref);
+    for (const icon of this.ribbonIcons) icon.shown = false;
+    for (const type of this.viewTypes.splice(0)) this.viewRegistry?.unregisterViewCreator?.(type);
+  }
+}
+
+/** The leaf a view lives in, as far as a view needs to know it. */
+export interface StubLeaf {
+  app: unknown;
+}
+
+/**
+ * The parts of ItemView (and of View and Component under it) that the
+ * plugin's views use. open() and close() do what Obsidian does when it shows
+ * a view and when it takes it away.
+ */
+export class ItemView {
+  app: unknown;
+  leaf: StubLeaf;
+  navigation = true;
+  icon = '';
+  readonly containerEl = new FakeElement();
+  readonly contentEl = new FakeElement();
+  /** Every event handed to registerEvent, for tests that check nothing is left attached. */
+  readonly registeredEvents: StubEventRef[] = [];
+  private readonly cleanups: Array<() => unknown> = [];
+
+  constructor(leaf: StubLeaf) {
+    this.leaf = leaf;
+    this.app = leaf.app;
+    this.contentEl.addClass('view-content');
+  }
+
+  getViewType(): string {
+    return '';
+  }
+
+  getDisplayText(): string {
+    return '';
+  }
+
+  getIcon(): string {
+    return this.icon;
+  }
+
+  onResize(): void {}
+
+  register(callback: () => unknown): void {
+    this.cleanups.push(callback);
+  }
+
+  registerEvent(ref: StubEventRef): void {
+    this.registeredEvents.push(ref);
+  }
+
+  protected onOpen(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  protected onClose(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  /** Obsidian shows the view. */
+  async open(): Promise<void> {
+    await this.onOpen();
+  }
+
+  /** Obsidian takes the view away: the view's own clean-up, then everything it registered. */
+  async close(): Promise<void> {
+    await this.onClose();
+    for (const cleanup of this.cleanups.splice(0).reverse()) cleanup();
+    for (const ref of this.registeredEvents.splice(0)) ref.e?.offref(ref);
+  }
+}
+
+/** Which kind of device Obsidian says it is running on. Tests change these and put them back. */
+export const Platform = {
+  isDesktop: true,
+  isMobile: false,
+  isPhone: false,
+  isTablet: false,
+};
+
+/** Make the stand-in report a desktop again. */
+export function resetPlatform(): void {
+  Object.assign(Platform, { isDesktop: true, isMobile: false, isPhone: false, isTablet: false });
+}
+
+interface StubUserEvent {
+  metaKey?: boolean;
+  ctrlKey?: boolean;
+  altKey?: boolean;
+  shiftKey?: boolean;
+  button?: number;
+}
+
+export class Keymap {
+  /** Same rules as Obsidian's (see its documentation in obsidian.d.ts). */
+  static isModEvent(event?: StubUserEvent | null): 'tab' | 'split' | 'window' | boolean {
+    if (!event) return false;
+    const mod = event.metaKey === true || event.ctrlKey === true;
+    if (!mod) return event.button === 1 ? 'tab' : false;
+    if (event.altKey === true) return event.shiftKey === true ? 'window' : 'split';
+    return 'tab';
+  }
+}
+
+/** Icon names the stand-in pretends Obsidian does not know. Tests add to it and clear it. */
+export const unknownIcons = new Set<string>();
+
+export function getIcon(iconId: string): object | null {
+  return unknownIcons.has(iconId) ? null : { iconId };
+}
+
+/** As in Obsidian: replaces what is in the element with the icon, or does nothing for an unknown icon. */
+export function setIcon(parent: FakeElement, iconId: string): void {
+  if (unknownIcons.has(iconId)) return;
+  parent.empty();
+  parent.icon = iconId;
+  parent.createEl('svg', { cls: 'svg-icon' });
+}
+
+export class MenuItem {
+  title = '';
+  checked: boolean | null = null;
+  private clicked: ((event: unknown) => unknown) | null = null;
+
+  setTitle(title: string): this {
+    this.title = title;
+    return this;
+  }
+
+  setChecked(checked: boolean | null): this {
+    this.checked = checked;
+    return this;
+  }
+
+  onClick(callback: (event: unknown) => unknown): this {
+    this.clicked = callback;
+    return this;
+  }
+
+  /** As if the writer picked this item. */
+  click(): void {
+    this.clicked?.({});
+  }
+}
+
+/** A menu. Nothing is shown; every menu that was shown is kept in `Menu.shown` for the tests. */
+export class Menu {
+  static readonly shown: Menu[] = [];
+
+  readonly items: MenuItem[] = [];
+  position: { x: number; y: number; width?: number } | null = null;
+
+  addItem(callback: (item: MenuItem) => unknown): this {
+    const item = new MenuItem();
+    this.items.push(item);
+    callback(item);
+    return this;
+  }
+
+  showAtPosition(position: { x: number; y: number; width?: number }): this {
+    this.position = position;
+    Menu.shown.push(this);
+    return this;
+  }
+
+  showAtMouseEvent(_event: unknown): this {
+    Menu.shown.push(this);
+    return this;
   }
 }
 

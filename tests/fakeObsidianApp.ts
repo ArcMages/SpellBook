@@ -1,12 +1,16 @@
 // A small imitation of the Obsidian `app` object for testing
-// src/obsidian/obsidianVault.ts. It models only what that file relies on, as
-// documented in obsidian.d.ts:
+// src/obsidian/obsidianVault.ts and the plugin as a whole. It models only
+// what the plugin relies on, as documented in obsidian.d.ts:
 //
 //  - vault events ("create" also fires for every existing file while the
 //    vault loads, before the layout is ready),
 //  - the metadata cache, which is filled separately from the file list and
 //    announces "changed" per note and "resolved" when it has caught up,
-//  - fileManager.processFrontMatter, which writes nothing when its callback throws.
+//  - fileManager.processFrontMatter, which writes nothing when its callback throws,
+//  - the workspace: panes ("leaves") in the two sidebars and the main area,
+//    each holding a view made by the view type's registered creator; which
+//    note is being worked on, announced as "file-open",
+//  - the per-vault storage on the device (loadLocalStorage, saveLocalStorage).
 //
 // The destructive Vault methods (delete, trash, modify, rename) throw, so a
 // test fails loudly if the plugin ever reaches for them instead of the
@@ -222,19 +226,163 @@ class FakeMetadataCache extends FakeEvents {
   }
 }
 
-class FakeWorkspace {
+/** A view as the fake workspace handles it: the stand-in ItemView from tests/obsidianStub.ts. */
+interface FakeView {
+  getViewType(): string;
+  open(): Promise<void>;
+  close(): Promise<void>;
+}
+
+/** One of the three places a pane can be: a sidebar (a drawer on a phone) or the main area. */
+export class FakeSplit {
+  collapsed = true;
+  /** How often collapse() was called. */
+  collapses = 0;
+
+  constructor(readonly name: 'left' | 'right' | 'root') {}
+
+  collapse(): void {
+    this.collapsed = true;
+    this.collapses++;
+  }
+
+  expand(): void {
+    this.collapsed = false;
+  }
+}
+
+/** A pane. It holds one view, created from the type's registered view creator. */
+export class FakeLeaf {
+  view: FakeView | null = null;
+  type = 'empty';
+  detached = false;
+
+  constructor(
+    private readonly workspace: FakeWorkspace,
+    readonly app: unknown,
+    readonly split: FakeSplit,
+  ) {}
+
+  getRoot(): FakeSplit {
+    return this.split;
+  }
+
+  getViewState(): { type: string } {
+    return { type: this.type };
+  }
+
+  async setViewState(state: { type: string; active?: boolean }): Promise<void> {
+    await this.view?.close();
+    this.view = null;
+    this.type = state.type;
+    const creator = this.workspace.viewCreators.get(state.type);
+    if (!creator) return; // an unknown type shows nothing, as in Obsidian
+    this.view = creator(this) as FakeView;
+    await this.view.open();
+  }
+
+  detach(): void {
+    if (this.detached) return;
+    this.detached = true;
+    this.workspace.leaves.splice(this.workspace.leaves.indexOf(this), 1);
+    void this.view?.close();
+    this.view = null;
+  }
+}
+
+/** One call to leaf.openFile(), with where the leaf came from. */
+export interface OpenCall {
+  path: string;
+  /** What getLeaf() was asked for: false = the current tab, 'tab' = a new one, and so on. */
+  where: unknown;
+  /** The second argument of openFile(), if any. */
+  state: unknown;
+}
+
+export class FakeWorkspace extends FakeEvents {
   layoutReady = false;
   /** Paths of the notes opened through getLeaf().openFile(), in order. */
   readonly opened: string[] = [];
+  /** The same, with how each one was opened. */
+  readonly openCalls: OpenCall[] = [];
+  /** The note being worked on in the main area. */
+  activeFile: TFile | null = null;
+
+  readonly leftSplit = new FakeSplit('left');
+  readonly rightSplit = new FakeSplit('right');
+  readonly rootSplit = new FakeSplit('root');
+  readonly leaves: FakeLeaf[] = [];
+  readonly viewCreators = new Map<string, (leaf: unknown) => unknown>();
+  /** Set to make getLeftLeaf() return null, as Obsidian may. */
+  noRoomOnTheLeft = false;
+  /** The leaves handed to revealLeaf(), in order. */
+  readonly revealed: FakeLeaf[] = [];
+
   private waiting: Array<() => unknown> = [];
 
-  getLeaf(_newLeaf?: boolean): { openFile(file: TFile): Promise<void> } {
+  constructor(private readonly app: unknown) {
+    super();
+  }
+
+  getLeaf(newLeaf?: unknown): { openFile(file: TFile, state?: unknown): Promise<void> } {
     return {
-      openFile: async (file: TFile): Promise<void> => {
+      openFile: async (file: TFile, state?: unknown): Promise<void> => {
         this.opened.push(file.path);
+        this.openCalls.push({ path: file.path, where: newLeaf ?? false, state });
+        this.setActiveFile(file);
       },
     };
   }
+
+  getActiveFile(): TFile | null {
+    return this.activeFile;
+  }
+
+  /** The writer moves to another note (or to none): Obsidian announces it. */
+  setActiveFile(file: TFile | null): void {
+    if (file === this.activeFile) return;
+    this.activeFile = file;
+    this.trigger('file-open', file);
+  }
+
+  // --- panes and views
+
+  registerViewCreator(type: string, creator: (leaf: unknown) => unknown): void {
+    this.viewCreators.set(type, creator);
+  }
+
+  /** The plugin that made this view type is gone: its views close, their panes stay. */
+  unregisterViewCreator(type: string): void {
+    this.viewCreators.delete(type);
+    for (const leaf of this.leaves) {
+      if (leaf.type !== type) continue;
+      void leaf.view?.close();
+      leaf.view = null;
+    }
+  }
+
+  getLeavesOfType(type: string): FakeLeaf[] {
+    return this.leaves.filter((leaf) => leaf.type === type);
+  }
+
+  getLeftLeaf(_split: boolean): FakeLeaf | null {
+    if (this.noRoomOnTheLeft) return null;
+    return this.addLeaf(this.leftSplit);
+  }
+
+  /** A new, empty pane in one of the three places. */
+  addLeaf(split: FakeSplit): FakeLeaf {
+    const leaf = new FakeLeaf(this, this.app, split);
+    this.leaves.push(leaf);
+    return leaf;
+  }
+
+  async revealLeaf(leaf: FakeLeaf): Promise<void> {
+    this.revealed.push(leaf);
+    leaf.split.expand();
+  }
+
+  // --- start-up
 
   onLayoutReady(callback: () => unknown): void {
     if (this.layoutReady) callback();
@@ -250,7 +398,9 @@ class FakeWorkspace {
 export class FakeObsidian {
   readonly vault = new FakeVault(this);
   readonly metadataCache = new FakeMetadataCache(this);
-  readonly workspace = new FakeWorkspace();
+  readonly workspace: FakeWorkspace = new FakeWorkspace(this);
+  /** What app.saveLocalStorage() has stored, as JSON text, by key. */
+  readonly localStorage = new Map<string, string>();
   /** Calls made to the FileManager, so tests can check the right doorway was used. */
   readonly calls: string[] = [];
   /** Paths moved to the trash. */
@@ -305,6 +455,17 @@ export class FakeObsidian {
   /** The object to hand to the plugin's code. */
   get app(): App {
     return this as unknown as App;
+  }
+
+  /** Obsidian's per-vault storage on this device. Values go through JSON, as they do there. */
+  loadLocalStorage(key: string): unknown {
+    const stored = this.localStorage.get(key);
+    return stored === undefined ? null : (JSON.parse(stored) as unknown);
+  }
+
+  saveLocalStorage(key: string, data: unknown): void {
+    if (data === null || data === undefined) this.localStorage.delete(key);
+    else this.localStorage.set(key, JSON.stringify(data));
   }
 
   /** Put a note on "disk" without any event, as if it was there before Obsidian started. */

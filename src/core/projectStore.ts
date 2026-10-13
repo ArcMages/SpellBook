@@ -61,7 +61,7 @@ import {
   readTitle,
   writeBinder,
 } from './projectIndex';
-import { MANUSCRIPT_FOLDER, PROJECT_FOLDERS, TODO_FILE } from './projectLayout';
+import { MANUSCRIPT_FOLDER, PROJECT_FOLDERS, RESEARCH_FOLDER, TODO_FILE } from './projectLayout';
 import { plantSeed } from './projectSeed';
 import type { PlantedSeed, ProjectSeed } from './projectSeed';
 import { DEFAULT_SCENE_NAME, newSceneFrontmatter } from './scene';
@@ -192,6 +192,8 @@ export class ProjectStore {
   private snapshot: ProjectSnapshot | null = null;
   private snapshotSignature = '';
   private revision = 0;
+  /** The open project's notes as they were when the snapshot was last worked out. */
+  private snapshotFiles = new Map<string, ProjectFile>();
 
   /** The end of the job queue; every job chains onto it. */
   private tail: Promise<void> = Promise.resolve();
@@ -271,6 +273,18 @@ export class ProjectStore {
   /** The open project, or null. A new object whenever something changed. */
   get project(): ProjectSnapshot | null {
     return this.snapshot;
+  }
+
+  /**
+   * Where a note of the open project really is: its vault path, for a path
+   * relative to the project folder as the snapshot gives it. Null when the
+   * project has no such note (a Missing scene, for example).
+   *
+   * Use this rather than joining the two paths by hand: the binder and the
+   * disk may spell the same accented or pointed name in two different ways.
+   */
+  vaultPathOf(path: string): string | null {
+    return this.snapshotFiles.get(pathKey(path))?.path ?? null;
   }
 
   /** Open the project whose index note is at `indexPath` (read from the file itself). */
@@ -1044,6 +1058,7 @@ export class ProjectStore {
   private refreshSnapshot(): void {
     const active = this.active;
     if (!active) {
+      this.snapshotFiles = new Map();
       if (this.snapshot !== null) {
         this.snapshot = null;
         this.snapshotSignature = '';
@@ -1053,6 +1068,7 @@ export class ProjectStore {
     }
 
     const files = this.projectFiles(active);
+    this.snapshotFiles = files;
     const binder = this.effectiveBinder(active);
     const missing: string[] = [];
     const toTree = (nodes: Binder): TreeNode[] =>
@@ -1071,6 +1087,10 @@ export class ProjectStore {
       .filter((file) => isInside(MANUSCRIPT_FOLDER, file.rel) && !inBinder.has(pathKey(file.rel)))
       .map((file) => file.rel)
       .sort();
+    const research = [...files.values()]
+      .filter((file) => isInside(RESEARCH_FOLDER, file.rel))
+      .map((file) => file.rel)
+      .sort();
 
     const body = {
       indexPath: active.indexPath,
@@ -1082,6 +1102,7 @@ export class ProjectStore {
       tree,
       unfiled,
       missing,
+      research,
     };
     const signature = JSON.stringify(body);
     if (this.snapshot !== null && signature === this.snapshotSignature) return;

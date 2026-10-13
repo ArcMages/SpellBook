@@ -1,5 +1,7 @@
 // Shared set-up for the project store tests.
 
+import { COLLAPSED_KEY } from '../src/core/devicePrefs';
+import type { DeviceStorage } from '../src/core/devicePrefs';
 import { ProjectStore } from '../src/core/projectStore';
 import type { Frontmatter, IntentResult, ProjectSnapshot, StoreChange, TreeNode } from '../src/core/types';
 import { ManualTimers, MemoryVault } from './memoryVault';
@@ -123,4 +125,55 @@ export async function settle(store: ProjectStore): Promise<void> {
   await store.idle();
   await Promise.resolve();
   await store.idle();
+}
+
+/** Wait one turn of the event loop: everything that was ready to run has run. */
+export function tick(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * Let the store and whatever follows it (a session opening a project, a view
+ * drawing itself) come to rest.
+ */
+export async function quiet(store: ProjectStore): Promise<void> {
+  for (let turn = 0; turn < 4; turn++) {
+    await settle(store);
+    await tick();
+  }
+}
+
+/**
+ * A stand-in for the storage a device keeps for itself (in Obsidian:
+ * app.loadLocalStorage and app.saveLocalStorage). Values go through JSON, as
+ * they do there.
+ */
+export class MemoryDeviceStorage implements DeviceStorage {
+  readonly values = new Map<string, string>();
+  /** Every save, in order: the key and what was saved. */
+  readonly saves: Array<[string, unknown]> = [];
+  /** Set to make every load and save fail. */
+  broken = false;
+
+  load(key: string): unknown {
+    if (this.broken) throw new Error('storage is not available');
+    const stored = this.values.get(key);
+    return stored === undefined ? null : (JSON.parse(stored) as unknown);
+  }
+
+  save(key: string, value: string | null): void {
+    if (this.broken) throw new Error('storage is not available');
+    this.saves.push([key, value]);
+    if (value === null) this.values.delete(key);
+    else this.values.set(key, JSON.stringify(value));
+  }
+}
+
+/**
+ * What a device remembers as folded shut in the binder: for each project (by
+ * its index path) the names of the folded items. Null when it remembers none.
+ */
+export function foldedIn(storage: DeviceStorage): Record<string, string[]> | null {
+  const stored = storage.load(COLLAPSED_KEY);
+  return typeof stored === 'string' ? (JSON.parse(stored) as Record<string, string[]>) : null;
 }

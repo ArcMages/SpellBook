@@ -2,9 +2,11 @@
  * Spellbook, a novel writer.
  *
  * Styles for the plugin's views. Rules for this file:
- *   - every class starts with "spellbook-";
+ *   - every class starts with "spellbook-", every variable with "--spellbook-";
  *   - colours and spacing come only from Obsidian's CSS variables, so the
  *     plugin follows the user's theme in light and dark mode;
+ *   - sides are named "start" and "end", never left and right, so that
+ *     everything mirrors when Obsidian itself runs right to left;
  *   - nothing may depend on hover alone, and every layout must work at phone width.
  */
 
@@ -13,4 +15,382 @@
 .spellbook-create-project .setting-item-control input[type='text'],
 .spellbook-create-project .setting-item-control select {
   max-width: 100%;
+}
+
+/* ------------------------------------------------------------------ Binder */
+
+/* Obsidian's pane around the binder: the binder brings its own margins and
+   does its own scrolling. (The class is repeated to outweigh Obsidian's own
+   rule for pane contents; if a theme outweighs it, the binder still works.) */
+.spellbook-binder-pane.spellbook-binder-pane {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* The binder: a header that stays put above a list that scrolls. */
+.spellbook-binder {
+  /* The smallest height of something that is tapped with a finger. */
+  --spellbook-touch-target: 44px;
+
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.spellbook-binder-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-binder-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Room for the binder's buttons; takes no space while it is empty. */
+.spellbook-binder-toolbar {
+  flex: 0 0 auto;
+  padding: 0;
+}
+
+.spellbook-binder-toolbar:empty {
+  display: none;
+}
+
+.spellbook-project-name {
+  overflow: hidden;
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-height-tight);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The project's name as a button: flat, like a heading, not like a form button.
+   (Three classes, to outweigh Obsidian's own rules for buttons.) */
+.spellbook-binder .spellbook-binder-heading .spellbook-project-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-3);
+  width: 100%;
+  height: auto;
+  min-height: var(--input-height);
+  padding-block: var(--size-2-2);
+  padding-inline: var(--size-4-2);
+  margin-inline-start: calc(-1 * var(--size-4-2));
+  border: none;
+  border-radius: var(--radius-s);
+  background: none;
+  box-shadow: none;
+  color: var(--text-normal);
+  cursor: var(--cursor);
+}
+
+.spellbook-binder .spellbook-project-switch .spellbook-project-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.spellbook-project-switch-icon {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--text-faint);
+}
+
+.spellbook-project-switch-icon svg {
+  width: var(--icon-s);
+  height: var(--icon-s);
+}
+
+.spellbook-binder-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* Room under the last row, also past the rounded bottom edge of a phone. */
+  padding-block: var(--size-4-2) calc(var(--size-4-8) + var(--safe-area-inset-bottom, 0px));
+  padding-inline: var(--size-4-2);
+}
+
+/* A line of plain text in the list: an explanation, or "nothing here yet". */
+.spellbook-binder-message {
+  padding-block: var(--size-2-3);
+  padding-inline: var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-normal);
+  text-align: start;
+}
+
+.spellbook-binder-hint {
+  color: var(--text-faint);
+}
+
+.spellbook-binder-note {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+/* No project yet: a short explanation and one button. */
+.spellbook-binder-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--size-4-2);
+  padding-block: var(--size-4-4);
+  padding-inline: var(--size-4-2);
+}
+
+.spellbook-binder-empty .spellbook-binder-create {
+  margin-inline-start: var(--size-4-2);
+}
+
+/* A project whose index could not be understood. */
+.spellbook-binder-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--size-4-2);
+  margin-block-end: var(--size-4-3);
+  padding: var(--size-4-2) var(--size-4-3);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-inline-start: var(--size-2-2) solid var(--text-error);
+  border-radius: var(--radius-s);
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-normal);
+}
+
+.spellbook-binder-banner-icon {
+  display: flex;
+  flex: 0 0 auto;
+  color: var(--text-error);
+}
+
+.spellbook-binder-banner-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.spellbook-binder-banner-title {
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-binder-banner-file {
+  margin-block-start: var(--size-2-3);
+  color: var(--text-muted);
+}
+
+/* ---------------------------------------------------------- Binder: rows */
+
+/* One row. The classes Obsidian's own trees use sit next to these, so themes
+   colour the rows; the layout is spelled out here so that it is the same in
+   every theme and mirrors when Obsidian runs right to left. (The selectors
+   are a little longer than they need to be, to outweigh Obsidian's own rules
+   for its trees.) */
+.spellbook-binder .spellbook-row > .spellbook-row-self {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-2);
+  margin-block-end: var(--size-2-1);
+  padding-block: var(--size-2-2);
+  padding-inline: var(--size-2-2) var(--size-4-2);
+  border-radius: var(--radius-s);
+  color: var(--nav-item-color);
+  font-size: var(--nav-item-size);
+  font-weight: var(--nav-item-weight);
+  line-height: var(--line-height-tight);
+}
+
+.spellbook-binder .spellbook-row > .spellbook-row-self.is-clickable {
+  cursor: var(--cursor);
+}
+
+.spellbook-binder .spellbook-row > .spellbook-row-self.is-active {
+  background-color: var(--nav-item-background-active);
+  color: var(--nav-item-color-active);
+  font-weight: var(--nav-item-weight-active);
+}
+
+/* The space at the start of every row: a fold arrow, a warning sign, or
+   nothing. Being there on every row keeps the titles in line. */
+.spellbook-binder .spellbook-row-self > .spellbook-row-slot.spellbook-row-slot {
+  position: static;
+  display: flex;
+  flex: 0 0 var(--size-4-4);
+  align-items: center;
+  justify-content: center;
+  width: var(--size-4-4);
+  margin: 0;
+  padding: 0;
+  inset: auto;
+  color: var(--nav-collapse-icon-color);
+}
+
+.spellbook-binder .spellbook-fold-icon svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  transition: transform 100ms ease-in-out;
+}
+
+/* Folded shut: the arrow points along the reading direction of the app. */
+.spellbook-binder .spellbook-fold-icon.is-collapsed svg {
+  transform: rotate(-90deg);
+}
+
+.spellbook-binder .spellbook-fold-icon.is-collapsed:dir(rtl) svg {
+  transform: rotate(90deg);
+}
+
+.spellbook-binder .spellbook-row-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Title and word count. This element takes the direction of the title's own
+   text, so a Hebrew title sits at the right end with its count at the left. */
+.spellbook-binder .spellbook-row-body {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  min-width: 0;
+}
+
+.spellbook-binder .spellbook-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-binder .spellbook-count-outer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin: 0;
+}
+
+.spellbook-binder .spellbook-count {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A second line under the title, for something the writer should know. */
+.spellbook-binder .spellbook-row-note {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  line-height: var(--line-height-tight);
+  text-align: start;
+  white-space: normal;
+}
+
+/* Nested rows step in from the side the app starts reading from. */
+.spellbook-binder .spellbook-children {
+  margin-inline-start: var(--size-4-3);
+  padding-inline-start: var(--size-2-2);
+  border-inline-start: var(--nav-indentation-guide-width) solid var(--nav-indentation-guide-color);
+}
+
+.spellbook-binder .spellbook-row.is-collapsed > .spellbook-children {
+  display: none;
+}
+
+/* A folder that is folded shut over the note being worked on. */
+.spellbook-binder .spellbook-row.is-collapsed > .spellbook-has-active .spellbook-title {
+  color: var(--text-accent);
+}
+
+/* The three parts of the list: Manuscript, Unfiled, Research. */
+.spellbook-binder .spellbook-section + .spellbook-section {
+  margin-block-start: var(--size-4-3);
+}
+
+.spellbook-binder .spellbook-section > .spellbook-children {
+  margin-inline-start: 0;
+  padding-inline-start: 0;
+  border-inline-start: none;
+}
+
+.spellbook-binder .spellbook-section > .spellbook-section-self {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* A binder entry whose note is not in the vault (yet). */
+.spellbook-binder .spellbook-is-missing .spellbook-title {
+  color: var(--text-faint);
+}
+
+.spellbook-binder .spellbook-row-self > .spellbook-missing-icon.spellbook-missing-icon {
+  color: var(--text-warning);
+}
+
+.spellbook-binder .spellbook-missing-icon svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+/* ------------------------------------------- Binder: touch and narrow panes */
+
+/* Rows that are tapped with a finger are tall enough to hit: on phones and
+   tablets (the class is set from Obsidian's own platform check) and on any
+   other screen that is mainly used by touch. With a mouse they stay compact. */
+.spellbook-binder.spellbook-is-mobile .spellbook-row-self,
+.spellbook-binder.spellbook-is-mobile .spellbook-binder-heading .spellbook-project-switch,
+.spellbook-binder.spellbook-is-mobile .spellbook-binder-create {
+  min-height: var(--spellbook-touch-target);
+}
+
+@media (pointer: coarse) {
+  .spellbook-binder .spellbook-row-self,
+  .spellbook-binder .spellbook-binder-heading .spellbook-project-switch,
+  .spellbook-binder .spellbook-binder-create {
+    min-height: var(--spellbook-touch-target);
+  }
+}
+
+/* A pointer that can hover gets a hint of what a click will hit. Nothing
+   depends on it. */
+@media (hover: hover) {
+  .spellbook-binder .spellbook-row-self.is-clickable:hover {
+    background-color: var(--nav-item-background-hover);
+  }
+
+  .spellbook-binder .spellbook-row-self.is-clickable.is-active:hover {
+    background-color: var(--nav-item-background-active);
+  }
+
+  .spellbook-binder .spellbook-binder-heading .spellbook-project-switch:hover {
+    background-color: var(--background-modifier-hover);
+  }
+}
+
+/* A narrow pane (decided by measuring the pane, not by the kind of device):
+   titles get all the room; the counts and second lines go. */
+.spellbook-binder.spellbook-is-narrow .spellbook-count-outer,
+.spellbook-binder.spellbook-is-narrow .spellbook-row-note {
+  display: none;
 }
