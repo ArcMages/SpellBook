@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACTIVE_PROJECT_KEY } from '../src/core/devicePrefs';
 import { ProjectStore } from '../src/core/projectStore';
 import type { SettingsSection } from '../src/features/registry';
+import { SNAPSHOTS_SERVICE, SNAPSHOTS_VIEW_TYPE } from '../src/features/snapshots';
+import { TAKE_TITLE } from '../src/features/snapshots/snapshotsView';
 import SpellbookPlugin from '../src/main';
 import { openNote } from '../src/obsidian/openNote';
 import { SpellbookSettingTab } from '../src/settings';
@@ -15,6 +17,7 @@ import { ConfirmModal } from '../src/ui/confirmModal';
 import { CreateProjectModal } from '../src/ui/createProjectModal';
 import { FolderPickerModal } from '../src/ui/folderPickerModal';
 import { TextPromptModal } from '../src/ui/textPromptModal';
+import { SNAPSHOT_ACTIONS } from '../src/views/binderActions';
 import { BinderView } from '../src/views/binderView';
 import {
   carry,
@@ -327,8 +330,11 @@ describe('the command "Create sample project"', () => {
     expect(stub.statusBar.children[0]?.fullText).toMatch(/Today 0 \/ 1,000/);
     expect(fake.workspace.leaves).toEqual([]);
 
-    // The index and the to-do list, 53 notes of the manuscript, 2 of research and the 10 events of the timeline.
-    expect(notesUnder(fake, 'Sample Novel')).toHaveLength(67);
+    // The index and the to-do list, 53 notes of the manuscript, 2 of research, the 10 events of the timeline
+    // and the 13 notes of the world.
+    expect(notesUnder(fake, 'Sample Novel')).toHaveLength(80);
+    expect(notesUnder(fake, 'Sample Novel/World')).toHaveLength(13);
+    expect(fake.textOf('Sample Novel/World/Characters/תמר.md')).toContain('"type": "character"');
     expect(notesUnder(fake, 'Sample Novel/Manuscript')).toHaveLength(53);
     expect(notesUnder(fake, 'Sample Novel/Timeline')).toHaveLength(10);
     expect(notesUnder(fake, 'Sample Novel/Stats')).toEqual([]); // no writing history is made up
@@ -371,8 +377,8 @@ describe('the command "Create sample project"', () => {
     expect(await plugin.createSampleProject()).toBe(true);
     expect(await plugin.createSampleProject()).toBe(true);
 
-    expect(notesUnder(fake, 'Sample Novel')).toHaveLength(67);
-    expect(notesUnder(fake, 'Sample Novel 2')).toHaveLength(67);
+    expect(notesUnder(fake, 'Sample Novel')).toHaveLength(80);
+    expect(notesUnder(fake, 'Sample Novel 2')).toHaveLength(80);
     expect(fake.workspace.opened).toEqual(['Sample Novel/Manuscript/Prologue.md', 'Sample Novel 2/Manuscript/Prologue.md']);
     expect(notices()).toContain('Created "Sample Novel 2" with 52 scenes.');
     expect(storeOf(plugin).project?.title).toBe('Sample Novel 2');
@@ -835,6 +841,38 @@ describe('editing the binder, through to the notes', () => {
     // The other notes are as they were.
     expect(fake.textOf('Novel/Manuscript/Opening.md').endsWith('---\nIt was a dark night.\n')).toBe(true);
     expect(fake.vault.getFileByPath('Novel/Manuscript/Loose.md')).not.toBeNull();
+  });
+
+  it('offers the snapshots in a scene\'s menu: "Take snapshot" asks for a name, "Snapshots" shows the scene\'s', async () => {
+    const { fake, plugin, pane } = await withBinder(threeScenes());
+    // The binder asks for them under the name the snapshots are offered by.
+    expect(SNAPSHOT_ACTIONS).toBe(SNAPSHOTS_SERVICE);
+    expect(plugin.features?.services.get(SNAPSHOT_ACTIONS)).toBeDefined();
+    const before = new Map(fake.vault.text);
+
+    const menu = menuFor(pane, 'Middle');
+    expect(menu.outline.slice(-5)).toEqual(['---', 'Take snapshot', 'Snapshots', '---', 'Delete scene']);
+    // Not for a note that is no scene of the binder.
+    expect(menuFor(pane, 'Loose').outline).toEqual(['Add to manuscript', 'Open', 'Open in new tab']);
+    expect(menuFor(pane, 'Trains').outline).toEqual(['Open', 'Open in new tab']);
+
+    menu.item('Take snapshot').click();
+    const asked = lastWindow();
+    expect(asked).toBeInstanceOf(TextPromptModal);
+    expect(asked.titleEl.text).toBe(TAKE_TITLE);
+    expect(asked.isOpen).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(new Map(fake.vault.text)).toEqual(before); // nothing before the answer
+    answer('Before the rewrite');
+    await until(() => notesUnder(fake, 'Novel/Snapshots').length === 1, 'the snapshot to be saved');
+    // The scene itself keeps its text; the snapshot holds a copy of it.
+    expect(fake.textOf('Novel/Manuscript/Middle.md').endsWith('The train left.\n')).toBe(true);
+    expect(fake.textOf(notesUnder(fake, 'Novel/Snapshots')[0] as string)).toContain('The train left.');
+    expect(fake.trashed).toEqual([]);
+
+    menuFor(pane, 'Middle').item('Snapshots').click();
+    await until(() => fake.workspace.getLeavesOfType(SNAPSHOTS_VIEW_TYPE).length === 1, 'the snapshots to be shown');
+    expect(fake.workspace.getLeavesOfType(SNAPSHOTS_VIEW_TYPE)[0]?.getRoot()).toBe(fake.workspace.rootSplit);
   });
 
   it('deletes nothing when the question is answered with Cancel', async () => {

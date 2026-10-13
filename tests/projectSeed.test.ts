@@ -300,6 +300,76 @@ describe('createProject with a seed', () => {
     expect(vault.frontmatterOf('Novel/Novel.md')?.['timelines']).toHaveLength(1);
   });
 
+  it('gives a scene its entities, and creates the world\'s notes in World, each in the folder of its type', async () => {
+    const { store, vault } = makeStore();
+    const mara = { type: 'character', role: 'Chart maker', summary: 'Draws the bay.', aliases: ['The surveyor'] };
+    const entities = ['[[Mara]]', '[[Saltwick]]'];
+    const created = valueOf(
+      await store.createProject('Novel', '', {
+        seed: {
+          binder: [{ title: 'Opening', date: '1923-10-12', entities }, { title: 'Ending' }, { title: 'Nobody', entities: [] }],
+          world: [
+            { folder: 'Characters', title: 'Mara', frontmatter: mara, body: '## Description\n\n' },
+            { folder: 'Characters', title: 'Mara', frontmatter: { type: 'character' } }, // the same name: a file name of its own
+            { folder: 'Places', title: 'Saltwick', frontmatter: { type: 'place' } },
+            { folder: ' / ', title: ' / ', frontmatter: { type: 'spirit' } }, // no usable folder or title: in World itself
+          ],
+        },
+      }),
+    );
+    // The entities come last, after the date in the story.
+    expect(Object.keys(vault.frontmatterOf('Novel/Manuscript/Opening.md') ?? {})).toEqual([
+      'synopsis',
+      'status',
+      'label',
+      'compile',
+      'order',
+      'created',
+      'date',
+      'entities',
+    ]);
+    expect(vault.frontmatterOf('Novel/Manuscript/Opening.md')?.['entities']).toEqual(entities);
+    // A scene without entities gets no such property at all.
+    for (const scene of ['Ending', 'Nobody']) {
+      expect(Object.keys(vault.frontmatterOf(`Novel/Manuscript/${scene}.md`) ?? {}), scene).not.toContain('entities');
+    }
+
+    expect(vault.paths().filter((path) => path.startsWith('Novel/World/'))).toEqual([
+      'Novel/World/Characters/Mara 2.md',
+      'Novel/World/Characters/Mara.md',
+      'Novel/World/Places/Saltwick.md',
+      'Novel/World/Untitled entity.md',
+    ]);
+    for (const folder of ['World', 'World/Characters', 'World/Places']) expect(vault.hasFolder(`Novel/${folder}`), folder).toBe(true);
+    expect(vault.frontmatterOf('Novel/World/Characters/Mara.md')).toEqual(mara);
+    expect(Object.keys(vault.frontmatterOf('Novel/World/Characters/Mara.md') ?? {})).toEqual(['type', 'role', 'summary', 'aliases']);
+    expect(vault.bodyOf('Novel/World/Characters/Mara.md')).toBe('## Description\n\n');
+    expect(vault.bodyOf('Novel/World/Characters/Mara 2.md')).toBe('');
+    // Each folder was made once, and only inside the project.
+    const folders = vault.writes.filter((write) => write.op === 'createFolder' && write.path.includes('/World')).map((write) => write.path);
+    expect(folders).toEqual(['Novel/World', 'Novel/World/Characters', 'Novel/World/Places']);
+    // The world's notes are not scenes: the binder lists the three scenes and nothing else.
+    expect(created.scenes).toEqual(['Manuscript/Opening.md', 'Manuscript/Ending.md', 'Manuscript/Nobody.md']);
+    expect(binderOnDisk(vault, 'Novel/Novel.md')).toEqual(created.scenes);
+    // The store lists them as the world's notes once the project is open.
+    await store.openProject('Novel/Novel.md');
+    expect(store.worldNotes().map((note) => note.path).sort()).toEqual([
+      'World/Characters/Mara 2.md',
+      'World/Characters/Mara.md',
+      'World/Places/Saltwick.md',
+      'World/Untitled entity.md',
+    ]);
+    // The notes hold copies: changing the seed afterwards changes nothing in them.
+    entities.push('[[Later]]');
+    expect(vault.frontmatterOf('Novel/Manuscript/Opening.md')?.['entities']).toHaveLength(2);
+  });
+
+  it('makes no World folder for a seed without a world', async () => {
+    const { store, vault } = makeStore();
+    valueOf(await store.createProject('Novel', '', { seed: SEED }));
+    expect(vault.hasFolder('Novel/World')).toBe(false);
+  });
+
   it('gives a scene its word target, after its label, and no such property to a scene without one', async () => {
     const { store, vault } = makeStore();
     valueOf(

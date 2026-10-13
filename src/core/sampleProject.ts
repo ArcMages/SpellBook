@@ -10,7 +10,7 @@ import { TAG_INDEX_KEYS } from './cards';
 import { addDays } from './dates';
 import { MARKS_KEY } from './planner';
 import { TARGETS_KEY } from './progress';
-import type { BinderSeed, EventSeed, NoteSeed, ProjectSeed, SceneSeed } from './projectSeed';
+import type { BinderSeed, EventSeed, NoteSeed, ProjectSeed, SceneSeed, WorldSeed } from './projectSeed';
 import {
   ACTION_SENTENCES,
   DIALOGUE_LINES,
@@ -18,6 +18,7 @@ import {
   ROUGH_NOTES_COMMENT,
   SAMPLE_CHARACTERS,
   SAMPLE_CLOSING,
+  SAMPLE_ENTITIES,
   SAMPLE_EVENTS,
   SAMPLE_LABEL_COLORS,
   SAMPLE_MARKS,
@@ -25,6 +26,7 @@ import {
   SAMPLE_PARTS,
   SAMPLE_RESEARCH,
   SAMPLE_SCENE_DATES,
+  SAMPLE_SCENE_ENTITIES,
   SAMPLE_SCENE_TARGETS,
   SAMPLE_STATUS_COLORS,
   SAMPLE_TARGETS,
@@ -34,10 +36,13 @@ import {
   SETTING_SENTENCES,
   SHARED_SENTENCES,
 } from './sampleText';
-import type { SampleEvent, SampleScene } from './sampleText';
+import type { SampleEntity, SampleEvent, SampleScene } from './sampleText';
 import { SCENE_STATUSES } from './scene';
 import { EVENT_MARKER_KEY, EVENT_MARKER_VALUE } from './timeline';
 import { countWords } from './wordCount';
+import { newEntityBody, newEntityFrontmatter } from './world/entity';
+import { nameLink } from './world/links';
+import { ALIASES_KEY, BUILT_IN_TYPES, ENTITIES_KEY } from './world/types';
 
 /** The name of the sample project; a second one becomes "Sample Novel 2". */
 export const SAMPLE_PROJECT_NAME = 'Sample Novel';
@@ -186,10 +191,14 @@ function sceneSeed(scene: SampleScene, position: number): SceneSeed {
   const target = wanted === 'reached' ? countWords(body) : wanted;
   // A few scenes have a date in the story, so that the timeline's Manuscript lane has something to show.
   const date = Object.prototype.hasOwnProperty.call(SAMPLE_SCENE_DATES, scene.title) ? SAMPLE_SCENE_DATES[scene.title] : undefined;
+  // Most scenes say who and what is in them, so that "In this scene" and the World browser have something to show.
+  const entities = Object.prototype.hasOwnProperty.call(SAMPLE_SCENE_ENTITIES, scene.title) ? SAMPLE_SCENE_ENTITIES[scene.title] : undefined;
   return {
     ...seed,
     ...(target === undefined ? {} : { target }),
     ...(date === undefined ? {} : { date }),
+    // An entity is named the way a link to its note is written.
+    ...(entities === undefined ? {} : { entities: entities.map(nameLink) }),
   };
 }
 
@@ -207,7 +216,28 @@ function eventSeed(event: SampleEvent): EventSeed {
   // A scene is named the way a link to its note is written.
   if (event.scenes !== undefined) frontmatter['scenes'] = event.scenes.map((title) => `[[${title}]]`);
   if (event.tags !== undefined) frontmatter['tags'] = [...event.tags];
+  // Last, where the timeline adds them: the entities in it, as links like a scene's.
+  if (event.entities !== undefined) frontmatter[ENTITIES_KEY] = event.entities.map(nameLink);
   return { title: event.title, frontmatter, body: `${event.body}\n` };
+}
+
+/**
+ * An entity's note, as "New character" and the like would make it (its type,
+ * the type's properties in order, its other names; the type's headings), with
+ * the properties filled in and a line under the first heading.
+ */
+function worldSeed(entity: SampleEntity): WorldSeed {
+  const type = BUILT_IN_TYPES.find((candidate) => candidate.id === entity.type);
+  if (!type) throw new Error(`The sample has an entity of an unknown type: "${entity.type}".`);
+  const frontmatter = newEntityFrontmatter(type);
+  for (const field of type.fields) {
+    const value = entity.fields[field];
+    if (value !== undefined) frontmatter[field] = value;
+  }
+  if (entity.aliases !== undefined) frontmatter[ALIASES_KEY] = [...entity.aliases];
+  const [first = '', ...rest] = newEntityBody(type).split('\n\n');
+  const body = [first, entity.description, ...rest].join('\n\n');
+  return { folder: type.folder, title: entity.name, frontmatter, body };
 }
 
 /**
@@ -247,7 +277,10 @@ function todoText(today: string): string {
  * screen has something to show, statuses and labels with colours, three
  * timelines with ten events, four scenes with a date in the story, eighteen
  * scenes with a word target (some short of it, some exactly at it, some past
- * it), two marks on the calendar and the writing targets.
+ * it), two marks on the calendar and the writing targets; and a world of
+ * thirteen characters, places, groups and things, which most scenes and
+ * events link to. The world keeps the four types every project has, and the
+ * story the ordinary calendar.
  *
  * It has no writing history: no word log is made up.
  *
@@ -274,6 +307,7 @@ export function sampleProject(today: string): ProjectSeed {
     research,
     todo: todoText(today),
     events: SAMPLE_EVENTS.map(eventSeed),
+    world: SAMPLE_ENTITIES.map(worldSeed),
     data: indexData(today),
   };
 }

@@ -9,10 +9,11 @@
 import { DEFAULT_NAME, newFolderId, sanitiseFileName, tidyDisplayName, uniqueName } from './names';
 import { ORDER_STEP } from './orderKeys';
 import { clashKey, joinPath, relativeTo } from './paths';
-import { MANUSCRIPT_FOLDER, RESEARCH_FOLDER, TIMELINE_FOLDER } from './projectLayout';
+import { MANUSCRIPT_FOLDER, RESEARCH_FOLDER, TIMELINE_FOLDER, WORLD_FOLDER } from './projectLayout';
 import { DEFAULT_SCENE_NAME, newSceneFrontmatter } from './scene';
 import type { Binder, BinderNode, Frontmatter } from './types';
 import type { VaultPort } from './vaultPort';
+import { ENTITIES_KEY } from './world/types';
 
 /** A scene to create. Its file name is made from the title. */
 export interface SceneSeed {
@@ -29,6 +30,11 @@ export interface SceneSeed {
    * A scene with a date shows on the timeline. Default: none.
    */
   readonly date?: string;
+  /**
+   * The entities of the world that are in the scene, each as a link to its
+   * note ("[[Mara]]"), exactly as they are to be written. Default: none.
+   */
+  readonly entities?: readonly string[];
 }
 
 /** An event of the story to create: a note in the Timeline folder. Its file name is made from the title. */
@@ -36,7 +42,8 @@ export interface EventSeed {
   readonly title: string;
   /**
    * The note's properties, exactly as they are to be written: what the
-   * timeline reads ("spellbook: event", date, end, timelines, scenes, tags).
+   * timeline reads ("spellbook: event", date, end, timelines, scenes, tags,
+   * entities).
    */
   readonly frontmatter: Readonly<Frontmatter>;
   /** The note's text. Default: empty. */
@@ -57,6 +64,17 @@ export interface NoteSeed {
   readonly body: string;
 }
 
+/** A world-building note to create: a character, a place and so on. Its file name is made from the title. */
+export interface WorldSeed {
+  /** The folder of its type inside World, for example "Characters". */
+  readonly folder: string;
+  readonly title: string;
+  /** The note's properties, exactly as they are to be written: "type", the type's fields, "aliases". */
+  readonly frontmatter: Readonly<Frontmatter>;
+  /** The note's text. Default: empty. */
+  readonly body?: string;
+}
+
 export interface ProjectSeed {
   /** The scenes and binder folders, in manuscript order. */
   readonly binder: readonly BinderSeed[];
@@ -68,6 +86,8 @@ export interface ProjectSeed {
   readonly todo?: string;
   /** Events of the story: notes to put in the Timeline folder. */
   readonly events?: readonly EventSeed[];
+  /** The world of the story: notes to put in the World folder, each in the folder of its type. */
+  readonly world?: readonly WorldSeed[];
   /**
    * What the screens keep in the project index, next to the binder: the
    * statuses and labels with their colours, the timelines, the day marks, the
@@ -86,6 +106,9 @@ export const DEFAULT_FOLDER_NAME = 'Untitled folder';
 
 /** File name for an event whose seed has no usable title. */
 export const DEFAULT_EVENT_NAME = 'Untitled event';
+
+/** File name for a world-building note whose seed has no usable title. */
+export const DEFAULT_ENTITY_NAME = 'Untitled entity';
 
 /** What "Create project" puts in a new project: one empty scene. */
 export function starterProject(): ProjectSeed {
@@ -121,8 +144,9 @@ export interface PlantedSeed {
 
 /**
  * Create a seed's notes inside the project folder `folder`, whose Manuscript,
- * Research and Timeline folders must already exist. (What a seed has for the
- * index itself, its `data`, is the project store's to write.)
+ * Research and Timeline folders must already exist; the World folder is made
+ * here, for a seed that has a world. (What a seed has for the index itself,
+ * its `data`, is the project store's to write.)
  *
  * Scenes are created in manuscript order with order keys 1024 apart, so the
  * binder and the keys agree from the start. Rejects as soon as a note cannot
@@ -178,6 +202,8 @@ export async function plantSeed(
         const frontmatter = newSceneFrontmatter(order, context.today, item);
         // A scene's place in the story's time is not one of the standard properties: only a scene that has one gets it.
         if (item.date !== undefined && item.date !== '') frontmatter['date'] = item.date;
+        // Nor is who and what is in it: a list of links, for a scene that has any.
+        if (item.entities !== undefined && item.entities.length > 0) frontmatter[ENTITIES_KEY] = [...item.entities];
         const path = await createNote(MANUSCRIPT_FOLDER, item.title, DEFAULT_SCENE_NAME, item.body ?? '', frontmatter);
         scenes.push(path);
         nodes.push({ kind: 'scene', path });
@@ -196,6 +222,18 @@ export async function plantSeed(
   for (const event of seed.events ?? []) {
     // A copy: the note gets properties of its own, not the seed's.
     await createNote(TIMELINE_FOLDER, event.title, DEFAULT_EVENT_NAME, event.body ?? '', { ...event.frontmatter });
+  }
+  for (const entity of seed.world ?? []) {
+    // The World folder and the folders of the types are not part of a new project: they are made when first needed.
+    const type = sanitiseFileName(entity.folder, '');
+    const sub = type === '' ? WORLD_FOLDER : `${WORLD_FOLDER}/${type}`;
+    for (const step of [WORLD_FOLDER, sub]) {
+      const path = joinPath(folder, step);
+      if (vault.exists(path)) continue;
+      context.onStep?.(`the "${step}" folder`);
+      await vault.createFolder(path);
+    }
+    await createNote(sub, entity.title, DEFAULT_ENTITY_NAME, entity.body ?? '', { ...entity.frontmatter });
   }
   return { binder, scenes };
 }
