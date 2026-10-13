@@ -1,6 +1,6 @@
 // The export window: the writer chooses a format, what to include and a few
 // options, and presses Export. When the file is saved the window says where
-// it is and offers to open it.
+// it is and offers to open it, and (on a desktop) to show it in the file list.
 //
 // The window knows the project only through the exporter (exporter.ts). It
 // is made of Obsidian's own rows, which are large enough for a finger and
@@ -15,6 +15,7 @@ import type { ExportCount, ExportOutcome, Exporter, ExportProject } from './expo
 export const EXPORT_WINDOW_TITLE = 'Export manuscript';
 export const EXPORT_BUTTON_TEXT = 'Export';
 export const OPEN_BUTTON_TEXT = 'Open';
+export const SHOW_IN_FOLDER_TEXT = 'Show in folder';
 export const WHOLE_MANUSCRIPT_TEXT = 'Whole manuscript';
 
 export const FORMAT_NAMES: Readonly<Record<ExportFormat, string>> = {
@@ -44,6 +45,16 @@ export const MOBILE_PDF_NOTE =
 
 export const COULD_NOT_OPEN_TEXT = 'The file could not be opened from here. You will find it in the Exports folder of the project.';
 
+export const COULD_NOT_SHOW_TEXT = 'The file list could not be shown from here. You will find the file in the Exports folder of the project.';
+
+/** Under the path of a Word file or a web page: why Obsidian's file list may not show it. */
+export const HIDDEN_FILE_NOTE =
+  'Obsidian\'s file list only shows Word and web-page files when "Detect all file extensions" is switched on, in Obsidian\'s settings under "Files and links".';
+
+/** Shown on a phone or a tablet, where there is no "Show in folder": where the file is. */
+export const MOBILE_WHERE_NOTE =
+  'The file is in the Exports folder inside the project\'s folder. You can reach it from Obsidian\'s file list, or from the Files app.';
+
 /** How long a notice about something that went wrong stays up, in milliseconds. */
 export const PROBLEM_NOTICE_MS = 10000;
 
@@ -70,6 +81,14 @@ export function countText(count: ExportCount): string {
  */
 export function canPrintHere(): boolean {
   return !Platform.isMobile;
+}
+
+/**
+ * Whether "Show in folder" is offered. A desktop has the file list beside the
+ * window; on a phone or a tablet the window says in words where the file is.
+ */
+export function canShowInFolderHere(): boolean {
+  return canPrintHere();
 }
 
 /** The formats on offer on this device. */
@@ -234,15 +253,28 @@ export class ExportModal extends Modal {
     const result = contentEl.createDiv({ cls: 'spellbook-export-result' });
     result.createEl('p', { text: `Saved ${plural(outcome.scenes, 'scene', 'scenes')}, ${plural(outcome.words, 'word', 'words')}, as a new file in the project:` });
     result.createEl('p', { cls: 'spellbook-export-path', text: outcome.rel, attr: { dir: 'auto' } });
+    const showsInFolder = canShowInFolderHere();
+    if (!showsInFolder) result.createEl('p', { cls: 'spellbook-export-note', text: MOBILE_WHERE_NOTE });
+    // A Markdown export is a note, which the file list always shows.
+    if (outcome.format !== 'markdown') result.createEl('p', { cls: 'spellbook-export-note', text: HIDDEN_FILE_NOTE });
     this.listLeftOut(result, 'Left out, because the "compile" switch is off:', outcome.switchedOff);
     this.listLeftOut(result, 'Left out, because the note is missing or could not be read:', outcome.unread);
 
-    new Setting(contentEl)
-      .addButton((button) => {
-        button.setButtonText('Done').onClick(() => {
-          this.close();
+    const buttons = new Setting(contentEl).addButton((button) => {
+      button.setButtonText('Done').onClick(() => {
+        this.close();
+      });
+    });
+    if (showsInFolder) {
+      buttons.addButton((button) => {
+        button.setButtonText(SHOW_IN_FOLDER_TEXT).onClick(() => {
+          safely(SHOW_IN_FOLDER_TEXT, () => this.showFile(outcome));
         });
-      })
+        // The folder is shown in Obsidian's own file list, in the sidebar.
+        button.buttonEl.setAttr('aria-label', 'Show the file in Obsidian\'s file list');
+      });
+    }
+    buttons
       .addButton((button) => {
         button
           .setButtonText(OPEN_BUTTON_TEXT)
@@ -265,5 +297,12 @@ export class ExportModal extends Modal {
     const opened = await this.exporter.open(outcome);
     if (!opened) new Notice(COULD_NOT_OPEN_TEXT, PROBLEM_NOTICE_MS);
     else if (outcome.format === 'markdown' && !this.shut) this.close();
+  }
+
+  private async showFile(outcome: Extract<ExportOutcome, { status: 'done' }>): Promise<void> {
+    const shown = await this.exporter.showInFolder(outcome);
+    if (!shown) new Notice(COULD_NOT_SHOW_TEXT, PROBLEM_NOTICE_MS);
+    // The file list is on show: the window is out of its way.
+    else if (!this.shut) this.close();
   }
 }

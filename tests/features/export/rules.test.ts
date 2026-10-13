@@ -71,11 +71,18 @@ describe('the source of the export', () => {
 
   it('reaches nothing outside its own folder but the core, the shared pieces of screen and the registry', () => {
     const allowed = [/^obsidian$/, /^\.\/\w+$/, /^\.\.\/\.\.\/core\/[\w/]+$/, /^\.\.\/\.\.\/ui\/\w+$/, /^\.\.\/registry$/];
+    // One more, for the exporter alone: pointing at the new file in Obsidian's file list.
+    const fileList = '../../obsidian/fileList';
+    expect(importsOf(codeOf('exporter.ts'))).toContain(fileList);
     for (const name of files) {
       for (const target of importsOf(codeOf(name))) {
+        if (name === 'exporter.ts' && target === fileList) continue;
         expect(allowed.some((pattern) => pattern.test(target)), `${name} imports ${target}`).toBe(true);
       }
     }
+    // What is reached there only looks: it changes no file.
+    const helper = strip(readFileSync(path.join(root, 'src', 'obsidian', 'fileList.ts'), 'utf8'));
+    expect([...helper.matchAll(/\bvault\s*\.\s*(\w+)\s*\(/g)].map((call) => call[1])).toEqual(['getAbstractFileByPath']);
   });
 
   it('writes one thing only: a new export, through the store', () => {
