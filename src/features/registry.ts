@@ -25,6 +25,7 @@ import type { ProjectStore } from '../core/projectStore';
 import type { VaultPort } from '../core/vaultPort';
 import type { WordCountCache } from '../core/wordCountCache';
 import { corkboardFeature } from './corkboard/index';
+import { modesFeature } from './modes/index';
 import { outlinerFeature } from './outliner/index';
 import { plannerFeature } from './planner/index';
 import { progressFeature } from './progress/index';
@@ -141,6 +142,7 @@ export const FEATURES: readonly Feature[] = [
   plannerFeature,
   timelineFeature,
   outlinerFeature,
+  modesFeature,
 ];
 
 /** What registerFeatures needs: a FeatureContext without the parts the registry makes itself. */

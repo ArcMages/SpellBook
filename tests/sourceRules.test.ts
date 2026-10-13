@@ -289,6 +289,7 @@ describe('the whole plugin', () => {
     const folders = new Set(featureFiles.map((file) => relative(file).split('/').slice(0, 2).join('/')));
     expect([...folders].sort()).toEqual([
       'features/corkboard',
+      'features/modes',
       'features/outliner',
       'features/planner',
       'features/progress',
@@ -435,6 +436,7 @@ describe('the stylesheet is put together from one file per screen', () => {
       'planner.css',
       'timeline.css',
       'outliner.css',
+      'modes.css',
     ]);
     // No stylesheet is left out, and none is listed that is not there.
     expect(readdirSync(stylesDir).filter((name) => name.endsWith('.css')).sort()).toEqual([...STYLE_FILES].sort());
