@@ -92,7 +92,7 @@ export class ScriveningsPane {
       }
       return leaf;
     } catch (error) {
-      console.error('Spellbook: scrivenings could not be opened', error);
+      console.error('Spellbook: the novel view could not be opened', error);
       new Notice(COULD_NOT_OPEN_TEXT, PROBLEM_NOTICE_MS);
       return null;
     }
