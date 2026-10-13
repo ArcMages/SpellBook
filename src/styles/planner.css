@@ -1,6 +1,955 @@
 /* ----------------------------------------------------------------- Planner */
 
-/* The styles of the to-dos and the calendar (src/features/planner) go here.
-   The rules at the top of base.css apply: classes start with "spellbook-",
-   colours come from Obsidian's variables, sides are "start" and "end",
-   nothing depends on hover alone. */
+/*
+ * The planner: the calendar and the to-do list (src/features/planner).
+ *
+ * The rules of styles.css hold here too:
+ *   - every class starts with "spellbook-", every variable with "--spellbook-";
+ *   - colours, fonts and spacing come only from Obsidian's CSS variables;
+ *   - sides are named "start" and "end", so that everything mirrors when
+ *     Obsidian itself runs right to left;
+ *   - nothing depends on hover, and every layout works at phone width.
+ *
+ * Which layout is used never goes by the kind of device. The view measures
+ * its pane and sets one of these classes:
+ *   spellbook-is-narrow       the calendar and the list are two tabs
+ *   spellbook-detail-beside   a day's detail sits beside the month
+ *   spellbook-shows-numbers   a day's cell has room for its word numbers
+ *   spellbook-shows-labels    ... and for the label of its mark
+ */
+
+/* Obsidian's pane around the planner: the planner brings its own margins and
+   does its own scrolling. (The class is repeated to outweigh Obsidian's own
+   rule for pane contents.) */
+.spellbook-planner-pane.spellbook-planner-pane {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.spellbook-planner {
+  /* The smallest size of something that is tapped with a finger. */
+  --spellbook-planner-touch: 44px;
+  /* On a phone, Obsidian's own bar floats over the bottom of the pane. This
+     is the least room left under whatever scrolls; more is taken when
+     Obsidian says its bar is taller. */
+  --spellbook-planner-bar-room: 80px;
+  /* How wide a day's detail is beside the month, and the list beside the calendar. */
+  --spellbook-planner-detail-width: calc(var(--size-4-16) * 4.5);
+  --spellbook-planner-todos-width: clamp(calc(var(--size-4-16) * 4.5), 34%, calc(var(--size-4-16) * 7));
+  /* The colour of a mark; a mark without a colour of its own is grey. */
+  --spellbook-mark-color: var(--text-muted);
+
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+}
+
+/* Something that is there but has nothing to show at the moment. (The class
+   is repeated so that it outweighs whatever lays the thing out.) */
+.spellbook-planner .spellbook-is-unused.spellbook-is-unused {
+  display: none;
+}
+
+/* What the planner says while no project is open. */
+.spellbook-planner-message {
+  padding: var(--size-4-4);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-normal);
+  text-align: start;
+}
+
+.spellbook-planner-message:empty {
+  display: none;
+}
+
+/* The two tabs of a narrow pane. On a wide pane both parts are in view and
+   the tabs are not shown. */
+.spellbook-planner-tabs {
+  display: none;
+  flex: 0 0 auto;
+  gap: var(--size-2-2);
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-planner.spellbook-is-narrow .spellbook-planner-tabs {
+  display: flex;
+}
+
+.spellbook-planner .spellbook-planner-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  border-radius: var(--radius-s);
+  background-color: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-medium);
+  cursor: var(--cursor);
+}
+
+.spellbook-planner .spellbook-planner-tab.spellbook-is-current {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+/* The calendar and the to-do list. */
+.spellbook-planner-columns {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.spellbook-planner.spellbook-has-no-project .spellbook-planner-tabs,
+.spellbook-planner.spellbook-has-no-project .spellbook-planner-columns {
+  display: none;
+}
+
+.spellbook-calendar {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.spellbook-todos {
+  display: flex;
+  flex: 0 0 var(--spellbook-planner-todos-width);
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-inline-start: var(--border-width) solid var(--background-modifier-border);
+}
+
+/* A narrow pane: one part at a time, as wide as the pane. */
+.spellbook-planner.spellbook-is-narrow .spellbook-todos {
+  flex: 1 1 auto;
+  border-inline-start: none;
+}
+
+.spellbook-planner.spellbook-is-narrow.spellbook-shows-todos .spellbook-calendar,
+.spellbook-planner.spellbook-is-narrow.spellbook-shows-calendar .spellbook-todos {
+  display: none;
+}
+
+/* Whatever scrolls ends with some empty room, also past the rounded bottom
+   edge of a phone. */
+.spellbook-planner-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-block-end: calc(var(--size-4-8) + var(--safe-area-inset-bottom, 0px));
+}
+
+/* On a phone the last to-do, or the foot of the calendar, would otherwise lie
+   under Obsidian's floating bar, where it can be neither read nor tapped.
+   Whatever scrolls ends with enough empty room to scroll its last line clear
+   of the bar: the height Obsidian gives for its bar (or the plugin's own
+   figure when that is larger, or Obsidian gives none), the rounded bottom
+   edge of the screen, and a little air. */
+.spellbook-planner.spellbook-is-phone .spellbook-planner-scroll {
+  padding-block-end: calc(
+    max(var(--mobile-navbar-height, 0px), var(--spellbook-planner-bar-room)) + var(--safe-area-inset-bottom, 0px) +
+      var(--size-4-4)
+  );
+}
+
+/* ---------------------------------------------------------------- Calendar */
+
+/* The month, then the day's detail, then the numbers: one under the other. */
+.spellbook-calendar-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+  padding-block-start: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+}
+
+.spellbook-planner.spellbook-is-narrow .spellbook-calendar-layout {
+  padding-inline: var(--size-2-2);
+}
+
+.spellbook-calendar-main {
+  min-width: 0;
+}
+
+/* Where the calendar is wide enough, the detail goes beside the month and
+   the numbers stay under the month. */
+.spellbook-calendar.spellbook-detail-beside .spellbook-calendar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--spellbook-planner-detail-width);
+  align-items: start;
+  column-gap: var(--size-4-4);
+}
+
+.spellbook-calendar.spellbook-detail-beside .spellbook-calendar-main {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.spellbook-calendar.spellbook-detail-beside .spellbook-calendar-stats {
+  grid-row: 2;
+  grid-column: 1;
+}
+
+.spellbook-calendar.spellbook-detail-beside .spellbook-day-detail,
+.spellbook-calendar.spellbook-detail-beside .spellbook-detail-hint {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+}
+
+/* The month's name and the buttons that go to another month. */
+.spellbook-calendar-head {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-2);
+  margin-block-end: var(--size-4-2);
+}
+
+.spellbook-calendar-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-planner .spellbook-calendar-step,
+.spellbook-planner .spellbook-detail-close,
+.spellbook-planner .spellbook-todos-open,
+.spellbook-planner .spellbook-todo-more {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  cursor: var(--cursor);
+}
+
+/* "Previous" points back and "Next" forward, whichever way the app reads. */
+.spellbook-planner.spellbook-is-rtl .spellbook-calendar-step .svg-icon {
+  transform: scaleX(-1);
+}
+
+.spellbook-planner .spellbook-calendar-today {
+  flex: 0 0 auto;
+}
+
+/* Seven columns of the same width, for the headings and for every week. */
+.spellbook-calendar-weekdays,
+.spellbook-calendar-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--size-2-1);
+}
+
+.spellbook-calendar-weeks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-1);
+}
+
+.spellbook-calendar-weekday {
+  padding-block: var(--size-2-2);
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-align: center;
+}
+
+/* One day. It is a button: the whole cell is tapped. */
+.spellbook-planner .spellbook-day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: var(--size-2-1);
+  box-sizing: border-box;
+  min-width: 0;
+  height: auto;
+  min-height: var(--size-4-12);
+  padding: var(--size-2-2);
+  overflow: hidden;
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background-color: var(--background-primary);
+  box-shadow: none;
+  color: var(--text-normal);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-normal);
+  line-height: var(--line-height-tight);
+  text-align: start;
+  white-space: normal;
+  cursor: var(--cursor);
+}
+
+.spellbook-calendar.spellbook-shows-numbers .spellbook-day {
+  min-height: calc(var(--size-4-16) + var(--size-4-2));
+}
+
+.spellbook-calendar.spellbook-shows-labels .spellbook-day {
+  min-height: calc(var(--size-4-18) + var(--size-4-3));
+}
+
+/* What is in a cell lies over its tint. */
+.spellbook-planner .spellbook-day > span {
+  position: relative;
+}
+
+/* The tint: the more manuscript words that day, the stronger. It is a layer
+   of the accent colour under the cell's contents; a day without words has
+   none. */
+.spellbook-planner .spellbook-day::before {
+  position: absolute;
+  inset: 0;
+  display: none;
+  background-color: var(--interactive-accent);
+  content: '';
+  pointer-events: none;
+}
+
+.spellbook-planner .spellbook-day.spellbook-tint-1::before {
+  display: block;
+  opacity: 0.12;
+}
+
+.spellbook-planner .spellbook-day.spellbook-tint-2::before {
+  display: block;
+  opacity: 0.24;
+}
+
+.spellbook-planner .spellbook-day.spellbook-tint-3::before {
+  display: block;
+  opacity: 0.38;
+}
+
+.spellbook-planner .spellbook-day.spellbook-tint-4::before {
+  display: block;
+  opacity: 0.52;
+}
+
+/* The days of the months before and after that fill the first and last week. */
+.spellbook-planner .spellbook-day.spellbook-is-outside {
+  background-color: var(--background-secondary);
+  color: var(--text-faint);
+}
+
+/* Today is outlined. */
+.spellbook-planner .spellbook-day.spellbook-is-today {
+  border-color: var(--interactive-accent);
+  box-shadow: inset 0 0 0 var(--border-width) var(--interactive-accent);
+}
+
+.spellbook-planner .spellbook-day.spellbook-is-today .spellbook-day-number {
+  color: var(--text-accent);
+  font-weight: var(--font-bold);
+}
+
+/* The day whose detail is open. */
+.spellbook-planner .spellbook-day.spellbook-is-selected {
+  outline: var(--size-2-1) solid var(--interactive-accent);
+  outline-offset: calc(-1 * var(--size-2-1));
+  background-color: var(--background-modifier-hover);
+}
+
+/* The day the keyboard is on, when it got there with the keyboard. */
+.spellbook-planner .spellbook-day:focus-visible {
+  outline: var(--size-2-1) solid var(--background-modifier-border-focus);
+  outline-offset: calc(-1 * var(--size-2-1));
+}
+
+.spellbook-day-number {
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-medium);
+  text-align: start;
+}
+
+/* The two word numbers: only where a cell is wide enough for them. They sit
+   at the start of the cell in every language. */
+.spellbook-planner .spellbook-day-words {
+  display: none;
+}
+
+.spellbook-calendar.spellbook-shows-numbers .spellbook-day-words {
+  display: flex;
+  flex-direction: column;
+  align-self: flex-start;
+}
+
+.spellbook-day-manuscript {
+  font-weight: var(--font-medium);
+}
+
+/* All words, in a quieter voice than the manuscript's. */
+.spellbook-day-all {
+  color: var(--text-faint);
+}
+
+.spellbook-day-manuscript:empty,
+.spellbook-day-all:empty {
+  display: none;
+}
+
+/* A dot for each open to-do due that day, a tick when all are done. */
+.spellbook-planner .spellbook-day-todos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-2-1);
+  margin-block-start: auto;
+}
+
+.spellbook-planner .spellbook-day-todos:empty {
+  display: none;
+}
+
+.spellbook-day-dot {
+  flex: 0 0 auto;
+  width: var(--size-2-3);
+  height: var(--size-2-3);
+  border-radius: 50%;
+  background-color: var(--text-accent);
+}
+
+.spellbook-day-more {
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.spellbook-day-tick {
+  display: flex;
+  color: var(--text-success);
+}
+
+.spellbook-day-tick .svg-icon {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+/* The day's mark: a coloured corner at the far end of the cell's top edge. */
+.spellbook-planner .spellbook-day > .spellbook-day-corner {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  display: none;
+  width: var(--size-4-3);
+  height: var(--size-4-3);
+  border-end-start-radius: 100%;
+  background-color: var(--spellbook-mark-color);
+}
+
+.spellbook-planner .spellbook-day.spellbook-has-mark > .spellbook-day-corner {
+  display: block;
+}
+
+/* The mark's label: only where a cell has room for it. It is the writer's
+   own text and takes its own direction. */
+.spellbook-planner .spellbook-day-label {
+  display: none;
+}
+
+.spellbook-calendar.spellbook-shows-labels .spellbook-day.spellbook-has-mark .spellbook-day-label {
+  display: block;
+  overflow: hidden;
+  padding-inline-start: var(--size-2-2);
+  border-inline-start: var(--size-2-1) solid var(--spellbook-mark-color);
+  color: var(--text-muted);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-calendar.spellbook-shows-labels .spellbook-day.spellbook-has-mark .spellbook-day-label:empty {
+  display: none;
+}
+
+/* A stored colour name is Obsidian's own colour of that name. */
+.spellbook-planner .spellbook-mark-red {
+  --spellbook-mark-color: var(--color-red);
+}
+
+.spellbook-planner .spellbook-mark-orange {
+  --spellbook-mark-color: var(--color-orange);
+}
+
+.spellbook-planner .spellbook-mark-yellow {
+  --spellbook-mark-color: var(--color-yellow);
+}
+
+.spellbook-planner .spellbook-mark-green {
+  --spellbook-mark-color: var(--color-green);
+}
+
+.spellbook-planner .spellbook-mark-cyan {
+  --spellbook-mark-color: var(--color-cyan);
+}
+
+.spellbook-planner .spellbook-mark-blue {
+  --spellbook-mark-color: var(--color-blue);
+}
+
+.spellbook-planner .spellbook-mark-purple {
+  --spellbook-mark-color: var(--color-purple);
+}
+
+.spellbook-planner .spellbook-mark-pink {
+  --spellbook-mark-color: var(--color-pink);
+}
+
+.spellbook-planner .spellbook-mark-plain {
+  --spellbook-mark-color: var(--text-muted);
+}
+
+/* What could not be read of the day marks. */
+.spellbook-calendar-notes {
+  margin-block-start: var(--size-4-2);
+}
+
+.spellbook-calendar-note,
+.spellbook-detail-locked {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: var(--line-height-normal);
+  text-align: start;
+}
+
+/* The numbers under the month: as many in a row as fit. */
+.spellbook-calendar-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--size-4-16) * 2), 1fr));
+  gap: var(--size-4-2);
+}
+
+.spellbook-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-1);
+  min-width: 0;
+  padding: var(--size-4-2);
+  border-radius: var(--radius-m);
+  background-color: var(--background-secondary);
+}
+
+.spellbook-stat-label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-align: start;
+}
+
+/* A number reads left to right in every language, and sits at the start of its line. */
+.spellbook-stat-value {
+  align-self: flex-start;
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-stat-detail {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-align: start;
+}
+
+.spellbook-stat.spellbook-is-met .spellbook-stat-detail {
+  color: var(--text-success);
+}
+
+/* ------------------------------------------------------ Calendar: one day */
+
+.spellbook-day-detail {
+  display: none;
+  flex-direction: column;
+  gap: var(--size-4-3);
+  min-width: 0;
+  padding: var(--size-4-3);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background-color: var(--background-secondary);
+}
+
+.spellbook-calendar.spellbook-has-detail .spellbook-day-detail {
+  display: flex;
+}
+
+/* Beside the month, the detail's place is never empty. */
+.spellbook-detail-hint {
+  display: none;
+  padding: var(--size-4-3);
+  border: var(--border-width) dashed var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-normal);
+  text-align: start;
+}
+
+.spellbook-calendar.spellbook-detail-beside:not(.spellbook-has-detail) .spellbook-detail-hint {
+  display: block;
+}
+
+.spellbook-detail-head {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+}
+
+.spellbook-detail-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: var(--font-semibold);
+  text-align: start;
+}
+
+.spellbook-detail-words {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-normal);
+  text-align: start;
+}
+
+.spellbook-detail-all {
+  color: var(--text-faint);
+}
+
+.spellbook-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+}
+
+.spellbook-detail-heading {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-medium);
+  text-align: start;
+}
+
+.spellbook-detail-todos {
+  display: flex;
+  flex-direction: column;
+}
+
+.spellbook-detail-empty {
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+/* The colours a mark can have: round buttons, each in its own colour. */
+.spellbook-mark-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+}
+
+.spellbook-planner .spellbook-mark-swatch {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: var(--size-4-8);
+  min-width: 0;
+  height: var(--size-4-8);
+  padding: 0;
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: 50%;
+  background-color: var(--spellbook-mark-color);
+  box-shadow: none;
+  cursor: var(--cursor);
+}
+
+/* The colour the day has: ringed, so that it shows without telling colours apart. */
+.spellbook-planner .spellbook-mark-swatch.spellbook-is-chosen {
+  outline: var(--size-2-1) solid var(--text-normal);
+  outline-offset: var(--size-2-1);
+}
+
+.spellbook-planner .spellbook-mark-swatch:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.spellbook-planner .spellbook-mark-label {
+  width: 100%;
+  text-align: start;
+}
+
+.spellbook-planner .spellbook-mark-remove {
+  align-self: flex-start;
+}
+
+/* ------------------------------------------------------------------ To-dos */
+
+.spellbook-todos-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding-block-start: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+}
+
+.spellbook-todos-title {
+  flex: 0 0 auto;
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-todos-count {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+/* The field for a new to-do, its optional date, and Add. On a narrow pane
+   the date and the button go under the field. */
+.spellbook-todo-add,
+.spellbook-detail-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-2);
+}
+
+.spellbook-todo-add {
+  flex: 0 0 auto;
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-planner .spellbook-todo-input {
+  flex: 1 1 calc(var(--size-4-16) * 2.5);
+  min-width: 0;
+  text-align: start;
+}
+
+.spellbook-planner .spellbook-todo-date {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.spellbook-planner .spellbook-todo-add-button {
+  flex: 0 0 auto;
+}
+
+.spellbook-todos-scroll {
+  padding-block-start: var(--size-2-2);
+  padding-inline: var(--size-4-2);
+}
+
+.spellbook-todo-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* One to-do: the tick box, the text, the due date and the "more" button. A
+   finger that rests on a row picks it up; that must not also select its text
+   or raise the phone's own bubble. */
+.spellbook-planner .spellbook-todo-row {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  min-height: var(--size-4-8);
+  padding-block: var(--size-2-1);
+  padding-inline: var(--size-4-1);
+  border-radius: var(--radius-s);
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The tick box and the room around it: a tap anywhere in it ticks the box. */
+.spellbook-todo-tick {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  cursor: var(--cursor);
+}
+
+.spellbook-planner .spellbook-todo-check {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+/* Only the text takes the direction of its own language; a long text wraps. */
+.spellbook-todo-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: var(--line-height-tight);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.spellbook-todo-row.spellbook-is-done .spellbook-todo-text {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.spellbook-todo-text.spellbook-is-placeholder {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* The due date, as a small chip. */
+.spellbook-todo-due {
+  flex: 0 0 auto;
+  padding-block: var(--size-2-1);
+  padding-inline: var(--size-2-3);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-s);
+  background-color: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+}
+
+/* A to-do that is late: outlined and in the colour of a warning. */
+.spellbook-todo-due.spellbook-is-overdue {
+  border-color: var(--text-error);
+  background-color: transparent;
+  color: var(--text-error);
+  font-weight: var(--font-semibold);
+}
+
+/* A change to this to-do is on its way. */
+.spellbook-planner .spellbook-todo-row[aria-busy='true'] {
+  opacity: 0.6;
+}
+
+/* The row that was picked up stays where it is, dimmed, until it is dropped. */
+.spellbook-planner .spellbook-todo-row.spellbook-is-dragged {
+  opacity: 0.5;
+}
+
+/* While a mouse drags, the pointer shows that it is holding something. */
+.spellbook-planner .spellbook-todos-scroll.spellbook-drag-active .spellbook-todo-row {
+  cursor: grabbing;
+}
+
+.spellbook-todos-empty {
+  padding: var(--size-4-3);
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+/* "Done", which folds the ticked-off to-dos shut and opens them again. */
+.spellbook-planner .spellbook-todos-done-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--size-2-2);
+  width: 100%;
+  height: auto;
+  margin-block-start: var(--size-4-2);
+  padding-block: var(--size-2-2);
+  padding-inline: var(--size-4-1);
+  border: none;
+  background-color: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-medium);
+  cursor: var(--cursor);
+}
+
+.spellbook-todos-done-icon {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.spellbook-todos-done-icon .svg-icon {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+/* Folded shut, the arrow points sideways: towards the end of the line. */
+.spellbook-planner .spellbook-todos-done-toggle.spellbook-is-collapsed .spellbook-todos-done-icon .svg-icon {
+  transform: rotate(-90deg);
+}
+
+.spellbook-planner.spellbook-is-rtl .spellbook-todos-done-toggle.spellbook-is-collapsed .spellbook-todos-done-icon .svg-icon {
+  transform: rotate(90deg);
+}
+
+.spellbook-todos-done-count {
+  color: var(--text-faint);
+}
+
+/* ------------------------------------------- Planner: touch and hover */
+
+/* What is tapped with a finger is big enough to hit: on phones and tablets
+   (the class is set from Obsidian's own platform check) and on any other
+   screen that is mainly used by touch. With a mouse everything stays compact. */
+.spellbook-planner.spellbook-is-mobile .spellbook-planner-tab,
+.spellbook-planner.spellbook-is-mobile .spellbook-calendar-today,
+.spellbook-planner.spellbook-is-mobile .spellbook-day,
+.spellbook-planner.spellbook-is-mobile .spellbook-todo-row,
+.spellbook-planner.spellbook-is-mobile .spellbook-todo-input,
+.spellbook-planner.spellbook-is-mobile .spellbook-todo-date,
+.spellbook-planner.spellbook-is-mobile .spellbook-todo-add-button,
+.spellbook-planner.spellbook-is-mobile .spellbook-mark-label,
+.spellbook-planner.spellbook-is-mobile .spellbook-mark-remove,
+.spellbook-planner.spellbook-is-mobile .spellbook-todos-done-toggle {
+  min-height: var(--spellbook-planner-touch);
+}
+
+/* The same for the small buttons, which are as wide as they are tall. */
+.spellbook-planner.spellbook-is-mobile .spellbook-calendar-step,
+.spellbook-planner.spellbook-is-mobile .spellbook-detail-close,
+.spellbook-planner.spellbook-is-mobile .spellbook-todos-open,
+.spellbook-planner.spellbook-is-mobile .spellbook-todo-more,
+.spellbook-planner.spellbook-is-mobile .spellbook-todo-tick,
+.spellbook-planner.spellbook-is-mobile .spellbook-mark-swatch {
+  min-width: var(--spellbook-planner-touch);
+  min-height: var(--spellbook-planner-touch);
+}
+
+@media (pointer: coarse) {
+  .spellbook-planner .spellbook-planner-tab,
+  .spellbook-planner .spellbook-calendar-today,
+  .spellbook-planner .spellbook-day,
+  .spellbook-planner .spellbook-todo-row,
+  .spellbook-planner .spellbook-todo-input,
+  .spellbook-planner .spellbook-todo-date,
+  .spellbook-planner .spellbook-todo-add-button,
+  .spellbook-planner .spellbook-mark-label,
+  .spellbook-planner .spellbook-mark-remove,
+  .spellbook-planner .spellbook-todos-done-toggle {
+    min-height: var(--spellbook-planner-touch);
+  }
+
+  .spellbook-planner .spellbook-calendar-step,
+  .spellbook-planner .spellbook-detail-close,
+  .spellbook-planner .spellbook-todos-open,
+  .spellbook-planner .spellbook-todo-more,
+  .spellbook-planner .spellbook-todo-tick,
+  .spellbook-planner .spellbook-mark-swatch {
+    min-width: var(--spellbook-planner-touch);
+    min-height: var(--spellbook-planner-touch);
+  }
+}
+
+/* A pointer that can hover gets a hint of what a click will hit. Nothing
+   depends on it. */
+@media (hover: hover) {
+  .spellbook-planner .spellbook-day:hover,
+  .spellbook-planner .spellbook-todo-row:hover,
+  .spellbook-planner .spellbook-todos-done-toggle:hover,
+  .spellbook-planner .spellbook-planner-tab:not(.spellbook-is-current):hover {
+    background-color: var(--background-modifier-hover);
+  }
+}
