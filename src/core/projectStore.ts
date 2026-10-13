@@ -1307,6 +1307,60 @@ export class ProjectStore {
     }, inProject);
   }
 
+  /**
+   * Create a note for a timeline event: a new note in the open project's
+   * Timeline folder, with the properties given and no text. The folder is
+   * made first when the project has none.
+   *
+   * Nothing is ever replaced, and the name is used exactly as it is given or
+   * not at all: it is refused when it is not a tidy file name as it stands
+   * (see sanitiseFileName; tidy it first), and when the folder already holds
+   * something of that name, whatever its capitals, or the binder lists a note
+   * of that name there that may still be on its way from another device.
+   * Refused as well for properties that would mark the note as a project,
+   * for a read-only project, and when no project is open.
+   *
+   * @param name        the note's name, without ".md"
+   * @param frontmatter the note's properties, for example what the timeline engine's newEventFrontmatter gives
+   * @returns the new note's path relative to the project folder
+   */
+  addTimelineNote(
+    name: string,
+    frontmatter: Readonly<Frontmatter>,
+    inProject?: string,
+  ): Promise<IntentResult<{ path: string }>> {
+    return this.run(async (): Promise<IntentResult<{ path: string }>> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      if (name === '' || sanitiseFileName(name, '') !== name) {
+        return refused('invalid-name', `"${name}" cannot be used as the name of a note.`);
+      }
+      if (isProjectIndex(frontmatter)) {
+        return refused('inside-project', 'A note in a project cannot be marked as a project itself.');
+      }
+
+      const rel = `${TIMELINE_FOLDER}/${name}.md`;
+      const target = joinPath(active.folder, rel);
+      const wanted = clashKey(rel);
+      const listed = flattenScenes(this.effectiveBinder(active)).some((scene) => clashKey(scene) === wanted);
+      if (listed || this.vault.exists(target)) {
+        return refused('exists', `There is already a note called "${name}" in the ${TIMELINE_FOLDER} folder.`);
+      }
+
+      let createdPath: string;
+      try {
+        const folder = joinPath(active.folder, TIMELINE_FOLDER);
+        if (!this.vault.exists(folder)) await this.vault.createFolder(folder);
+        // The vault itself refuses to create a file where something already is.
+        createdPath = await this.vault.createFile(target, '', copyOf(frontmatter) as Frontmatter);
+      } catch (error) {
+        return failed(`The note "${name}" could not be created: ${messageOf(error)}`);
+      }
+      return done({ path: relativeTo(active.folder, createdPath) ?? rel });
+    }, inProject);
+  }
+
   /** Write any outstanding order keys now instead of waiting for the delay. */
   syncOrderKeysNow(): Promise<void> {
     return this.enqueue(() => this.flushOrderKeys());
