@@ -404,6 +404,8 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 
 **What it is for.** Keeping track of the characters, places, factions and items of the story, and which scenes they are in.
 
+**In Obsidian's graph.** The entities of a scene are ordinary Obsidian links, so Obsidian's graph view and backlinks show who appears where. [Customising: the story graph](customising.md#the-story-graph) shows how to colour it by kind of note.
+
 **How to open it.** Command **Open world**, or the ribbon button "Open Spellbook world". It opens as a tab in the main area.
 
 **Adding to the world.** Commands **New character**, **New place**, **New faction**, **New item**, and **New entity** (which asks what it is). The **New** button in the World screen does the same. Each one becomes a plain note in the project's World folder, in a folder for its type, with a few starting properties and a summary. Add or remove properties as you like.

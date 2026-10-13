@@ -43,6 +43,12 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 
 *A card for each character, place, faction and item of the story.*
 
+### Story graph
+
+![Obsidian's graph view of a novel: scenes, characters, places, items and events as linked dots](docs/images/graph-view.png)
+
+*Obsidian's graph view of the sample novel: scenes in grey, characters in blue, places in green, items in orange, timeline events in purple. The links come from the entities listed on each scene and event.*
+
 ### On a phone
 
 ![The World screen in phone layout, with one column of cards](docs/images/phone-world.png)
@@ -77,6 +83,7 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 - **Timelines.** Named, coloured lanes on one time axis. Events are notes; scenes that have a date appear too. Zoom, drag an event to change its date, and switch between date order and story order.
 - **Invented calendars.** Give a story its own months, week, eras and leap years, and the timeline counts in it.
 - **World.** Characters, places, factions and items, plus types of your own. Each is a plain note. Link them to scenes and timeline events, and find scenes that mention one without listing it.
+- **Story graph.** Scenes and timeline events link to the characters, places and items listed on them with ordinary Obsidian links, so Obsidian's own graph view and backlinks show who appears where, with no setup. Give each kind of note its own colour with the graph's Groups setting.
 
 ### Keep and share
 

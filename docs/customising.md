@@ -19,6 +19,7 @@ The table at the end, [Where each setting lives](#where-each-setting-lives), lis
 - [Writing modes](#writing-modes)
 - [Prose checks](#prose-checks)
 - [Statuses and labels](#statuses-and-labels)
+- [The story graph](#the-story-graph)
 - [Entity types of your own](#entity-types-of-your-own)
 - [An invented story calendar](#an-invented-story-calendar)
 - [Writing targets](#writing-targets)
@@ -407,6 +408,36 @@ A status says how far along a scene is. A label is a colour of your own choosing
 - The colours are your theme's or your scheme's versions of those eight, so they always suit the page.
 
 Statuses and labels are saved in the project, so they are the same on every device.
+
+## The story graph
+
+![Obsidian's graph view of a novel, coloured by kind of note](images/graph-view.png)
+
+*Obsidian's graph view of the sample novel, with one colour for each folder of the project.*
+
+Spellbook lists the characters, places and items of a scene or a timeline event as ordinary Obsidian links, in the note's `entities` property. Obsidian's own graph view and its backlinks pane read those links, so the graph shows who appears in which scene without any setup. The graph belongs to Obsidian, not to Spellbook, so the steps below use Obsidian's settings.
+
+To see the graph of one project, coloured by kind of note:
+
+1. Open the graph: the **Open graph view** button in Obsidian's ribbon, or the command **Graph view: Open graph view**.
+2. Open the graph's settings (the cog at its top right).
+3. Under **Filters**, type `path:"My Novel"` in the search field, with your project's folder name, to show that project alone. Add `-path:"My Novel/Stats"` to leave out the word logs. Switch **Orphans** off to hide notes with no links.
+4. Under **Groups**, choose **New group** once for each kind of note, type its folder, and pick a colour. For example:
+
+| Group query | Shows | Colour in the picture |
+| --- | --- | --- |
+| `path:"My Novel/Manuscript"` | Scenes | Grey |
+| `path:"My Novel/World/Characters"` | Characters | Blue |
+| `path:"My Novel/World/Places"` | Places | Green |
+| `path:"My Novel/World/Factions"` | Factions | Red |
+| `path:"My Novel/World/Items"` | Items | Orange |
+| `path:"My Novel/Timeline"` | Timeline events | Purple |
+
+5. Under **Display**, raise **Text fade threshold** to see more names, and **Node size** to taste.
+
+The settings are kept by Obsidian for the vault. To see what surrounds one note only, open that note and run **Graph view: Open local graph**.
+
+One limit: when a vault holds two projects that each have an entity of the same name (two characters called "Mara"), Obsidian's graph may draw a scene's link to the other project's note. Spellbook's own screens lead to the right one.
 
 ## Entity types of your own
 
