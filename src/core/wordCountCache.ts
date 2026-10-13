@@ -1,11 +1,17 @@
-// Word counts for the notes a view is showing.
+// Word counts for the notes the screens are showing.
 //
-// A view says which notes it wants counted (track). Each one is read through
-// the vault doorway and counted once; the number is kept until the note
-// changes. Counting a whole novel takes a while, so it is done a little at a
-// time, with a pause after each piece of work in which Obsidian can draw the
-// screen and answer taps. When a note is saved, only that note is counted
-// again, a moment after the last save.
+// Each screen that wants counts is an "asker": it names itself and says which
+// notes it wants counted (track), and says so again whenever that changes.
+// When it stops, it lets go of them (release). The cache counts every note
+// that at least one asker wants, once, however many ask for it: the binder,
+// the corkboard and the bottom bar can all be open, or any one of them alone.
+//
+// Each note is read through the vault doorway and counted once; the number
+// is kept until the note changes or nobody wants it any more. Counting a
+// whole novel takes a while, so it is done a little at a time, with a pause
+// after each piece of work in which Obsidian can draw the screen and answer
+// taps. When a note is saved, only that note is counted again, a moment
+// after the last save.
 //
 // Nothing here writes to the vault.
 
@@ -44,7 +50,9 @@ export class WordCountCache {
 
   /** A note's count by vault path; null when the note could not be read. */
   private readonly counts = new Map<string, number | null>();
-  /** The notes whose counts are wanted. */
+  /** What each asker wants, by the asker's name. An asker that wants nothing is not in here. */
+  private readonly wants = new Map<string, Set<string>>();
+  /** The notes whose counts are wanted: everything that at least one asker asked for. */
   private tracked = new Set<string>();
   /** Notes waiting to be counted, in the order they will be. */
   private readonly queue = new Set<string>();
@@ -85,6 +93,7 @@ export class WordCountCache {
     this.settling.clear();
     this.queue.clear();
     this.counts.clear();
+    this.wants.clear();
     this.tracked = new Set();
     this.listeners.clear();
     this.releaseIdleWaiters();
@@ -118,13 +127,41 @@ export class WordCountCache {
   }
 
   /**
-   * Say which notes are wanted from now on, as vault paths, in the order they
-   * should be counted. Counts of other notes are forgotten; notes counted
-   * before are not read again.
+   * Say which notes one asker wants from now on, as vault paths, in the order
+   * they should be counted. It replaces what that asker wanted before, and
+   * leaves what the other askers want alone. Notes that nobody wants any more
+   * are forgotten; notes counted before are not read again.
+   *
+   * @param asker a name no other asker uses, for example "binder"
    */
-  track(paths: Iterable<string>): void {
+  track(asker: string, paths: Iterable<string>): void {
     if (this.disposed) return;
     const wanted = new Set(paths);
+    if (wanted.size === 0) this.wants.delete(asker);
+    else this.wants.set(asker, wanted);
+    this.settle(wanted);
+  }
+
+  /** An asker has stopped: the notes that only it wanted are forgotten. */
+  release(asker: string): void {
+    if (this.disposed || !this.wants.delete(asker)) return;
+    this.settle([]);
+  }
+
+  /** The names of the askers that want something, in the order they first asked. */
+  askers(): string[] {
+    return [...this.wants.keys()];
+  }
+
+  /**
+   * Work out anew what is wanted by anyone, forget the rest, and queue what
+   * is wanted and not counted yet.
+   *
+   * @param first the notes of the asker that just spoke, in the order it wants them counted
+   */
+  private settle(first: Iterable<string>): void {
+    const wanted = new Set<string>();
+    for (const paths of this.wants.values()) for (const path of paths) wanted.add(path);
     for (const path of [...this.counts.keys()]) {
       if (!wanted.has(path)) this.counts.delete(path);
     }
@@ -137,7 +174,7 @@ export class WordCountCache {
       this.settling.delete(path);
     }
     this.tracked = wanted;
-    for (const path of wanted) {
+    for (const path of first) {
       // The note in hand is on its way already: asking again must not make it start over.
       if (!this.counts.has(path) && path !== this.inHand) this.queue.add(path);
     }
@@ -206,6 +243,10 @@ export class WordCountCache {
     const wasTracked = this.tracked.delete(from);
     this.forget(from);
     if (wasTracked) this.tracked.add(to);
+    // Whoever wanted the note wants it still, under its new path.
+    for (const paths of this.wants.values()) {
+      if (paths.delete(from)) paths.add(to);
+    }
     // Not wanted under either name: nothing to keep.
     if (!this.tracked.has(to)) return;
 

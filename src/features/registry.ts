@@ -88,7 +88,12 @@ export interface FeatureContext {
    */
   readonly deviceId: string;
   readonly clock: FeatureClock;
-  /** The word counts of notes, shared with the binder. */
+  /**
+   * The word counts of notes, shared by every screen. A feature that wants
+   * notes counted asks under a name of its own (`track(name, paths)`) and
+   * lets go when it stops (`release(name)`); what the binder or another
+   * feature asks for is not its concern.
+   */
   readonly wordCounts: WordCountCache;
   /**
    * Show a note in the main area.

@@ -269,6 +269,31 @@ describe('loading and unloading', () => {
   });
 });
 
+describe('the bottom bar', () => {
+  const OPENING = 'Novel/Manuscript/Opening.md';
+
+  it('shows the project total while the binder is closed, and keeps it when the binder opens and closes', async () => {
+    const fake = novelVault();
+    const { plugin, stub } = loadReady(fake);
+    const bar = (): string => stub.statusBar.children[0]?.fullText ?? '';
+    await until(() => bar().includes('Project 5'), 'the project total in the bottom bar');
+    expect(fake.workspace.leaves).toEqual([]); // no binder, and no other pane, was opened for it
+    expect(plugin.services?.wordCounts.askers()).toEqual(['progress']);
+
+    await plugin.openBinder();
+    const leaf = fake.workspace.getLeavesOfType('spellbook-binder')[0];
+    await until(() => plugin.services?.wordCounts.askers().includes('binder') === true, 'the binder to ask for its counts');
+    leaf?.detach();
+    await until(() => plugin.services?.wordCounts.askers().includes('binder') === false, 'the binder to let go of its counts');
+
+    // The binder took back its own request only: the scene is still counted, and the total still shown.
+    expect(plugin.services?.wordCounts.askers()).toEqual(['progress']);
+    expect(plugin.services?.wordCounts.get(OPENING)).toBe(5);
+    await new Promise((resolve) => setTimeout(resolve, 20)); // a few frames
+    expect(bar()).toContain('Project 5');
+  });
+});
+
 describe('the command "Create sample project"', () => {
   it('creates the sample novel, opens it and shows its first scene', async () => {
     const { fake, plugin, command } = loadReady(novelVault());

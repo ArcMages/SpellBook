@@ -46,9 +46,11 @@ async function drawn(stand: Stand): Promise<void> {
   await stand.pass(FRAME);
 }
 
-/** Have the binder's word counts cover the manuscript, as when the binder is open. */
+/**
+ * Let the manuscript's words be counted. The writing progress asks for them
+ * itself, under its own name; no binder needs to be open.
+ */
 async function countManuscript(stand: Stand): Promise<void> {
-  stand.wordCounts.track([OPENING, LETTER]);
   await drawn(stand);
 }
 
@@ -171,14 +173,46 @@ describe('the line of figures', () => {
     expect(stand.line()).toEqual([]);
   });
 
-  it('leaves the project total out until every scene has been counted', async () => {
+  it('shows the project total with the binder closed', async () => {
+    const stand = await standUp();
+    // No binder, no corkboard: the writing progress asks for the manuscript's words under its own name.
+    expect(stand.wordCounts.askers()).toEqual(['progress']);
+    stand.workspace.show(OPENING);
+    await drawn(stand);
+    expect(stand.line()).toEqual(['Words 9', 'Session 0', 'Project 19', 'Today 0']);
+  });
+
+  it('keeps the project total when the binder opens and closes, and follows the manuscript', async () => {
     const stand = await standUp();
     stand.workspace.show(OPENING);
     await drawn(stand);
-    // Nobody asked for the manuscript's word counts yet (the binder is closed).
-    expect(stand.line()).toEqual(['Words 9', 'Session 0', 'Today 0']);
-    await countManuscript(stand);
+    const reads = stand.vault.reads.readText;
+
+    // The binder opens (it also wants the research note) and closes: it lets go of its own request only.
+    stand.wordCounts.track('binder', [OPENING, LETTER, CASTLE]);
+    await drawn(stand);
+    expect(stand.vault.reads.readText).toBe(reads + 1); // only the research note was new
+    stand.wordCounts.release('binder');
+    await drawn(stand);
+    expect(stand.wordCounts.askers()).toEqual(['progress']);
+    expect(stand.wordCounts.get(CASTLE)).toBeUndefined();
     expect(stand.line()).toEqual(['Words 9', 'Session 0', 'Project 19', 'Today 0']);
+    expect(stand.vault.reads.readText).toBe(reads + 1); // the scenes were not read again
+
+    // A scene is added to the manuscript: its words join the total.
+    const added = await stand.store.addScene('Ending');
+    expect(added.status).toBe('done');
+    await drawn(stand);
+    expect(stand.wordCounts.get('Novel/Manuscript/Ending.md')).toBe(0);
+    stand.vault.external.write('Novel/Manuscript/Ending.md', { body: 'Three more words.\n' });
+    await stand.pass(1100); // the note has stopped being saved: it is counted again
+    await drawn(stand);
+    expect(stand.line()).toContain('Project 22');
+
+    // With no project open there is nothing to count.
+    await stand.store.closeProject();
+    await drawn(stand);
+    expect(stand.wordCounts.askers()).toEqual([]);
   });
 
   it('counts the open note again when it changes on disk without being typed in', async () => {
@@ -237,14 +271,16 @@ describe('the bottom bar', () => {
     const bar = stand.bar();
     if (!bar) throw new Error('no status bar item');
     expect(bar.hasClass('spellbook-status')).toBe(true);
-    expect(bar.fullText).toBe('Words 9 Session 0 Today 0 / 2');
+    // The project total is there although no binder is open.
+    expect(bar.fullText).toBe('Words 9 Session 0 Project 19 Today 0 / 2');
     expect(bar.hasClass('spellbook-is-empty')).toBe(false);
 
     stand.editor(OPENING).type('One two three. ');
     await stand.pass(500);
-    expect(bar.fullText).toBe('Words 9 Session 0 Today 0 / 2'); // nothing is drawn while the writer types
+    expect(bar.fullText).toBe('Words 9 Session 0 Project 19 Today 0 / 2'); // nothing is drawn while the writer types
     await stand.pass(PAUSE);
-    expect(bar.fullText).toBe('Words 12 Edited 13 Oct 2026 Session 3 Today 3 / 2');
+    // (The project total is counted from the saved notes: it follows when the editor saves.)
+    expect(bar.fullText).toBe('Words 12 Edited 13 Oct 2026 Session 3 Project 19 Today 3 / 2');
     const today = bar.withClass('spellbook-status-today')[0];
     expect(today?.hasClass('spellbook-is-met')).toBe(true);
     // Figures read left to right, also in an app that runs right to left.
@@ -271,15 +307,15 @@ describe('the bottom bar', () => {
     stand.workspace.show(OPENING);
     await drawn(stand);
     expect(stand.bar()).toBeNull();
-    // Nobody is looking at the line yet: only the open note was read, no log file.
-    expect(stand.vault.reads.readText).toBe(1);
+    // Nobody is looking at the line yet: the two scenes were counted (each read once), and no log file was read.
+    expect(stand.vault.reads.readText).toBe(2);
     // The inspector asks for it: today's words follow once the logs are read.
     let told = 0;
     stand.sceneLine().onChange(() => told++);
-    expect(stand.line()).toEqual(['Words 9', 'Session 0']);
+    expect(stand.line()).toEqual(['Words 9', 'Session 0', 'Project 19']);
     await drawn(stand);
     expect(told).toBeGreaterThan(0);
-    expect(stand.line()).toEqual(['Words 9', 'Session 0', 'Today 7']);
+    expect(stand.line()).toEqual(['Words 9', 'Session 0', 'Project 19', 'Today 7']);
   });
 });
 

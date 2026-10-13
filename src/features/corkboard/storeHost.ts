@@ -52,6 +52,9 @@ import { mountSceneLine } from './summaryLine';
 /** Where this device remembers the size of the cards. */
 export const CARD_SIZE_KEY = 'spellbook-card-size';
 
+/** The name under which the corkboard asks for word counts (see WordCountCache.track). */
+export const WORD_COUNT_ASKER = 'corkboard';
+
 /** How long after a scene was last saved its text is read again, in milliseconds. */
 export const TEXT_SETTLE_MS = 750;
 
@@ -84,7 +87,7 @@ interface Model {
   readonly vaultPaths: ReadonlyMap<string, string>;
   /** The other way round: the scene a note in the vault is. */
   readonly byVaultPath: ReadonlyMap<string, string>;
-  /** The notes whose words are counted, as vault paths: what the binder counts too. */
+  /** The notes whose words are counted while a corkboard is open, as vault paths: the scenes that have a note. */
   readonly counted: readonly string[];
 }
 
@@ -215,6 +218,8 @@ export class StoreCardsHost implements CorkboardHost {
     return () => {
       if (!this.listening.delete(entry)) return;
       if (this.listening.size === 0) this.unfollow();
+      // The last corkboard has closed: its word counts are let go of.
+      else if (counts) this.keepCounting();
     };
   }
 
@@ -251,6 +256,7 @@ export class StoreCardsHost implements CorkboardHost {
     this.model = null;
     this.active = null;
     this.forgetScenes();
+    this.context.wordCounts.release(WORD_COUNT_ASKER);
   }
 
   /** Forget everything that was known about the scenes (of the project that was open until now). */
@@ -374,12 +380,8 @@ export class StoreCardsHost implements CorkboardHost {
       }
     };
     walk(snapshot.tree);
-    // The same notes the binder asks to have counted: its scenes, then the unfiled notes.
+    // The cards show the words of scenes, and of nothing else.
     const counted = [...vaultPaths.values()];
-    for (const path of snapshot.unfiled) {
-      const vaultPath = store.vaultPathOf(path);
-      if (vaultPath !== null) counted.push(vaultPath);
-    }
     this.model = { project, treeKey, scenes, vaultPaths, byVaultPath, counted };
 
     // The binder and the disk may spell the same name in two ways: notes are matched by key.
@@ -442,7 +444,7 @@ export class StoreCardsHost implements CorkboardHost {
         if (this.textWanted.has(path)) this.readTextSoon(path);
         // Off show: what is kept of its text is out of date. It is read when the scene comes back on show.
         else this.texts.delete(path);
-        this.keepCounting();
+        // (Its words are counted again by the word counts themselves.)
         return;
       }
       case 'refresh':
@@ -478,21 +480,24 @@ export class StoreCardsHost implements CorkboardHost {
   }
 
   /**
-   * Ask for the words of the project's notes to be counted, while a corkboard
-   * is open. The cache counts for one asker at a time and the binder asks
-   * too, so this asks for exactly the notes the binder asks for (the scenes on
-   * show first) and asks again whenever something changes, in case the binder
-   * was closed in the meantime and took its request back.
+   * Ask for the words of the project's scenes to be counted while a corkboard
+   * is open (the scenes on show first), and let go of them when none is. The
+   * corkboard asks under its own name: what the binder or the bottom bar ask
+   * for, and whether they are open at all, makes no difference to it.
    */
   private keepCounting(): void {
+    const { wordCounts } = this.context;
     const model = this.model;
-    if (!model || !this.showsCounts()) return;
+    if (!model || !this.showsCounts()) {
+      wordCounts.release(WORD_COUNT_ASKER);
+      return;
+    }
     const first: string[] = [];
     for (const path of this.watched) {
       const vaultPath = model.vaultPaths.get(path);
       if (vaultPath !== undefined) first.push(vaultPath);
     }
-    this.context.wordCounts.track([...first, ...model.counted]);
+    wordCounts.track(WORD_COUNT_ASKER, [...first, ...model.counted]);
   }
 
   private onCounts(vaultPaths: readonly string[]): void {

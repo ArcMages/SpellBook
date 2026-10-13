@@ -10,7 +10,7 @@
 import type { Extension } from '@codemirror/state';
 import { Notice, Platform } from 'obsidian';
 import type { App, Tasks } from 'obsidian';
-import { binderTotals, placeOfNote } from '../../core/binderModel';
+import { binderTotals, placeOfNote, scenesWithNotes } from '../../core/binderModel';
 import { isDateText } from '../../core/dates';
 import { isInside, isMarkdownPath, noteTitle, parentPath, relativeTo } from '../../core/paths';
 import {
@@ -56,6 +56,9 @@ const PROBLEM_NOTICE_MS = 10000;
 
 /** How long after a note was last saved its words are counted again from the vault. */
 export const RECOUNT_AFTER_MS = 1000;
+
+/** The name under which the writing progress asks for word counts (see WordCountCache.track). */
+export const WORD_COUNT_ASKER = 'progress';
 
 /** The note in front, and what is shown about it. */
 interface OpenNote {
@@ -238,6 +241,7 @@ export class WritingProgress {
     this.cancelRecount?.();
     this.cancelRecount = null;
     for (const stop of this.stops.splice(0)) stop();
+    this.context.wordCounts.release(WORD_COUNT_ASKER);
     this.targetsWindow?.close();
     this.targetsWindow = null;
     this.bar?.remove();
@@ -387,6 +391,27 @@ export class WritingProgress {
     }
     this.project = now === null ? null : { indexPath: now.indexPath, folder: now.folder };
     this.log.follow(now?.indexPath ?? null, moved);
+    this.countManuscript(now);
+  }
+
+  /**
+   * Ask for the words of every scene of the open project, under this
+   * feature's own name: the project total, the percent of the target and the
+   * words a day until the deadline are then there whichever other screens are
+   * open, the binder included. With no project open, nothing is asked for.
+   */
+  private countManuscript(project: ProjectSnapshot | null): void {
+    const { store, wordCounts } = this.context;
+    if (project === null) {
+      wordCounts.release(WORD_COUNT_ASKER);
+      return;
+    }
+    const wanted: string[] = [];
+    for (const path of scenesWithNotes(project.tree)) {
+      const vaultPath = store.vaultPathOf(path);
+      if (vaultPath !== null) wanted.push(vaultPath);
+    }
+    wordCounts.track(WORD_COUNT_ASKER, wanted);
   }
 
   private onWordCounts(paths: readonly string[]): void {

@@ -84,6 +84,9 @@ export { MISSING_LABEL } from './binderActions';
 export const BINDER_VIEW_TYPE = 'spellbook-binder';
 export const BINDER_VIEW_NAME = 'Binder';
 
+/** The name under which the binder asks for word counts (see WordCountCache.track). */
+const WORD_COUNT_ASKER = 'binder';
+
 /** What the "more" button of a row, and of the toolbar, is called (read out, and shown as a tooltip). */
 export const MORE_LABEL = 'More options';
 
@@ -401,8 +404,8 @@ export class BinderView extends ItemView {
     // Ends a drag that is on, and takes its ghost and its listeners away.
     this.drag?.destroy();
     this.drag = null;
-    // Nobody is looking at word counts any more.
-    this.services?.wordCounts.track([]);
+    // The binder is no longer looking at word counts. (Other screens may be: theirs are kept.)
+    this.services?.wordCounts.release(WORD_COUNT_ASKER);
     this.services = null;
     this.forgetRows();
     this.built = new Map();
@@ -1351,7 +1354,7 @@ export class BinderView extends ItemView {
         if (vaultPath !== null) wanted.push(vaultPath);
       }
     }
-    services.wordCounts.track(wanted);
+    services.wordCounts.track(WORD_COUNT_ASKER, wanted);
   }
 
   /** Some notes were counted: bring just their rows, and the sums above them, up to date. */

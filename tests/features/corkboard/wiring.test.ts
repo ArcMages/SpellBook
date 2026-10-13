@@ -33,7 +33,7 @@ import { CARD_SIZE_KEY, TEXT_SETTLE_MS, TEXT_SLICE } from '../../../src/features
 import { SCENE_LINE_SERVICE } from '../../../src/features/corkboard/summaryLine';
 import type { SceneLine, SceneLineSegment } from '../../../src/features/corkboard/summaryLine';
 import { TagListsModal } from '../../../src/features/corkboard/tagListsModal';
-import { WORD_COUNT_SLICE_NOTES } from '../../../src/core/wordCountCache';
+import { WORD_COUNT_DEBOUNCE_MS, WORD_COUNT_SLICE_NOTES } from '../../../src/core/wordCountCache';
 import { SHOW_ON_CORKBOARD } from '../../../src/views/binderActions';
 import { MemoryVault } from '../../memoryVault';
 import { Platform as StubPlatform, resetPlatform } from '../../obsidianStub';
@@ -696,13 +696,24 @@ describe('changes on disk, from this device or another', () => {
     expect(s.vault.writesTo(NOVEL_INDEX)).toEqual([]);
   });
 
-  it('asks for the words to be counted again when the binder, on closing, took its own request back', async () => {
+  it('keeps its word counts when the binder opens and closes: each screen asks under its own name', async () => {
     const s = await stage();
     const { pane } = await openCorkboard(s);
     expect(seen(cardOf(pane, 'Opening'), 'spellbook-card-words')).toBe('5 / 1,000 words');
-    // What the binder does when it closes: nobody of its own is looking at word counts any more.
-    s.wordCounts.track([]);
+    expect(s.wordCounts.askers()).toEqual(['corkboard']);
+
+    // The binder opens, asks for its notes, and closes again: it lets go of its own request only.
+    const reads = s.vault.reads.readText;
+    s.wordCounts.track('binder', [inNovel(OPENING), inNovel(CLOSING)]);
+    s.wordCounts.release('binder');
+    await calm(s);
+    expect(s.wordCounts.askers()).toEqual(['corkboard']);
+    expect(s.vault.reads.readText).toBe(reads); // no count was dropped, so no note is read again
+    expect(seen(cardOf(pane, 'Opening'), 'spellbook-card-words')).toBe('5 / 1,000 words');
+
+    // A scene that is saved after that is still counted for the cards.
     s.vault.external.write(inNovel(CLOSING), { body: 'Five words are here now.\n' });
+    s.timers.advance(WORD_COUNT_DEBOUNCE_MS);
     await calm(s);
     expect(seen(cardOf(pane, 'Closing'), 'spellbook-card-words')).toBe('5 words');
     expect(seen(cardOf(pane, 'Opening'), 'spellbook-card-words')).toBe('5 / 1,000 words');
@@ -885,8 +896,8 @@ describe('letting go', () => {
     await calm(s);
     expect(s.workspace.listenerCount()).toBe(0);
 
-    // Nothing is read for a board that is not there.
-    s.wordCounts.track([]);
+    // Nothing is read for a board that is not there: it let go of its word counts by itself.
+    expect(s.wordCounts.askers()).toEqual([]);
     const reads = s.vault.reads.readText;
     s.vault.external.write(inNovel(CLOSING), { body: 'Changed while nobody looked.\n' });
     s.vault.external.editFrontmatter(NOVEL_INDEX, (frontmatter) => {

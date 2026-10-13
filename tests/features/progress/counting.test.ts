@@ -141,6 +141,9 @@ describe('counting what is typed', () => {
 
   it('counts no words inside the editor\'s own update, whatever the kind of change', async () => {
     const stand = await standUp();
+    // The manuscript's scenes are counted for the project total first; that is not the editor's doing.
+    await stand.rest();
+    const reads = stand.vault.reads.readText;
     const editor = stand.editor(OPENING);
     // Every count goes through the word segmenter.
     const counting = vi.spyOn(Intl.Segmenter.prototype, 'segment');
@@ -150,7 +153,7 @@ describe('counting what is typed', () => {
     editor.reload(`${editor.text}Seven. `);
     editor.type('Eight. ');
     expect(counting).not.toHaveBeenCalled();
-    expect(stand.vault.reads.readText).toBe(0);
+    expect(stand.vault.reads.readText).toBe(reads);
 
     await stand.pass(PAUSE);
     expect(counting).toHaveBeenCalled();

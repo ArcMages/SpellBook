@@ -64,6 +64,9 @@ const A = 'Novel/Manuscript/A.md';
 const B = 'Novel/Manuscript/B.md';
 const C = 'Novel/Manuscript/C.md';
 
+/** The one asker of most tests: a single screen that wants word counts. */
+const ASKER = 'binder';
+
 function threeNotes(): MemoryVault {
   return new MemoryVault()
     .seed(A, { frontmatter: { status: 'To do', synopsis: 'four words not counted' }, body: 'One two three.\n\n%%a hidden note%%\n' })
@@ -74,7 +77,7 @@ function threeNotes(): MemoryVault {
 describe('counting the notes that are wanted', () => {
   it('counts each tracked note, leaving out its properties and its comments', async () => {
     const s = stage(threeNotes());
-    s.cache.track([A, B, C]);
+    s.cache.track(ASKER, [A, B, C]);
     expect(s.cache.get(A)).toBeUndefined(); // not counted yet
     await drain(s);
 
@@ -86,7 +89,7 @@ describe('counting the notes that are wanted', () => {
 
   it('gives the same number as counting the note in one go', async () => {
     const s = stage(threeNotes());
-    s.cache.track([A, B]);
+    s.cache.track(ASKER, [A, B]);
     await drain(s);
     expect(s.cache.get(A)).toBe(countWords(await s.vault.readText(A)));
     expect(s.cache.get(B)).toBe(countWords(await s.vault.readText(B)));
@@ -94,12 +97,12 @@ describe('counting the notes that are wanted', () => {
 
   it('reads a note only once, however often it is asked for', async () => {
     const s = stage(threeNotes());
-    s.cache.track([A, B]);
+    s.cache.track(ASKER, [A, B]);
     await drain(s);
     expect(s.vault.reads.readText).toBe(2);
 
-    s.cache.track([A, B]);
-    s.cache.track([B, A, C]);
+    s.cache.track(ASKER, [A, B]);
+    s.cache.track(ASKER, [B, A, C]);
     await drain(s);
     expect(s.vault.reads.readText).toBe(3); // only C was new
     expect(s.changes).toEqual([[A, B], [C]]);
@@ -110,15 +113,15 @@ describe('counting the notes that are wanted', () => {
     const vault = threeNotes().seed('Novel/Manuscript/Big.md', { body: big });
     const s = stage(vault);
     const BIG = 'Novel/Manuscript/Big.md';
-    s.cache.track([BIG, A, B]);
+    s.cache.track(ASKER, [BIG, A, B]);
     await tick(); // the big note is in hand, half counted
 
     // The view draws itself again and asks for the same notes, several times.
-    s.cache.track([BIG, A, B]);
-    s.cache.track([A, BIG, B]);
+    s.cache.track(ASKER, [BIG, A, B]);
+    s.cache.track(ASKER, [A, BIG, B]);
     await tick();
     s.timers.advance(0);
-    s.cache.track([BIG, A, B]);
+    s.cache.track(ASKER, [BIG, A, B]);
     await drain(s);
 
     expect(s.cache.get(BIG)).toBe(16000);
@@ -131,36 +134,36 @@ describe('counting the notes that are wanted', () => {
     const vault = threeNotes().seed('Novel/Manuscript/Big.md', { body: big });
     const s = stage(vault);
     const BIG = 'Novel/Manuscript/Big.md';
-    s.cache.track([BIG, A]);
+    s.cache.track(ASKER, [BIG, A]);
     await tick();
-    s.cache.track([A]); // another project is shown for a moment...
-    s.cache.track([BIG, A]); // ...and then this one again
+    s.cache.track(ASKER, [A]); // another project is shown for a moment...
+    s.cache.track(ASKER, [BIG, A]); // ...and then this one again
     await drain(s);
     expect(s.cache.get(BIG)).toBe(16000);
     expect(s.cache.get(A)).toBe(3);
 
     // The same, but the note in hand is finished before it is asked for again.
     const t = stage(threeNotes().seed('Novel/Manuscript/Big.md', { body: big }));
-    t.cache.track([BIG, A]);
+    t.cache.track(ASKER, [BIG, A]);
     await tick();
-    t.cache.track([A]);
+    t.cache.track(ASKER, [A]);
     await drain(t);
     expect(t.cache.get(BIG)).toBeUndefined();
-    t.cache.track([BIG, A]);
+    t.cache.track(ASKER, [BIG, A]);
     await drain(t);
     expect(t.cache.get(BIG)).toBe(16000);
   });
 
   it('knows nothing about notes it was not asked for, and forgets those no longer wanted', async () => {
     const s = stage(threeNotes());
-    s.cache.track([A, B]);
+    s.cache.track(ASKER, [A, B]);
     await drain(s);
     expect(s.cache.get(C)).toBeUndefined();
 
-    s.cache.track([B]);
+    s.cache.track(ASKER, [B]);
     expect(s.cache.get(A)).toBeUndefined();
     expect(s.cache.get(B)).toBe(4);
-    s.cache.track([]);
+    s.cache.track(ASKER, []);
     expect(s.cache.get(B)).toBeUndefined();
     await drain(s);
     expect(s.vault.reads.readText).toBe(2);
@@ -168,7 +171,7 @@ describe('counting the notes that are wanted', () => {
 
   it('writes nothing', async () => {
     const s = stage(threeNotes());
-    s.cache.track([A, B, C]);
+    s.cache.track(ASKER, [A, B, C]);
     await drain(s);
     s.vault.external.write(A, { body: 'changed' });
     s.timers.advance(WORD_COUNT_DEBOUNCE_MS);
@@ -188,7 +191,7 @@ describe('not holding up the app', () => {
       paths.push(path);
     }
     const s = stage(vault);
-    s.cache.track(paths);
+    s.cache.track(ASKER, paths);
 
     // The first go stops well before the end, and waits for its pause to pass.
     await tick();
@@ -217,7 +220,7 @@ describe('not holding up the app', () => {
     const body = line.repeat(2500); // about 175,000 characters
     const vault = new MemoryVault().seed(A, { frontmatter: { order: 1024 }, body });
     const s = stage(vault);
-    s.cache.track([A]);
+    s.cache.track(ASKER, [A]);
     await drain(s);
 
     expect(s.cache.get(A)).toBe(countWords(body));
@@ -237,7 +240,7 @@ describe('not holding up the app', () => {
       vault.seed(paths[paths.length - 1] as string, { body: '' });
     }
     const s = stage(vault);
-    s.cache.track(paths);
+    s.cache.track(ASKER, paths);
     await drain(s);
     expect(paths.every((path) => s.cache.get(path) === 0)).toBe(true);
     expect(s.changes.length).toBeGreaterThan(3);
@@ -248,7 +251,7 @@ describe('not holding up the app', () => {
 describe('when a note is saved', () => {
   it('counts just that note again, a moment after the last save', async () => {
     const s = stage(threeNotes());
-    s.cache.track([A, B, C]);
+    s.cache.track(ASKER, [A, B, C]);
     await drain(s);
     const readsBefore = s.vault.reads.readText;
     s.changes.length = 0;
@@ -275,7 +278,7 @@ describe('when a note is saved', () => {
 
   it('says nothing when the number did not change (a change to the properties, for example)', async () => {
     const s = stage(threeNotes());
-    s.cache.track([A]);
+    s.cache.track(ASKER, [A]);
     await drain(s);
     s.changes.length = 0;
 
@@ -290,7 +293,7 @@ describe('when a note is saved', () => {
 
   it('ignores saves of notes nobody asked about', async () => {
     const s = stage(threeNotes());
-    s.cache.track([A]);
+    s.cache.track(ASKER, [A]);
     await drain(s);
     const readsBefore = s.vault.reads.readText;
 
@@ -306,7 +309,7 @@ describe('when a note is saved', () => {
     const s = stage(vault);
     const seen: Array<number | null | undefined> = [];
     s.cache.onChange(() => seen.push(s.cache.get(A)));
-    s.cache.track([A]);
+    s.cache.track(ASKER, [A]);
     await tick(); // the first piece is counted; the cache is pausing
 
     s.vault.external.write(A, { body: 'Only three words.' });
@@ -321,7 +324,7 @@ describe('when a note is saved', () => {
 describe('when notes come, go and move', () => {
   it('keeps the count of a renamed note without reading it again', async () => {
     const s = stage(threeNotes());
-    s.cache.track([A, B]);
+    s.cache.track(ASKER, [A, B]);
     await drain(s);
     const readsBefore = s.vault.reads.readText;
 
@@ -331,7 +334,7 @@ describe('when notes come, go and move', () => {
     expect(s.cache.get(A)).toBeUndefined();
 
     // The view then asks for the new list; nothing needs counting.
-    s.cache.track([renamed, B]);
+    s.cache.track(ASKER, [renamed, B]);
     await drain(s);
     expect(s.vault.reads.readText).toBe(readsBefore);
 
@@ -344,7 +347,7 @@ describe('when notes come, go and move', () => {
 
   it('follows a note that is renamed while it waits to be counted again', async () => {
     const s = stage(threeNotes());
-    s.cache.track([A]);
+    s.cache.track(ASKER, [A]);
     await drain(s);
 
     s.vault.external.write(A, { body: 'One two.' });
@@ -357,7 +360,7 @@ describe('when notes come, go and move', () => {
 
   it('follows the notes of a renamed folder', async () => {
     const s = stage(threeNotes());
-    s.cache.track([A, B]);
+    s.cache.track(ASKER, [A, B]);
     await drain(s);
     const readsBefore = s.vault.reads.readText;
 
@@ -369,7 +372,7 @@ describe('when notes come, go and move', () => {
 
   it('forgets a deleted note, and counts it when it comes back', async () => {
     const s = stage(threeNotes());
-    s.cache.track([A, B]);
+    s.cache.track(ASKER, [A, B]);
     await drain(s);
 
     s.vault.external.delete(A);
@@ -383,7 +386,7 @@ describe('when notes come, go and move', () => {
 
   it('forgets everything inside a deleted folder', async () => {
     const s = stage(threeNotes());
-    s.cache.track([A, B]);
+    s.cache.track(ASKER, [A, B]);
     await drain(s);
     s.vault.external.delete('Novel/Manuscript');
     expect(s.cache.get(A)).toBeUndefined();
@@ -393,14 +396,14 @@ describe('when notes come, go and move', () => {
   it('marks a note it cannot read, tries no further, and counts it once it arrives', async () => {
     const s = stage(threeNotes());
     const late = 'Novel/Manuscript/Late.md';
-    s.cache.track([A, late]);
+    s.cache.track(ASKER, [A, late]);
     await drain(s);
     expect(s.cache.get(late)).toBeNull();
     expect(s.changes.flat()).toEqual([A, late]);
     const readsBefore = s.vault.reads.readText;
 
-    s.cache.track([A, late]);
-    s.cache.track([late, A]);
+    s.cache.track(ASKER, [A, late]);
+    s.cache.track(ASKER, [late, A]);
     await drain(s);
     expect(s.vault.reads.readText).toBe(readsBefore); // not tried over and over
 
@@ -412,7 +415,7 @@ describe('when notes come, go and move', () => {
   it('counts a note that is renamed onto a path that was waiting for one', async () => {
     const s = stage(threeNotes());
     const wanted = 'Novel/Manuscript/Wanted.md';
-    s.cache.track([wanted]);
+    s.cache.track(ASKER, [wanted]);
     await drain(s);
     expect(s.cache.get(wanted)).toBeNull();
 
@@ -431,12 +434,12 @@ describe('stopping', () => {
       vault.seed(paths[paths.length - 1] as string, { body: `${'word '.repeat(600)}\n` });
     }
     const s = stage(vault);
-    s.cache.track(paths);
+    s.cache.track(ASKER, paths);
     await tick();
     const readsSoFar = s.vault.reads.readText;
     expect(readsSoFar).toBeLessThan(200);
 
-    s.cache.track([]);
+    s.cache.track(ASKER, []);
     await drain(s);
     expect(s.vault.reads.readText).toBe(readsSoFar);
     expect(s.cache.get(paths[0] as string)).toBeUndefined();
@@ -450,7 +453,7 @@ describe('stopping', () => {
       vault.seed(paths[paths.length - 1] as string, { body: `${'word '.repeat(600)}\n` });
     }
     const s = stage(vault);
-    s.cache.track(paths);
+    s.cache.track(ASKER, paths);
     await tick();
     s.vault.external.write(paths[0] as string, { body: 'changed' }); // a save is waiting too
     expect(s.timers.pending).toBe(2);
@@ -463,7 +466,7 @@ describe('stopping', () => {
     s.timers.advance(60_000);
     await tick();
     s.vault.external.write(paths[1] as string, { body: 'changed' });
-    s.cache.track(paths);
+    s.cache.track(ASKER, paths);
     await tick();
 
     expect(s.vault.reads.readText).toBe(readsSoFar);
@@ -483,12 +486,111 @@ describe('stopping', () => {
       s.cache.onChange(() => {
         throw new Error('a view fell over');
       });
-      s.cache.track([A, B]);
+      s.cache.track(ASKER, [A, B]);
       await drain(s);
     } finally {
       console.error = original;
     }
     expect(s.cache.get(B)).toBe(4);
     expect(logged).toHaveLength(1);
+  });
+});
+
+describe('more than one screen asking', () => {
+  it('counts what any asker wants, each note once', async () => {
+    const s = stage(threeNotes());
+    s.cache.track('binder', [A, B]);
+    s.cache.track('corkboard', [B, C]);
+    expect(s.cache.askers()).toEqual(['binder', 'corkboard']);
+    await drain(s);
+    expect([s.cache.get(A), s.cache.get(B), s.cache.get(C)]).toEqual([3, 4, 0]);
+    expect(s.vault.reads.readText).toBe(3); // B was wanted twice and read once
+    expect(s.changes.flat()).toEqual([A, B, C]);
+  });
+
+  it('lets one asker change its list without touching what another wants', async () => {
+    const s = stage(threeNotes());
+    s.cache.track('binder', [A, B]);
+    s.cache.track('progress', [A]);
+    await drain(s);
+
+    // The binder now wants C only: B is forgotten, A stays for the other asker.
+    s.cache.track('binder', [C]);
+    await drain(s);
+    expect([s.cache.get(A), s.cache.get(B), s.cache.get(C)]).toEqual([3, undefined, 0]);
+    expect(s.vault.reads.readText).toBe(3); // A was not read again
+  });
+
+  it('keeps the counts another asker wants when one stops, and forgets the rest', async () => {
+    const s = stage(threeNotes());
+    s.cache.track('binder', [A, B, C]);
+    s.cache.track('progress', [A, B]);
+    await drain(s);
+    const reads = s.vault.reads.readText;
+
+    s.cache.release('binder'); // the binder closes
+    expect(s.cache.askers()).toEqual(['progress']);
+    expect([s.cache.get(A), s.cache.get(B), s.cache.get(C)]).toEqual([3, 4, undefined]);
+
+    // What is still wanted is still followed; what nobody wants is left alone.
+    s.vault.external.write(A, { body: 'One two three four five.\n' });
+    s.vault.external.write(C, { body: 'Nobody wants this counted.\n' });
+    s.timers.advance(WORD_COUNT_DEBOUNCE_MS);
+    await drain(s);
+    expect(s.cache.get(A)).toBe(5);
+    expect(s.cache.get(C)).toBeUndefined();
+    expect(s.vault.reads.readText).toBe(reads + 1);
+
+    s.cache.release('progress');
+    s.cache.release('progress'); // again, and for someone who never asked: nothing happens
+    s.cache.release('nobody');
+    expect(s.cache.askers()).toEqual([]);
+    expect(s.cache.get(A)).toBeUndefined();
+  });
+
+  it('treats an empty list as letting go', async () => {
+    const s = stage(threeNotes());
+    s.cache.track('binder', [A]);
+    s.cache.track('corkboard', [B]);
+    await drain(s);
+    s.cache.track('binder', []);
+    expect(s.cache.askers()).toEqual(['corkboard']);
+    expect([s.cache.get(A), s.cache.get(B)]).toEqual([undefined, 4]);
+  });
+
+  it('drops only the queued notes that no asker wants any more', async () => {
+    const vault = new MemoryVault();
+    const paths: string[] = [];
+    for (let n = 1; n <= 120; n++) {
+      paths.push(`Novel/Manuscript/Scene ${n}.md`);
+      vault.seed(paths[paths.length - 1] as string, { body: 'One two.\n' });
+    }
+    const s = stage(vault);
+    s.cache.track('binder', paths);
+    s.cache.track('progress', paths.slice(0, 60));
+    await tick();
+    s.cache.release('binder');
+    await drain(s);
+    expect(s.cache.get(paths[59] as string)).toBe(2);
+    expect(s.cache.get(paths[60] as string)).toBeUndefined();
+    expect(s.vault.reads.readText).toBeLessThan(120);
+  });
+
+  it('follows a renamed note for every asker that wanted it', async () => {
+    const s = stage(threeNotes());
+    const renamed = 'Novel/Manuscript/A renamed.md';
+    s.cache.track('binder', [A, B]);
+    s.cache.track('progress', [A]);
+    await drain(s);
+    s.vault.external.rename(A, renamed);
+    await drain(s);
+    expect(s.cache.get(renamed)).toBe(3);
+
+    // The binder lets go: the note is still wanted, under its new name, by the other asker.
+    s.cache.release('binder');
+    expect(s.cache.get(renamed)).toBe(3);
+    expect(s.cache.get(B)).toBeUndefined();
+    s.cache.release('progress');
+    expect(s.cache.get(renamed)).toBeUndefined();
   });
 });
