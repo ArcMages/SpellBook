@@ -42,7 +42,8 @@ import { EVENT_MARKER_KEY, EVENT_MARKER_VALUE } from './timeline';
 import { countWords } from './wordCount';
 import { newEntityBody, newEntityFrontmatter } from './world/entity';
 import { nameLink } from './world/links';
-import { ALIASES_KEY, BUILT_IN_TYPES, ENTITIES_KEY } from './world/types';
+import { writeRelation } from './world/relations';
+import { ALIASES_KEY, BUILT_IN_TYPES, ENTITIES_KEY, RELATED_KEY } from './world/types';
 
 /** The name of the sample project; a second one becomes "Sample Novel 2". */
 export const SAMPLE_PROJECT_NAME = 'Sample Novel';
@@ -224,7 +225,10 @@ function eventSeed(event: SampleEvent): EventSeed {
 /**
  * An entity's note, as "New character" and the like would make it (its type,
  * the type's properties in order, its other names; the type's headings), with
- * the properties filled in and a line under the first heading.
+ * the properties filled in and a text under the first heading, and for some
+ * under the others too. An entity that has to do with others lists them last,
+ * the way the sheet's "Related" writes them: links, with the label as the
+ * name each link shows.
  */
 function worldSeed(entity: SampleEntity): WorldSeed {
   const type = BUILT_IN_TYPES.find((candidate) => candidate.id === entity.type);
@@ -235,8 +239,13 @@ function worldSeed(entity: SampleEntity): WorldSeed {
     if (value !== undefined) frontmatter[field] = value;
   }
   if (entity.aliases !== undefined) frontmatter[ALIASES_KEY] = [...entity.aliases];
-  const [first = '', ...rest] = newEntityBody(type).split('\n\n');
-  const body = [first, entity.description, ...rest].join('\n\n');
+  if (entity.related !== undefined) frontmatter[RELATED_KEY] = entity.related.map(([name, label]) => writeRelation(name, label));
+  // Each heading, then its text when the entity has one. (The template ends with an empty piece, which keeps the note's last line empty.)
+  const texts = [entity.description, ...(entity.sections ?? [])];
+  const body = newEntityBody(type)
+    .split('\n\n')
+    .flatMap((heading, index) => (heading !== '' && texts[index] !== undefined ? [heading, texts[index] as string] : [heading]))
+    .join('\n\n');
   return { folder: type.folder, title: entity.name, frontmatter, body };
 }
 
@@ -278,9 +287,10 @@ function todoText(today: string): string {
  * timelines with ten events, four scenes with a date in the story, eighteen
  * scenes with a word target (some short of it, some exactly at it, some past
  * it), two marks on the calendar and the writing targets; and a world of
- * thirteen characters, places, groups and things, which most scenes and
- * events link to. The world keeps the four types every project has, and the
- * story the ordinary calendar.
+ * eighteen characters, places, groups, things, tales, creatures and peoples,
+ * at least one of every type a project has, which most scenes and events
+ * link to and which are related to each other. The world keeps the types
+ * every project has, and the story the ordinary calendar.
  *
  * It has no writing history: no word log is made up.
  *
