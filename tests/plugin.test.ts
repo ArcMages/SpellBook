@@ -217,7 +217,7 @@ describe('loading and unloading', () => {
     expect(plugin.features).toBeNull(); // not before Obsidian has finished starting
 
     fake.finishStartup();
-    expect(plugin.features?.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes']);
+    expect(plugin.features?.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'modes']);
     // Every screen's kind of pane is known to Obsidian, after the binder's own.
     expect(stub.viewTypes).toEqual([
       'spellbook-binder',
@@ -235,6 +235,7 @@ describe('loading and unloading', () => {
     expect(plugin.features?.settingsSections.map((section) => [section.id, section.title])).toEqual([
       ['progress', 'Writing progress'],
       ['schemes', 'Colour scheme'],
+      ['modes', 'Writing modes'],
     ]);
     // It watches the editor, has its place in the bottom bar, and listens to the workspace.
     expect(stub.editorExtensions).toHaveLength(1);
@@ -1375,6 +1376,7 @@ describe('the settings page', () => {
       // After the projects: the one section a screen added, under its own heading.
       { name: 'Writing progress', desc: '', heading: true },
       { name: 'Colour scheme', desc: '', heading: true },
+      { name: 'Writing modes', desc: '', heading: true },
     ]);
     // titles and folders are the writer's own text: each picks its own direction
     for (const row of element.settings.slice(2, 5)) {
@@ -1396,7 +1398,7 @@ describe('the settings page', () => {
     const { stub } = loadReady();
     const { tab, rows } = page(stub);
     tab.display();
-    expect(rows().map((row) => row.name)).toEqual(['Spellbook', 'Projects in this vault', '', 'Writing progress', 'Colour scheme']);
+    expect(rows().map((row) => row.name)).toEqual(['Spellbook', 'Projects in this vault', '', 'Writing progress', 'Colour scheme', 'Writing modes']);
     expect(rows()[2]?.name).toBe('');
     expect(rows()[2]?.desc).toMatch(/No projects yet/);
     expect(rows()[2]?.desc).toMatch(/"Spellbook: Create project"/);
@@ -1421,12 +1423,12 @@ describe('the settings page', () => {
       return next < 0 ? after : after.slice(0, next);
     };
     tab.display();
-    expect(rows()).toHaveLength(5);
+    expect(rows()).toHaveLength(6);
     expect(projects().map((row) => row.name)).toEqual(['']); // "No projects yet"
 
     await plugin.createProject('First');
     expect(projects()).toEqual([{ name: 'First', desc: 'First', heading: false }]);
-    expect(rows().filter((row) => row.heading).map((row) => row.name)).toEqual(['Projects in this vault', 'Writing progress', 'Colour scheme']);
+    expect(rows().filter((row) => row.heading).map((row) => row.name)).toEqual(['Projects in this vault', 'Writing progress', 'Colour scheme', 'Writing modes']);
 
     tab.display(); // opened again: still one listener's worth of rows
     await plugin.createProject('Second');
