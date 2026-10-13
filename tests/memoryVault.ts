@@ -21,7 +21,7 @@ import type { Frontmatter } from '../src/core/types';
 import { VaultFileMissingError } from '../src/core/vaultPort';
 import type { MarkdownFileInfo, VaultEvent, VaultListener, VaultPort } from '../src/core/vaultPort';
 
-export type WriteOp = 'createFile' | 'createFolder' | 'rename' | 'trash' | 'updateFrontmatter' | 'updateText';
+export type WriteOp = 'createFile' | 'createBinary' | 'createFolder' | 'rename' | 'trash' | 'updateFrontmatter' | 'updateText';
 
 export interface WriteRecord {
   readonly op: WriteOp;
@@ -48,6 +48,8 @@ interface StoredFile {
   raw?: string;
   /** The day the file was created, as YYYY-MM-DD, when a test has set one. */
   created?: string;
+  /** The file's bytes, for a file that was created from bytes (createBinary). */
+  bytes?: Uint8Array;
 }
 
 /** A whole text taken apart into its properties block (as readText writes one) and the rest. */
@@ -249,6 +251,13 @@ export class MemoryVault implements VaultPort {
     return this.compose(this.requireFile(path));
   }
 
+  /** The bytes of a file that was created from bytes (an export), exactly as they were given. */
+  bytesOf(path: string): Uint8Array {
+    const bytes = this.requireFile(path).bytes;
+    if (!bytes) throw new Error(`"${path}" was not created from bytes`);
+    return bytes.slice();
+  }
+
   /** Say on which day a file was created (as YYYY-MM-DD); the vault knows of none otherwise. */
   setCreatedDay(path: string, day: string): this {
     this.requireFile(path).created = day;
@@ -324,6 +333,7 @@ export class MemoryVault implements VaultPort {
 
   private compose(file: StoredFile): string {
     if (file.corrupt) return `---\nbinder: [unclosed\n---\n${file.body}`;
+    if (file.bytes !== undefined) return new TextDecoder().decode(file.bytes);
     if (file.raw !== undefined) return file.raw;
     if (file.frontmatter === null) return file.body;
     const lines = Object.entries(file.frontmatter).map(([key, value]) => `${key}: ${JSON.stringify(value)}`);
@@ -348,6 +358,19 @@ export class MemoryVault implements VaultPort {
       body,
       corrupt: false,
     });
+    this.emit({ type: 'create', path, folder: false });
+    this.index(path);
+    return path;
+  }
+
+  async createBinary(path: string, data: Uint8Array): Promise<string> {
+    this.maybeFail('createBinary', path);
+    if (this.exists(path)) throw new Error(`File already exists: ${path}`);
+    const parent = parentPath(path);
+    if (parent !== '' && !this.folders.has(parent)) throw new Error(`Folder does not exist: ${parent}`);
+    this.writes.push({ op: 'createBinary', path });
+    // An export has no properties block: as a note it is all text.
+    this.files.set(path, { frontmatter: null, body: '', corrupt: false, bytes: data.slice() });
     this.emit({ type: 'create', path, folder: false });
     this.index(path);
     return path;

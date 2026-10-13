@@ -9,7 +9,9 @@
 //   - notes are renamed with fileManager.renameFile (links are kept working),
 //   - a whole text is only ever replaced in the plugin's own files (the to-do
 //     list and the word logs), in one place: updateText below, which reads,
-//     changes and saves in one step with vault.process.
+//     changes and saves in one step with vault.process,
+//   - a file is written from bytes in one place only: createBinary below,
+//     which makes a new exported manuscript and can replace nothing.
 
 import { TFile, TFolder, getFrontMatterInfo, normalizePath, parseYaml, stringifyYaml } from 'obsidian';
 import type { App, EventRef, Events, TAbstractFile } from 'obsidian';
@@ -198,6 +200,22 @@ export class ObsidianVault implements VaultPort {
       text = `---\n${yaml}${yaml.endsWith('\n') ? '' : '\n'}---\n${body}`;
     }
     const file = await this.app.vault.create(normalizePath(path), text);
+    return file.path;
+  }
+
+  /**
+   * The one place in the plugin that writes a file from bytes. Only the
+   * project store calls it, and only for a new file in a project's Exports
+   * folder: see createExportFile in src/core/projectStore.ts. It makes a new
+   * file or fails; it cannot change one that is there.
+   */
+  async createBinary(path: string, data: Uint8Array): Promise<string> {
+    const wanted = normalizePath(path);
+    if (this.exists(wanted)) throw new Error(`There is already a file at "${wanted}".`);
+    // Exactly these bytes, in a buffer of their own.
+    const bytes = new Uint8Array(data.length);
+    bytes.set(data);
+    const file = await this.app.vault.createBinary(wanted, bytes.buffer);
     return file.path;
   }
 

@@ -66,6 +66,8 @@ import {
   writeBinder,
 } from './projectIndex';
 import {
+  EXPORTS_FOLDER,
+  EXPORT_EXTENSIONS,
   MANUSCRIPT_FOLDER,
   PROJECT_FOLDERS,
   RESEARCH_FOLDER,
@@ -95,7 +97,7 @@ import { VaultFileMissingError } from './vaultPort';
 import type { MarkdownFileInfo, VaultEvent, VaultPort } from './vaultPort';
 import { stripFrontmatter } from './wordCount';
 
-export { MANUSCRIPT_FOLDER, PROJECT_FOLDERS, STATS_FOLDER, TIMELINE_FOLDER, TODO_FILE } from './projectLayout';
+export { EXPORTS_FOLDER, MANUSCRIPT_FOLDER, PROJECT_FOLDERS, STATS_FOLDER, TIMELINE_FOLDER, TODO_FILE } from './projectLayout';
 
 /** How long to wait after the last change before writing order keys into scene notes. */
 export const ORDER_DEBOUNCE_MS = 1500;
@@ -1404,6 +1406,74 @@ export class ProjectStore {
       return failed(`"${rel}" could not be saved: ${messageOf(error)}`);
     }
     return done({ created });
+  }
+
+  /**
+   * Save an exported manuscript: a new file directly inside the open
+   * project's Exports folder, made of the bytes given. The folder is made
+   * first when the project has none.
+   *
+   * This is the only way the plugin writes a file that is not a note or one
+   * of its own data files, and it reaches no further than that folder.
+   * Nothing is ever replaced: it is refused ("exists") when the folder
+   * already holds something of that name, whatever its capitals, so that the
+   * caller can try the next name. Refused as well for a name that is not a
+   * tidy file name as it stands or that names a place (a slash, ".."), for a
+   * file that is not one of the kinds an export can be (.md, .html, .docx),
+   * for a name the binder lists as a scene, for a read-only project, and
+   * when no project is open.
+   *
+   * @param name the file's name with its ending, for example "My Novel 2026-10-13.docx"
+   * @param data the whole file
+   * @returns the new file's path relative to the project folder
+   */
+  createExportFile(name: string, data: Uint8Array, inProject?: string): Promise<IntentResult<{ path: string }>> {
+    return this.run(async (): Promise<IntentResult<{ path: string }>> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = this.exportFilePath(active, name);
+      if (typeof rel !== 'string') return rel;
+      const target = joinPath(active.folder, rel);
+      if (this.vault.exists(target)) {
+        return refused('exists', `There is already a file called "${name}" in the ${EXPORTS_FOLDER} folder.`);
+      }
+      let createdPath: string;
+      try {
+        const folder = joinPath(active.folder, EXPORTS_FOLDER);
+        if (!this.vault.exists(folder)) await this.vault.createFolder(folder);
+        // The vault itself refuses to create a file where something already is.
+        createdPath = await this.vault.createBinary(target, data);
+      } catch (error) {
+        return failed(`"${name}" could not be saved: ${messageOf(error)}`);
+      }
+      return done({ path: relativeTo(active.folder, createdPath) ?? rel });
+    }, inProject);
+  }
+
+  /**
+   * Check the name given for an exported file. Only a plain file name with
+   * one of the endings of an export passes, and it is placed directly inside
+   * the Exports folder: this is what keeps createExportFile away from every
+   * other place in the vault. Returns the path relative to the project
+   * folder, or a refusal.
+   */
+  private exportFilePath(
+    active: ActiveProject,
+    name: string,
+  ): string | { status: 'refused'; reason: RefusalReason; message: string } {
+    const no = refused('invalid-name', `"${name}" cannot be used as the name of an exported file.`);
+    const dot = name.lastIndexOf('.');
+    if (dot < 1 || !EXPORT_EXTENSIONS.includes(name.slice(dot + 1))) return no;
+    const stem = name.slice(0, dot);
+    // A name that the tidying would change holds something it should not: a slash, a colon, a leading dot.
+    if (sanitiseFileName(stem, '') !== stem) return no;
+    const rel = `${EXPORTS_FOLDER}/${name}`;
+    if (!isSafeRelativePath(rel) || parentPath(rel) !== EXPORTS_FOLDER) return no;
+    if (clashKey(joinPath(active.folder, rel)) === clashKey(active.indexPath)) return no;
+    const wanted = clashKey(rel);
+    if (flattenScenes(this.effectiveBinder(active)).some((scene) => clashKey(scene) === wanted)) return no;
+    return rel;
   }
 
   /**
