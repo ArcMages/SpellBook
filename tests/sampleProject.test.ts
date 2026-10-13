@@ -2,19 +2,32 @@
 // should be created), then created for real in the memory vault.
 
 import { describe, expect, it } from 'vitest';
+import { TAG_INDEX_KEYS, readTagLists } from '../src/core/cards';
 import { createSampleProject } from '../src/core/newProject';
+import { MARKS_KEY, parseMarks } from '../src/core/planner';
+import { TARGETS_KEY, parseTargets } from '../src/core/progress';
 import { isFolderSeed } from '../src/core/projectSeed';
 import type { BinderSeed, FolderSeed, SceneSeed } from '../src/core/projectSeed';
-import { composeScene, DUE_DATE_MARK, SAMPLE_PROJECT_NAME, sampleProject, seededRandom } from '../src/core/sampleProject';
+import {
+  composeScene,
+  DUE_DATE_MARK,
+  SAMPLE_PROJECT_NAME,
+  SAMPLE_TIMELINES_KEY,
+  sampleProject,
+  seededRandom,
+} from '../src/core/sampleProject';
 import {
   ACTION_SENTENCES,
   DIALOGUE_LINES,
   REFLECTION_SENTENCES,
   SAMPLE_CHARACTERS,
+  SAMPLE_EVENTS,
   SETTING_SENTENCES,
   SHARED_SENTENCES,
 } from '../src/core/sampleText';
 import { SCENE_STATUSES } from '../src/core/scene';
+import { displayLanes, eventLaneKeys, readLanes, readTimeline, storyDateToDayNumber } from '../src/core/timeline';
+import { TIMELINES_KEY } from '../src/features/timeline/timelineWiring';
 import { countWords } from '../src/core/wordCount';
 import { MemoryVault } from './memoryVault';
 import { binderOnDisk, draw, makeStore, project, seedProject, settle, TODAY, valueOf } from './storeHarness';
@@ -249,7 +262,7 @@ describe('the sample project, as described', () => {
     expect(countWords(seed.unfiled?.[0]?.body ?? '')).toBeGreaterThan(30);
   });
 
-  it('is the same every time, and only the to-do dates follow the calendar', () => {
+  it('is the same every time, and only the to-do dates, the day marks and the deadline follow the calendar', () => {
     expect(sampleProject(TODAY)).toEqual(seed);
     expect(JSON.stringify(sampleProject(TODAY))).toBe(JSON.stringify(seed));
 
@@ -257,13 +270,197 @@ describe('the sample project, as described', () => {
     expect(later.binder).toEqual(seed.binder);
     expect(later.research).toEqual(seed.research);
     expect(later.unfiled).toEqual(seed.unfiled);
+    expect(later.events).toEqual(seed.events);
     expect(later.todo).not.toBe(seed.todo);
     expect(later.todo).toContain(`${DUE_DATE_MARK} 2027-03-02`);
     expect(later.todo).toContain(`${DUE_DATE_MARK} 2027-03-09`);
+
+    // Of what goes into the index, only the marks' days and the deadline moved.
+    const { marks, targets, ...fixed } = seed.data ?? {};
+    const { marks: laterMarks, targets: laterTargets, ...laterFixed } = later.data ?? {};
+    expect(laterFixed).toEqual(fixed);
+    expect(Object.keys(fixed)).toEqual(['statuses', 'labels', 'timelines']);
+    expect(Object.values(laterMarks as object)).toEqual(Object.values(marks as object));
+    expect(Object.keys(laterMarks as object)).toEqual(['2027-03-01', '2027-03-05']);
+    expect(laterTargets).toEqual({ ...(targets as object), deadline: '2027-07-27' });
   });
 
   it('is plain data: text and lists only', () => {
     expect(JSON.parse(JSON.stringify(seed))).toEqual(seed);
+  });
+});
+
+describe('the sample project, for the screens besides the binder', () => {
+  const data = seed.data ?? {};
+  const events = seed.events ?? [];
+  const eventNotes = events.map((event) => ({ path: `Sample Novel/Timeline/${event.title}.md`, frontmatter: event.frontmatter }));
+  const sceneNotes = allScenes.map((scene) => ({
+    path: `Sample Novel/Manuscript/${scene.title}.md`,
+    frontmatter: scene.date === undefined ? {} : { date: scene.date },
+  }));
+
+  it('keeps five things in the index, under the names the screens read them by', () => {
+    expect(Object.keys(data)).toEqual(['statuses', 'labels', 'timelines', 'marks', 'targets']);
+    expect([TAG_INDEX_KEYS.status, TAG_INDEX_KEYS.label, TIMELINES_KEY, MARKS_KEY, TARGETS_KEY]).toEqual(Object.keys(data));
+    expect(SAMPLE_TIMELINES_KEY).toBe(TIMELINES_KEY);
+  });
+
+  it('gives each of the four statuses a colour, and each of the three characters\' labels', () => {
+    expect(data['statuses']).toEqual([
+      { name: 'To do', color: 'red' },
+      { name: 'First draft', color: 'orange' },
+      { name: 'Revised', color: 'blue' },
+      { name: 'Final', color: 'green' },
+    ]);
+    expect(data['labels']).toEqual([
+      { name: 'Mara', color: 'purple' },
+      { name: 'Tobias', color: 'cyan' },
+      { name: 'Noa', color: 'pink' },
+    ]);
+    // The corkboard reads them without a complaint, and finds every scene's status and label among them.
+    const lists = readTagLists(data);
+    for (const list of [lists.statuses, lists.labels]) {
+      expect(list.problems).toEqual([]);
+      expect(list.fromDefaults).toBe(false);
+      expect(list.unreadable).toBe(false);
+      expect(list.tags.every((tag) => tag.color !== null)).toBe(true);
+    }
+    expect(lists.statuses.tags.map((tag) => tag.name)).toEqual([...SCENE_STATUSES]);
+    expect(lists.labels.tags.map((tag) => tag.name)).toEqual([...SAMPLE_CHARACTERS]);
+    expect(new Set(lists.labels.tags.map((tag) => tag.color)).size).toBe(3);
+    expect(new Set(lists.statuses.tags.map((tag) => tag.color)).size).toBe(4);
+  });
+
+  it('has three timelines, each with a colour of its own', () => {
+    expect(data['timelines']).toEqual([
+      { name: 'Main plot', color: 'purple' },
+      { name: "Mara's survey", color: 'cyan' },
+      { name: 'Backstory', color: 'orange' },
+    ]);
+    const lanes = readLanes(data['timelines']);
+    expect(lanes.problems).toEqual([]);
+    expect(lanes.readable).toBe(true);
+    expect(lanes.lanes.map((lane) => [lane.name, lane.color])).toEqual([
+      ['Main plot', 'purple'],
+      ["Mara's survey", 'cyan'],
+      ['Backstory', 'orange'],
+    ]);
+  });
+
+  it('has ten events, exactly these, each a note of its own with the properties the timeline reads', () => {
+    expect(events.map((event) => [event.title, event.frontmatter['date'], event.frontmatter['end'], event.frontmatter['timelines']])).toEqual([
+      ['The lighthouse is closed', '1922-11', undefined, ['Backstory']],
+      ['The old chart is last corrected', '1923-02-10', undefined, ['Backstory']],
+      ['The winter storm', '1923-10-12', undefined, ['Main plot']],
+      ['Mara arrives in Saltwick', '1923-10-14', undefined, ['Main plot', "Mara's survey"]],
+      ['The survey of the bay', '1923-10-20', '1923-12-01', ["Mara's survey"]],
+      ['נועה מוצאת את המפה הישנה', '1923-11-05', undefined, ['Main plot']],
+      ['The lowest tide of the month', '1923-11-08', undefined, ["Mara's survey"]],
+      ['The missing boat is found', '1923-11-19', undefined, ['Main plot']],
+      ['The second storm', '1923-12-03', undefined, ['Main plot']],
+      ['The new chart is published', '1924-03', undefined, ["Mara's survey"]],
+    ]);
+    expect(new Set(events.map((event) => event.title)).size).toBe(10);
+    for (const event of events) {
+      const keys = Object.keys(event.frontmatter);
+      expect(keys.slice(0, 2), event.title).toEqual(['spellbook', 'date']);
+      expect(keys.filter((key) => !['spellbook', 'date', 'end', 'timelines', 'scenes', 'tags'].includes(key)), event.title).toEqual([]);
+      expect(event.frontmatter['spellbook']).toBe('event');
+      expect((event.body ?? '').trim().length, event.title).toBeGreaterThan(10);
+      expect((event.body ?? '').endsWith('\n')).toBe(true);
+    }
+    expect(SAMPLE_EVENTS).toHaveLength(10);
+  });
+
+  it('has one event that lasts six weeks, one in two timelines and one with a Hebrew title', () => {
+    const model = readTimeline(eventNotes, []);
+    expect(model.undated).toEqual([]);
+    expect(model.dated).toHaveLength(10);
+    // The timeline reads every one of them without a complaint.
+    expect(model.dated.flatMap((event) => event.problems)).toEqual([]);
+
+    const spans = model.dated.filter((event) => event.end !== null);
+    expect(spans.map((event) => event.title)).toEqual(['The survey of the bay']);
+    const [survey] = spans;
+    if (!survey?.start || !survey.end) throw new Error('the survey has no dates');
+    expect(storyDateToDayNumber(survey.end) - storyDateToDayNumber(survey.start)).toBe(42); // six weeks to the day
+
+    const shared = model.dated.filter((event) => event.timelines.length > 1);
+    expect(shared.map((event) => [event.title, event.timelines])).toEqual([
+      ['Mara arrives in Saltwick', ['Main plot', "Mara's survey"]],
+    ]);
+
+    const hebrew = model.dated.filter((event) => HEBREW_LETTER.test(event.title));
+    expect(hebrew.map((event) => event.title)).toEqual(['נועה מוצאת את המפה הישנה']);
+    expect(LATIN_LETTER.test(hebrew[0]?.title ?? 'x')).toBe(false);
+    expect(hebrew[0]?.tags).toEqual(['ארכיון']);
+    expect(HEBREW_LETTER.test(events.find((event) => event.title === hebrew[0]?.title)?.body ?? '')).toBe(true);
+  });
+
+  it('puts every event in a timeline the project lists, and links only scenes that exist', () => {
+    const lanes = readLanes(data['timelines']).lanes;
+    const model = readTimeline(eventNotes, []);
+    const shown = displayLanes(lanes, model.dated);
+    // Three lanes of the project's own; nothing fell into "Other".
+    expect(shown.map((lane) => lane.name)).toEqual(['Manuscript', 'Main plot', "Mara's survey", 'Backstory']);
+    const perLane = new Map<string, number>();
+    for (const event of model.dated) {
+      for (const key of eventLaneKeys(event, lanes)) perLane.set(key, (perLane.get(key) ?? 0) + 1);
+    }
+    expect([...perLane]).toEqual([
+      ['backstory', 2],
+      ['main plot', 5],
+      ["mara's survey", 4],
+    ]);
+    const titles = new Set(allScenes.map((scene) => scene.title));
+    const linked = model.dated.flatMap((event) => event.scenes);
+    expect(linked.length).toBeGreaterThan(8);
+    for (const link of linked) expect(titles.has(link), link).toBe(true);
+  });
+
+  it('gives four scenes a date in the story, so the Manuscript lane has something to show', () => {
+    expect(allScenes.filter((scene) => scene.date !== undefined).map((scene) => [scene.title, scene.date])).toEqual([
+      ['Prologue', '1923-10-12'],
+      ['The Last Ferry', '1923-10-14'],
+      ['Low Water', '1923-11-08'],
+      ['הלילה שלפני הסערה', '1923-12-02'],
+    ]);
+    const model = readTimeline(eventNotes, sceneNotes);
+    const scenes = model.dated.filter((event) => event.source === 'scene');
+    expect(scenes.map((event) => event.title)).toEqual(['Prologue', 'The Last Ferry', 'Low Water', 'הלילה שלפני הסערה']);
+    expect(scenes.flatMap((event) => event.problems)).toEqual([]);
+    // Everything together sits within a year and a half, so "Fit" shows cards, not dots.
+    const all = model.dated.map((event) => (event.start ? storyDateToDayNumber(event.start) : 0));
+    expect(Math.max(...all) - Math.min(...all)).toBeLessThan(550);
+  });
+
+  it('marks two days on the calendar, a few days after the day it is made', () => {
+    expect(data['marks']).toEqual({
+      '2026-10-15': { color: 'blue', label: 'Writing group' },
+      '2026-10-19': { color: 'green', label: 'Day off' },
+    });
+    const parsed = parseMarks(data['marks']);
+    expect(parsed.notes).toEqual([]);
+    expect([...parsed.marks]).toEqual([
+      ['2026-10-15', { color: 'blue', label: 'Writing group' }],
+      ['2026-10-19', { color: 'green', label: 'Day off' }],
+    ]);
+    // Across the end of a month and of a year, they are still two and six days on.
+    expect(Object.keys((sampleProject('2026-12-28').data ?? {})['marks'] as object)).toEqual(['2026-12-30', '2027-01-03']);
+  });
+
+  it('sets the targets: 80,000 words in all, 1,000 a day, and a deadline some months ahead', () => {
+    expect(data['targets']).toEqual({ project: 80000, daily: 1000, deadline: '2027-03-12' });
+    const parsed = parseTargets(data['targets']);
+    expect(parsed.problems).toEqual([]);
+    expect(parsed.targets).toEqual({ project: 80000, daily: 1000, deadline: '2027-03-12' });
+    // 150 days: about five months, whenever the sample is made.
+    expect(((sampleProject('2027-02-27').data ?? {})['targets'] as { deadline: string }).deadline).toBe('2027-07-27');
+  });
+
+  it('invents no writing history: nothing in it is a word log', () => {
+    expect(Object.keys(seed).sort()).toEqual(['binder', 'data', 'events', 'research', 'todo', 'unfiled']);
+    expect(JSON.stringify(seed)).not.toMatch(/Stats\//);
   });
 });
 
@@ -392,11 +589,15 @@ describe('the sample project, created in a vault', () => {
     ]);
     expect(created).toContain('Sample Novel/Sample Novel.md');
     expect(created).toContain('Sample Novel/To-do.md');
-    expect(created).toHaveLength(53 + 2 + 2);
+    expect(created.filter((path) => path.startsWith('Sample Novel/Timeline/'))).toEqual(
+      SAMPLE_EVENTS.map((event) => `Sample Novel/Timeline/${event.title}.md`).sort(),
+    );
+    expect(created).toHaveLength(53 + 2 + 2 + 10);
     for (const sub of ['Manuscript', 'Timeline', 'Research', 'Stats']) expect(vault.hasFolder(`Sample Novel/${sub}`), sub).toBe(true);
-    expect(vault.paths().filter((path) => path.startsWith('Sample Novel/Timeline/') || path.startsWith('Sample Novel/Stats/'))).toEqual([]);
+    // No writing history is made up: the Stats folder is there and it is empty.
+    expect(vault.paths().filter((path) => path.startsWith('Sample Novel/Stats/'))).toEqual([]);
 
-    // only creations, plus the one write that lists the scenes in the new index
+    // only creations, plus the one write that lists the scenes (and the screens' data) in the new index
     expect(vault.writes.filter((write) => write.op !== 'createFile' && write.op !== 'createFolder')).toEqual([
       { op: 'updateFrontmatter', path: 'Sample Novel/Sample Novel.md' },
     ]);
@@ -410,7 +611,8 @@ describe('the sample project, created in a vault', () => {
   it('writes the index as the design says: scene paths as text, folders with a name, an id and children', async () => {
     const { vault, made } = await create();
     const index = vault.frontmatterOf('Sample Novel/Sample Novel.md') ?? {};
-    expect(Object.keys(index)).toEqual(['spellbook', 'version', 'title', 'binder']);
+    // The index's own four properties first, then what the other screens keep there.
+    expect(Object.keys(index)).toEqual(['spellbook', 'version', 'title', 'binder', 'statuses', 'labels', 'timelines', 'marks', 'targets']);
     expect(index).toMatchObject({ spellbook: 'project', version: 1, title: 'Sample Novel' });
     expect(vault.bodyOf('Sample Novel/Sample Novel.md')).toBe('');
 
@@ -439,7 +641,11 @@ describe('the sample project, created in a vault', () => {
     made.project.scenes.forEach((relative, index) => {
       const path = `Sample Novel/${relative}`;
       const frontmatter = vault.frontmatterOf(path) ?? {};
-      expect(Object.keys(frontmatter), path).toEqual(['synopsis', 'status', 'label', 'compile', 'order', 'created']);
+      const described = allScenes[index] as SceneSeed;
+      // The standard six; a scene that has a date in the story has that as well, and no other scene does.
+      const standard = ['synopsis', 'status', 'label', 'compile', 'order', 'created'];
+      expect(Object.keys(frontmatter), path).toEqual(described.date === undefined ? standard : [...standard, 'date']);
+      expect(frontmatter['date'], path).toBe(described.date);
       expect(frontmatter['order'], path).toBe(1024 * (index + 1));
       expect(frontmatter['compile'], path).toBe(true);
       expect(frontmatter['created'], path).toBe(TODAY);
@@ -447,11 +653,40 @@ describe('the sample project, created in a vault', () => {
       expect(SAMPLE_CHARACTERS, path).toContain(frontmatter['label']);
       expect(String(frontmatter['synopsis']).length, path).toBeGreaterThan(20);
       // the note holds exactly the text that was described, and its title is its file name
-      const described = allScenes[index] as SceneSeed;
       expect(relative, path).toBe(`Manuscript/${described.title}.md`);
       expect(vault.bodyOf(path), path).toBe(described.body);
       expect(frontmatter['synopsis'], path).toBe(described.synopsis);
     });
+  });
+
+  it('writes the ten events as notes in Timeline, and the screens\' data into the index, exactly as described', async () => {
+    const { store, vault } = await create();
+    for (const event of seed.events ?? []) {
+      const path = `Sample Novel/Timeline/${event.title}.md`;
+      expect(vault.frontmatterOf(path), path).toEqual(event.frontmatter);
+      expect(Object.keys(vault.frontmatterOf(path) ?? {}), path).toEqual(Object.keys(event.frontmatter));
+      expect(vault.bodyOf(path), path).toBe(event.body);
+    }
+    expect(store.timelineNotes().map((note) => note.path).sort()).toEqual(
+      SAMPLE_EVENTS.map((event) => `Timeline/${event.title}.md`).sort(),
+    );
+    // No event is a scene: none is in the binder, and none shows as Unfiled.
+    expect(project(store).unfiled).toEqual(['Manuscript/The Night Market.md']);
+
+    const index = vault.frontmatterOf('Sample Novel/Sample Novel.md') ?? {};
+    for (const [key, value] of Object.entries(seed.data ?? {})) {
+      expect(index[key], key).toEqual(value);
+      // ...and the open project hands the same to the screens.
+      expect(store.projectData(key), key).toEqual(value);
+    }
+    expect(parseTargets(store.projectData(TARGETS_KEY)).targets).toEqual({ project: 80000, daily: 1000, deadline: '2027-03-12' });
+    expect(readLanes(store.projectData(TIMELINES_KEY)).lanes).toHaveLength(3);
+    expect(parseMarks(store.projectData(MARKS_KEY)).marks.size).toBe(2);
+    expect(readTagLists(index).labels.tags.map((tag) => [tag.name, tag.color])).toEqual([
+      ['Mara', 'purple'],
+      ['Tobias', 'cyan'],
+      ['Noa', 'pink'],
+    ]);
   });
 
   it('counts the same words in the notes as were described, properties not included', async () => {
@@ -492,7 +727,7 @@ describe('the sample project, created in a vault', () => {
     expect(vault.writes.slice(firstWrites).some((write) => write.path.startsWith('Sample Novel/') || write.path === 'Sample Novel')).toBe(false);
     for (const path of firstPaths) expect(vault.has(path), path).toBe(true);
     expect(vault.bodyOf(`Sample Novel 2/${made.project.scenes[1]}`)).toBe(vault.bodyOf(`Sample Novel/${made.project.scenes[1]}`));
-    expect(vault.paths().filter((path) => path.startsWith('Sample Novel 2/'))).toHaveLength(57);
+    expect(vault.paths().filter((path) => path.startsWith('Sample Novel 2/'))).toHaveLength(67);
   });
 
   it('can be created inside another folder', async () => {

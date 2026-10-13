@@ -390,3 +390,147 @@ export const SAMPLE_TODOS: ReadonlyArray<{ readonly text: string; readonly done:
   { text: 'Check the tide times in "Low Water" against the research note', done: false, dueInDays: 10 },
   { text: 'Choose a name for the ferry', done: true },
 ];
+
+// ------------------------------------------------ for the screens besides the binder
+//
+// Everything below gives the corkboard, the timeline and the planner
+// something to show. There is no writing history here on purpose: which
+// words were written on which day is the writer's own, and none is made up.
+
+/** One of the eight colour names Obsidian offers; every screen draws them with the theme's own colours. */
+export type SampleColor = 'red' | 'orange' | 'yellow' | 'green' | 'cyan' | 'blue' | 'purple' | 'pink';
+
+/** The colour of each status, in the order of SCENE_STATUSES: To do, First draft, Revised, Final. */
+export const SAMPLE_STATUS_COLORS: readonly SampleColor[] = ['red', 'orange', 'blue', 'green'];
+
+/** The colour of each character's label, in the order of SAMPLE_CHARACTERS: Mara, Tobias, Noa. */
+export const SAMPLE_LABEL_COLORS: readonly SampleColor[] = ['purple', 'cyan', 'pink'];
+
+/** The three timelines (the lanes of the timeline screen), in the order they are shown. */
+export const SAMPLE_TIMELINES: ReadonlyArray<{ readonly name: string; readonly color: SampleColor }> = [
+  { name: 'Main plot', color: 'purple' },
+  { name: "Mara's survey", color: 'cyan' },
+  { name: 'Backstory', color: 'orange' },
+];
+
+const MAIN_PLOT = 0;
+const SURVEY = 1;
+const BACKSTORY = 2;
+
+/** An event of the story: a note in the Timeline folder. */
+export interface SampleEvent {
+  readonly title: string;
+  /** When it happens: YYYY-MM-DD, or YYYY-MM when only the month is known. */
+  readonly date: string;
+  /** The day it ends, for an event that lasts. */
+  readonly end?: string;
+  /** Indexes into SAMPLE_TIMELINES. */
+  readonly timelines: readonly number[];
+  /** The titles of the scenes that tell it. */
+  readonly scenes?: readonly string[];
+  readonly tags?: readonly string[];
+  /** The note's text. */
+  readonly body: string;
+}
+
+/**
+ * The ten events of the story, in the autumn and winter of 1923. Among them:
+ * one that lasts six weeks (the survey), one that sits in two timelines
+ * (Mara's arrival), one with a Hebrew title, and two that are only known to
+ * the month.
+ */
+export const SAMPLE_EVENTS: readonly SampleEvent[] = [
+  {
+    title: 'The lighthouse is closed',
+    date: '1922-11',
+    timelines: [BACKSTORY],
+    tags: ['lighthouse'],
+    body: 'The keeper is pensioned off, the windows are boarded and the door is chained. His log goes to the archive.',
+  },
+  {
+    title: 'The old chart is last corrected',
+    date: '1923-02-10',
+    timelines: [BACKSTORY],
+    tags: ['chart'],
+    body: 'The last time anyone checked the chart of the bay against the bay itself.',
+  },
+  {
+    title: 'The winter storm',
+    date: '1923-10-12',
+    timelines: [MAIN_PLOT],
+    scenes: ['Prologue'],
+    tags: ['storm'],
+    body: 'One night moves the sandbars. By morning the channel is somewhere else and one boat has not come home.',
+  },
+  {
+    title: 'Mara arrives in Saltwick',
+    date: '1923-10-14',
+    timelines: [MAIN_PLOT, SURVEY],
+    scenes: ['The Last Ferry'],
+    body: 'On the last ferry of the day, with her instruments in two cases.',
+  },
+  {
+    title: 'The survey of the bay',
+    date: '1923-10-20',
+    end: '1923-12-01',
+    timelines: [SURVEY],
+    scenes: ['First Soundings', 'Low Water'],
+    tags: ['chart'],
+    body: 'The six weeks the harbour master gives Mara to redraw the chart.',
+  },
+  {
+    title: 'נועה מוצאת את המפה הישנה',
+    date: '1923-11-05',
+    timelines: [MAIN_PLOT],
+    scenes: ['The Village on the Old Map'],
+    tags: ['ארכיון'],
+    body: 'בארכיון, בין הספרים הלחים: מפה שמצויר בה כפר במקום שיש בו היום רק מים.',
+  },
+  {
+    title: 'The lowest tide of the month',
+    date: '1923-11-08',
+    timelines: [SURVEY],
+    scenes: ['Low Water'],
+    body: 'Mara walks out onto the new sandbar. The drowned lane does not show yet.',
+  },
+  {
+    title: 'The missing boat is found',
+    date: '1923-11-19',
+    timelines: [MAIN_PLOT],
+    scenes: ['The Missing Boat'],
+    body: 'Empty, on the far side of the bar.',
+  },
+  {
+    title: 'The second storm',
+    date: '1923-12-03',
+    timelines: [MAIN_PLOT],
+    scenes: ['The Bell Stops', 'What the Keeper Wrote'],
+    tags: ['storm'],
+    body: 'The night the ferry bell stops, and someone lights the old lighthouse.',
+  },
+  {
+    title: 'The new chart is published',
+    date: '1924-03',
+    timelines: [SURVEY],
+    scenes: ['The Chart on the Wall'],
+    tags: ['chart'],
+    body: 'With the drowned village on it, under its old name.',
+  },
+];
+
+/** The scenes that have a date in the story, by title. They show on the timeline in the Manuscript lane. */
+export const SAMPLE_SCENE_DATES: Readonly<Record<string, string>> = {
+  Prologue: '1923-10-12',
+  'The Last Ferry': '1923-10-14',
+  'Low Water': '1923-11-08',
+  'הלילה שלפני הסערה': '1923-12-02',
+};
+
+/** The two marks on the calendar. A number is how many days from today the day is. */
+export const SAMPLE_MARKS: ReadonlyArray<{ readonly inDays: number; readonly color: SampleColor; readonly label: string }> = [
+  { inDays: 2, color: 'blue', label: 'Writing group' },
+  { inDays: 6, color: 'green', label: 'Day off' },
+];
+
+/** The targets: for the whole manuscript, for a day, and how many days from today the deadline is (about five months). */
+export const SAMPLE_TARGETS = { project: 80000, daily: 1000, deadlineInDays: 150 } as const;

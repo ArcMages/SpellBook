@@ -6,8 +6,11 @@
 // the same project out, on every device. Nothing here reads the clock, uses
 // Math.random or depends on the device's language settings.
 
+import { TAG_INDEX_KEYS } from './cards';
 import { addDays } from './dates';
-import type { BinderSeed, NoteSeed, ProjectSeed, SceneSeed } from './projectSeed';
+import { MARKS_KEY } from './planner';
+import { TARGETS_KEY } from './progress';
+import type { BinderSeed, EventSeed, NoteSeed, ProjectSeed, SceneSeed } from './projectSeed';
 import {
   ACTION_SENTENCES,
   DIALOGUE_LINES,
@@ -15,16 +18,24 @@ import {
   ROUGH_NOTES_COMMENT,
   SAMPLE_CHARACTERS,
   SAMPLE_CLOSING,
+  SAMPLE_EVENTS,
+  SAMPLE_LABEL_COLORS,
+  SAMPLE_MARKS,
   SAMPLE_OPENING,
   SAMPLE_PARTS,
   SAMPLE_RESEARCH,
+  SAMPLE_SCENE_DATES,
+  SAMPLE_STATUS_COLORS,
+  SAMPLE_TARGETS,
+  SAMPLE_TIMELINES,
   SAMPLE_TODOS,
   SAMPLE_UNFILED,
   SETTING_SENTENCES,
   SHARED_SENTENCES,
 } from './sampleText';
-import type { SampleScene } from './sampleText';
+import type { SampleEvent, SampleScene } from './sampleText';
 import { SCENE_STATUSES } from './scene';
+import { EVENT_MARKER_KEY, EVENT_MARKER_VALUE } from './timeline';
 
 /** The name of the sample project; a second one becomes "Sample Novel 2". */
 export const SAMPLE_PROJECT_NAME = 'Sample Novel';
@@ -160,12 +171,54 @@ function sceneSeed(scene: SampleScene, position: number): SceneSeed {
   // length never changes the text of another.
   const text = scene.text === undefined ? composeScene(scene.who, scene.words, 0x5eed + position * 7919) : `${scene.text}\n`;
   const body = scene.status === 0 ? `${ROUGH_NOTES_COMMENT}\n\n${text}` : text;
-  return {
+  const seed: SceneSeed = {
     title: scene.title,
     body,
     synopsis: scene.synopsis,
     status,
     label: SAMPLE_CHARACTERS[scene.who] as string,
+  };
+  // A few scenes have a date in the story, so that the timeline's Manuscript lane has something to show.
+  const date = Object.prototype.hasOwnProperty.call(SAMPLE_SCENE_DATES, scene.title) ? SAMPLE_SCENE_DATES[scene.title] : undefined;
+  return date === undefined ? seed : { ...seed, date };
+}
+
+/** The key of the project index that lists the timelines (the lanes of the timeline screen). */
+export const SAMPLE_TIMELINES_KEY = 'timelines';
+
+/** An event's note: the properties the timeline reads, in the order the timeline itself writes them. */
+function eventSeed(event: SampleEvent): EventSeed {
+  const frontmatter: Record<string, unknown> = {
+    [EVENT_MARKER_KEY]: EVENT_MARKER_VALUE,
+    date: event.date,
+  };
+  if (event.end !== undefined) frontmatter['end'] = event.end;
+  frontmatter['timelines'] = event.timelines.map((index) => (SAMPLE_TIMELINES[index] as { name: string }).name);
+  // A scene is named the way a link to its note is written.
+  if (event.scenes !== undefined) frontmatter['scenes'] = event.scenes.map((title) => `[[${title}]]`);
+  if (event.tags !== undefined) frontmatter['tags'] = [...event.tags];
+  return { title: event.title, frontmatter, body: `${event.body}\n` };
+}
+
+/**
+ * What the screens besides the binder keep in the project index: the
+ * statuses and the labels with their colours, the timelines, two marks on the
+ * calendar a few days from today, and the targets, with a deadline some
+ * months from today.
+ */
+function indexData(today: string): Record<string, unknown> {
+  const marks: Record<string, { color: string; label: string }> = {};
+  for (const mark of SAMPLE_MARKS) marks[addDays(today, mark.inDays)] = { color: mark.color, label: mark.label };
+  return {
+    [TAG_INDEX_KEYS.status]: SCENE_STATUSES.map((name, index) => ({ name, color: SAMPLE_STATUS_COLORS[index] as string })),
+    [TAG_INDEX_KEYS.label]: SAMPLE_CHARACTERS.map((name, index) => ({ name, color: SAMPLE_LABEL_COLORS[index] as string })),
+    [SAMPLE_TIMELINES_KEY]: SAMPLE_TIMELINES.map((timeline) => ({ name: timeline.name, color: timeline.color })),
+    [MARKS_KEY]: marks,
+    [TARGETS_KEY]: {
+      project: SAMPLE_TARGETS.project,
+      daily: SAMPLE_TARGETS.daily,
+      deadline: addDays(today, SAMPLE_TARGETS.deadlineInDays),
+    },
   };
 }
 
@@ -180,9 +233,17 @@ function todoText(today: string): string {
 /**
  * The sample project: two scenes at the top level (a prologue and an
  * epilogue) around five binder folders of scenes, a note left out of the
- * binder on purpose, two research notes and three to-dos.
+ * binder on purpose, two research notes and three to-dos; and, so that every
+ * screen has something to show, statuses and labels with colours, three
+ * timelines with ten events, four scenes with a date in the story, two marks
+ * on the calendar and the writing targets.
  *
- * @param today today's date as YYYY-MM-DD; the to-dos are due a few days after it
+ * It has no writing history: no word log is made up.
+ *
+ * Only four things follow the calendar: the two to-dos' due dates, the two
+ * marks and the deadline. Everything else is the same whenever it is made.
+ *
+ * @param today today's date as YYYY-MM-DD; the to-dos, the marks and the deadline are counted from it
  */
 export function sampleProject(today: string): ProjectSeed {
   let position = 0;
@@ -196,5 +257,12 @@ export function sampleProject(today: string): ProjectSeed {
 
   const unfiled: NoteSeed[] = [{ title: SAMPLE_UNFILED.title, body: `${SAMPLE_UNFILED.body}\n` }];
   const research: NoteSeed[] = SAMPLE_RESEARCH.map((note) => ({ title: note.title, body: `${note.body}\n` }));
-  return { binder, unfiled, research, todo: todoText(today) };
+  return {
+    binder,
+    unfiled,
+    research,
+    todo: todoText(today),
+    events: SAMPLE_EVENTS.map(eventSeed),
+    data: indexData(today),
+  };
 }

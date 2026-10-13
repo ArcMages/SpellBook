@@ -9,7 +9,7 @@
 import { DEFAULT_NAME, newFolderId, sanitiseFileName, tidyDisplayName, uniqueName } from './names';
 import { ORDER_STEP } from './orderKeys';
 import { clashKey, joinPath, relativeTo } from './paths';
-import { MANUSCRIPT_FOLDER, RESEARCH_FOLDER } from './projectLayout';
+import { MANUSCRIPT_FOLDER, RESEARCH_FOLDER, TIMELINE_FOLDER } from './projectLayout';
 import { DEFAULT_SCENE_NAME, newSceneFrontmatter } from './scene';
 import type { Binder, BinderNode, Frontmatter } from './types';
 import type { VaultPort } from './vaultPort';
@@ -22,6 +22,23 @@ export interface SceneSeed {
   readonly synopsis?: string;
   readonly status?: string;
   readonly label?: string;
+  /**
+   * When the scene happens in the story, as YYYY-MM-DD (or YYYY-MM, or YYYY).
+   * A scene with a date shows on the timeline. Default: none.
+   */
+  readonly date?: string;
+}
+
+/** An event of the story to create: a note in the Timeline folder. Its file name is made from the title. */
+export interface EventSeed {
+  readonly title: string;
+  /**
+   * The note's properties, exactly as they are to be written: what the
+   * timeline reads ("spellbook: event", date, end, timelines, scenes, tags).
+   */
+  readonly frontmatter: Readonly<Frontmatter>;
+  /** The note's text. Default: empty. */
+  readonly body?: string;
 }
 
 /** A binder folder to create, with what goes inside it. */
@@ -47,6 +64,16 @@ export interface ProjectSeed {
   readonly research?: readonly NoteSeed[];
   /** The text of To-do.md. Default: empty. */
   readonly todo?: string;
+  /** Events of the story: notes to put in the Timeline folder. */
+  readonly events?: readonly EventSeed[];
+  /**
+   * What the screens keep in the project index, next to the binder: the
+   * statuses and labels with their colours, the timelines, the day marks, the
+   * targets. Each entry becomes a top-level property of the new index note.
+   * The properties the index keeps for itself (its mark, its version, the
+   * title, the binder) cannot be set this way and are left out.
+   */
+  readonly data?: Readonly<Record<string, unknown>>;
 }
 
 /** The title of the scene every ordinary new project starts with. */
@@ -54,6 +81,9 @@ export const FIRST_SCENE_TITLE = 'Scene 1';
 
 /** Name for a binder folder whose seed has no usable name. */
 export const DEFAULT_FOLDER_NAME = 'Untitled folder';
+
+/** File name for an event whose seed has no usable title. */
+export const DEFAULT_EVENT_NAME = 'Untitled event';
 
 /** What "Create project" puts in a new project: one empty scene. */
 export function starterProject(): ProjectSeed {
@@ -88,8 +118,9 @@ export interface PlantedSeed {
 }
 
 /**
- * Create a seed's notes inside the project folder `folder`, whose Manuscript
- * and Research folders must already exist.
+ * Create a seed's notes inside the project folder `folder`, whose Manuscript,
+ * Research and Timeline folders must already exist. (What a seed has for the
+ * index itself, its `data`, is the project store's to write.)
  *
  * Scenes are created in manuscript order with order keys 1024 apart, so the
  * binder and the keys agree from the start. Rejects as soon as a note cannot
@@ -142,13 +173,10 @@ export async function plantSeed(
         });
       } else {
         const order = ORDER_STEP * (scenes.length + 1);
-        const path = await createNote(
-          MANUSCRIPT_FOLDER,
-          item.title,
-          DEFAULT_SCENE_NAME,
-          item.body ?? '',
-          newSceneFrontmatter(order, context.today, item),
-        );
+        const frontmatter = newSceneFrontmatter(order, context.today, item);
+        // A scene's place in the story's time is not one of the standard properties: only a scene that has one gets it.
+        if (item.date !== undefined && item.date !== '') frontmatter['date'] = item.date;
+        const path = await createNote(MANUSCRIPT_FOLDER, item.title, DEFAULT_SCENE_NAME, item.body ?? '', frontmatter);
         scenes.push(path);
         nodes.push({ kind: 'scene', path });
       }
@@ -162,6 +190,10 @@ export async function plantSeed(
   }
   for (const note of seed.research ?? []) {
     await createNote(RESEARCH_FOLDER, note.title, DEFAULT_NAME, note.body);
+  }
+  for (const event of seed.events ?? []) {
+    // A copy: the note gets properties of its own, not the seed's.
+    await createNote(TIMELINE_FOLDER, event.title, DEFAULT_EVENT_NAME, event.body ?? '', { ...event.frontmatter });
   }
   return { binder, scenes };
 }

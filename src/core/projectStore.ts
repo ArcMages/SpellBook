@@ -652,8 +652,9 @@ export class ProjectStore {
         );
       }
 
-      if (planted.binder.length > 0) {
-        const problem = await this.listInNewIndex(indexPath, planted.binder);
+      const data = seed?.data ?? {};
+      if (planted.binder.length > 0 || Object.keys(data).length > 0) {
+        const problem = await this.listInNewIndex(indexPath, planted.binder, data);
         if (problem !== null) {
           return failed(
             `The project's notes were created, but its binder could not be saved (${problem}). ` +
@@ -1495,12 +1496,18 @@ export class ProjectStore {
   // ----------------------------------------------------------- index on disk
 
   /**
-   * Write the binder of a project that was created a moment ago, in one
-   * read-modify-write of its index note. Whatever the index already lists (it
-   * is normally empty) is kept in front. Returns null when saved, or the
-   * reason it could not be.
+   * Write the binder of a project that was created a moment ago, and the
+   * data its seed has for the screens, in one read-modify-write of its index
+   * note. Whatever the index already lists (it is normally empty) is kept in
+   * front, and a property the index already has is never written over: a
+   * seed only adds. The index's own properties cannot be set as data.
+   * Returns null when saved, or the reason it could not be.
    */
-  private async listInNewIndex(indexPath: string, binder: Binder): Promise<string | null> {
+  private async listInNewIndex(
+    indexPath: string,
+    binder: Binder,
+    data: Readonly<Record<string, unknown>> = {},
+  ): Promise<string | null> {
     let problem: string | null = null;
     try {
       await this.vault.updateFrontmatter(indexPath, (frontmatter) => {
@@ -1511,6 +1518,12 @@ export class ProjectStore {
           return false;
         }
         writeBinder(frontmatter, [...parsed.binder, ...binder]);
+        for (const [key, value] of Object.entries(data)) {
+          if (key.trim() === '' || key !== key.trim() || isReservedKey(key) || value === undefined) continue;
+          if (Object.prototype.hasOwnProperty.call(frontmatter, key)) continue;
+          // A copy of its own: the note must not share lists with the seed.
+          frontmatter[key] = JSON.parse(JSON.stringify(value)) as unknown;
+        }
         return true;
       });
     } catch (error) {

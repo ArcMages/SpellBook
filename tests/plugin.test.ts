@@ -296,14 +296,21 @@ describe('the bottom bar', () => {
 
 describe('the command "Create sample project"', () => {
   it('creates the sample novel, opens it and shows its first scene', async () => {
-    const { fake, plugin, command } = loadReady(novelVault());
+    const { fake, plugin, stub, command } = loadReady(novelVault());
     const before = new Map(fake.vault.text);
 
     command('create-sample-project').callback?.();
     await until(() => fake.workspace.opened.length > 0, 'the first scene to open');
+    // Its targets reach the bottom bar, with no binder open: the whole manuscript is counted against 80,000 words.
+    await until(() => /Project [\d,]+ \/ 80,000/.test(stub.statusBar.children[0]?.fullText ?? ''), 'the project total against its target');
+    expect(stub.statusBar.children[0]?.fullText).toMatch(/Today 0 \/ 1,000/);
+    expect(fake.workspace.leaves).toEqual([]);
 
-    expect(notesUnder(fake, 'Sample Novel')).toHaveLength(57);
+    // The index and the to-do list, 53 notes of the manuscript, 2 of research and the 10 events of the timeline.
+    expect(notesUnder(fake, 'Sample Novel')).toHaveLength(67);
     expect(notesUnder(fake, 'Sample Novel/Manuscript')).toHaveLength(53);
+    expect(notesUnder(fake, 'Sample Novel/Timeline')).toHaveLength(10);
+    expect(notesUnder(fake, 'Sample Novel/Stats')).toEqual([]); // no writing history is made up
     for (const sub of ['Manuscript', 'Timeline', 'Research', 'Stats']) {
       expect(fake.vault.getFolderByPath(`Sample Novel/${sub}`), sub).not.toBeNull();
     }
@@ -343,8 +350,8 @@ describe('the command "Create sample project"', () => {
     expect(await plugin.createSampleProject()).toBe(true);
     expect(await plugin.createSampleProject()).toBe(true);
 
-    expect(notesUnder(fake, 'Sample Novel')).toHaveLength(57);
-    expect(notesUnder(fake, 'Sample Novel 2')).toHaveLength(57);
+    expect(notesUnder(fake, 'Sample Novel')).toHaveLength(67);
+    expect(notesUnder(fake, 'Sample Novel 2')).toHaveLength(67);
     expect(fake.workspace.opened).toEqual(['Sample Novel/Manuscript/Prologue.md', 'Sample Novel 2/Manuscript/Prologue.md']);
     expect(notices()).toContain('Created "Sample Novel 2" with 52 scenes.');
     expect(storeOf(plugin).project?.title).toBe('Sample Novel 2');

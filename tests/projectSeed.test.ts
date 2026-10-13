@@ -245,6 +245,93 @@ describe('createProject with a seed', () => {
     expect(vault.bodyOf('Novel/To-do.md')).toBe('x');
   });
 
+  it('gives a scene its date in the story, creates the events in Timeline, and adds the screens\' data to the index', async () => {
+    const { store, vault } = makeStore();
+    const frontmatter = { spellbook: 'event', date: '1923-10-12', timelines: ['Main plot'], scenes: ['[[Opening]]'] };
+    const data = { timelines: [{ name: 'Main plot', color: 'purple' }], targets: { daily: 500 } };
+    const created = valueOf(
+      await store.createProject('Novel', '', {
+        seed: {
+          binder: [{ title: 'Opening', date: '1923-10-12' }, { title: 'Ending' }, { title: 'Undated', date: '' }],
+          events: [
+            { title: 'The storm', frontmatter, body: 'It rains.\n' },
+            { title: 'The storm', frontmatter: { spellbook: 'event', date: '1924' } }, // the same title: a file name of its own
+            { title: ' / ', frontmatter: { spellbook: 'event', date: null } }, // no usable title
+          ],
+          data,
+        },
+      }),
+    );
+    expect(Object.keys(vault.frontmatterOf('Novel/Manuscript/Opening.md') ?? {})).toEqual([
+      'synopsis',
+      'status',
+      'label',
+      'compile',
+      'order',
+      'created',
+      'date',
+    ]);
+    expect(vault.frontmatterOf('Novel/Manuscript/Opening.md')?.['date']).toBe('1923-10-12');
+    // A scene without a date gets no such property at all.
+    for (const scene of ['Ending', 'Undated']) {
+      expect(Object.keys(vault.frontmatterOf(`Novel/Manuscript/${scene}.md`) ?? {}), scene).not.toContain('date');
+    }
+
+    expect(vault.paths().filter((path) => path.startsWith('Novel/Timeline/'))).toEqual([
+      'Novel/Timeline/The storm 2.md',
+      'Novel/Timeline/The storm.md',
+      'Novel/Timeline/Untitled event.md',
+    ]);
+    expect(vault.frontmatterOf('Novel/Timeline/The storm.md')).toEqual(frontmatter);
+    expect(vault.bodyOf('Novel/Timeline/The storm.md')).toBe('It rains.\n');
+    expect(vault.bodyOf('Novel/Timeline/The storm 2.md')).toBe('');
+    // The events are not scenes: the binder lists the three scenes and nothing else.
+    expect(created.scenes).toEqual(['Manuscript/Opening.md', 'Manuscript/Ending.md', 'Manuscript/Undated.md']);
+    expect(binderOnDisk(vault, 'Novel/Novel.md')).toEqual(created.scenes);
+
+    // The data sits in the index after its own properties, written together with the binder in one go.
+    const index = vault.frontmatterOf('Novel/Novel.md') ?? {};
+    expect(Object.keys(index)).toEqual(['spellbook', 'version', 'title', 'binder', 'timelines', 'targets']);
+    expect(index['timelines']).toEqual(data.timelines);
+    expect(index['targets']).toEqual(data.targets);
+    expect(vault.writes.filter((write) => write.op === 'updateFrontmatter')).toEqual([{ op: 'updateFrontmatter', path: 'Novel/Novel.md' }]);
+    // The note holds copies: changing the seed afterwards changes nothing in it.
+    data.timelines.push({ name: 'Later', color: 'red' });
+    expect(vault.frontmatterOf('Novel/Novel.md')?.['timelines']).toHaveLength(1);
+  });
+
+  it('never lets a seed set the index\'s own properties, and writes the data of a seed that has no scenes', async () => {
+    const { store, vault } = makeStore();
+    valueOf(
+      await store.createProject('Novel', '', {
+        seed: {
+          binder: [],
+          data: {
+            spellbook: 'something else',
+            version: 99,
+            title: 'Another title',
+            binder: ['Manuscript/Ghost.md'],
+            ' padded ': 1,
+            '': 2,
+            marks: { '2026-10-15': { color: 'blue', label: 'Writing group' } },
+            nothing: undefined,
+          },
+        },
+      }),
+    );
+    const index = vault.frontmatterOf('Novel/Novel.md') ?? {};
+    expect(index).toEqual({
+      spellbook: 'project',
+      version: 1,
+      title: 'Novel',
+      binder: [],
+      marks: { '2026-10-15': { color: 'blue', label: 'Writing group' } },
+    });
+    valueOf(await store.openProject('Novel/Novel.md'));
+    expect(store.project).toMatchObject({ title: 'Novel', readOnly: false, error: null });
+    expect(store.projectData('marks')).toEqual({ '2026-10-15': { color: 'blue', label: 'Writing group' } });
+  });
+
   it('creates order keys that need no correcting: a later move rewrites one scene only', async () => {
     const { store, vault, timers } = makeStore();
     const created = valueOf(await store.createProject('Novel', '', { seed: SEED }));
