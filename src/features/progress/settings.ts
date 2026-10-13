@@ -1,9 +1,12 @@
-// The settings of the writing progress: one switch, kept on this device only
-// (a phone and a desktop may well want it set differently).
+// The settings of the writing progress: one switch and the layout of the
+// bottom bar (barSettings.ts), both kept on this device only (a phone and a
+// desktop may well want them set differently).
 
 import { Setting } from 'obsidian';
 import type { DeviceStorage } from '../../core/devicePrefs';
 import type { SettingsSection } from '../registry';
+import { renderBarSettings } from './barSettings';
+import type { BarSettingsDeps } from './barSettings';
 
 /** Where the "Count pasted text" switch is kept in the device's own storage. */
 export const COUNT_PASTED_KEY = 'spellbook-progress-count-pasted';
@@ -47,11 +50,11 @@ export class ProgressPrefs {
 }
 
 /** The "Writing progress" part of the plugin's settings tab. */
-export function progressSettings(prefs: ProgressPrefs): SettingsSection {
+export function progressSettings(prefs: ProgressPrefs, bar?: BarSettingsDeps): SettingsSection {
   return {
     id: 'progress',
     title: 'Writing progress',
-    render(containerEl: HTMLElement): void {
+    render(containerEl: HTMLElement): void | (() => void) {
       new Setting(containerEl)
         .setName('Count pasted text')
         .setDesc(
@@ -63,6 +66,7 @@ export function progressSettings(prefs: ProgressPrefs): SettingsSection {
             prefs.countPasted = value;
           });
         });
+      return bar === undefined ? undefined : renderBarSettings(containerEl, bar);
     },
   };
 }
