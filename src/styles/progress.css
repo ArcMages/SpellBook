@@ -15,8 +15,8 @@
   align-items: center;
   gap: var(--size-4-3);
   /* A long bar in a narrow window is slid along with a finger or the wheel
-     rather than pushing Obsidian's own items off the screen. */
-  max-inline-size: 90vw;
+     rather than pushing Obsidian's own items off the screen or squeezing them. */
+  max-inline-size: 60vw;
   overflow-x: auto;
   scrollbar-width: none;
   font-variant-numeric: tabular-nums;
