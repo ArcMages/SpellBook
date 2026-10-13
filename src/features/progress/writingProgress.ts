@@ -39,7 +39,7 @@ import {
   writingProgress,
   writingStreak,
 } from '../../core/progress/index';
-import type { BarItemId, DailyTotals, DayCounts, StatusLineInput, StatusSegment } from '../../core/progress/index';
+import type { BarButtonEntry, BarItemId, DailyTotals, DayCounts, StatusLineInput, StatusSegment } from '../../core/progress/index';
 import type { Frontmatter, ProjectSnapshot, StoreChange } from '../../core/types';
 import type { VaultEvent } from '../../core/vaultPort';
 import { countWords } from '../../core/wordCount';
@@ -49,7 +49,7 @@ import { findCommand, runCommand } from './commands';
 import { editorWatch } from './editorWatch';
 import { SceneDateKeeper } from './sceneDateKeeper';
 import { SCENE_LINE_SERVICE, STATS_SERVICE } from './services';
-import type { DayWords, SceneLineService, StatsService, StatsSummary } from './services';
+import type { DayWords, SceneLineButton, SceneLineService, StatsService, StatsSummary } from './services';
 import { ProgressPrefs, progressSettings } from './settings';
 import { StatsLog } from './statsLog';
 import { StatusBar } from './statusBar';
@@ -244,6 +244,9 @@ export class WritingProgress {
 
     const sceneLine: SceneLineService = {
       current: () => this.line(),
+      buttons: () => this.buttons(),
+      // A button whose command is not there does nothing.
+      run: (command) => void runCommand(app, command),
       onChange: (listener) => listen(this.lineListeners, listener),
     };
     const stats: StatsService = {
@@ -584,7 +587,8 @@ export class WritingProgress {
       const segments = this.line();
       // The bar itself leaves alone every piece that shows what it showed.
       this.bar?.show(this.pieces(segments));
-      const shown = JSON.stringify(segments);
+      // The inspector's line is the figures and, after them, the buttons.
+      const shown = JSON.stringify([segments, this.lineListeners.size > 0 ? this.buttons() : []]);
       if (shown !== this.shownLine) {
         this.shownLine = shown;
         tell(this.lineListeners);
@@ -601,7 +605,7 @@ export class WritingProgress {
    * the shortcut buttons between them. Nothing at all with no project open.
    */
   private pieces(segments: readonly StatusSegment[]): BarPiece[] {
-    const { app, store } = this.context;
+    const { store } = this.context;
     if (store.project === null || this.closed) return [];
     const pieces: BarPiece[] = [];
     this.barPrefs.layout.entries.forEach((entry, index) => {
@@ -610,18 +614,28 @@ export class WritingProgress {
         if (segment !== undefined) pieces.push({ kind: 'figure', segment });
         return;
       }
-      const command = findCommand(app, entry.command);
-      pieces.push({
-        kind: 'button',
-        key: `button:${index}`,
-        command: entry.command,
-        label: entry.label,
-        icon: entry.icon,
-        name: command?.name ?? entry.command,
-        available: command !== null,
-      });
+      pieces.push({ kind: 'button', ...this.button(entry, index) });
     });
     return pieces;
+  }
+
+  /** A shortcut button as it stands now: what its command is called, and whether there is such a command. */
+  private button(entry: BarButtonEntry, index: number): SceneLineButton {
+    const command = findCommand(this.context.app, entry.command);
+    return {
+      key: `button:${index}`,
+      command: entry.command,
+      label: entry.label,
+      icon: entry.icon,
+      name: command?.name ?? entry.command,
+      available: command !== null,
+    };
+  }
+
+  /** The shortcut buttons the writer chose, in the writer's order, for the inspector's line. None with no project open. */
+  private buttons(): SceneLineButton[] {
+    if (this.context.store.project === null || this.closed) return [];
+    return this.barPrefs.layout.entries.flatMap((entry, index) => (entry.kind === 'button' ? [this.button(entry, index)] : []));
   }
 
   /** The pieces of the line as they stand now: the figures the writer chose, in the writer's order. */

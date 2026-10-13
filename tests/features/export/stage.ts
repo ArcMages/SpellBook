@@ -104,6 +104,8 @@ export interface Wired {
   plugin: StubPlugin;
   storage: MemoryDeviceStorage;
   features: RegisteredFeatures;
+  /** The stand-in Obsidian the feature was given: its workspace and its own list of files. */
+  fake: FakeObsidian;
   /** Every file the feature asked to have shown, in order. */
   opened: Array<{ path: string; where: unknown }>;
   /** Whether a file that is asked for can be shown. */
@@ -170,7 +172,7 @@ export async function wire(vault: MemoryVault = novelVault(), options: WireOptio
     wordCounts.dispose();
     store.dispose();
   };
-  return { vault, store, timers, plugin, storage, features, opened, canOpen, command, switchOff };
+  return { vault, store, timers, plugin, storage, features, fake, opened, canOpen, command, switchOff };
 }
 
 /** Let the store's queue and whatever waits on it come to rest. */

@@ -243,6 +243,7 @@ describe('loading and unloading', () => {
       ['progress', 'Writing progress'],
       ['schemes', 'Colour scheme'],
       ['modes', 'Writing modes'],
+      ['report', 'Writing report'],
       ['prose', 'Prose checks'],
       ['snapshots', 'Snapshots'],
     ]);
@@ -1421,6 +1422,7 @@ describe('the settings page', () => {
       { name: 'Writing progress', desc: '', heading: true },
       { name: 'Colour scheme', desc: '', heading: true },
       { name: 'Writing modes', desc: '', heading: true },
+      { name: 'Writing report', desc: '', heading: true },
       { name: 'Prose checks', desc: '', heading: true },
       { name: 'Snapshots', desc: '', heading: true },
     ]);
@@ -1444,7 +1446,7 @@ describe('the settings page', () => {
     const { stub } = loadReady();
     const { tab, rows } = page(stub);
     tab.display();
-    expect(rows().map((row) => row.name)).toEqual(['Spellbook', 'Projects in this vault', '', 'Writing progress', 'Colour scheme', 'Writing modes', 'Prose checks', 'Snapshots']);
+    expect(rows().map((row) => row.name)).toEqual(['Spellbook', 'Projects in this vault', '', 'Writing progress', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots']);
     expect(rows()[2]?.name).toBe('');
     expect(rows()[2]?.desc).toMatch(/No projects yet/);
     expect(rows()[2]?.desc).toMatch(/"Spellbook: Create project"/);
@@ -1469,12 +1471,12 @@ describe('the settings page', () => {
       return next < 0 ? after : after.slice(0, next);
     };
     tab.display();
-    expect(rows()).toHaveLength(8);
+    expect(rows()).toHaveLength(9);
     expect(projects().map((row) => row.name)).toEqual(['']); // "No projects yet"
 
     await plugin.createProject('First');
     expect(projects()).toEqual([{ name: 'First', desc: 'First', heading: false }]);
-    expect(rows().filter((row) => row.heading).map((row) => row.name)).toEqual(['Projects in this vault', 'Writing progress', 'Colour scheme', 'Writing modes', 'Prose checks', 'Snapshots']);
+    expect(rows().filter((row) => row.heading).map((row) => row.name)).toEqual(['Projects in this vault', 'Writing progress', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots']);
 
     tab.display(); // opened again: still one listener's worth of rows
     await plugin.createProject('Second');

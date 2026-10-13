@@ -683,6 +683,78 @@ describe('who is in a scene (what the inspector is offered)', () => {
   });
 });
 
+describe('two projects in one vault that each have a "Mara"', () => {
+  const ATLAS_INDEX = 'Atlas/Atlas.md';
+  const ATLAS_SCENE = 'Manuscript/Landfall.md';
+
+  /** The novel, and beside it a second project with a Mara of its own, in two scenes there. */
+  function twoProjects(): MemoryVault {
+    const vault = novelVault();
+    vault.seed(ATLAS_INDEX, {
+      frontmatter: { spellbook: 'project', version: 1, title: 'Atlas', binder: [ATLAS_SCENE, 'Manuscript/Return.md'] },
+      body: '',
+    });
+    vault.seed(`Atlas/${ATLAS_SCENE}`, { frontmatter: { status: 'To do', order: 1024, entities: ['[[Mara]]'] }, body: 'Mara came ashore.\n' });
+    vault.seed('Atlas/Manuscript/Return.md', { frontmatter: { status: 'To do', order: 2048, entities: ['[[Mara]]'] }, body: 'Mara went home.\n' });
+    vault.seed('Atlas/Timeline/The crossing.md', { frontmatter: { spellbook: 'event', date: '1700-01-01', entities: ['[[Mara]]'] }, body: '' });
+    vault.seed('Atlas/World/Characters/Mara.md', { frontmatter: { type: 'character', summary: 'A map maker.', aliases: [] }, body: '' });
+    return vault;
+  }
+
+  it('is a vault in which a bare "Mara" alone would lead a scene of the novel to the other project', () => {
+    // What the vault says on its own, as Obsidian would: the shortest path wins.
+    expect(twoProjects().resolveLink('Mara', inNovel(OPENING))).toBe('Atlas/World/Characters/Mara.md');
+  });
+
+  it('counts for the novel\'s Mara the novel\'s own scene, and no scene of the other project', async () => {
+    const s = await stage(twoProjects());
+    const { pane } = await openWorld(s);
+    const mara = cardNamed(pane, 'Mara');
+    expect(one(mara, 'spellbook-world-card-summary').text).toBe('Keeps the light, and a secret.');
+    expect(one(mara, 'spellbook-world-card-scenes').text).toBe('1 scene');
+    one(mara, 'spellbook-world-card-scenes').fire('click');
+    const detail = one(pane, 'spellbook-world-detail');
+    expect(detail.withClass('spellbook-world-row-open').map((row) => row.text)).toEqual(['Opening']);
+    // The inspector's chip leads to this project's Mara: it is found, and it opens her note.
+    expect(service(s).of(OPENING).map((chip) => [chip.name, chip.found])).toEqual([['Mara', true], ['Saltwick', true]]);
+    service(s).open(OPENING, service(s).of(OPENING)[0]?.key ?? '');
+    await calm(s);
+    expect(last(s.opened).path).toBe(inNovel(MARA));
+  });
+
+  it('counts for the other project\'s Mara its own two scenes and its own event', async () => {
+    const s = await stage(twoProjects(), { open: ATLAS_INDEX });
+    const { pane } = await openWorld(s);
+    const mara = cardNamed(pane, 'Mara');
+    expect(one(mara, 'spellbook-world-card-summary').text).toBe('A map maker.');
+    expect(one(mara, 'spellbook-world-card-scenes').text).toBe('2 scenes');
+    one(mara, 'spellbook-world-card-scenes').fire('click');
+    const detail = one(pane, 'spellbook-world-detail');
+    expect(detail.withClass('spellbook-world-row-open').map((row) => row.text)).toEqual(['Landfall', 'Return', 'The crossing']);
+    service(s).open(ATLAS_SCENE, service(s).of(ATLAS_SCENE)[0]?.key ?? '');
+    await calm(s);
+    expect(last(s.opened).path).toBe('Atlas/World/Characters/Mara.md');
+  });
+
+  it('does not list Mara twice in a scene that names her already, and takes her out again', async () => {
+    const s = await stage(twoProjects());
+    expect(await service(s).remove(OPENING, service(s).of(OPENING)[0]?.key ?? '')).toBeNull();
+    await calm(s);
+    expect(service(s).of(OPENING).map((chip) => chip.name)).toEqual(['Saltwick']);
+    // The other project's scenes were not touched.
+    expect(s.vault.frontmatterOf(`Atlas/${ATLAS_SCENE}`)?.['entities']).toEqual(['[[Mara]]']);
+  });
+
+  it('leaves a link with a path to the vault: one that names the other project\'s Mara is not this project\'s', async () => {
+    const vault = twoProjects();
+    vault.external.editFrontmatter(inNovel(LETTER), (frontmatter) => {
+      frontmatter['entities'] = ['[[Atlas/World/Characters/Mara]]', '[[Novel/World/Characters/Mara]]'];
+    });
+    const s = await stage(vault);
+    expect(service(s).of(LETTER).map((chip) => [chip.name, chip.found])).toEqual([['Mara', false], ['Mara', true]]);
+  });
+});
+
 describe('entity types', () => {
   async function typesWindow(s: Wired): Promise<{ pane: FakeElement; modal: OpenWindow }> {
     const { pane } = await openWorld(s);

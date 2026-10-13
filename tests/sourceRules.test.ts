@@ -198,6 +198,33 @@ describe('src/core is pure', () => {
 });
 
 describe('the whole plugin', () => {
+  it('calls the continuous view "Novel view" in every text that can be read, and "scrivenings" only in ids', () => {
+    // The folder, the ids and the class names keep the old word; a name, a
+    // notice, a tooltip or a message does not. A text is told from an id by
+    // its looks: an id has no spaces and no capital at its start.
+    const id = /^[a-z0-9]+([-:./][a-z0-9]+)*(\.css|\.ts)?$/;
+    const strings = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\]|\\.)*)`/g;
+    const readable: string[] = [];
+    for (const file of allFiles) {
+      for (const match of codeOf(file).matchAll(strings)) {
+        const text = match[1] ?? match[2] ?? match[3] ?? '';
+        // (Not the path of a file that is imported.)
+        if (!/scrivening/i.test(text) || /^\.{1,2}\//.test(text)) continue;
+        // (A class name put together from a piece that changes: `spellbook-scrivenings-menu-depth-${...}`.)
+        const plain = text.replace(/\$\{[^}]*\}/g, '0');
+        const pieces = plain.split(/\s+/).filter((piece) => piece !== '');
+        const isId = pieces.every((piece) => id.test(piece)) && pieces.every((piece) => /scrivening/.test(piece) || /^spellbook-/.test(piece));
+        if (!isId) readable.push(`${relative(file)}: ${text}`);
+      }
+    }
+    expect(readable).toEqual([]);
+    // The check itself works.
+    expect(id.test('spellbook-scrivenings-pane')).toBe(true);
+    expect(id.test('open-scrivenings')).toBe(true);
+    expect(id.test('Open scrivenings')).toBe(false);
+    expect(id.test('Scrivenings')).toBe(false);
+  });
+
   it('reaches notes only through src/obsidian', () => {
     for (const file of outsideAdapter) {
       const code = codeOf(file);

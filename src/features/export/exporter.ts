@@ -26,6 +26,7 @@ import type { ExportFormat, ExportOptions, Manuscript, SceneSource, ScopeChoice 
 import { joinPath, noteTitle, pathKey } from '../../core/paths';
 import { EXPORTS_FOLDER } from '../../core/projectLayout';
 import type { Frontmatter } from '../../core/types';
+import { showInFileList } from '../../obsidian/fileList';
 import type { FeatureContext } from '../registry';
 
 /** Where this device keeps the choices of the last export. Never synced. */
@@ -212,6 +213,16 @@ export class Exporter {
       console.error('Spellbook: the exported file could not be opened', error);
       return false;
     });
+  }
+
+  /**
+   * Show where an exported file is: Obsidian's file list comes to the front
+   * and points at it.
+   *
+   * @returns whether the file list could be shown
+   */
+  showInFolder(outcome: Extract<ExportOutcome, { status: 'done' }>): Promise<boolean> {
+    return showInFileList(this.context.app, outcome.path);
   }
 
   /** The properties the vault has indexed for the notes of the open project, by path inside the project (see pathKey). */

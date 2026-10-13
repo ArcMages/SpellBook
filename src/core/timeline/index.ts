@@ -169,6 +169,8 @@ export { createEntityIndex } from './entities';
 export { eventEntities } from './entities';
 /** True when an event names at least one of the entities wanted. */
 export { eventHasEntity } from './entities';
+/** How many of an event's chips fit whole on its card, leaving room for the "+N". */
+export { chipsThatFit } from './entities';
 /** The change that makes a note name exactly the entities wanted. */
 export { setEntitiesPatch } from './entities';
 

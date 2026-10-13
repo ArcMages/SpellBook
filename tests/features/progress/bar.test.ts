@@ -3,6 +3,7 @@
 // settings where all of that is chosen. Run through a stand-in context (see
 // stand.ts).
 
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_BAR_LAYOUT, MEASURE_AFTER_MS, addBarButton, addBarItem, parseBarLayout, serializeBarLayout } from '../../../src/core/progress/index';
 import type { BarLayout } from '../../../src/core/progress/index';
@@ -580,6 +581,98 @@ describe('drawing the bar', () => {
   });
 });
 
+describe('a bar too long for the window', () => {
+  const FIGURES = [
+    { id: 'scene', label: 'Words', value: '9' },
+    { id: 'today', label: 'Today', value: '0 / 2', met: false },
+  ] as const;
+
+  /** A bar whose contents are `content` wide in a place `room` wide, slid `slid` along. */
+  function long(content: number, room: number, slid = 0): { element: FakeElement; bar: StatusBar; page: { scrollLeft: number } } {
+    const element = new FakeElement();
+    const page = element as unknown as { scrollLeft: number; scrollWidth: number; clientWidth: number };
+    Object.assign(page, { scrollWidth: content, clientWidth: room, scrollLeft: slid });
+    const bar = new StatusBar(element as never, () => undefined);
+    bar.show([...FIGURES]);
+    return { element, bar, page };
+  }
+  const edges = (element: FakeElement): string[] => ['spellbook-more-at-start', 'spellbook-more-at-end'].filter((cls) => element.hasClass(cls));
+  /** A turn of the wheel; gives whether the bar took it for itself. */
+  function turn(element: FakeElement, wheel: { deltaX?: number; deltaY?: number; deltaMode?: number }): boolean {
+    let taken = false;
+    element.dispatch('wheel', { deltaX: 0, deltaY: 0, deltaMode: 0, ...wheel, preventDefault: () => (taken = true) });
+    return taken;
+  }
+
+  it('fades the edge that has more beyond it, and no edge of a bar that fits', () => {
+    expect(edges(long(300, 300).element)).toEqual([]);
+    expect(edges(long(500, 300).element)).toEqual(['spellbook-more-at-end']);
+    expect(edges(long(500, 300, 80).element)).toEqual(['spellbook-more-at-start', 'spellbook-more-at-end']);
+    expect(edges(long(500, 300, 200).element)).toEqual(['spellbook-more-at-start']);
+    // Where Obsidian runs right to left the browser counts below zero: the same edges all the same.
+    expect(edges(long(500, 300, -200).element)).toEqual(['spellbook-more-at-start']);
+    // A place that cannot be measured has no edge to fade.
+    const bare = new FakeElement();
+    new StatusBar(bare as never, () => undefined).show([...FIGURES]);
+    expect(edges(bare)).toEqual([]);
+  });
+
+  it('slides sideways when the mouse wheel is turned, and keeps the turn for itself', () => {
+    const { element, page } = long(500, 300);
+    expect(turn(element, { deltaY: 120 })).toBe(true);
+    expect(page.scrollLeft).toBe(120);
+    expect(edges(element)).toEqual(['spellbook-more-at-start', 'spellbook-more-at-end']);
+    expect(turn(element, { deltaY: -120 })).toBe(true);
+    expect(page.scrollLeft).toBe(0);
+    expect(edges(element)).toEqual(['spellbook-more-at-end']);
+    // A mouse that counts in lines.
+    turn(element, { deltaY: 3, deltaMode: 1 });
+    expect(page.scrollLeft).toBe(48);
+  });
+
+  it('leaves the wheel alone when the bar fits, and a sideways slide of a trackpad to the browser', () => {
+    const fits = long(300, 300);
+    expect(turn(fits.element, { deltaY: 120 })).toBe(false);
+    expect(fits.page.scrollLeft).toBe(0);
+    const { element, page } = long(500, 300);
+    expect(turn(element, { deltaX: 40, deltaY: 3 })).toBe(false);
+    expect(page.scrollLeft).toBe(0);
+    // The browser slid it: the edges follow.
+    page.scrollLeft = 200;
+    element.dispatch('scroll', {});
+    expect(edges(element)).toEqual(['spellbook-more-at-start']);
+  });
+
+  it('slides the other way where Obsidian itself runs right to left', () => {
+    const { element, page } = long(500, 300);
+    element.ownerDocument.body.addClass('mod-rtl');
+    turn(element, { deltaY: 120 });
+    expect(page.scrollLeft).toBe(-120);
+    expect(edges(element)).toEqual(['spellbook-more-at-start', 'spellbook-more-at-end']);
+    expect(element.hasClass('spellbook-runs-backwards')).toBe(true);
+  });
+
+  it('looks at its edges again when a figure changes, and lets go of everything when it is taken away', () => {
+    const { element, bar, page } = long(300, 300);
+    expect(edges(element)).toEqual([]);
+    Object.assign(page, { scrollWidth: 420 });
+    bar.show([FIGURES[0], { ...FIGURES[1], value: '1,000,000 / 2' }]);
+    expect(edges(element)).toEqual(['spellbook-more-at-end']);
+    expect(element.listenerCount()).toBe(4); // click, keydown, wheel, scroll
+    bar.remove();
+    expect(element.listenerCount()).toBe(0);
+  });
+
+  it('is styled without a scrollbar, with a fade that follows the direction of the bar', () => {
+    const css = readFileSync(new URL('../../../src/styles/progress.css', import.meta.url), 'utf8');
+    expect(css).toMatch(/scrollbar-width: none/);
+    expect(css).toMatch(/\.spellbook-status\.spellbook-more-at-start \{\s*--spellbook-status-fade-start: transparent;/);
+    expect(css).toMatch(/\.spellbook-status\.spellbook-more-at-end \{\s*--spellbook-status-fade-end: transparent;/);
+    expect(css).toMatch(/mask-image: var\(--spellbook-status-fade-mask\)/);
+    expect(css).toMatch(/\.spellbook-status\.spellbook-runs-backwards\.spellbook-more-at-start,[^{]*\{\s*--spellbook-status-fade-angle: 270deg;/);
+  });
+});
+
 describe('on a phone, where the inspector shows the line', () => {
   it('offers the figures the writer chose, in the writer\'s order, and tells the inspector when the layout changes', async () => {
     Object.assign(Platform, { isDesktop: false, isMobile: true, isPhone: true });
@@ -592,7 +685,7 @@ describe('on a phone, where the inspector shows the line', () => {
     expect(stand.bar()).toBeNull();
     let told = 0;
     stand.sceneLine().onChange(() => told++);
-    // The figures only: a button has no place in the inspector's line.
+    // The figures on their own; the buttons come after them in the inspector's line.
     expect(stand.sceneLine().current()).toEqual([
       { id: 'status', label: 'Status', value: DRAFT, ownText: true, color: 'blue' },
       { id: 'scene', label: 'Words', value: '9' },
@@ -603,6 +696,49 @@ describe('on a phone, where the inspector shows the line', () => {
     await drawn(stand);
     expect(told).toBeGreaterThan(0);
     expect(stand.line()).toEqual(['Words 9', `Status ${DRAFT}`]);
+  });
+});
+
+describe('the shortcut buttons, for the inspector\'s line', () => {
+  it('offers the buttons the writer chose, runs their commands, and says which have no command', async () => {
+    Object.assign(Platform, { isDesktop: false, isMobile: true, isPhone: true });
+    const layout = addBarButton(addBarButton({ entries: [{ kind: 'item', id: 'scene' }] }, ZEN, 'Zen', 'eye'), 'other:gone');
+    const stand = await standUp(undefined, layout);
+    stand.commands.add(ZEN, 'Spellbook: Toggle zen mode');
+    stand.workspace.show(OPENING);
+    await drawn(stand);
+    const line = stand.sceneLine();
+    expect(line.buttons?.()).toEqual([
+      { key: 'button:1', command: ZEN, label: 'Zen', icon: 'eye', name: 'Spellbook: Toggle zen mode', available: true },
+      { key: 'button:2', command: 'other:gone', label: '', icon: null, name: 'other:gone', available: false },
+    ]);
+    line.run?.(ZEN);
+    // A command that is not there does nothing.
+    line.run?.('other:gone');
+    expect(stand.commands.ran).toEqual([ZEN]);
+  });
+
+  it('tells the inspector when a button is taken out of the bar, though no figure changed', async () => {
+    Object.assign(Platform, { isDesktop: false, isMobile: true, isPhone: true });
+    const stand = await standUp(undefined, addBarButton({ entries: [{ kind: 'item', id: 'scene' }] }, ZEN));
+    stand.workspace.show(OPENING);
+    await drawn(stand);
+    let told = 0;
+    stand.sceneLine().onChange(() => told++);
+    await drawn(stand);
+    const before = told;
+    openSettings(stand).press(`2. Button: ${ZEN}`, 'Remove');
+    await drawn(stand);
+    expect(told).toBeGreaterThan(before);
+    expect(stand.sceneLine().buttons?.()).toEqual([]);
+    expect(stand.line()).toEqual(['Words 9']);
+  });
+
+  it('offers no buttons with no project open', async () => {
+    const stand = await standUp(undefined, addBarButton(DEFAULT_BAR_LAYOUT, ZEN));
+    await stand.store.closeProject();
+    await drawn(stand);
+    expect(stand.sceneLine().buttons?.()).toEqual([]);
   });
 });
 

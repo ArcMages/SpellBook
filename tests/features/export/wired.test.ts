@@ -11,9 +11,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fromUtf8, unzipStored } from '../../../src/core/export';
 import {
   COULD_NOT_OPEN_TEXT,
+  COULD_NOT_SHOW_TEXT,
   EXPORT_WINDOW_TITLE,
   FORMAT_NOTES,
+  HIDDEN_FILE_NOTE,
   MOBILE_PDF_NOTE,
+  MOBILE_WHERE_NOTE,
   WHOLE_MANUSCRIPT_TEXT,
 } from '../../../src/features/export/exportModal';
 import { NOTHING_TEXT, NO_PROJECT_TEXT, OPTIONS_KEY } from '../../../src/features/export/exporter';
@@ -448,6 +451,105 @@ describe('saving an export', () => {
     await calm(stage);
     expect(notices()).toContain(COULD_NOT_OPEN_TEXT);
     expect(other.modal.isOpen).toBe(true);
+  });
+
+  describe('"Show in folder"', () => {
+    /** Obsidian's file list, standing in the sidebar; what it was asked to point at is kept. */
+    function fileList(stage: Wired, view: Record<string, unknown> | null = null): string[] {
+      const pointed: string[] = [];
+      const leaf = stage.fake.workspace.addLeaf(stage.fake.workspace.leftSplit);
+      leaf.type = 'file-explorer';
+      leaf.view = (view ?? {
+        revealInFolder: (file: { path: string }) => {
+          pointed.push(file.path);
+        },
+      }) as never;
+      return pointed;
+    }
+
+    it('on a desktop brings Obsidian\'s file list to the front, points at the file, and gets out of the way', async () => {
+      const stage = await wire();
+      const pointed = fileList(stage);
+      const window = openWindow(stage);
+      await pressExport(stage, window);
+      const path = `Novel/Exports/My Novel ${TODAY}.docx`;
+      stage.fake.vault.attachFile(path, '');
+      // A Word file: the file list may be set not to show it, and the window says so.
+      expect(textsOf(window, 'spellbook-export-note')).toContain(HIDDEN_FILE_NOTE);
+      expect(textsOf(window, 'spellbook-export-note')).not.toContain(MOBILE_WHERE_NOTE);
+
+      button(window, 'Show in folder').click();
+      await calm(stage);
+      expect(stage.fake.workspace.revealed.map((leaf) => leaf.type)).toEqual(['file-explorer']);
+      expect(pointed).toEqual([path]);
+      expect(window.modal.isOpen).toBe(false);
+      expect(stage.opened).toEqual([]);
+      expect(notices()).not.toContain(COULD_NOT_SHOW_TEXT);
+    });
+
+    it('points at the folder when the file list cannot point at the file', async () => {
+      const stage = await wire();
+      const pointed: string[] = [];
+      fileList(stage, {
+        revealInFolder: (file: { path: string; children?: unknown }) => {
+          if (file.children === undefined) throw new Error('not in the list');
+          pointed.push(file.path);
+        },
+      });
+      const window = openWindow(stage);
+      await pressExport(stage, window);
+      stage.fake.vault.attachFile(`Novel/Exports/My Novel ${TODAY}.docx`, '');
+      button(window, 'Show in folder').click();
+      await calm(stage);
+      expect(pointed).toEqual(['Novel/Exports']);
+      expect(window.modal.isOpen).toBe(false);
+    });
+
+    it('still shows the file list when it has no way of pointing at a file', async () => {
+      const stage = await wire();
+      fileList(stage, {});
+      const window = openWindow(stage);
+      await pressExport(stage, window);
+      stage.fake.vault.attachFile(`Novel/Exports/My Novel ${TODAY}.docx`, '');
+      button(window, 'Show in folder').click();
+      await calm(stage);
+      expect(stage.fake.workspace.revealed).toHaveLength(1);
+      expect(window.modal.isOpen).toBe(false);
+    });
+
+    it('says so when there is no file list to show, and stays open', async () => {
+      const stage = await wire();
+      const window = openWindow(stage);
+      await pressExport(stage, window);
+      button(window, 'Show in folder').click();
+      await calm(stage);
+      expect(notices()).toContain(COULD_NOT_SHOW_TEXT);
+      expect(window.modal.isOpen).toBe(true);
+    });
+
+    it('does not warn about hidden files for a Markdown export, which is a note', async () => {
+      const stage = await wire();
+      const window = openWindow(stage);
+      dropdown(window, 'Format').choose('markdown');
+      await pressExport(stage, window);
+      expect(textsOf(window, 'spellbook-export-note')).not.toContain(HIDDEN_FILE_NOTE);
+      expect(button(window, 'Show in folder')).toBeDefined();
+    });
+
+    it('on a phone or tablet is not offered: the window says where the file is instead', async () => {
+      Object.assign(StubPlatform, { isDesktop: false, isMobile: true, isPhone: true });
+      const stage = await wire();
+      const window = openWindow(stage);
+      dropdown(window, 'Format').choose('docx');
+      await pressExport(stage, window);
+      expect(() => button(window, 'Show in folder')).toThrow();
+      expect(button(window, 'Open')).toBeDefined();
+      const notes = textsOf(window, 'spellbook-export-note');
+      expect(notes).toContain(MOBILE_WHERE_NOTE);
+      expect(notes).toContain(HIDDEN_FILE_NOTE);
+      expect(MOBILE_WHERE_NOTE).toMatch(/Exports folder/);
+      expect(HIDDEN_FILE_NOTE).toMatch(/"Detect all file extensions"/);
+    });
   });
 
   it('"Print / save as PDF" saves the page made for printing and opens it at once', async () => {

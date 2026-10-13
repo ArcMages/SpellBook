@@ -22,6 +22,40 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* More of the bar lies beyond an edge: that edge fades out, so that the
+   figures out of sight are hinted at without a scrollbar. The view marks the
+   edges (statusBar.ts); the fade is a mask, so it takes whatever colour the
+   theme gives the bar. It runs along the bar from its start to its end:
+   90deg where Obsidian reads from the first side to the second, 270deg where
+   it runs the other way (which the view marks as well). */
+.spellbook-status.spellbook-more-at-start,
+.spellbook-status.spellbook-more-at-end {
+  --spellbook-status-fade: var(--size-4-8);
+  --spellbook-status-fade-angle: 90deg;
+  --spellbook-status-fade-mask: linear-gradient(
+    var(--spellbook-status-fade-angle),
+    var(--spellbook-status-fade-start, black),
+    black var(--spellbook-status-fade),
+    black calc(100% - var(--spellbook-status-fade)),
+    var(--spellbook-status-fade-end, black)
+  );
+  -webkit-mask-image: var(--spellbook-status-fade-mask);
+  mask-image: var(--spellbook-status-fade-mask);
+}
+
+.spellbook-status.spellbook-runs-backwards.spellbook-more-at-start,
+.spellbook-status.spellbook-runs-backwards.spellbook-more-at-end {
+  --spellbook-status-fade-angle: 270deg;
+}
+
+.spellbook-status.spellbook-more-at-start {
+  --spellbook-status-fade-start: transparent;
+}
+
+.spellbook-status.spellbook-more-at-end {
+  --spellbook-status-fade-end: transparent;
+}
+
 /* Nothing to show (no project is open): the item takes no room. */
 .spellbook-status.spellbook-is-empty {
   display: none;

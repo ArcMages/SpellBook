@@ -187,6 +187,7 @@ export class TimelineWiring implements TimelineHost {
       const signature = JSON.stringify([
         next.projectId,
         next.projectName,
+        next.folder ?? null,
         next.timelines ?? null,
         next.calendar ?? null,
         next.world ?? null,
@@ -242,6 +243,7 @@ export class TimelineWiring implements TimelineHost {
     return {
       projectId: project.indexPath,
       projectName: project.title,
+      folder: project.folder,
       timelines: this.store.projectData(TIMELINES_KEY),
       calendar: this.store.projectData(CALENDAR_KEY),
       // The entities are the notes of the World folder; only where they are is needed here.

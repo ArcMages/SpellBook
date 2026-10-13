@@ -3,6 +3,10 @@
 // a tablet have one; a phone does not). A click on a figure opens the targets
 // window; a click on a button runs its command.
 //
+// A bar too long for the window slides sideways. The mouse wheel slides it,
+// and the edge that has more beyond it fades out, so that figures out of
+// sight are not out of mind.
+//
 // The bar keeps what it has drawn. When it is shown the same pieces again,
 // only the piece whose figure changed is touched: nothing else is redrawn, so
 // a button keeps the keyboard's focus and typing never rebuilds the bar.
@@ -72,6 +76,17 @@ function shapeOf(piece: BarPiece): string {
 const stateOf = (piece: BarPiece): string =>
   piece.kind === 'button' ? String(piece.available) : JSON.stringify([piece.segment.value, piece.segment.met, piece.segment.fraction, piece.segment.late]);
 
+/** The edge of the bar where it begins has more beyond it. */
+export const MORE_AT_START_CLASS = 'spellbook-more-at-start';
+/** The edge of the bar where it ends has more beyond it. */
+export const MORE_AT_END_CLASS = 'spellbook-more-at-end';
+
+/** Obsidian itself runs right to left: the bar begins on the other side. */
+export const RUNS_BACKWARDS_CLASS = 'spellbook-runs-backwards';
+
+/** How far one line of the wheel slides the bar, in pixels, for a mouse that counts in lines. */
+const WHEEL_LINE = 16;
+
 /** A fraction as the width of the filled part of the small progress bar. */
 const widthOf = (fraction: number | undefined): string => `${Math.round(Math.max(0, Math.min(1, fraction ?? 0)) * 100)}%`;
 
@@ -95,6 +110,25 @@ export class StatusBar {
     this.onOpen();
   };
 
+  /** The wheel turns up and down; a bar with more than fits goes sideways by it. */
+  private readonly wheel = (event: WheelEvent): void => {
+    const { element } = this;
+    if (!(element.scrollWidth - element.clientWidth > 1)) return;
+    // A trackpad that slides sideways already is left to do so.
+    if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+    const step = event.deltaMode === 1 ? event.deltaY * WHEEL_LINE : event.deltaY;
+    // Where Obsidian itself runs right to left, further along the bar is further to the other side.
+    element.scrollLeft += this.runsBackwards() ? -step : step;
+    // The turn of the wheel is used up: what lies under the bar does not move with it.
+    event.preventDefault?.();
+    this.markEdges();
+  };
+  private readonly scrolled = (): void => {
+    this.markEdges();
+  };
+  /** Tells when the bar gets another width (the window was made narrower). */
+  private watcher: ResizeObserver | null = null;
+
   /**
    * @param element the status bar item Obsidian made for the plugin
    * @param onOpen  called when a figure is clicked (or Enter is pressed on the bar)
@@ -111,7 +145,36 @@ export class StatusBar {
     element.setAttr('aria-label', 'Writing progress. Click to set writing targets.');
     element.addEventListener('click', this.click);
     element.addEventListener('keydown', this.keydown);
+    // Not passive: the wheel's turn is taken, so the listener must be able to say so.
+    element.addEventListener('wheel', this.wheel, { passive: false });
+    element.addEventListener('scroll', this.scrolled, { passive: true });
+    if (typeof ResizeObserver === 'function') {
+      this.watcher = new ResizeObserver(() => {
+        this.markEdges();
+      });
+      this.watcher.observe(element);
+    }
     this.show([]);
+  }
+
+  /** Whether Obsidian itself runs right to left (it says so on the page). */
+  private runsBackwards(): boolean {
+    return this.element.ownerDocument?.body?.hasClass('mod-rtl') === true;
+  }
+
+  /**
+   * Mark the edges that have more beyond them, for the stylesheet to fade.
+   * A bar that fits has none.
+   */
+  private markEdges(): void {
+    const { element } = this;
+    element.toggleClass(RUNS_BACKWARDS_CLASS, this.runsBackwards());
+    const hidden = element.scrollWidth - element.clientWidth;
+    // (Right to left, the browser counts how far the bar has slid below zero.)
+    const slid = Math.abs(element.scrollLeft);
+    const slides = hidden > 1;
+    element.toggleClass(MORE_AT_START_CLASS, slides && slid > 1);
+    element.toggleClass(MORE_AT_END_CLASS, slides && hidden - slid > 1);
   }
 
   /**
@@ -128,11 +191,11 @@ export class StatusBar {
         const before = this.drawn[at];
         return before !== undefined && before.key === keyOf(piece) && before.shape === shapeOf(piece);
       });
-    if (same) {
-      wanted.forEach((piece, at) => this.update(this.drawn[at] as Drawn, piece));
-      return;
-    }
-    this.rebuild(wanted);
+    const before = this.touched;
+    if (same) wanted.forEach((piece, at) => this.update(this.drawn[at] as Drawn, piece));
+    else this.rebuild(wanted);
+    // A figure that changed may have made the bar longer or shorter.
+    if (this.touched !== before) this.markEdges();
   }
 
   /** Take the bar away again. */
@@ -141,6 +204,10 @@ export class StatusBar {
     this.drawn = [];
     this.element.removeEventListener('click', this.click);
     this.element.removeEventListener('keydown', this.keydown);
+    this.element.removeEventListener('wheel', this.wheel);
+    this.element.removeEventListener('scroll', this.scrolled);
+    this.watcher?.disconnect();
+    this.watcher = null;
     this.element.remove();
   }
 

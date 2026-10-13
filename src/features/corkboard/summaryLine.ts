@@ -1,5 +1,6 @@
 // The line at the top of the inspector on phones and tablets: the open
-// scene's word count and dates, and the session and project totals.
+// scene's word count and dates, and the session and project totals, and after
+// them the shortcut buttons the writer put in the bottom bar.
 //
 // On a desktop Obsidian shows that line in its bottom bar. A phone has no
 // bottom bar, so there the inspector shows it instead. The line itself belongs
@@ -7,11 +8,11 @@
 // the others under a name; this file only puts it on the screen. When nobody
 // offers it, nothing is shown.
 
-import { Platform } from 'obsidian';
+import { Platform, getIcon, setIcon } from 'obsidian';
 // The line's name and its shape are declared once, in the core, for the
 // screen that offers it and for this one that shows it.
 import { SCENE_LINE_SERVICE } from '../../core/progress/index';
-import type { SceneLineService, StatusSegment } from '../../core/progress/index';
+import type { SceneLineButton, SceneLineService, StatusSegment } from '../../core/progress/index';
 import type { FeatureClock, FeatureServices } from '../registry';
 
 /**
@@ -24,7 +25,30 @@ function isSceneLine(value: unknown): value is SceneLineService {
   return typeof line.current === 'function' && typeof line.onChange === 'function';
 }
 
-function draw(slot: HTMLElement, line: SceneLineService): void {
+/** Whether what a line gave as a button can be drawn as one. */
+function isButton(value: unknown): value is SceneLineButton {
+  if (typeof value !== 'object' || value === null) return false;
+  const button = value as Partial<SceneLineButton>;
+  return (
+    typeof button.command === 'string' &&
+    typeof button.label === 'string' &&
+    typeof button.name === 'string' &&
+    typeof button.available === 'boolean' &&
+    (button.icon === null || typeof button.icon === 'string')
+  );
+}
+
+/** Whether Obsidian knows an icon by this name. An icon it does not know is never drawn. */
+function hasIcon(icon: string | null): icon is string {
+  if (icon === null) return false;
+  try {
+    return getIcon(icon) !== null;
+  } catch {
+    return false;
+  }
+}
+
+function drawFigures(place: HTMLElement, line: SceneLineService): void {
   let segments: readonly StatusSegment[] = [];
   try {
     const now: unknown = line.current();
@@ -32,15 +56,102 @@ function draw(slot: HTMLElement, line: SceneLineService): void {
   } catch (error) {
     console.error('Spellbook: the word count line could not be read', error);
   }
-  slot.empty();
+  place.empty();
   for (const segment of segments) {
     if (typeof segment?.label !== 'string' || typeof segment.value !== 'string') continue;
     // A word of the app's own and a number or a date: read left to right in every language.
-    const item = slot.createSpan({ cls: 'spellbook-summary-item', attr: { dir: 'ltr' } });
+    const item = place.createSpan({ cls: 'spellbook-summary-item', attr: { dir: 'ltr' } });
     item.createSpan({ cls: 'spellbook-summary-label', text: segment.label });
     // The writer's own text (a status, a scene's title) picks its own direction.
     item.createSpan({ cls: 'spellbook-summary-value', text: segment.value, attr: segment.ownText === true ? { dir: 'auto' } : {} });
   }
+}
+
+/** The buttons a line offers now; none when it offers none, or they cannot be read. */
+function buttonsOf(line: SceneLineService): SceneLineButton[] {
+  if (typeof line.buttons !== 'function' || typeof line.run !== 'function') return [];
+  try {
+    const now: unknown = line.buttons();
+    return Array.isArray(now) ? now.filter(isButton) : [];
+  } catch (error) {
+    console.error('Spellbook: the shortcut buttons could not be read', error);
+    return [];
+  }
+}
+
+function drawButton(place: HTMLElement, line: SceneLineService, button: SceneLineButton): void {
+  const title = button.label !== '' && button.label !== button.name ? `${button.label}: ${button.name}` : button.name;
+  const root = place.createSpan({
+    cls: 'spellbook-summary-button',
+    attr: {
+      role: 'button',
+      tabindex: 0,
+      'aria-label': button.available ? title : `${title} (this command is not available)`,
+    },
+  });
+  // A button whose command is not there (its plugin is switched off): dimmed.
+  if (!button.available) {
+    root.addClass('spellbook-is-unavailable');
+    root.setAttr('aria-disabled', 'true');
+  }
+  const withIcon = hasIcon(button.icon);
+  if (withIcon) {
+    const icon = root.createSpan({ cls: 'spellbook-summary-button-icon', attr: { 'aria-hidden': 'true' } });
+    setIcon(icon, button.icon as string);
+  }
+  // Without an icon the button must say something: its label, or else what the command is called.
+  const text = button.label !== '' ? button.label : withIcon ? '' : button.name;
+  if (text !== '') root.createSpan({ cls: 'spellbook-summary-button-label', text, attr: { dir: 'auto' } });
+
+  const run = (): void => {
+    try {
+      line.run?.(button.command);
+    } catch (error) {
+      console.error(`Spellbook: the command "${button.command}" could not be run`, error);
+    }
+  };
+  root.addEventListener('click', (event: MouseEvent) => {
+    event.stopPropagation?.();
+    run();
+  });
+  root.addEventListener('keydown', (event: KeyboardEvent) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    run();
+  });
+}
+
+/** What the slot holds: the figures, and after them the buttons (only while there are some). */
+interface Drawing {
+  readonly figures: HTMLElement;
+  buttons: HTMLElement | null;
+  /** The buttons as they were drawn, to tell when they must be drawn again. */
+  drawnButtons: string;
+}
+
+/** The class the slot has while the line has nothing in it, so that it takes no room. */
+const EMPTY_CLASS = 'spellbook-summary-is-empty';
+
+function draw(slot: HTMLElement, line: SceneLineService, drawing: Drawing): void {
+  drawFigures(drawing.figures, line);
+  drawButtons(slot, line, drawing);
+  slot.toggleClass(EMPTY_CLASS, drawing.figures.children.length === 0 && drawing.buttons === null);
+}
+
+function drawButtons(slot: HTMLElement, line: SceneLineService, drawing: Drawing): void {
+  // The buttons are left standing while they are the same: a figure that
+  // changes while a finger is on a button does not take the button away.
+  const buttons = buttonsOf(line);
+  const wanted = JSON.stringify(buttons);
+  if (wanted === drawing.drawnButtons) return;
+  drawing.drawnButtons = wanted;
+  drawing.buttons?.remove();
+  drawing.buttons = null;
+  if (buttons.length === 0) return;
+  const place = slot.createDiv({ cls: 'spellbook-summary-buttons', attr: { role: 'group', 'aria-label': 'Shortcuts' } });
+  drawing.buttons = place;
+  for (const button of buttons) drawButton(place, line, button);
 }
 
 /**
@@ -65,9 +176,11 @@ export function mountSceneLine(
   const start = (): boolean => {
     const line: unknown = services.get(SCENE_LINE_SERVICE);
     if (!isSceneLine(line)) return false;
-    draw(slot, line);
+    slot.empty();
+    const drawing: Drawing = { figures: slot.createSpan({ cls: 'spellbook-summary-figures' }), buttons: null, drawnButtons: '[]' };
+    draw(slot, line, drawing);
     stopListening = line.onChange(() => {
-      if (!stopped) draw(slot, line);
+      if (!stopped) draw(slot, line, drawing);
     });
     return true;
   };
@@ -87,6 +200,7 @@ export function mountSceneLine(
     stopWaiting = null;
     stopListening?.();
     stopListening = null;
+    slot.removeClass(EMPTY_CLASS);
     slot.empty();
   };
 }

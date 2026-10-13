@@ -10,6 +10,13 @@
 // folder by its name or by the end of its path, whatever its capitals. A link
 // that matches none is still shown, by the name it gives, so that an entity
 // whose note has not synced yet (or was renamed) does not vanish.
+//
+// A vault may hold two projects that each have a "Mara". A bare name is only
+// ever looked for among the notes of this project's own World folder, so it
+// leads to this project's Mara. A link written with a longer path, one that
+// names a folder outside the World folder, is taken for this project's note
+// only when that folder is the project's own: "[[Atlas/World/Mara]]" in a
+// note of "Novel" is the other project's Mara, not this one's.
 
 import { clashKey, noteTitle } from './../paths';
 import { isRecord } from './common';
@@ -49,13 +56,50 @@ function lastPart(target: string): string {
   return last.toLowerCase().endsWith('.md') && last.length > 3 ? last.slice(0, -3) : last;
 }
 
+/** A path or a link target as the parts it is compared by: capitals and ".md" do not matter. */
+function partsOf(text: string): string[] {
+  const parts = clashKey(text)
+    .split('/')
+    .map((part) => part.trim())
+    .filter((part) => part !== '' && part !== '.');
+  const last = parts[parts.length - 1];
+  if (last !== undefined && last.endsWith('.md') && last.length > 3) parts[parts.length - 1] = last.slice(0, -3);
+  return parts;
+}
+
+/**
+ * Whether a link that was matched to a note of this project really means
+ * that note. It does when it says no more than the note's own path does;
+ * what it says beyond that (the folders in front) must be where the project
+ * itself is.
+ */
+function meansOwnNote(target: string, path: string, projectFolder: string): boolean {
+  const said = partsOf(target);
+  const note = partsOf(path);
+  let shared = 0;
+  while (shared < said.length && shared < note.length && said[said.length - 1 - shared] === note[note.length - 1 - shared]) shared++;
+  const before = said.slice(0, said.length - shared);
+  if (before.length === 0) return true;
+  const folder = partsOf(projectFolder);
+  if (before.length > folder.length) return false;
+  return before.every((part, at) => part === folder[folder.length - before.length + at]);
+}
+
 /**
  * Index the notes of the World folder.
  *
- * @param worldPaths the paths of the notes in the World folder, written the same way everywhere
+ * @param worldPaths    the paths of the notes in the World folder, written the same way everywhere
+ * @param projectFolder where the project is in the vault ("Novel", "Books/Novel"). With it, a link
+ *   whose path names another folder in front of the note's own path is not taken for a note of
+ *   this project; without it, every such link is (as when the paths given are vault paths already)
  */
-export function createEntityIndex(worldPaths: readonly string[]): EntityIndex {
-  const find = createSceneResolver(worldPaths);
+export function createEntityIndex(worldPaths: readonly string[], projectFolder?: string): EntityIndex {
+  const findAmong = createSceneResolver(worldPaths);
+  const find = (target: string): string | null => {
+    const path = findAmong(target);
+    if (path === null || projectFolder === undefined) return path;
+    return meansOwnNote(target, path, projectFolder) ? path : null;
+  };
   const byKey = new Map<string, EventEntity>();
   const nameCount = new Map<string, number>();
   for (const path of worldPaths) {
@@ -108,6 +152,34 @@ export function eventEntities(event: TimelineEvent, index: EntityIndex): EventEn
 export function eventHasEntity(event: TimelineEvent, wanted: ReadonlySet<string>, index: EntityIndex): boolean {
   if (wanted.size === 0) return true;
   return event.entities.some((target) => wanted.has(index.resolve(target).key));
+}
+
+/**
+ * How many of an event's chips to show on its card, so that every chip shown
+ * is whole. When they do not all fit, room is kept for the "+N" that counts
+ * the rest; a card too narrow for even one chip shows the "+N" alone.
+ *
+ * @param widths    how wide each chip is, in the order they are shown
+ * @param room      how much room there is for the chips and the "+N" together
+ * @param gap       the space between one chip and the next
+ * @param moreWidth how wide the "+N" is
+ * @param uncounted how many more entities the event names than there are chips (they are counted by the "+N" whatever fits)
+ * @returns how many chips to show, from the first
+ */
+export function chipsThatFit(widths: readonly number[], room: number, gap: number, moreWidth: number, uncounted = 0): number {
+  // A hair of slack: widths are measured in whole pixels.
+  const fits = (needed: number): boolean => needed <= room + 0.5;
+  const all = widths.reduce((sum, width) => sum + width, 0) + gap * Math.max(0, widths.length - 1);
+  if (uncounted <= 0 && fits(all)) return widths.length;
+  const most = uncounted > 0 ? widths.length : widths.length - 1;
+  let shown = 0;
+  let used = moreWidth;
+  while (shown < most) {
+    used += (widths[shown] as number) + gap;
+    if (!fits(used)) break;
+    shown++;
+  }
+  return shown;
 }
 
 const isLink = (text: string): boolean => /^!?\[\[.*\]\]$/.test(text) || /^\[[^\]]*\]\(.+\)$/.test(text);

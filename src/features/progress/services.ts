@@ -7,4 +7,4 @@
 // so that the files here can say "./services".
 
 export { SCENE_LINE_SERVICE, STATS_SERVICE } from '../../core/progress/index';
-export type { DayWords, SceneLineService, StatsService, StatsSummary } from '../../core/progress/index';
+export type { DayWords, SceneLineButton, SceneLineService, StatsService, StatsSummary } from '../../core/progress/index';

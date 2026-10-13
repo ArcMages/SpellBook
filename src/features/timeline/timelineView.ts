@@ -29,6 +29,7 @@ import { ItemView, Keymap, Notice, Platform } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import {
   LANE_COLORS,
+  chipsThatFit,
   dateAtPosition,
   dayToPosition,
   describeEventProblem,
@@ -82,6 +83,8 @@ export const SHOW_ALL_LABEL = 'Show all events';
 export const NO_MATCHING_EVENTS = 'No event names any of these entities.';
 /** A card shows this many entities at most; the rest are counted. */
 export const CARD_ENTITIES = 3;
+/** The space between two chips on a card, in pixels (--size-2-1 in the stylesheet). */
+const CHIP_GAP = 2;
 
 /** How much one press of a zoom button changes the size of a day. */
 const ZOOM_STEP = 1.5;
@@ -146,6 +149,23 @@ interface Card {
   /** Where it was put along the axis, and how long (a long bar is cut to what is near the view). */
   along: number;
   size: number;
+  /** The entities on the card: their chips and the "+N" that counts the ones not shown. Null when it shows none. */
+  entities: CardEntities | null;
+  /** How wide the card is now, as it is written in its style. */
+  width: string;
+}
+
+/** The chips of a card. As many are shown as fit whole; the "+N" counts the rest. */
+interface CardEntities {
+  /** Holds the chips and the "+N": the room they have is its width. */
+  readonly room: HTMLElement;
+  readonly box: HTMLElement;
+  readonly chips: readonly HTMLElement[];
+  readonly more: HTMLElement;
+  /** The names of all the entities the event names, the chips' first. */
+  readonly names: readonly string[];
+  /** The width of the card the chips were last fitted to; "" when they are still to be fitted. */
+  fitted: string;
 }
 
 /** What a press on the timeline lands on. */
@@ -207,6 +227,8 @@ export class TimelineView extends ItemView {
   /** Cards still to be made, the visible ones first. */
   private queue: PlacedBox[] = [];
   private stopBuild: (() => void) | null = null;
+  /** The cards whose chips are to be fitted to their width (again). */
+  private readonly toFit = new Set<Card>();
   private bandEls = new Map<string, HTMLElement>();
   private tickEls: HTMLElement[] = [];
   private lineEls: HTMLElement[] = [];
@@ -839,11 +861,12 @@ export class TimelineView extends ItemView {
     for (const placed of this.queue.splice(0, CARDS_PER_FRAME)) {
       if (this.cards.has(placed.box.key)) continue;
       const el = els.cards.createDiv({ cls: 'spellbook-timeline-card', attr: { role: 'button', tabindex: '0' } });
-      const card: Card = { el, placed, drawn: '', text: null, more: null, along: 0, size: 0 };
+      const card: Card = { el, placed, drawn: '', text: null, more: null, along: 0, size: 0, entities: null, width: '' };
       this.cards.set(placed.box.key, card);
       this.cardOf.set(el, card);
       this.dress(card);
     }
+    this.fitChips();
     if (this.queue.length === 0 || this.stopBuild) return;
     this.stopBuild = this.host.clock.nextFrame(() => {
       this.stopBuild = null;
@@ -854,6 +877,7 @@ export class TimelineView extends ItemView {
   private forgetCards(): void {
     this.stopBuild?.();
     this.stopBuild = null;
+    this.toFit.clear();
     this.queue = [];
     for (const card of this.cards.values()) card.el.remove();
     this.cards.clear();
@@ -897,6 +921,53 @@ export class TimelineView extends ItemView {
     style.insetBlockStart = px(scene.vertical ? along : cross.start);
     style.inlineSize = px(scene.vertical ? cross.size : size);
     style.blockSize = px(scene.vertical ? size : cross.size);
+    card.width = style.inlineSize;
+    // How many chips fit depends on how wide the card is.
+    if (card.entities !== null && card.entities.fitted !== card.width) this.toFit.add(card);
+  }
+
+  /**
+   * Show on each card that changed as many whole chips as it has room for,
+   * and count the rest in its "+N". A chip is never cut down to a letter or
+   * two: one that does not fit whole is not shown. Everything is measured
+   * first and changed after, so the page is laid out once for all the cards.
+   */
+  private fitChips(): void {
+    if (this.toFit.size === 0) return;
+    const waiting: Array<{ card: Card; entities: CardEntities }> = [];
+    for (const card of this.toFit) {
+      if (card.entities !== null && this.cards.get(card.placed.box.key) === card) waiting.push({ card, entities: card.entities });
+    }
+    this.toFit.clear();
+    // Everything on show, the "+N" at its widest, so that it can be measured...
+    for (const { entities } of waiting) {
+      for (const chip of entities.chips) chip.removeClass('spellbook-is-hidden');
+      entities.box.removeClass('spellbook-is-fitted');
+      entities.more.setText(`+${entities.names.length}`);
+      entities.more.removeClass('spellbook-is-hidden');
+    }
+    const measured = waiting.map(({ entities }) => ({
+      room: entities.room.clientWidth,
+      widths: entities.chips.map((chip) => chip.offsetWidth),
+      more: entities.more.offsetWidth,
+    }));
+    // ...and only then changed.
+    waiting.forEach(({ card, entities }, at) => {
+      const { room, widths, more } = measured[at] as { room: number; widths: number[]; more: number };
+      const uncounted = entities.names.length - entities.chips.length;
+      // A card that is not laid out (its pane is in a tab behind another) cannot be measured: every chip stays.
+      const known = room > 0 && more > 0 && widths.every((width) => width > 0);
+      const shown = known ? chipsThatFit(widths, room, CHIP_GAP, more, uncounted) : entities.chips.length;
+      entities.chips.forEach((chip, index) => chip.toggleClass('spellbook-is-hidden', index >= shown));
+      entities.box.toggleClass('spellbook-is-fitted', known);
+      const rest = entities.names.slice(shown);
+      entities.more.setText(`+${rest.length}`);
+      entities.more.toggleClass('spellbook-is-hidden', rest.length === 0);
+      // Pointing at the "+N" says who the rest are.
+      entities.more.setAttr('title', rest.length === 0 ? null : rest.join(', '));
+      // What could not be measured is tried again the next time the cards are gone over.
+      entities.fitted = known ? card.width : '';
+    });
   }
 
   private fillCard(card: Card, dates: string, meta: boolean): void {
@@ -906,6 +977,7 @@ export class TimelineView extends ItemView {
     el.empty();
     card.text = null;
     card.more = null;
+    card.entities = null;
     this.colour(el, lane.lane.color);
     el.toggleClass('spellbook-timeline-cluster', event === null);
     el.toggleClass('spellbook-is-span', box.isSpan);
@@ -936,14 +1008,22 @@ export class TimelineView extends ItemView {
       }
       const entities = this.content?.entities.get(event.path) ?? [];
       if (entities.length > 0) {
-        const chips = line.createSpan({ cls: 'spellbook-timeline-card-entities' });
-        for (const entity of entities.slice(0, CARD_ENTITIES)) {
-          const chip = chips.createSpan({ cls: 'spellbook-timeline-entity-chip', text: entity.name, attr: { dir: 'auto' } });
+        line.addClass('spellbook-has-entities');
+        const room = line.createSpan({ cls: 'spellbook-timeline-card-entities' });
+        // The chips stand in a box of their own, which lets none of them be seen in part.
+        const box = room.createSpan({ cls: 'spellbook-timeline-card-chips' });
+        const chips = entities.slice(0, CARD_ENTITIES).map((entity) => {
+          const chip = box.createSpan({ cls: 'spellbook-timeline-entity-chip', text: entity.name, attr: { dir: 'auto' } });
           chip.toggleClass('spellbook-is-missing', entity.path === null);
-        }
-        if (entities.length > CARD_ENTITIES) {
-          chips.createSpan({ cls: 'spellbook-timeline-entity-more', text: `+${entities.length - CARD_ENTITIES}` });
-        }
+          return chip;
+        });
+        // The "+N" counts the entities that are not shown: those beyond the
+        // first few, and (once the card is measured) those there is no room for.
+        const rest = entities.slice(CARD_ENTITIES).map((entity) => entity.name);
+        const more = room.createSpan({ cls: 'spellbook-timeline-entity-more', text: `+${rest.length}` });
+        more.toggleClass('spellbook-is-hidden', rest.length === 0);
+        if (rest.length > 0) more.setAttr('title', rest.join(', '));
+        card.entities = { room, box, chips, more, names: entities.map((entity) => entity.name), fitted: '' };
       }
     }
     card.text = text;

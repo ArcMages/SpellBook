@@ -89,6 +89,7 @@ describe('what the timeline is shown', () => {
     expect(dataOf(host)).toEqual({
       projectId: NOVEL,
       projectName: 'My Novel',
+      folder: 'Novel',
       timelines: LANES,
       // No calendar of its own, and no notes in a World folder.
       world: [],

@@ -588,6 +588,67 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* With nothing in it (no project is open), the line takes no room either. */
+.spellbook-inspector-slot.spellbook-summary-is-empty {
+  display: none;
+}
+
+/* The shortcut buttons the writer put in the bottom bar, after the figures:
+   each one big enough for a finger. They wrap onto more lines when they do
+   not fit side by side. */
+.spellbook-inspector-slot .spellbook-summary-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+  margin-block-start: var(--size-4-2);
+}
+
+.spellbook-inspector-slot .spellbook-summary-buttons:first-child {
+  margin-block-start: 0;
+}
+
+.spellbook-inspector-slot .spellbook-summary-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--size-2-3);
+  box-sizing: border-box;
+  min-inline-size: 44px;
+  min-block-size: 44px;
+  max-inline-size: 100%;
+  padding-inline: var(--size-4-2);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background-color: var(--interactive-normal);
+  color: var(--text-normal);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.spellbook-inspector-slot .spellbook-summary-button:active,
+.spellbook-inspector-slot .spellbook-summary-button:focus-visible {
+  background-color: var(--interactive-hover);
+}
+
+.spellbook-inspector-slot .spellbook-summary-button-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.spellbook-inspector-slot .spellbook-summary-button-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A button whose command is not there (its plugin is switched off): dimmed,
+   as in the bottom bar of a desktop. */
+.spellbook-inspector-slot .spellbook-summary-button.spellbook-is-unavailable {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .spellbook-inspector-scroll {
   flex: 1 1 auto;
   min-height: 0;

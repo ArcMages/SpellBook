@@ -94,7 +94,7 @@ describe('plugging in', () => {
     expect(s.plugin.viewTypes).toEqual([REPORT_VIEW_TYPE]);
     expect(s.plugin.commands.map((command) => [command.id, command.name])).toEqual([['open-writing-report', 'Open writing report']]);
     expect(s.plugin.ribbonIcons.map((icon) => [icon.icon, icon.title])).toEqual([['chart-column', REPORT_RIBBON_TITLE]]);
-    expect(s.features.settingsSections).toEqual([]);
+    expect(s.features.settingsSections.map((section) => [section.id, section.title])).toEqual([['report', 'Writing report']]);
     await calm(s);
     // No note was read, nothing was saved on the device, and nothing is followed.
     expect(s.vault.reads.readText).toBe(0);
@@ -544,7 +544,35 @@ describe('the words on a page', () => {
     expect(new ReportPrefs(odd).wordsPerPage).toBe(250);
   });
 
-  it('can be a row of the settings tab as well (not switched on yet)', () => {
+  it('are a row of the plugin\'s settings tab as well, and the open report follows it', async () => {
+    const vault = novelVault();
+    vault.external.write(inNovel(CLOSING), { body: `${'word '.repeat(600)}\n` }, { silent: true });
+    const s = await stage(vault, { front: inNovel(CLOSING) });
+    const { pane } = await openReport(s);
+    expect(figure(pane, 'pages')).toBe('3');
+    const section = s.features.settingsSections.find((candidate) => candidate.id === 'report');
+    const container = new FakeElement();
+    section?.render(container as unknown as HTMLElement);
+    const row = container.settings[0];
+    expect(row?.nameEl.text).toBe(WORDS_PER_PAGE_NAME);
+    const text = row?.components[0] as { type(value: string): void; getValue(): string };
+    expect(text.getValue()).toBe('250');
+    text.type('300');
+    await calm(s);
+    expect(figure(pane, 'pages')).toBe('2');
+    expect(one(pane, 'spellbook-report-per-page-field').value).toBe('300');
+    expect(s.storage.saves).toEqual([[WORDS_PER_PAGE_KEY, '300']]);
+
+    // And the other way: what was set in the report is what the row shows when the tab is next drawn.
+    const field = one(pane, 'spellbook-report-per-page-field');
+    field.value = '400';
+    field.fire('change');
+    const again = new FakeElement();
+    section?.render(again as unknown as HTMLElement);
+    expect((again.settings[0]?.components[0] as { getValue(): string }).getValue()).toBe('400');
+  });
+
+  it('as a row, takes a number once it can be a page', () => {
     const storage = new MemoryDeviceStorage();
     const prefs = new ReportPrefs(storage);
     const told: number[] = [];

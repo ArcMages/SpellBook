@@ -28,6 +28,25 @@ export const SCENE_LINE_SERVICE = 'progress.sceneLine';
 export const STATS_SERVICE = 'progress.stats';
 
 /**
+ * A shortcut button of the line: the writer put it in the bottom bar's
+ * settings to run one command of Obsidian or of a plugin.
+ */
+export interface SceneLineButton {
+  /** A name for this button that no other button of the line has. */
+  readonly key: string;
+  /** The id of the command it runs. */
+  readonly command: string;
+  /** What it says; "" for none (it then shows its icon, or else the command's name). */
+  readonly label: string;
+  /** The name of its icon, or null. */
+  readonly icon: string | null;
+  /** What the command is called, for whoever points at the button or hears it read out. */
+  readonly name: string;
+  /** Whether there is such a command right now. A button without one is shown dimmed. */
+  readonly available: boolean;
+}
+
+/**
  * The line of figures for the note that is open: its words and target, the
  * day it was started, the day it was last edited, the words of this session,
  * the project total against the project target, and today against the daily
@@ -47,9 +66,21 @@ export interface SceneLineService {
    */
   current(): readonly StatusSegment[];
   /**
+   * The shortcut buttons the writer put in the bar, in the writer's order.
+   * On a desktop they stand between the figures of the bottom bar; where the
+   * inspector shows the line they come after the figures. Empty with no
+   * project open. (Left out by a line that has no buttons to offer.)
+   */
+  buttons?(): readonly SceneLineButton[];
+  /**
+   * Run the command of a button. A command that is not there does nothing.
+   * (Left out by a line that has no buttons to offer.)
+   */
+  run?(command: string): void;
+  /**
    * Be told when the line has changed (typing paused, another note was
-   * opened, the project or its targets changed, midnight passed). Then ask
-   * `current()` again.
+   * opened, the project or its targets changed, the writer changed the bar,
+   * midnight passed). Then ask `current()` and `buttons()` again.
    *
    * @returns a function that stops the listening
    */

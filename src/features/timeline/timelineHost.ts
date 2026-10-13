@@ -19,6 +19,12 @@ export interface TimelineData {
   readonly projectId: string;
   /** The project's name: the writer's own text. */
   readonly projectName: string;
+  /**
+   * Where the project is in the vault ("Novel"), when the paths below are
+   * written from the project's folder on. With it, a link to an entity of
+   * another project is not taken for an entity of this one.
+   */
+  readonly folder?: string;
   /** The value stored under the "timelines" key of the project index, exactly as it is stored. */
   readonly timelines: unknown;
   /**
