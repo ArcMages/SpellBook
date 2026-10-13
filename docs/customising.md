@@ -177,7 +177,7 @@ body.spellbook-scheme-sepia .markdown-source-view {
 
 The other `--spellbook-` variables you may find in the stylesheet (the ones ending in `-touch`, `-touch-target` and `-bar-room`) keep buttons large enough for a finger and keep the last row clear of Obsidian's phone toolbar. Leave those alone.
 
-Class names and variables may change between versions while Spellbook is at 0.1.0. A snippet that stops working after an update is the place to look first.
+Class names and variables may change between versions while Spellbook is before version 1.0. A snippet that stops working after an update is the place to look first.
 
 ## Keyboard shortcuts
 
@@ -415,13 +415,13 @@ Statuses and labels are saved in the project, so they are the same on every devi
 
 *Obsidian's graph view of the sample novel, with one colour for each folder of the project.*
 
-Spellbook lists the characters, places and items of a scene or a timeline event as ordinary Obsidian links, in the note's `entities` property. Obsidian's own graph view and its backlinks pane read those links, so the graph shows who appears in which scene without any setup. The graph belongs to Obsidian, not to Spellbook, so the steps below use Obsidian's settings.
+Spellbook lists the characters, places, lore and other entities of a scene or a timeline event as ordinary Obsidian links, in the note's `entities` property. Obsidian's own graph view and its backlinks pane read those links, so the graph shows who appears in which scene without any setup. The graph belongs to Obsidian, not to Spellbook, so the steps below use Obsidian's settings.
 
 To see the graph of one project, coloured by kind of note:
 
 1. Open the graph: the **Open graph view** button in Obsidian's ribbon, or the command **Graph view: Open graph view**.
 2. Open the graph's settings (the cog at its top right).
-3. Under **Filters**, type `path:"My Novel"` in the search field, with your project's folder name, to show that project alone. Add `-path:"My Novel/Stats"` to leave out the word logs. Switch **Orphans** off to hide notes with no links.
+3. Under **Filters**, type `path:"My Novel"` in the search field, with your project's folder name, to show that project alone. Add `-path:"My Novel/Stats"` to leave out the word logs, and `-path:"My Novel/AI helper"` if the project has the AI helper note. Switch **Orphans** off to hide notes with no links.
 4. Under **Groups**, choose **New group** once for each kind of note, type its folder, and pick a colour. For example:
 
 | Group query | Shows | Colour in the picture |
@@ -431,6 +431,9 @@ To see the graph of one project, coloured by kind of note:
 | `path:"My Novel/World/Places"` | Places | Green |
 | `path:"My Novel/World/Factions"` | Factions | Red |
 | `path:"My Novel/World/Items"` | Items | Orange |
+| `path:"My Novel/World/Lore"` | Lore | Yellow |
+| `path:"My Novel/World/Creatures"` | Creatures | Cyan |
+| `path:"My Novel/World/Cultures"` | Cultures | Pink |
 | `path:"My Novel/Timeline"` | Timeline events | Purple |
 
 5. Under **Display**, raise **Text fade threshold** to see more names, and **Node size** to taste.
@@ -441,27 +444,36 @@ One limit: when a vault holds two projects that each have an entity of the same 
 
 ## Entity types of your own
 
-The World starts with four types: Character, Place, Faction and Item. A fantasy novel may want Creature or Spell; a mystery may want Clue.
+The World starts with seven types: Character, Place, Faction, Item, Lore, Creature and Culture. A fantasy novel may want Spell or Deity; a mystery may want Clue.
 
 **To add a type**
 
 1. Run **Open world** and press **Entity types**. The window is called "Entity types".
-2. Press **Add a type**, type a name, for example "Creature", and press **Add**. The type appears in the list with a folder of its own and no properties yet.
-3. Open the new type's menu and choose **Change properties**. List the properties a new note of this type should start with, with commas between them, for example: habitat, diet, danger. Press **Save**.
+2. Press **Add a type**, type a name, for example "Spell", and press **Add**. The type appears in the list with a folder of its own and one property, summary.
+3. Open the new type's menu and choose **Change properties**. List the properties a new note of this type should start with, with commas between them, for example: school, cost, danger, summary. Press **Save**.
 4. Choose a colour and an icon for it on its row.
 
 From then on the **New** button in the World screen and the command **New entity** offer your type, and the inspector's **Add** offers it when you type a new name.
 
-**To change a type.** Each type in the window has a menu: **Rename**, **Change folder**, **Change properties**, **Remove**. The four built-in types can be changed in the same way.
+**To change a type.** Each type in the window has a menu: **Rename**, **Change folder**, **Change properties**, and, for a type of your own, **Remove**. The seven built-in types can be changed in the same way, but not removed. Changing a type's folder is where new notes are made from then on; the notes already there are not moved.
 
 **What a type is.** Each type keeps its notes in a folder of its own inside the project's World folder, and gives a new note its starting properties. The built-in ones start with these:
 
 | Type | Folder | Starting properties |
 | --- | --- | --- |
-| Character | Characters | role, age, appearance, goal, summary |
-| Place | Places | kind, region, summary |
+| Character | Characters | role, age, occupation, appearance, personality, voice, goal, arc, summary |
+| Place | Places | kind, region, atmosphere, landmarks, summary |
 | Faction | Factions | kind, leader, summary |
 | Item | Items | kind, owner, summary |
+| Lore | Lore | kind, period, told-by, summary |
+| Creature | Creatures | kind, habitat, summary |
+| Culture | Cultures | kind, region, summary |
+
+Lore is for legends, tales, myths, history, religion and customs. Culture is for peoples and their languages.
+
+**What every entity has, whatever its type.** Five properties have a meaning of their own and cannot be listed as a type's properties: `type`, `aliases` (other names), `entities`, `image` (the picture, chosen on the sheet with **Choose picture**) and `related` (the relations, added on the sheet under **Related**). Every other property shows on the entity's sheet as a field that you fill in place.
+
+**A project made with an earlier version.** Lore, Creature and Culture simply appear. A Character or a Place whose properties you never changed gets the longer lists above for new notes; one you changed keeps your list.
 
 **Changing a type never changes a note.** New properties are given to notes you make from then on; the notes you already have stay exactly as they are. Add or remove properties in any single note as you like: they are ordinary Obsidian properties.
 
@@ -562,6 +574,8 @@ Both settings are kept on each device separately, so switch automatic snapshots 
 | Timeline lanes, names, colours and order | The "Timeline lanes" window | Syncs with the project |
 | Story calendar | **Edit story calendar** | Syncs with the project |
 | Entity types | **Entity types** in the World screen | Syncs with the project |
+| An entity's picture, fields and relations | The entity's sheet in the World screen | Syncs with the project |
+| World shown as cards or as a list | The World screen, **Cards** and **List** | Stays on the device |
 | Day marks | The planner, on a chosen day | Syncs with the project |
 | To-dos | The planner, or `To-do.md` | Syncs with the project |
 | Author's name for exports | The export window | Syncs with the project |

@@ -111,6 +111,7 @@ describe('source layout', () => {
       'features/scrivenings/index.ts',
       'features/snapshots/index.ts',
       'features/world/index.ts',
+      'features/aihelper/index.ts',
     ]) {
       expect(names, expected).toContain(expected);
     }
@@ -266,8 +267,8 @@ describe('the whole plugin', () => {
     const store = codeOf(path.join(srcDir, 'core', 'projectStore.ts'));
     expect((store.match(/\.\s*updateText\s*\(/g) ?? []).length).toBe(1);
     // In the store it sits in one private routine, which is reached from two
-    // methods only: updateDataFile (the open project's To-do.md and word
-    // logs) and updateStatsFile (a word log of a project named by its index).
+    // methods for the plugin's data: updateDataFile (the open project's To-do.md
+    // and word logs) and updateStatsFile (a word log of a project named by its index).
     const writer = /\n  private async writeDataFile\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
     expect(writer).toMatch(/\.updateText\(/);
     const methodOf = (name: string): string => new RegExp(`\\n  ${name}\\([\\s\\S]*?\\n  \\}\\n`).exec(store)?.[0] ?? '';
@@ -276,7 +277,21 @@ describe('the whole plugin', () => {
     const named = methodOf('updateStatsFile');
     expect(writesIn(open)).toBe(1);
     expect(writesIn(named)).toBe(2); // the open project, or another one
-    expect(writesIn(store)).toBe(3); // and nowhere else
+    // A third method reaches it, for one fixed note and no other: the
+    // reference for AI assistants, in the open project's "AI helper" folder.
+    // It takes no path at all; the place comes from helperNotePath, whose
+    // refusal is returned first.
+    const helper = methodOf('updateHelperNote');
+    expect(writesIn(helper)).toBe(1);
+    expect(helper).toMatch(/updateHelperNote\(\s*change: \(current: string \| null\) => string \| null,\s*inProject\?: string,\s*\)/);
+    expect(helper).toMatch(/const blocked = this\.whyNotWritable\(active\);\s*if \(blocked \|\| !active\) return /);
+    expect(helper).toMatch(/const rel = this\.helperNotePath\(active\);\s*if \(typeof rel !== 'string'\) return rel;\s*return this\.writeDataFile\(active\.folder, rel, change\);/);
+    const place = /\n  private helperNotePath\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
+    expect(place).toMatch(/const rel = `\$\{AI_HELPER_FOLDER\}\/\$\{AI_HELPER_FILE\}`;/);
+    expect(place).toMatch(/flattenScenes\(this\.effectiveBinder\(active\)\)\.some\(/);
+    const helperUsers = allFiles.filter((file) => /\.\s*updateHelperNote\s*\(/.test(codeOf(file))).map(relative);
+    expect(helperUsers).toEqual(['features/aihelper/helperNote.ts']);
+    expect(writesIn(store)).toBe(4); // and nowhere else
     // Each write comes right after its own check of the path (dataFilePath), whose refusal is returned first.
     for (const method of [open, named]) {
       const pieces = method.split('this.writeDataFile(').slice(0, -1);
@@ -395,6 +410,7 @@ describe('the whole plugin', () => {
     const allowed = ['core', 'obsidian', 'ui', 'features/registry'];
     const folders = new Set(featureFiles.map((file) => relative(file).split('/').slice(0, 2).join('/')));
     expect([...folders].sort()).toEqual([
+      'features/aihelper',
       'features/corkboard',
       'features/export',
       'features/modes',

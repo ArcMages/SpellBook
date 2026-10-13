@@ -68,6 +68,8 @@ import {
   writeBinder,
 } from './projectIndex';
 import {
+  AI_HELPER_FILE,
+  AI_HELPER_FOLDER,
   EXPORTS_FOLDER,
   EXPORT_EXTENSIONS,
   MANUSCRIPT_FOLDER,
@@ -1388,9 +1390,55 @@ export class ProjectStore {
   }
 
   /**
+   * Write the reference for AI assistants into the open project: the one
+   * note "AI helper/Spellbook for AI assistants.md", in one read-modify-write
+   * of the file as it is on disk at that moment. The folder and the note are
+   * made when they are missing.
+   *
+   * The place is fixed: no path is taken, so nothing else can be written
+   * this way. Refused when the binder lists that very note as a scene (its
+   * text would then be the writer's), for a read-only project, and when no
+   * project is open.
+   *
+   * `change` receives the note's current text, or null when there is no such
+   * note, and returns the new text, or null to leave everything as it is: it
+   * is how the caller keeps a copy the writer changed. It may be called more
+   * than once.
+   */
+  updateHelperNote(
+    change: (current: string | null) => string | null,
+    inProject?: string,
+  ): Promise<IntentResult<DataFileWrite>> {
+    return this.run(async (): Promise<IntentResult<DataFileWrite>> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = this.helperNotePath(active);
+      if (typeof rel !== 'string') return rel;
+      return this.writeDataFile(active.folder, rel, change);
+    }, inProject);
+  }
+
+  /**
+   * Where the reference for AI assistants goes in a project: always the same
+   * note in the same folder. Returns that path relative to the project
+   * folder, or a refusal when the place is not free to be the plugin's own.
+   */
+  private helperNotePath(active: ActiveProject): string | { status: 'refused'; reason: RefusalReason; message: string } {
+    const rel = `${AI_HELPER_FOLDER}/${AI_HELPER_FILE}`;
+    const no = refused('invalid-path', `"${rel}" cannot be written in this project: the binder lists it as a scene.`);
+    if (!isSafeRelativePath(rel) || parentPath(rel) !== AI_HELPER_FOLDER) return no;
+    if (clashKey(joinPath(active.folder, rel)) === clashKey(active.indexPath)) return no;
+    const wanted = clashKey(rel);
+    if (flattenScenes(this.effectiveBinder(active)).some((scene) => clashKey(scene) === wanted)) return no;
+    return rel;
+  }
+
+  /**
    * Write one of the plugin's own data files, whose path has passed
-   * dataFilePath. The folder it is in (the Stats folder) is made first when
-   * it is missing.
+   * dataFilePath (or is the reference for AI assistants, from
+   * helperNotePath). The folder it is in (the Stats folder, the AI helper
+   * folder) is made first when it is missing.
    */
   private async writeDataFile(
     projectFolder: string,

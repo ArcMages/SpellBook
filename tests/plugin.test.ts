@@ -220,7 +220,7 @@ describe('loading and unloading', () => {
     expect(plugin.features).toBeNull(); // not before Obsidian has finished starting
 
     fake.finishStartup();
-    expect(plugin.features?.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'modes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world']);
+    expect(plugin.features?.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'modes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world', 'aihelper']);
     // Every screen's kind of pane is known to Obsidian, after the binder's own.
     expect(stub.viewTypes).toEqual([
       'spellbook-binder',
