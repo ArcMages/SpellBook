@@ -1,6 +1,724 @@
-/* ---------------------------------------------------------------- Timeline */
+/*
+ * Spellbook: the timeline screen, and the two small windows it opens.
+ *
+ * The rules of styles.css hold here too:
+ *   - every class starts with "spellbook-", every variable with "--spellbook-";
+ *   - colours, fonts and spacing come only from Obsidian's CSS variables;
+ *   - sides are named "start" and "end", never by their physical names;
+ *   - nothing depends on hover, and the screen works at phone width.
+ *
+ * Where a card sits and how big it is, is set by the view itself (it comes
+ * from the timeline engine's layout); this file only says how things look.
+ */
 
-/* The styles of the timeline (src/features/timeline) go here. The rules at
-   the top of base.css apply: classes start with "spellbook-", colours come
-   from Obsidian's variables, sides are "start" and "end", nothing depends on
-   hover alone. */
+.spellbook-timeline-pane.spellbook-timeline-pane {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.spellbook-timeline {
+  /* The smallest size of something that is tapped with a finger. */
+  --spellbook-timeline-target: 44px;
+  /* The column of lane names, and the axis: along the top, or down the start side. */
+  --spellbook-timeline-names: 140px;
+  --spellbook-timeline-axis: 30px;
+  --spellbook-timeline-axis-down: 76px;
+
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.spellbook-timeline .spellbook-is-hidden {
+  display: none;
+}
+
+/* The eight colours a lane can have, each one of Obsidian's own. */
+.spellbook-color-red {
+  --spellbook-lane-color: var(--color-red);
+}
+
+.spellbook-color-orange {
+  --spellbook-lane-color: var(--color-orange);
+}
+
+.spellbook-color-yellow {
+  --spellbook-lane-color: var(--color-yellow);
+}
+
+.spellbook-color-green {
+  --spellbook-lane-color: var(--color-green);
+}
+
+.spellbook-color-cyan {
+  --spellbook-lane-color: var(--color-cyan);
+}
+
+.spellbook-color-blue {
+  --spellbook-lane-color: var(--color-blue);
+}
+
+.spellbook-color-purple {
+  --spellbook-lane-color: var(--color-purple);
+}
+
+.spellbook-color-pink {
+  --spellbook-lane-color: var(--color-pink);
+}
+
+.spellbook-timeline-swatch {
+  flex: 0 0 auto;
+  inline-size: var(--size-4-3);
+  block-size: var(--size-4-3);
+  border-radius: 50%;
+  background-color: var(--spellbook-lane-color, var(--background-modifier-border-hover));
+}
+
+/* ------------------------------------------------------------------ header */
+
+.spellbook-timeline-header {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+/* The dates in view: numbers stay the same width, so the text does not jitter while the view slides. */
+.spellbook-timeline-range {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-variant-numeric: tabular-nums;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-timeline.spellbook-is-vertical .spellbook-timeline-range {
+  flex-basis: 100%;
+}
+
+.spellbook-timeline-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-2-2);
+}
+
+.spellbook-timeline-modes {
+  display: inline-flex;
+  margin-inline-end: var(--size-4-1);
+}
+
+.spellbook-timeline-modes .spellbook-timeline-button {
+  border-radius: 0;
+}
+
+.spellbook-timeline-modes .spellbook-timeline-button:first-child {
+  border-start-start-radius: var(--radius-s);
+  border-end-start-radius: var(--radius-s);
+}
+
+.spellbook-timeline-modes .spellbook-timeline-button:last-child {
+  border-start-end-radius: var(--radius-s);
+  border-end-end-radius: var(--radius-s);
+}
+
+.spellbook-timeline-button.is-active,
+.spellbook-timeline-lane-tab.is-active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.spellbook-timeline-alerts {
+  flex: 0 0 auto;
+  padding-block: var(--size-2-3);
+  padding-inline: var(--size-4-3);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-timeline-alert {
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+  text-align: start;
+}
+
+.spellbook-timeline-empty {
+  flex: 0 0 auto;
+  order: 1;
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: center;
+}
+
+/* --------------------------------------------- the lane switcher (narrow) */
+
+.spellbook-timeline-switcher {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--size-4-1);
+  padding-block: var(--size-4-1);
+  padding-inline: var(--size-4-3);
+  overflow-x: auto;
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-timeline-lane-tab {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--size-2-3);
+  max-inline-size: 70%;
+}
+
+.spellbook-timeline-lane-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------- the undated strip */
+
+.spellbook-timeline-undated {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  max-block-size: 40%;
+  min-height: 0;
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-timeline-undated-toggle {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--size-2-3);
+  inline-size: 100%;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.spellbook-timeline-fold {
+  display: flex;
+  align-items: center;
+}
+
+.spellbook-timeline-undated.is-collapsed .spellbook-timeline-fold {
+  transform: rotate(-90deg);
+}
+
+/* A count: numbers of one width, in one place, whatever the language around them. */
+.spellbook-timeline-count {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.spellbook-timeline-undated-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-block-end: var(--size-4-2);
+  overflow-y: auto;
+}
+
+.spellbook-timeline-undated-row {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+}
+
+.spellbook-timeline-undated-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The title is the writer's own text: it lines up at the start of its own direction. */
+.spellbook-timeline-undated-title {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  padding-block: var(--size-2-2);
+  padding-inline: 0;
+  overflow: hidden;
+  background: none;
+  box-shadow: none;
+  color: var(--text-normal);
+  cursor: pointer;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-timeline-undated-problem {
+  color: var(--text-error);
+  font-size: var(--font-ui-smaller);
+  line-height: var(--line-height-tight);
+  text-align: start;
+}
+
+.spellbook-timeline-set-date {
+  flex: 0 0 auto;
+}
+
+.spellbook-timeline-undated-rest {
+  padding-block: var(--size-2-3);
+  padding-inline: var(--size-4-3);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-align: start;
+}
+
+/* ------------------------------------------------------- the timeline itself */
+
+/* Wide: the lanes' names at the start side, the axis along the top. */
+.spellbook-timeline-main {
+  position: relative;
+  display: grid;
+  flex: 1 1 auto;
+  order: 2;
+  grid-template-rows: var(--spellbook-timeline-axis) minmax(0, 1fr);
+  grid-template-columns: var(--spellbook-timeline-names) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.spellbook-timeline.spellbook-is-empty .spellbook-timeline-main,
+.spellbook-timeline.spellbook-is-empty .spellbook-timeline-header {
+  display: none;
+}
+
+.spellbook-timeline-corner {
+  grid-row: 1;
+  grid-column: 1;
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+  border-inline-end: var(--border-width) solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+}
+
+.spellbook-timeline-axis {
+  position: relative;
+  grid-row: 1;
+  grid-column: 2;
+  overflow: hidden;
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-timeline-names {
+  position: relative;
+  grid-row: 2;
+  grid-column: 1;
+  overflow: hidden;
+  border-inline-end: var(--border-width) solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+}
+
+/* The part that is slid, zoomed and dragged in. The view handles every touch
+   on it itself, so the page must not scroll or zoom under a finger here. */
+.spellbook-timeline-viewport {
+  position: relative;
+  grid-row: 2;
+  grid-column: 2;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.spellbook-timeline-viewport:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+
+.spellbook-timeline.spellbook-drag-active .spellbook-timeline-viewport {
+  cursor: grabbing;
+}
+
+/* Narrow: the axis down the start side, time running from top to bottom, one lane. */
+.spellbook-timeline.spellbook-is-vertical .spellbook-timeline-main {
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: var(--spellbook-timeline-axis-down) minmax(0, 1fr);
+}
+
+.spellbook-timeline.spellbook-is-vertical .spellbook-timeline-corner,
+.spellbook-timeline.spellbook-is-vertical .spellbook-timeline-names {
+  display: none;
+}
+
+.spellbook-timeline.spellbook-is-vertical .spellbook-timeline-axis {
+  grid-row: 1;
+  grid-column: 1;
+  border-block-end: 0;
+  border-inline-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-timeline.spellbook-is-vertical .spellbook-timeline-viewport {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+/* A label on the axis. Dates are not the writer's text; a scene's name (in story order) is. */
+.spellbook-timeline-tick {
+  position: absolute;
+  inset-block-end: 0;
+  display: flex;
+  align-items: center;
+  padding-inline: var(--size-2-3);
+  border-inline-start: var(--border-width) solid var(--background-modifier-border-hover);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.spellbook-timeline.spellbook-is-vertical .spellbook-timeline-tick {
+  inset-block-end: auto;
+  inset-inline-end: 0;
+  align-items: flex-start;
+  padding-block-start: var(--size-2-1);
+  overflow: hidden;
+  border-block-start: var(--border-width) solid var(--background-modifier-border-hover);
+  border-inline-start: 0;
+  text-overflow: ellipsis;
+}
+
+.spellbook-timeline-grid,
+.spellbook-timeline-bands,
+.spellbook-timeline-cards,
+.spellbook-timeline-names-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.spellbook-timeline-gridline {
+  position: absolute;
+  inset-block-end: 0;
+  inline-size: 0;
+  border-inline-start: var(--border-width) solid var(--background-modifier-border);
+  pointer-events: none;
+}
+
+.spellbook-timeline.spellbook-is-vertical .spellbook-timeline-gridline {
+  inset-block-end: auto;
+  inset-inline-end: 0;
+  inline-size: auto;
+  block-size: 0;
+  border-block-start: var(--border-width) solid var(--background-modifier-border);
+  border-inline-start: 0;
+}
+
+/* A lane: a band across the time axis. */
+.spellbook-timeline-band {
+  position: absolute;
+  inset-inline: 0;
+  box-sizing: border-box;
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-timeline.spellbook-is-vertical .spellbook-timeline-band {
+  inset-block: 0;
+  inset-inline-end: auto;
+  border-block-end: 0;
+}
+
+/* The lane a carried card would be dropped in. */
+.spellbook-timeline-band.spellbook-is-drop-target {
+  background-color: var(--background-modifier-hover);
+  box-shadow: inset 0 0 0 2px var(--interactive-accent);
+}
+
+.spellbook-timeline-lane-name {
+  position: absolute;
+  inset-inline: 0;
+  display: flex;
+  align-items: flex-start;
+  box-sizing: border-box;
+  gap: var(--size-2-3);
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-2);
+  overflow: hidden;
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+}
+
+.spellbook-timeline-lane-name .spellbook-timeline-swatch {
+  margin-block-start: var(--size-2-1);
+}
+
+/* -------------------------------------------------------------------- cards */
+
+/* An event. It takes its lane's colour: a line at its start, and a tint
+   where the browser can mix colours (a plain background where it cannot). */
+.spellbook-timeline-card {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding-inline-start: var(--size-4-2);
+  overflow: hidden;
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-inline-start: 3px solid var(--spellbook-lane-color, var(--text-faint));
+  border-radius: var(--radius-s);
+  background-color: var(--background-secondary);
+  background-color: color-mix(in srgb, var(--spellbook-lane-color, var(--background-secondary)) 14%, var(--background-primary));
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.spellbook-timeline-card:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+
+/* An event that lasts: a bar as long as its dates. */
+.spellbook-timeline-card.spellbook-is-span {
+  border-radius: var(--radius-m);
+  background-color: var(--background-modifier-hover);
+  background-color: color-mix(in srgb, var(--spellbook-lane-color, var(--background-secondary)) 30%, var(--background-primary));
+}
+
+/* A scene that has a date. */
+.spellbook-timeline-card.spellbook-is-scene {
+  border-block-style: dashed;
+  border-inline-end-style: dashed;
+}
+
+.spellbook-timeline-card.spellbook-has-problem {
+  border-block-color: var(--text-error);
+  border-inline-end-color: var(--text-error);
+}
+
+.spellbook-timeline-card.spellbook-is-dragged {
+  z-index: 3;
+  box-shadow: var(--shadow-s);
+  cursor: grabbing;
+  opacity: 0.85;
+}
+
+.spellbook-timeline-card-text {
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+/* The title is the writer's own text and takes its own direction; it lines
+   up at the start of that direction and is cut short at its end. */
+.spellbook-timeline-card-title {
+  overflow: hidden;
+  font-weight: var(--font-medium);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-timeline-card-meta {
+  display: flex;
+  gap: var(--size-2-3);
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+}
+
+.spellbook-timeline-card-date {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.spellbook-timeline-card-tags {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--tag-color, var(--text-accent));
+  text-overflow: ellipsis;
+}
+
+/* The card's "more" button: always there, never only on hover. */
+.spellbook-timeline-card-more {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  align-self: stretch;
+  justify-content: center;
+  min-inline-size: var(--size-4-6);
+  color: var(--text-faint);
+}
+
+/* Several events too close together to tell apart: a dot with their number. */
+.spellbook-timeline-card.spellbook-timeline-cluster {
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.spellbook-timeline-cluster-count {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  justify-content: center;
+  min-inline-size: var(--size-4-8);
+  block-size: var(--size-4-8);
+  padding-inline: var(--size-2-2);
+  border: 2px solid var(--spellbook-lane-color, var(--text-muted));
+  border-radius: var(--size-4-4);
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-semibold);
+}
+
+/* What a drop here would do, next to the pointer while a card is carried. */
+.spellbook-timeline-carried {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  gap: var(--size-2-3);
+  padding-block: var(--size-2-1);
+  padding-inline: var(--size-2-3);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background-color: var(--background-primary);
+  box-shadow: var(--shadow-s);
+  color: var(--text-normal);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------- the two windows */
+
+.spellbook-timeline-lanes-window {
+  --spellbook-timeline-target: 44px;
+}
+
+.spellbook-timeline-lane-list {
+  display: flex;
+  flex-direction: column;
+  margin-block-end: var(--size-4-4);
+}
+
+.spellbook-timeline-lane-row {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding-block: var(--size-4-1);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-timeline-lane-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.spellbook-timeline-lane-title {
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-timeline-lane-row.spellbook-is-hidden-lane .spellbook-timeline-lane-title {
+  color: var(--text-faint);
+}
+
+.spellbook-timeline-lane-note {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-align: start;
+}
+
+.spellbook-timeline-lane-toggle,
+.spellbook-timeline-lane-more {
+  flex: 0 0 auto;
+}
+
+.spellbook-timeline-field-label {
+  margin-block-end: var(--size-2-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+.spellbook-timeline-window-note {
+  margin-block: 0 var(--size-4-3);
+  color: var(--text-muted);
+  text-align: start;
+}
+
+/* ----------------------------------------------------------- touch screens */
+
+/* Everything that is tapped is big enough for a finger: on phones and tablets
+   (the class comes from Obsidian's own platform check), and on any other
+   screen that is touched. Cards are that tall already. */
+.spellbook-timeline.spellbook-is-mobile .spellbook-timeline-button,
+.spellbook-timeline.spellbook-is-mobile .spellbook-timeline-lane-tab,
+.spellbook-timeline.spellbook-is-mobile .spellbook-timeline-undated-toggle,
+.spellbook-timeline.spellbook-is-mobile .spellbook-timeline-undated-title,
+.spellbook-timeline.spellbook-is-mobile .spellbook-timeline-set-date {
+  min-block-size: var(--spellbook-timeline-target);
+}
+
+.spellbook-timeline.spellbook-is-mobile .spellbook-timeline-button,
+.spellbook-timeline.spellbook-is-mobile .spellbook-timeline-card-more {
+  min-inline-size: var(--spellbook-timeline-target);
+}
+
+@media (pointer: coarse) {
+  .spellbook-timeline .spellbook-timeline-button,
+  .spellbook-timeline .spellbook-timeline-lane-tab,
+  .spellbook-timeline .spellbook-timeline-undated-toggle,
+  .spellbook-timeline .spellbook-timeline-undated-title,
+  .spellbook-timeline .spellbook-timeline-set-date,
+  .spellbook-timeline-lanes-window .spellbook-timeline-lane-toggle,
+  .spellbook-timeline-lanes-window .spellbook-timeline-lane-more,
+  .spellbook-timeline-lanes-window .spellbook-timeline-lane-add {
+    min-block-size: var(--spellbook-timeline-target);
+  }
+
+  .spellbook-timeline .spellbook-timeline-button,
+  .spellbook-timeline .spellbook-timeline-card-more,
+  .spellbook-timeline-lanes-window .spellbook-timeline-lane-toggle,
+  .spellbook-timeline-lanes-window .spellbook-timeline-lane-more {
+    min-inline-size: var(--spellbook-timeline-target);
+  }
+}
+
+/* A tint under the mouse; nothing appears or disappears with it. */
+@media (hover: hover) {
+  .spellbook-timeline-card-more:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+}
