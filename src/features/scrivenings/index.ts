@@ -31,14 +31,14 @@ export {
 } from './scriveningsView';
 
 /** What the ribbon button says. (Obsidian shows it as a tooltip.) */
-export const SCRIVENINGS_RIBBON_TITLE = 'Open Spellbook scrivenings';
+export const SCRIVENINGS_RIBBON_TITLE = 'Open Spellbook novel view';
 
 /** The command this feature adds. Obsidian puts the plugin's name in front of its name. */
 export const SCRIVENINGS_COMMANDS = {
-  openScrivenings: { id: 'open-scrivenings', name: 'Open scrivenings' },
+  openScrivenings: { id: 'open-scrivenings', name: 'Open novel view' },
 } as const;
 
-export const COULD_NOT_OPEN_TEXT = 'Scrivenings could not be opened.';
+export const COULD_NOT_OPEN_TEXT = 'The novel view could not be opened.';
 
 /** How long a notice about something that went wrong stays up, in milliseconds. */
 const PROBLEM_NOTICE_MS = 10000;

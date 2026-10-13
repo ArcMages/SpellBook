@@ -56,7 +56,7 @@ import type { Undraw } from './drawing';
 import type { HostScene, ScriveningsChange, ScriveningsHost } from './host';
 
 export const SCRIVENINGS_VIEW_TYPE = 'spellbook-scrivenings';
-export const SCRIVENINGS_VIEW_NAME = 'Scrivenings';
+export const SCRIVENINGS_VIEW_NAME = 'Novel view';
 /** The pane's icon, by every name Obsidian has had for it. */
 export const SCRIVENINGS_ICONS = ['scroll-text', 'scroll', 'file-text'] as const;
 

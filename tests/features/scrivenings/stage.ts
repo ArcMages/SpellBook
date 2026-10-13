@@ -222,11 +222,11 @@ export interface OpenPane {
   scroller: FakeElement;
 }
 
-/** The pane that "Open scrivenings" opened, or a failed test. */
+/** The pane that "Open novel view" opened, or a failed test. */
 export function paneOf(stage: Wired): OpenPane {
   const leaf = stage.workspace.getLeavesOfType(SCRIVENINGS_VIEW_TYPE)[0];
   const view = leaf?.view as unknown as (ScriveningsView & { contentEl: FakeElement }) | null | undefined;
-  if (!leaf || !view) throw new Error('"Open scrivenings" opened no pane');
+  if (!leaf || !view) throw new Error('"Open novel view" opened no pane');
   const pane = view.contentEl;
   return { leaf, view, pane, scroller: one(pane, 'spellbook-scrivenings-scroll') };
 }
@@ -237,7 +237,7 @@ export interface ScreenSize {
 }
 
 /**
- * Run "Open scrivenings", put the pane on a screen of a size (the stand-in
+ * Run "Open novel view", put the pane on a screen of a size (the stand-in
  * lays nothing out, so a pane has no size until it is given one) and let the
  * scenes near the top be drawn.
  */

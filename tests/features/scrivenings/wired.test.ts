@@ -148,7 +148,7 @@ describe('plugging in', () => {
   it('adds a command and a ribbon button, and does nothing until the pane is opened', async () => {
     const s = await stage();
     expect(s.plugin.viewTypes).toEqual([SCRIVENINGS_VIEW_TYPE]);
-    expect(s.plugin.commands.map((command) => [command.id, command.name])).toEqual([['open-scrivenings', 'Open scrivenings']]);
+    expect(s.plugin.commands.map((command) => [command.id, command.name])).toEqual([['open-scrivenings', 'Open novel view']]);
     expect(s.plugin.ribbonIcons.map((icon) => [icon.icon, icon.title])).toEqual([['scroll-text', SCRIVENINGS_RIBBON_TITLE]]);
     expect(s.features.settingsSections).toEqual([]);
     await calm(s);
@@ -168,7 +168,7 @@ describe('plugging in', () => {
     await calm(s);
     expect(s.workspace.getLeavesOfType(SCRIVENINGS_VIEW_TYPE)).toEqual([leaf]);
     expect(s.workspace.revealed.length).toBeGreaterThanOrEqual(2);
-    expect(view.getDisplayText()).toBe('Scrivenings');
+    expect(view.getDisplayText()).toBe('Novel view');
     expect(view.getIcon()).toBe('scroll-text');
     // A note that is opened from here goes to another tab.
     expect(view.navigation).toBe(false);
