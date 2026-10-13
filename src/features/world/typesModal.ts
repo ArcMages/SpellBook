@@ -1,7 +1,7 @@
 // The window for a project's entity types.
 //
-// It lists the types: the four every project has (character, place, faction,
-// item) and the writer's own. Each can be given another name, folder, list
+// It lists the types: the seven every project has (character, place, faction,
+// item, lore, creature, culture) and the writer's own. Each can be given another name, folder, list
 // of properties, colour and icon, and moved up and down; a type of the
 // writer's own can be removed; new ones can be added at the end.
 //

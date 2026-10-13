@@ -18,7 +18,7 @@
 
 import { TFile, TFolder, getFrontMatterInfo, normalizePath, parseYaml, stringifyYaml } from 'obsidian';
 import type { App, EventRef, Events, TAbstractFile } from 'obsidian';
-import { clashKey, isInside } from '../core/paths';
+import { clashKey, isImagePath, isInside } from '../core/paths';
 import type { Frontmatter } from '../core/types';
 import { VaultFileMissingError } from '../core/vaultPort';
 import type { MarkdownFileInfo, VaultEvent, VaultListener, VaultPort } from '../core/vaultPort';
@@ -163,6 +163,19 @@ export class ObsidianVault implements VaultPort {
     const found = this.find(folder);
     if (!(found instanceof TFolder)) return [];
     return found.children.filter((child): child is TFile => child instanceof TFile).map((file) => file.path);
+  }
+
+  listImageFiles(): string[] {
+    return this.app.vault
+      .getFiles()
+      .map((file) => file.path)
+      .filter(isImagePath)
+      .sort();
+  }
+
+  resourceUrl(path: string): string | null {
+    const file = this.find(path);
+    return file instanceof TFile ? this.app.vault.getResourcePath(file) : null;
   }
 
   createdDay(path: string): string | null {

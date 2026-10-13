@@ -491,7 +491,7 @@ export const SAMPLE_EVENTS: readonly SampleEvent[] = [
     timelines: [MAIN_PLOT],
     scenes: ['The Village on the Old Map'],
     tags: ['ארכיון'],
-    entities: ['Noa', 'The Archive', 'The Drowned Village'],
+    entities: ['Noa', 'The Archive', 'The Drowned Village', 'The Legend of the Drowned Village'],
     body: 'בארכיון, בין הספרים הלחים: מפה שמצויר בה כפר במקום שיש בו היום רק מים.',
   },
   {
@@ -515,7 +515,7 @@ export const SAMPLE_EVENTS: readonly SampleEvent[] = [
     timelines: [MAIN_PLOT],
     scenes: ['The Bell Stops', 'What the Keeper Wrote'],
     tags: ['storm'],
-    entities: ['The Old Lighthouse'],
+    entities: ['The Old Lighthouse', 'The Bell in the Fog'],
     body: 'The night the ferry bell stops, and someone lights the old lighthouse.',
   },
   {
@@ -524,7 +524,7 @@ export const SAMPLE_EVENTS: readonly SampleEvent[] = [
     timelines: [SURVEY],
     scenes: ['The Chart on the Wall'],
     tags: ['chart'],
-    entities: ['The Drowned Village'],
+    entities: ['The Drowned Village', 'The Legend of the Drowned Village'],
     body: 'With the drowned village on it, under its old name.',
   },
 ];
@@ -579,12 +579,14 @@ export const SAMPLE_TARGETS = { project: 80000, daily: 1000, deadlineInDays: 150
 
 // ------------------------------------------------------------------ the world
 //
-// The people, places, groups and things of the story, so that the World
-// browser, a scene's "In this scene" and the timeline's cards have something
-// to show. Each becomes a note in the World folder, in the folder of its type.
+// The people, places, groups and things of the story, the tales the town
+// tells, what it believes in and who its people are, so that the World
+// browser, the entity sheet, a scene's "In this scene" and the timeline's
+// cards have something to show for every type a project has. Each becomes a
+// note in the World folder, in the folder of its type.
 
-/** One of the four types every project has, by its id. */
-export type SampleEntityType = 'character' | 'place' | 'faction' | 'item';
+/** One of the types every project has, by its id. */
+export type SampleEntityType = 'character' | 'place' | 'faction' | 'item' | 'lore' | 'creature' | 'culture';
 
 /** An entity of the world: a note in the World folder. */
 export interface SampleEntity {
@@ -595,79 +597,125 @@ export interface SampleEntity {
   readonly fields: Readonly<Record<string, string | number>>;
   /** The other names it goes by. */
   readonly aliases?: readonly string[];
-  /** What the note says under "Description". */
+  /** What the note says under its first heading. */
   readonly description: string;
+  /** What it says under the headings after the first, in order. Headings without a text stay empty. */
+  readonly sections?: readonly string[];
+  /**
+   * The entities it has to do with: the name of each (see SAMPLE_ENTITIES)
+   * and a short label, "" for none. Written on this side only: the other
+   * entity's sheet shows it as "mentioned by".
+   */
+  readonly related?: ReadonlyArray<readonly [name: string, label: string]>;
 }
 
 /**
- * The thirteen entities: six characters (the three the scenes are told by,
- * two more of the town, and Noa's sister, whose name and summary are in
- * Hebrew), four places, one faction and two items.
+ * The eighteen entities, at least one of every type a project has: six
+ * characters (the three the scenes are told by, two more of the town, and
+ * Noa's sister, whose name and summary are in Hebrew), four places, one
+ * faction, two items, three pieces of lore (a legend, a fishermen's tale,
+ * and a saying that is written in Hebrew), one creature of local belief and
+ * one people. None has a picture: a seed makes notes, not image files.
  */
 export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
   {
     type: 'character',
     name: 'Mara',
     fields: {
-      role: 'Chart maker',
+      role: 'Protagonist',
       age: 34,
+      occupation: 'Chart maker',
       appearance: 'Ink on her cuffs; never without a notebook.',
+      personality: 'Exact and impatient, and kinder than she lets on.',
+      voice: 'Short sentences and numbers. Says "roughly" when she means that she has not measured it yet.',
       goal: 'To draw the bay as it really is.',
+      arc: 'Learns that an honest chart has to show what a town would rather forget.',
       summary: 'Sent to Saltwick to redraw the sea chart after the storm. Careful, impatient, new to the town.',
     },
     description: 'Mara makes sea charts. She trusts what she has measured herself and very little else.',
+    related: [
+      ['The Harbour Master', 'hired by'],
+      ['Tobias', 'surveys the bay with'],
+    ],
   },
   {
     type: 'character',
     name: 'Tobias',
     fields: {
-      role: 'Ferryman',
+      role: 'Ally with a secret',
       age: 41,
+      occupation: 'Ferryman',
       appearance: 'Weathered hands, an old oilskin coat.',
+      personality: 'Steady and dry. Loyal to the town before anyone in it.',
+      voice: 'Talks about the weather when he means people. Never finishes a story the first time he tells it.',
       goal: 'To keep the ferry crossing, and one secret kept.',
+      arc: 'From keeping what he saw on the night of the storm to telling it.',
       summary: 'Runs the ferry to Saltwick. Knows the sandbars by feel and was out on the water on the night of the storm.',
     },
     description: 'Tobias has taken the ferry across the channel since he was a boy. He counts the boats in every evening.',
+    related: [['The Bay Fishers', 'born among']],
   },
   {
     type: 'character',
     name: 'Noa',
     fields: {
-      role: 'Archivist',
+      role: 'Second lead',
       age: 29,
+      occupation: 'Archivist',
       appearance: 'Reading glasses pushed up into her hair.',
+      personality: 'Curious and patient, and stubborn about small facts.',
+      voice: 'Careful English in the town; quick, warm Hebrew in her letters home.',
       goal: 'To find out what the town does not say.',
+      arc: 'From putting papers in order to deciding what the town should know.',
       summary: 'Keeps the town archive, and writes home to her sister in Hebrew.',
     },
     aliases: ['נועה'],
     description: 'Noa came to Saltwick to put the archive in order. She lives in the small room above it.',
+    related: [
+      ['תמר', 'sister'],
+      ['The Archive', 'keeps'],
+    ],
   },
   {
     type: 'character',
     name: 'The Harbour Master',
     fields: {
-      role: 'Harbour master',
+      role: 'Antagonist',
+      occupation: 'Harbour master',
+      personality: 'Courteous and tidy, and afraid of what a true chart would cost the town.',
+      voice: 'Formal and unhurried. Says "we" when he means "I".',
       goal: 'A finished chart in six weeks, with one thing left off it.',
+      arc: 'Has to choose between a chart that sells and a chart that is true.',
       summary: 'Gives Mara her work and her deadline, and has his own reasons for both.',
     },
     aliases: ['Harbour master'],
     description: 'The harbour master runs the harbour office and, most days, the town.',
+    related: [['The Harbour Office', 'runs']],
   },
   {
     type: 'character',
     name: 'The Keeper',
     fields: {
-      role: 'Lighthouse keeper',
+      role: 'The absent one',
+      occupation: 'Lighthouse keeper, pensioned off',
+      personality: 'Watchful and plain-spoken, to judge by his log.',
+      voice: 'Heard only in his log: dates, weather, and now and then one line too many.',
       summary: 'The last keeper of the old lighthouse. Gone before the story starts; his log is still in the archive.',
     },
     aliases: ['The lighthouse keeper'],
     description: 'Nobody in the town says his name. What is known of him is what he wrote.',
+    related: [
+      ['The Old Lighthouse', 'kept it for thirty years'],
+      ['The Logbook', 'wrote'],
+    ],
   },
   {
     type: 'character',
     name: 'תמר',
     fields: {
       role: 'אחותה של נועה',
+      personality: 'סקרנית וחמה, ודואגת יותר ממה שהיא מודה.',
+      voice: 'נשמעת רק דרך מה שנועה עונה לה במכתבים.',
       summary: 'אחותה הצעירה של נועה. נשארה בבית, ונועה כותבת לה מכתבים מהעיירה.',
     },
     aliases: ['אחותי'],
@@ -679,6 +727,8 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
     fields: {
       kind: 'Harbour town',
       region: 'The bay',
+      atmosphere: 'Salt, fog and coal smoke. Quiet in a way that listens.',
+      landmarks: 'The sea wall, the bakery, the chandlery, the church tower, the harbour office.',
       summary: 'A small harbour town where people say little and remember everything.',
     },
     description: 'One street along the front, a sea wall, a bakery, a chandlery and the harbour office. The ferry is the only quick way in.',
@@ -689,9 +739,12 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
     fields: {
       kind: 'Town archive',
       region: 'Saltwick',
+      atmosphere: 'Damp paper and lamp oil. Cold even in daylight.',
+      landmarks: 'The lower shelves that flood, the small room above, the loose floorboards.',
       summary: 'Ledgers, maps and logs, some of them wet since the storm. Noa keeps it.',
     },
     description: 'A long room by the harbour, with a small room above it. The lower shelves flood.',
+    related: [['Saltwick', 'in']],
   },
   {
     type: 'place',
@@ -699,9 +752,12 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
     fields: {
       kind: 'Lighthouse',
       region: 'Saltwick',
+      atmosphere: 'Wind, rust and gulls. A door nobody goes near.',
+      landmarks: 'The chained door, the boarded windows, the lamp room.',
       summary: 'Closed, boarded and chained a year before the story starts.',
     },
     description: 'It stands at the end of the point. Its light has not been lit since the keeper was pensioned off.',
+    related: [['Saltwick', 'on the point by']],
   },
   {
     type: 'place',
@@ -709,6 +765,8 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
     fields: {
       kind: 'Lost village',
       region: 'The bay',
+      atmosphere: 'Still water over stone. A place people look away from.',
+      landmarks: 'The church, the seven houses, the lane that shows at spring tides.',
       summary: 'A church and seven houses on an old map, where there is now only water.',
     },
     aliases: ['The village under the water'],
@@ -734,6 +792,7 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
     },
     aliases: ['The old chart'],
     description: 'Last corrected in February 1923. Every pilot in the bay learned from it.',
+    related: [['The Harbour Office', 'belongs to']],
   },
   {
     type: 'item',
@@ -745,6 +804,101 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
     },
     aliases: ["The keeper's log"],
     description: 'Damp at the edges. The last page says the sea always gives back what it took.',
+    related: [['The Archive', 'kept in']],
+  },
+  {
+    type: 'lore',
+    name: 'The Legend of the Drowned Village',
+    fields: {
+      kind: 'Legend',
+      period: 'Two hundred years ago, as it is told',
+      'told-by': 'The fishers of the bay',
+      summary: 'The village under the bay owed the sea a debt and would not pay it, so the sea came one night and took the village instead.',
+    },
+    aliases: ['The legend'],
+    description:
+      'The village had the best fishing in the bay and thanked nobody for it. One winter an old woman came to every door and asked for the tenth fish, for the sea. Every door was shut. That night the tide came in and did not go out again. They say the church bell rang once under the water, and never since.',
+    sections: [
+      'The fishers tell it while they mend nets, and never on a boat. Each family has its own old woman: a widow, a saint, the sea herself.',
+      'The old map in the archive shows a church and seven houses where there is now only water, and at the lowest spring tides the stones of a lane can be seen. Nobody has found a debt.',
+    ],
+    related: [
+      ['The Drowned Village', 'is about'],
+      ['The Bay Fishers', 'told by'],
+    ],
+  },
+  {
+    type: 'lore',
+    name: 'The Bell in the Fog',
+    fields: {
+      kind: "Fishermen's tale",
+      period: 'Told to this day',
+      'told-by': 'Tobias, and every ferryman before him',
+      summary: 'As long as the ferry bell rings in the fog, the sea lets the boats come home. The night it stops, the sea keeps one.',
+    },
+    aliases: ['The tale of the bell'],
+    description:
+      'The first ferryman hung a bell on the bow and rang it through every fog, so that the boats could steer by it. He rang it for forty years and no boat was lost. The night he died nobody rang, and in the morning one boat was missing.',
+    sections: [
+      'Tobias tells it to passengers on a clear day, and not at all in fog. The fishers say it is why a ferryman is never paid in coin on the water.',
+      'A bell does carry over water in fog, and Tobias has steered by its echo. Boats were lost in years when the bell rang, too.',
+    ],
+    related: [
+      ['Tobias', 'told by'],
+      ['Saltwick', 'told in'],
+    ],
+  },
+  {
+    type: 'lore',
+    name: 'הים מחזיר',
+    fields: {
+      kind: 'אמרה',
+      period: 'מימי שומר המגדלור',
+      'told-by': 'שומר המגדלור, בעמוד האחרון של יומנו',
+      summary: 'הים תמיד מחזיר את מה שלקח, רק לא באותו מקום ולא באותה צורה.',
+    },
+    aliases: ['מה שהים לקח'],
+    description: 'כך כתב שומר המגדלור בעמוד האחרון של היומן: הים תמיד מחזיר את מה שלקח, רק לא באותו מקום ולא באותה צורה. מתחת למשפט אין תאריך ואין מזג אוויר, רק קו ישר.',
+    sections: [
+      'איש בעיירה אינו אומר את המשפט בקול. נועה קוראת אותו ביומן בלילה שלפני הסערה, ואינה יודעת אם זו נחמה או אזהרה.',
+      'הסירה שנעלמה נמצאה ריקה בצד השני של השרטון, והאבנים של הכפר נראות שוב בשפל. את מה שהים החזיר אפשר למדוד; את מה שהשומר התכוון אליו, לא.',
+    ],
+    related: [
+      ['The Keeper', 'נכתבה בידי'],
+      ['The Logbook', 'כתובה בעמוד האחרון של'],
+    ],
+  },
+  {
+    type: 'creature',
+    name: 'The Tide Hound',
+    fields: {
+      kind: 'Creature of local belief',
+      habitat: 'The sandbars, at the turn of the tide',
+      summary: 'A grey dog said to walk the sandbars before a storm. Whoever follows it finds the channel, or does not come back.',
+    },
+    aliases: ['The grey dog'],
+    description: 'The size of a calf and the colour of wet sand, with no sound to it and no prints behind it. It is seen from the sea wall, never from close by.',
+    sections: [
+      'It walks the edge of the bar when the glass is falling, always toward deep water, and is gone when the tide covers the sand.',
+      'The fishers will not put out on a morning it has been seen. The harbour office says it is a seal, and that seals do not forecast the weather.',
+    ],
+    related: [['The Bay Fishers', 'feared by']],
+  },
+  {
+    type: 'culture',
+    name: 'The Bay Fishers',
+    fields: {
+      kind: 'Fishing people',
+      region: 'The bay',
+      summary: 'The families who have fished the bay for generations. They name every rock, read the tide before they read books, and keep the tales of the town.',
+    },
+    aliases: ['The fishers'],
+    description: 'A few dozen families along the front of Saltwick and in the cottages past the sea wall. Boats pass from uncle to nephew, and so do the names of the rocks.',
+    sections: [
+      'Nobody whistles on a boat, counts the catch before it is landed, or pays the ferryman in coin on the water. Nets are mended in company, and that is where the tales are told.',
+      'They speak the English of the town with words of their own for the water: every rock, bar and run of the tide has a name that is on no chart.',
+    ],
+    related: [['Saltwick', 'live in']],
   },
 ];
 
@@ -764,20 +918,20 @@ export const SAMPLE_SCENE_ENTITIES: Readonly<Record<string, readonly string[]>> 
   'Bread and Rumours': ['Noa'],
   'The Chart That Lies': ['Mara', 'The Old Chart'],
   'Lamp in the Empty House': ['Tobias'],
-  'Low Water': ['Mara'],
+  'Low Water': ['Mara', 'The Tide Hound'],
   "The Keeper's Log": ['Noa', 'The Keeper', 'The Logbook', 'The Archive'],
   'A Line of Stakes': ['Tobias', 'Mara'],
   'מכתב לאחותי': ['Noa', 'תמר', 'The Archive', 'The Drowned Village'],
-  'Names of the Rocks': ['Mara'],
-  'The Village on the Old Map': ['Noa', 'The Drowned Village'],
-  'Fog on the Crossing': ['Tobias'],
+  'Names of the Rocks': ['Mara', 'The Bay Fishers'],
+  'The Village on the Old Map': ['Noa', 'The Drowned Village', 'The Legend of the Drowned Village'],
+  'Fog on the Crossing': ['Tobias', 'The Bell in the Fog'],
   'An Argument About North': ['Mara', 'Tobias'],
   "The Baker's Daughter": ['Noa'],
   Triangles: ['Mara'],
   'What Tobias Did Not Say': ['Tobias', 'Mara'],
   'The Drowned Lane': ['The Drowned Village'],
   'Pages Out of Order': ['Noa', 'The Logbook'],
-  'Mending Nets': ['Tobias', 'The Drowned Village'],
+  'Mending Nets': ['Tobias', 'The Drowned Village', 'The Legend of the Drowned Village', 'The Bay Fishers'],
   'Ink and Salt': ['Mara'],
   'A Second Lamp': ['Noa', 'Tobias'],
   'Depths by Candlelight': ['Mara'],
@@ -785,13 +939,14 @@ export const SAMPLE_SCENE_ENTITIES: Readonly<Record<string, readonly string[]>> 
   'Under the Floorboards': ['Noa', 'The Logbook', 'The Archive'],
   'Slack Water': ['Tobias', 'The Drowned Village'],
   'Glass Falling': ['Saltwick'],
-  'הלילה שלפני הסערה': ['Noa', 'The Logbook', 'The Keeper'],
+  'הלילה שלפני הסערה': ['Noa', 'The Logbook', 'The Keeper', 'הים מחזיר'],
   'The Last Crossing Before': ['Tobias'],
+  'The Bell Stops': ['The Bell in the Fog'],
   Sandbags: ['Mara', 'Noa', 'The Archive'],
-  'What the Keeper Wrote': ['Noa', 'The Keeper', 'The Logbook'],
+  'What the Keeper Wrote': ['Noa', 'The Keeper', 'The Logbook', 'הים מחזיר'],
   Adrift: ['Tobias'],
   'The Light': ['The Old Lighthouse'],
-  'Between Two Bars': ['Tobias'],
+  'Between Two Bars': ['Tobias', 'The Tide Hound'],
   'Morning After': ['Saltwick'],
   'A New Shore': ['Mara'],
   'Starting Over': ['Mara'],
@@ -802,5 +957,5 @@ export const SAMPLE_SCENE_ENTITIES: Readonly<Record<string, readonly string[]>> 
   'The Ferry Timetable': ['Tobias'],
   'Leaving on the Morning Tide': ['Mara'],
   'The Chart on the Wall': ['The Harbour Office', 'Saltwick'],
-  Epilogue: ['The Drowned Village'],
+  Epilogue: ['The Drowned Village', 'The Legend of the Drowned Village'],
 };

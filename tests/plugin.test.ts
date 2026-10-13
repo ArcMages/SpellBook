@@ -332,9 +332,9 @@ describe('the command "Create sample project"', () => {
     expect(fake.workspace.leaves).toEqual([]);
 
     // The index and the to-do list, 53 notes of the manuscript, 2 of research, the 10 events of the timeline
-    // and the 13 notes of the world.
-    expect(notesUnder(fake, 'Sample Novel')).toHaveLength(80);
-    expect(notesUnder(fake, 'Sample Novel/World')).toHaveLength(13);
+    // and the 18 notes of the world.
+    expect(notesUnder(fake, 'Sample Novel')).toHaveLength(85);
+    expect(notesUnder(fake, 'Sample Novel/World')).toHaveLength(18);
     expect(fake.textOf('Sample Novel/World/Characters/תמר.md')).toContain('"type": "character"');
     expect(notesUnder(fake, 'Sample Novel/Manuscript')).toHaveLength(53);
     expect(notesUnder(fake, 'Sample Novel/Timeline')).toHaveLength(10);
@@ -378,8 +378,8 @@ describe('the command "Create sample project"', () => {
     expect(await plugin.createSampleProject()).toBe(true);
     expect(await plugin.createSampleProject()).toBe(true);
 
-    expect(notesUnder(fake, 'Sample Novel')).toHaveLength(80);
-    expect(notesUnder(fake, 'Sample Novel 2')).toHaveLength(80);
+    expect(notesUnder(fake, 'Sample Novel')).toHaveLength(85);
+    expect(notesUnder(fake, 'Sample Novel 2')).toHaveLength(85);
     expect(fake.workspace.opened).toEqual(['Sample Novel/Manuscript/Prologue.md', 'Sample Novel 2/Manuscript/Prologue.md']);
     expect(notices()).toContain('Created "Sample Novel 2" with 52 scenes.');
     expect(storeOf(plugin).project?.title).toBe('Sample Novel 2');

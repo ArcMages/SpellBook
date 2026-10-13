@@ -35,15 +35,19 @@ import { TIMELINES_KEY } from '../src/features/timeline/timelineWiring';
 import { countWords } from '../src/core/wordCount';
 import {
   BUILT_IN_TYPES,
+  buildRelations,
   buildWorldLinks,
   entityFields,
   findType,
   newEntityBody,
   newEntityFrontmatter,
   parseLink,
+  parseRelation,
   readEntities,
   readEntityLinks,
   readEntityTypes,
+  readRelationEntries,
+  resolveImage,
 } from '../src/core/world';
 import { MemoryVault } from './memoryVault';
 import { binderOnDisk, draw, makeStore, project, seedProject, settle, TODAY, valueOf } from './storeHarness';
@@ -535,7 +539,7 @@ describe('the sample project, its world', () => {
   const linked = (frontmatter: Readonly<Record<string, unknown>>): string[] =>
     readEntityLinks(frontmatter).map((link) => parseLink(link)?.target ?? `not a link: ${link}`);
 
-  it('has thirteen entities, exactly these, each in the folder of its type', () => {
+  it('has eighteen entities, exactly these, each in the folder of its type, and at least one of every type', () => {
     expect(world.map((entity) => `${entity.folder}/${entity.title}`)).toEqual([
       'Characters/Mara',
       'Characters/Tobias',
@@ -550,18 +554,27 @@ describe('the sample project, its world', () => {
       'Factions/The Harbour Office',
       'Items/The Old Chart',
       'Items/The Logbook',
+      'Lore/The Legend of the Drowned Village',
+      'Lore/The Bell in the Fog',
+      'Lore/הים מחזיר',
+      'Creatures/The Tide Hound',
+      'Cultures/The Bay Fishers',
     ]);
-    expect(SAMPLE_ENTITIES).toHaveLength(13);
+    expect(SAMPLE_ENTITIES).toHaveLength(18);
+    for (const type of BUILT_IN_TYPES) expect(world.some((entity) => entity.folder === type.folder), type.name).toBe(true);
     // The three the scenes are told by are among them, under the names of their labels.
     for (const character of SAMPLE_CHARACTERS) expect(names).toContain(character);
   });
 
-  it('writes each note the way "New character" and the like would: type, the type\'s fields in order, aliases; then the headings', () => {
+  it('writes each note the way "New character" and the like would: type, the type\'s fields in order, aliases, then its relations; then the headings', () => {
     for (const entity of world) {
       const type = findType(BUILT_IN_TYPES, String(entity.frontmatter['type']));
       if (!type) throw new Error(`${entity.title} has no type the project knows`);
       expect(entity.folder, entity.title).toBe(type.folder);
-      expect(Object.keys(entity.frontmatter), entity.title).toEqual(Object.keys(newEntityFrontmatter(type)));
+      // What the sheet's "Related" adds comes last, and only for an entity that has relations. No sample entity has a picture.
+      const related = entity.frontmatter['related'] === undefined ? [] : ['related'];
+      expect(Object.keys(entity.frontmatter), entity.title).toEqual([...Object.keys(newEntityFrontmatter(type)), ...related]);
+      expect(entity.frontmatter, entity.title).not.toHaveProperty('image');
       expect(Array.isArray(entity.frontmatter['aliases']), entity.title).toBe(true);
       expect(String(entity.frontmatter['summary']).length, entity.title).toBeGreaterThan(20);
       // The headings of a new note, all of them, with a line of text under the first.
@@ -571,7 +584,7 @@ describe('the sample project, its world', () => {
       expect(body.split('\n\n')[1]?.length, entity.title).toBeGreaterThan(20);
       expect(body.endsWith('\n\n'), entity.title).toBe(true);
     }
-    // No type of the sample's own, and no calendar of its own either: the four types and the ordinary calendar.
+    // No type of the sample's own, and no calendar of its own either: the built-in types and the ordinary calendar.
     expect(Object.keys(data())).not.toContain('entityTypes');
     expect(JSON.stringify(data()).toLowerCase()).not.toContain('calendar');
   });
@@ -584,19 +597,94 @@ describe('the sample project, its world', () => {
     const mara = world.find((entity) => entity.title === 'Mara');
     expect(mara?.frontmatter).toEqual({
       type: 'character',
-      role: 'Chart maker',
+      role: 'Protagonist',
       age: 34,
+      occupation: 'Chart maker',
       appearance: 'Ink on her cuffs; never without a notebook.',
+      personality: 'Exact and impatient, and kinder than she lets on.',
+      voice: 'Short sentences and numbers. Says "roughly" when she means that she has not measured it yet.',
       goal: 'To draw the bay as it really is.',
+      arc: 'Learns that an honest chart has to show what a town would rather forget.',
       summary: 'Sent to Saltwick to redraw the sea chart after the storm. Careful, impatient, new to the town.',
       aliases: [],
+      related: ['[[The Harbour Master|hired by]]', '[[Tobias|surveys the bay with]]'],
     });
   });
 
-  it('has one entity with a Hebrew name, a Hebrew summary and Hebrew text', () => {
+  it('fills the new fields of every character and every place that is in the story', () => {
+    const filled = (title: string, fields: readonly string[]): void => {
+      const frontmatter = world.find((entity) => entity.title === title)?.frontmatter ?? {};
+      for (const field of fields) expect(String(frontmatter[field] ?? '').length, `${title}: ${field}`).toBeGreaterThan(5);
+    };
+    for (const title of ['Mara', 'Tobias', 'Noa', 'The Harbour Master']) filled(title, ['occupation', 'personality', 'voice', 'arc']);
+    filled('The Keeper', ['occupation', 'personality', 'voice']);
+    filled('תמר', ['personality', 'voice']);
+    for (const place of world.filter((entity) => entity.folder === 'Places')) filled(place.title, ['atmosphere', 'landmarks']);
+    for (const lore of world.filter((entity) => entity.folder === 'Lore')) {
+      for (const field of ['kind', 'period', 'told-by']) expect(String(lore.frontmatter[field]).length, `${lore.title}: ${field}`).toBeGreaterThan(3);
+      // A tale is told whole: there is text under every heading, not only the first.
+      const pieces = (lore.body ?? '').split('\n\n');
+      expect(pieces.filter((piece) => piece !== '' && !piece.startsWith('## ')), lore.title).toHaveLength(3);
+    }
+  });
+
+  it('relates the entities to each other with links that all lead to an entity of the sample, each with a label', () => {
+    const relations = new Map(world.map((entity) => [entity.title, readRelationEntries(entity.frontmatter).map((entry) => ({ entry, written: parseRelation(entry) }))]));
+    let count = 0;
+    for (const [from, entries] of relations) {
+      for (const { entry, written } of entries) {
+        count++;
+        // One ordinary link and nothing else, so that Obsidian's own graph, backlinks and renaming know it.
+        expect(entry, from).toMatch(/^\[\[[^\]|#]+\|[^\]|]+\]\]$/);
+        expect(names, `${from}: ${entry}`).toContain(written?.target);
+        expect(written?.target, from).not.toBe(from);
+        expect(written?.label, `${from}: ${entry}`).not.toBe('');
+      }
+      expect(new Set(entries.map(({ written }) => written?.target)).size, from).toBe(entries.length);
+    }
+    expect(count).toBeGreaterThanOrEqual(18);
+    const of = (name: string): string[] => (relations.get(name) ?? []).map(({ entry }) => entry);
+    expect(of('Noa')).toEqual(['[[תמר|sister]]', '[[The Archive|keeps]]']);
+    expect(of('The Keeper')).toEqual(['[[The Old Lighthouse|kept it for thirty years]]', '[[The Logbook|wrote]]']);
+    expect(of('The Harbour Master')).toEqual(['[[The Harbour Office|runs]]']);
+    // Who tells which tale.
+    expect(of('The Legend of the Drowned Village')).toContain('[[The Bay Fishers|told by]]');
+    expect(of('The Bell in the Fog')).toContain('[[Tobias|told by]]');
+    expect(of('הים מחזיר').map((entry) => parseRelation(entry)?.target)).toEqual(['The Keeper', 'The Logbook']);
+    // A relation is written on one side only: the other side shows it as "mentioned by".
+    for (const [from, entries] of relations) {
+      for (const { written } of entries) {
+        const back = (relations.get(written?.target ?? '') ?? []).map((other) => other.written?.target);
+        expect(back, `${from} and ${written?.target ?? ''}`).not.toContain(from);
+      }
+    }
+    expect(of('תמר')).toEqual([]);
+  });
+
+  it('links the lore, the creature and the people to the scenes and the events where they matter', () => {
+    const scenesOf = (name: string): string[] => allScenes.filter((scene) => (scene.entities ?? []).includes(`[[${name}]]`)).map((scene) => scene.title);
+    const eventsOf = (name: string): string[] => events.filter((event) => linked(event.frontmatter).includes(name)).map((event) => event.title);
+    expect(scenesOf('The Legend of the Drowned Village')).toEqual(['The Village on the Old Map', 'Mending Nets', 'Epilogue']);
+    expect(eventsOf('The Legend of the Drowned Village')).toEqual(['נועה מוצאת את המפה הישנה', 'The new chart is published']);
+    expect(scenesOf('The Bell in the Fog')).toEqual(['Fog on the Crossing', 'The Bell Stops']);
+    expect(eventsOf('The Bell in the Fog')).toEqual(['The second storm']);
+    expect(scenesOf('הים מחזיר')).toEqual(['הלילה שלפני הסערה', 'What the Keeper Wrote']);
+    expect(scenesOf('The Tide Hound')).toEqual(['Low Water', 'Between Two Bars']);
+    expect(scenesOf('The Bay Fishers')).toEqual(['Names of the Rocks', 'Mending Nets']);
+  });
+
+  it('has a character and a piece of lore with a Hebrew name, a Hebrew summary and Hebrew text', () => {
     const hebrew = world.filter((entity) => HEBREW_LETTER.test(entity.title));
-    expect(hebrew.map((entity) => entity.title)).toEqual(['תמר']);
-    const [tamar] = hebrew;
+    expect(hebrew.map((entity) => entity.title)).toEqual(['תמר', 'הים מחזיר']);
+    const [tamar, saying] = hebrew;
+    expect(saying?.folder).toBe('Lore');
+    const told = (saying?.body ?? '').split('\n\n').filter((piece) => piece !== '' && !piece.startsWith('## '));
+    for (const text of [saying?.frontmatter['summary'], saying?.frontmatter['kind'], saying?.frontmatter['period'], saying?.frontmatter['told-by'], ...told]) {
+      expect(HEBREW_LETTER.test(String(text))).toBe(true);
+      expect(LATIN_LETTER.test(String(text))).toBe(false);
+    }
+    // Its labels are Hebrew too; the links lead to notes with English names.
+    for (const entry of readRelationEntries(saying?.frontmatter ?? {})) expect(HEBREW_LETTER.test(parseRelation(entry)?.label ?? '')).toBe(true);
     expect(tamar?.folder).toBe('Characters');
     expect(tamar?.frontmatter['type']).toBe('character');
     for (const text of [tamar?.frontmatter['summary'], tamar?.frontmatter['role'], (tamar?.body ?? '').split('\n\n')[1]]) {
@@ -812,8 +900,8 @@ describe('the sample project, created in a vault', () => {
     expect(created.filter((path) => path.startsWith('Sample Novel/World/'))).toEqual(
       SAMPLE_ENTITIES.map((entity) => `Sample Novel/World/${findType(BUILT_IN_TYPES, entity.type)?.folder ?? ''}/${entity.name}.md`).sort(),
     );
-    expect(created).toHaveLength(53 + 2 + 2 + 10 + 13);
-    for (const sub of ['Manuscript', 'Timeline', 'Research', 'Stats', 'World', 'World/Characters', 'World/Places', 'World/Factions', 'World/Items']) {
+    expect(created).toHaveLength(53 + 2 + 2 + 10 + 18);
+    for (const sub of ['Manuscript', 'Timeline', 'Research', 'Stats', 'World', ...BUILT_IN_TYPES.map((type) => `World/${type.folder}`)]) {
       expect(vault.hasFolder(`Sample Novel/${sub}`), sub).toBe(true);
     }
     // No writing history is made up: the Stats folder is there and it is empty.
@@ -921,7 +1009,7 @@ describe('the sample project, created in a vault', () => {
     ]);
   });
 
-  it('writes the thirteen notes of the world exactly as described, and every link of a scene or an event leads to one', async () => {
+  it('writes the eighteen notes of the world exactly as described, and every link of a scene or an event leads to one', async () => {
     const { store, vault, made } = await create();
     for (const entity of seed.world ?? []) {
       const path = `Sample Novel/World/${entity.folder}/${entity.title}.md`;
@@ -930,28 +1018,47 @@ describe('the sample project, created in a vault', () => {
       expect(vault.bodyOf(path), path).toBe(entity.body);
     }
 
-    // The store lists them as the world's notes, and they read as entities of the four types.
+    // A link by name leads where the vault takes it: to the one note of that name, when there is exactly one.
+    const resolveByName = (target: string): string | null => {
+      const found = vault.paths().filter((path) => path.toLowerCase().endsWith(`/${target.toLowerCase()}.md`));
+      return found.length === 1 ? (found[0] as string) : null;
+    };
+
+    // The store lists them as the world's notes, and they read as entities of the built-in types.
     const types = readEntityTypes(store.projectData('entityTypes'));
     const entities = readEntities(store.worldNotes(), types);
-    expect(entities).toHaveLength(13);
+    expect(entities).toHaveLength(18);
     expect(entities.every((entity) => entity.typeId !== null && entity.summary !== '')).toBe(true);
     const count = (typeId: string): number => entities.filter((entity) => entity.typeId === typeId).length;
-    expect([count('character'), count('place'), count('faction'), count('item')]).toEqual([6, 4, 1, 2]);
+    expect(BUILT_IN_TYPES.map((type) => count(type.id))).toEqual([6, 4, 1, 2, 3, 1, 1]);
     const tamar = entities.find((entity) => entity.name === 'תמר');
     expect(tamar).toMatchObject({ path: 'World/Characters/תמר.md', typeId: 'character', aliases: ['אחותי'] });
     expect(tamar?.summary).toMatch(HEBREW_LETTER);
     expect(entityFields(tamar ?? (entities[0] as (typeof entities)[number]), findType(types, 'character'))).toEqual([
       { name: 'role', value: 'אחותה של נועה' },
+      { name: 'personality', value: 'סקרנית וחמה, ודואגת יותר ממה שהיא מודה.' },
+      { name: 'voice', value: 'נשמעת רק דרך מה שנועה עונה לה במכתבים.' },
     ]);
+
+    // The relations, as the vault holds them: every one leads to an entity, and both sides see it.
+    const relations = buildRelations({ entities, entityVaultPath: (path) => `Sample Novel/${path}`, resolve: (target) => resolveByName(target) });
+    for (const entity of entities) {
+      for (const relation of relations.of(entity.path)) expect(relation.entity, `${entity.name}: ${relation.raw}`).not.toBeNull();
+    }
+    expect(relations.of('World/Characters/Noa.md').map((relation) => [relation.name, relation.label])).toEqual([
+      ['תמר', 'sister'],
+      ['The Archive', 'keeps'],
+    ]);
+    expect(relations.mentionedBy('World/Characters/תמר.md').map((relation) => [relation.entity.name, relation.label])).toEqual([['Noa', 'sister']]);
+    expect(relations.mentionedBy('World/Places/The Old Lighthouse.md').map((relation) => relation.entity.name)).toEqual(['The Keeper']);
+    expect(relations.mentionedBy('World/Factions/The Harbour Office.md').map((relation) => relation.entity.name)).toEqual(['The Harbour Master', 'The Old Chart']);
+    // No sample entity has a picture, and none is missed: the sheet shows the type's icon.
+    for (const entity of entities) expect(resolveImage(entity.frontmatter, `Sample Novel/${entity.path}`, resolveByName), entity.name).toBeNull();
     // None of them is a scene: the binder and Unfiled are as they were.
     expect(project(store).unfiled).toEqual(['Manuscript/The Night Market.md']);
     expect(JSON.stringify(binderOnDisk(vault, 'Sample Novel/Sample Novel.md'))).not.toContain('World/');
 
-    // A link by name leads where the vault takes it: to the one note of that name, when there is exactly one.
-    const resolve = (target: string): string | null => {
-      const found = vault.paths().filter((path) => path.toLowerCase().endsWith(`/${target.toLowerCase()}.md`));
-      return found.length === 1 ? (found[0] as string) : null;
-    };
+    const resolve = resolveByName;
     const scenePaths = made.project.scenes;
     const links = buildWorldLinks({
       entities,
@@ -1033,7 +1140,7 @@ describe('the sample project, created in a vault', () => {
     expect(vault.writes.slice(firstWrites).some((write) => write.path.startsWith('Sample Novel/') || write.path === 'Sample Novel')).toBe(false);
     for (const path of firstPaths) expect(vault.has(path), path).toBe(true);
     expect(vault.bodyOf(`Sample Novel 2/${made.project.scenes[1]}`)).toBe(vault.bodyOf(`Sample Novel/${made.project.scenes[1]}`));
-    expect(vault.paths().filter((path) => path.startsWith('Sample Novel 2/'))).toHaveLength(80);
+    expect(vault.paths().filter((path) => path.startsWith('Sample Novel 2/'))).toHaveLength(85);
   });
 
   it('can be created inside another folder', async () => {

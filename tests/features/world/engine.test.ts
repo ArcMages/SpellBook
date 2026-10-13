@@ -42,24 +42,48 @@ const NOTES = [
   { path: 'World/Places/Saltwick.md', frontmatter: null },
   { path: 'World/Factions/The Guild.md', frontmatter: { type: 'item' } },
   { path: 'World/Loose.md', frontmatter: { summary: 'Nobody knows what this is.' } },
-  { path: 'World/Creatures/Kraken.md', frontmatter: { type: 'creature' } },
+  { path: 'World/Vessels/Kraken.md', frontmatter: { type: 'vessel' } },
   { path: 'World/Places/map.png', frontmatter: null },
   { path: 'Manuscript/Opening.md', frontmatter: { type: 'character' } },
 ];
 
 describe('an entity note', () => {
   it('starts with its type, the type\'s properties, empty, and an empty list of other names', () => {
-    expect(newEntityFrontmatter(type('character'))).toEqual({ type: 'character', role: '', age: '', appearance: '', goal: '', summary: '', aliases: [] });
-    expect(Object.keys(newEntityFrontmatter(type('place')))).toEqual(['type', 'kind', 'region', 'summary', 'aliases']);
+    expect(newEntityFrontmatter(type('character'))).toEqual({
+      type: 'character',
+      role: '',
+      age: '',
+      occupation: '',
+      appearance: '',
+      personality: '',
+      voice: '',
+      goal: '',
+      arc: '',
+      summary: '',
+      aliases: [],
+    });
+    expect(Object.keys(newEntityFrontmatter(type('place')))).toEqual(['type', 'kind', 'region', 'atmosphere', 'landmarks', 'summary', 'aliases']);
+    expect(Object.keys(newEntityFrontmatter(type('lore')))).toEqual(['type', 'kind', 'period', 'told-by', 'summary', 'aliases']);
+    expect(Object.keys(newEntityFrontmatter(type('creature')))).toEqual(['type', 'kind', 'habitat', 'summary', 'aliases']);
+    expect(Object.keys(newEntityFrontmatter(type('culture')))).toEqual(['type', 'kind', 'region', 'summary', 'aliases']);
+    // A picture and relations are optional: a new note has neither.
+    for (const builtIn of BUILT_IN_TYPES) {
+      expect(newEntityFrontmatter(builtIn)).not.toHaveProperty('image');
+      expect(newEntityFrontmatter(builtIn)).not.toHaveProperty('related');
+    }
     expect(Object.keys(newEntityFrontmatter(type('faction')))).toEqual(['type', 'kind', 'leader', 'summary', 'aliases']);
     expect(Object.keys(newEntityFrontmatter(type('item')))).toEqual(['type', 'kind', 'owner', 'summary', 'aliases']);
   });
 
   it('starts with a few empty headings, and no other text', () => {
-    expect(newEntityBody(type('character'))).toBe('## Description\n\n## Background\n\n## Notes\n\n');
+    expect(newEntityBody(type('character'))).toBe('## Appearance\n\n## Background\n\n## Notes\n\n');
     expect(newEntityBody(type('faction'))).toContain('## Members');
-    const own = addType(BUILT_IN_TYPES, { name: 'Creature' });
-    expect(own.ok && newEntityBody(own.types[4] as EntityType)).toBe('## Description\n\n## Notes\n\n');
+    // Headings that fit the type: a legend is told, a creature has habits, a people has customs.
+    expect(newEntityBody(type('lore'))).toBe('## The tale\n\n## Who tells it\n\n## What is true\n\n');
+    expect(newEntityBody(type('creature'))).toBe('## Description\n\n## Habits\n\n## What people say\n\n');
+    expect(newEntityBody(type('culture'))).toBe('## Description\n\n## Customs\n\n## Language\n\n');
+    const own = addType(BUILT_IN_TYPES, { name: 'Vessel' });
+    expect(own.ok && newEntityBody(own.types[7] as EntityType)).toBe('## Description\n\n## Notes\n\n');
   });
 
   it('is any markdown note in the World folder, and nothing else', () => {

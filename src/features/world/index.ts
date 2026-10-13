@@ -1,6 +1,7 @@
-// World-building: the characters, places, factions and items of a story (and
-// whatever other types the writer makes), each a plain note in the project's
-// World folder, and the links between them and the scenes they are in.
+// World-building: the characters, places, factions, items, lore, creatures
+// and cultures of a story (and whatever other types the writer makes), each
+// a plain note in the project's World folder, the links between them and
+// the scenes they are in, and the relations between them.
 //
 // This file plugs it into the plugin. It makes the host (host.ts, on top of
 // the project store), registers the World browser's kind of pane, adds the
@@ -16,9 +17,9 @@ import { iconName } from '../../ui/icons';
 import type { Feature, FeatureContext } from '../registry';
 import { WorldHost } from './host';
 import { askNewEntity } from './newEntity';
-import { PROBLEM_NOTICE_MS, WORLD_ICONS } from './parts';
+import { NO_PROJECT_TEXT, PROBLEM_NOTICE_MS, WORLD_ICONS } from './parts';
 import { sceneEntitiesService } from './sceneService';
-import { WORLD_ICON, WORLD_VIEW_TYPE, createWorldView } from './worldView';
+import { WORLD_ICON, WORLD_VIEW_TYPE, WorldView, createWorldView } from './worldView';
 
 export { WorldHost } from './host';
 export type { FoundMention, WorldProject } from './host';
@@ -34,7 +35,11 @@ export const WORLD_COMMANDS = {
   newPlace: { id: 'new-place', name: 'New place' },
   newFaction: { id: 'new-faction', name: 'New faction' },
   newItem: { id: 'new-item', name: 'New item' },
+  newLore: { id: 'new-lore', name: 'New lore' },
+  newCreature: { id: 'new-creature', name: 'New creature' },
+  newCulture: { id: 'new-culture', name: 'New culture' },
   newEntity: { id: 'new-entity', name: 'New entity' },
+  openEntitySheet: { id: 'open-entity-sheet', name: 'Open entity sheet' },
 } as const;
 
 /** The type each "New ..." command makes; null for the one that asks. */
@@ -43,10 +48,15 @@ const NEW_COMMANDS: ReadonlyArray<readonly [{ readonly id: string; readonly name
   [WORLD_COMMANDS.newPlace, 'place'],
   [WORLD_COMMANDS.newFaction, 'faction'],
   [WORLD_COMMANDS.newItem, 'item'],
+  [WORLD_COMMANDS.newLore, 'lore'],
+  [WORLD_COMMANDS.newCreature, 'creature'],
+  [WORLD_COMMANDS.newCulture, 'culture'],
   [WORLD_COMMANDS.newEntity, null],
 ];
 
 export const COULD_NOT_OPEN_TEXT = 'The World browser could not be opened.';
+export const NOT_AN_ENTITY_TEXT =
+  'The note open in the editor is not an entity of the open project. Open a note from the World folder first, or use the World browser.';
 
 /**
  * Brings the World browser onto the screen, as a tab in the main area. One
@@ -129,6 +139,23 @@ export const worldFeature: Feature = {
       ...WORLD_COMMANDS.openWorld,
       callback: () => {
         void pane.reveal();
+      },
+    });
+    // The sheet of the entity whose note is open in the editor.
+    plugin.addCommand({
+      ...WORLD_COMMANDS.openEntitySheet,
+      callback: () => {
+        if (host.isReleased) return;
+        const open = app.workspace.getActiveFile();
+        const path = open === null ? null : host.entityPathOf(open.path);
+        if (path === null) {
+          new Notice(host.project === null ? NO_PROJECT_TEXT : NOT_AN_ENTITY_TEXT, PROBLEM_NOTICE_MS);
+          return;
+        }
+        void pane.reveal().then((leaf) => {
+          const view: unknown = leaf?.view;
+          if (view instanceof WorldView) view.showSheet(path);
+        });
       },
     });
     for (const [command, typeId] of NEW_COMMANDS) {

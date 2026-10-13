@@ -15,7 +15,9 @@ import { FEATURES } from '../../../src/features/registry';
 import { WorldPane, worldFeature } from '../../../src/features/world/index';
 import { TypeChoiceModal } from '../../../src/features/world/newEntity';
 import { NO_COLOR_CLASS, colorClass } from '../../../src/features/world/parts';
+import { ImagePickerModal } from '../../../src/features/world/imagePicker';
 import { EntityPickerModal } from '../../../src/features/world/pickerModal';
+import { RelationPickerModal } from '../../../src/features/world/relationModal';
 import { EntityTypesModal } from '../../../src/features/world/typesModal';
 import { WORLD_VIEW_TYPE, WorldView } from '../../../src/features/world/worldView';
 
@@ -54,8 +56,20 @@ function allSources(dir: string): string[] {
 
 describe('the source of the world-building feature', () => {
   it('is made of the expected files, with its engine in the core', () => {
-    expect(files).toEqual(['host.ts', 'index.ts', 'newEntity.ts', 'parts.ts', 'pickerModal.ts', 'sceneService.ts', 'typesModal.ts', 'worldView.ts']);
-    expect(readdirSync(coreDir).sort()).toEqual(['browse.ts', 'entity.ts', 'index.ts', 'links.ts', 'mentions.ts', 'services.ts', 'types.ts']);
+    expect(files).toEqual([
+      'host.ts',
+      'imagePicker.ts',
+      'index.ts',
+      'newEntity.ts',
+      'parts.ts',
+      'pickerModal.ts',
+      'relationModal.ts',
+      'sceneService.ts',
+      'sheet.ts',
+      'typesModal.ts',
+      'worldView.ts',
+    ]);
+    expect(readdirSync(coreDir).sort()).toEqual(['browse.ts', 'entity.ts', 'image.ts', 'index.ts', 'links.ts', 'mentions.ts', 'relations.ts', 'services.ts', 'types.ts']);
     expect(STYLE_FILES).toContain('world.css');
     expect(FEATURES).toContain(worldFeature);
     expect(worldFeature.id).toBe('world');
@@ -85,7 +99,10 @@ describe('the source of the world-building feature', () => {
     expect([...changing].sort()).toEqual(['addWorldNote', 'renameWorldNote', 'trashWorldNote', 'updateNoteProperties', 'updateProjectData']);
     // The vault doorway is only read from and listened to.
     const doorway = [...host.matchAll(/\bvault\s*\.\s*(\w+)\s*\(/g)].map((match) => match[1] ?? '');
-    expect([...new Set(doorway)].sort()).toEqual(['on', 'readText', 'resolveLink']);
+    expect([...new Set(doorway)].sort()).toEqual(['listImageFiles', 'on', 'readText', 'resolveLink', 'resourceUrl']);
+    // The device's own storage holds one thing of this screen's: cards or list.
+    const kept = [...host.matchAll(/\bstorage\s*\.\s*(\w+)\s*\(\s*(\w+)/g)].map((match) => `${match[1] ?? ''} ${match[2] ?? ''}`);
+    expect(kept.sort()).toEqual(['load LAYOUT_KEY', 'save LAYOUT_KEY']);
     for (const name of files) expect(/updateDataFile|updateStatsFile|createExportFile/.test(codeOf(name)), name).toBe(false);
   });
 
@@ -96,12 +113,12 @@ describe('the source of the world-building feature', () => {
       'onPaneMenu', 'onHeaderMenu', 'onTabMenu', 'onMoreOptions', 'addAction', 'updateNavButtons', 'handleDrop',
       'handlePaste', 'handleCopy', 'handleCut', 'setTitle', 'setContent', 'onEscapeKey', 'onWindowClose',
     ]);
-    const classes = { WorldView, EntityPickerModal, EntityTypesModal, TypeChoiceModal };
+    const classes = { WorldView, EntityPickerModal, EntityTypesModal, TypeChoiceModal, ImagePickerModal, RelationPickerModal };
     for (const [name, made] of Object.entries(classes)) {
       const own = Object.getOwnPropertyNames(made.prototype);
       expect(own.filter((member) => taken.has(member)), name).toEqual([]);
     }
-    for (const file of ['worldView.ts', 'pickerModal.ts', 'typesModal.ts', 'newEntity.ts']) {
+    for (const file of ['worldView.ts', 'pickerModal.ts', 'typesModal.ts', 'newEntity.ts', 'imagePicker.ts', 'relationModal.ts']) {
       const fields = [...codeOf(file).matchAll(/^ {2}private (?:readonly )?(\w+)[:=?! ]/gm)].map((match) => match[1] ?? '');
       expect(fields.length, file).toBeGreaterThan(1);
       const reserved = ['scope', 'app', 'leaf', 'icon', 'navigation', 'containerEl', 'contentEl', 'titleEl', 'modalEl', 'headerEl'];

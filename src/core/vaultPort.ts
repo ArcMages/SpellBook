@@ -66,6 +66,21 @@ export interface VaultPort {
   listFiles(folder: string): string[];
 
   /**
+   * Every picture in the vault (a file whose name ends in one of
+   * IMAGE_EXTENSIONS, see src/core/paths.ts), as vault paths, sorted. For
+   * the list a picture is chosen from. Cheap; reads no files.
+   */
+  listImageFiles(): string[];
+
+  /**
+   * An address the app can show a file of the vault at, in an image element:
+   * for showing a picture. Null when there is no such file. Nothing is read
+   * and nothing leaves the device: the address leads to the file in the
+   * vault itself.
+   */
+  resourceUrl(path: string): string | null;
+
+  /**
    * The day a file was created, on this device's calendar, as YYYY-MM-DD.
    * Null when there is no such file or the vault does not know.
    */

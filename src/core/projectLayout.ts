@@ -29,8 +29,9 @@ export const EXPORT_EXTENSIONS: readonly string[] = ['md', 'html', 'docx'];
 
 /**
  * The folder the world-building notes live in: one note per character, place,
- * faction or item, each in a folder for its type ("World/Characters"). It is
- * not part of a new project: it is made the first time the writer adds one.
+ * faction, item, piece of lore, creature or culture, each in a folder for
+ * its type ("World/Characters"). It is not part of a new project: it is made
+ * the first time the writer adds one.
  */
 export const WORLD_FOLDER = 'World';
 

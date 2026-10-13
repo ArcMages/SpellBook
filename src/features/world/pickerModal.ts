@@ -18,7 +18,7 @@ import type { WorldHost } from './host';
 import { NO_PROJECT_TEXT, PROBLEM_NOTICE_MS, READ_ONLY_TEXT, typeBadge } from './parts';
 
 export const PICKER_PLACEHOLDER = 'Search, or type a new name';
-export const PICKER_EMPTY_TEXT = 'Nothing in the world yet. Type a name to make a character, a place, a faction or an item.';
+export const PICKER_EMPTY_TEXT = 'Nothing in the world yet. Type a name to make a character, a place, a piece of lore or anything else.';
 export const PICKER_ALL_LISTED_TEXT = 'Everything is in this scene already. Type a name to make something new.';
 export const PICKER_NONE_FOUND_TEXT = 'Nothing by that name yet.';
 

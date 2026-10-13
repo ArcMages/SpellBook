@@ -1,7 +1,8 @@
 /*
- * Spellbook: world-building. The World browser, its windows (entity types,
- * the list that adds an entity to a scene), and the chips of "In this scene"
- * in the inspector.
+ * Spellbook: world-building. The World browser (cards or a table), the
+ * entity sheet, its windows (entity types, the lists that add an entity to a
+ * scene, relate one entity to another and choose a picture), and the chips
+ * of "In this scene" in the inspector.
  *
  * The rules of styles.css hold here too:
  *   - every class starts with "spellbook-", every variable with "--spellbook-";
@@ -12,8 +13,8 @@
  *   - nothing may depend on hover alone, and every layout must work at phone width.
  *
  * Whether the pane is narrow is measured by the plugin's code, which then
- * sets "spellbook-world-narrow": one column of cards, and the details in
- * place of the list.
+ * sets "spellbook-world-narrow": one column of cards, one column of fields
+ * on the sheet, and the sheet in place of the list, as a page of its own.
  */
 
 /* ------------------------------------------------------------------ Colours */
@@ -120,7 +121,9 @@
   --spellbook-world-touch: 44px;
   --spellbook-world-bar-room: 80px;
   --spellbook-world-card-min: 220px;
-  --spellbook-world-detail-width: 340px;
+  --spellbook-world-detail-width: 440px;
+  --spellbook-world-thumb: 40px;
+  --spellbook-world-portrait: 112px;
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -153,6 +156,36 @@
 
 .spellbook-world-bar .spellbook-world-new {
   flex: 0 0 auto;
+}
+
+/* Cards or list: two buttons joined into one, the one in use filled in. */
+.spellbook-world-layout {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.spellbook-world-layout .spellbook-world-layout-button {
+  border-radius: 0;
+  box-shadow: none;
+  border: var(--border-width) solid var(--background-modifier-border);
+  background-color: var(--background-primary);
+  color: var(--text-muted);
+}
+
+.spellbook-world-layout .spellbook-world-layout-button:first-child {
+  border-start-start-radius: var(--radius-s);
+  border-end-start-radius: var(--radius-s);
+}
+
+.spellbook-world-layout .spellbook-world-layout-button:last-child {
+  border-inline-start: none;
+  border-start-end-radius: var(--radius-s);
+  border-end-end-radius: var(--radius-s);
+}
+
+.spellbook-world-layout .spellbook-world-layout-button.is-active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
 }
 
 .spellbook-world-body {
@@ -258,8 +291,63 @@
   min-width: 0;
 }
 
-.spellbook-world-card-name {
+/* A picture in its frame: cropped to fill it, never stretched. Without a
+   picture the frame shows the type's icon on a tint of the type's colour. */
+.spellbook-world-picture {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--spellbook-world-thumb);
+  height: var(--spellbook-world-thumb);
+  border-radius: var(--radius-m);
+  background-color: var(--background-modifier-hover);
+  overflow: hidden;
+}
+
+.spellbook-world-picture.spellbook-world-picture-none {
+  border: var(--border-width) solid var(--spellbook-world-tag, var(--background-modifier-border));
+  background-color: color-mix(in srgb, var(--spellbook-world-tag, var(--text-faint)) 14%, transparent);
+}
+
+.spellbook-world-picture .spellbook-world-picture-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+}
+
+.spellbook-world-card-words {
+  display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* The key facts under the name: a character's role, a place's kind and region. */
+.spellbook-world-card-facts {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-align: start;
+}
+
+.spellbook-world-card-fact {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.spellbook-world-card-fact + .spellbook-world-card-fact {
+  padding-inline-start: var(--size-4-2);
+  border-inline-start: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-world-card-name {
+  flex: 0 1 auto;
   min-width: 0;
   color: var(--text-normal);
   font-weight: var(--font-semibold);
@@ -286,10 +374,13 @@
 
 .spellbook-world-card-foot {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-2-3);
   margin-block-start: auto;
 }
 
-.spellbook-world-card .spellbook-world-card-scenes {
+.spellbook-world-card .spellbook-world-card-scenes,
+.spellbook-world-card .spellbook-world-card-sheet {
   height: auto;
   padding: var(--size-2-1) var(--size-4-2);
   box-shadow: none;
@@ -298,17 +389,121 @@
   font-size: var(--font-ui-smaller);
 }
 
-/* ------------------------------------------------------------------ Details */
+/* -------------------------------------------------------------------- Table */
 
-/* Beside the list in a wide pane; in its place in a narrow one. */
+/* The entities as one table: the name takes the room, the number of scenes
+   only what it needs. Every row is one grid of the same columns. */
+.spellbook-world-table {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.spellbook-world-table-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1.6fr) minmax(4.5em, auto);
+  align-items: center;
+  column-gap: var(--size-4-2);
+  min-width: 0;
+  padding: var(--size-2-3) var(--size-4-2);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-world-table-entity {
+  border-inline-start: var(--size-2-2) solid var(--spellbook-world-tag, var(--background-modifier-border));
+  cursor: pointer;
+}
+
+.spellbook-world-table-entity:hover,
+.spellbook-world-table-entity.is-selected {
+  background-color: var(--background-modifier-hover);
+}
+
+.spellbook-world-table-entity:focus-visible {
+  outline: var(--size-2-1) solid var(--interactive-accent);
+  outline-offset: calc(-1 * var(--size-2-1));
+}
+
+.spellbook-world-table-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-3);
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+.spellbook-world-table-entity .spellbook-world-table-name {
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-world-table-scenes {
+  justify-content: flex-end;
+}
+
+.spellbook-world-table-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.spellbook-world-table-head {
+  position: sticky;
+  inset-block-start: calc(-1 * var(--size-4-3));
+  z-index: 1;
+  background-color: var(--background-primary);
+}
+
+.spellbook-world-table .spellbook-world-table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-2-2);
+  min-width: 0;
+  height: auto;
+  padding: var(--size-2-2) var(--size-2-3);
+  box-shadow: none;
+  background-color: transparent;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-world-table .spellbook-world-table-sort.is-active {
+  color: var(--text-normal);
+}
+
+.spellbook-world-table-arrow {
+  display: inline-flex;
+}
+
+.spellbook-world-table-arrow .svg-icon {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+/* A narrow pane has no room for four columns: the type is told by the icon
+   in front of the name, and its column is left out. */
+.spellbook-world-narrow .spellbook-world-table-row {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr) minmax(3.5em, auto);
+}
+
+.spellbook-world-narrow .spellbook-world-table-type {
+  display: none;
+}
+
+/* -------------------------------------------------------------------- Sheet */
+
+/* Beside the list in a wide pane; in its place in a narrow one, as a page. */
 .spellbook-world-detail {
   display: none;
   flex: 0 0 var(--spellbook-world-detail-width);
   box-sizing: border-box;
   min-width: 0;
-  max-width: 50%;
-  padding: var(--size-4-3);
+  max-width: 55%;
+  padding: var(--size-4-3) var(--size-4-4);
   border-inline-start: var(--border-width) solid var(--background-modifier-border);
+  background-color: var(--background-primary);
   overflow-y: auto;
 }
 
@@ -337,21 +532,56 @@
   min-width: 0;
   color: var(--text-normal);
   font-size: var(--font-ui-large);
-  font-weight: var(--font-semibold);
+  font-weight: var(--font-bold);
   overflow-wrap: anywhere;
   text-align: start;
 }
 
+/* The picture, and beside it the type, the other names and the buttons. */
+.spellbook-world-sheet-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--size-4-3);
+  margin-block-start: var(--size-4-3);
+}
+
+.spellbook-world-picture.spellbook-world-sheet-picture {
+  width: var(--spellbook-world-portrait);
+  height: var(--spellbook-world-portrait);
+  border-radius: var(--radius-l);
+}
+
+.spellbook-world-sheet-picture .spellbook-world-badge .svg-icon {
+  width: var(--icon-xl);
+  height: var(--icon-xl);
+}
+
+.spellbook-world-sheet-words {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--size-2-3);
+  min-width: 0;
+}
+
+.spellbook-world-sheet-type {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-3);
+}
+
 .spellbook-world-detail-type {
-  margin-block-start: var(--size-2-2);
   color: var(--text-muted);
   font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
   text-align: start;
 }
 
 .spellbook-world-detail-aliases {
-  margin-inline-start: var(--size-4-2);
   color: var(--text-faint);
+  font-size: var(--font-ui-small);
+  overflow-wrap: anywhere;
+  text-align: start;
 }
 
 .spellbook-world-detail-summary {
@@ -359,25 +589,73 @@
   color: var(--text-normal);
   overflow-wrap: anywhere;
   text-align: start;
-  white-space: pre-wrap;
 }
 
-/* The properties: the name of each above what it holds. */
+/* A box a property is typed in: it looks like the text it holds until it is
+   pointed at or typed in, and is as tall as what it holds. */
+.spellbook-world-detail .spellbook-world-box {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  padding: var(--size-2-2) var(--size-2-3);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-s);
+  box-shadow: none;
+  background-color: transparent;
+  color: var(--text-normal);
+  font-family: inherit;
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+  overflow-wrap: anywhere;
+  resize: none;
+  text-align: start;
+  field-sizing: content;
+}
+
+.spellbook-world-detail .spellbook-world-box:hover {
+  border-color: var(--background-modifier-border);
+}
+
+.spellbook-world-detail .spellbook-world-box:focus {
+  border-color: var(--interactive-accent);
+  background-color: var(--background-modifier-form-field);
+}
+
+.spellbook-world-detail .spellbook-world-box.spellbook-world-detail-summary {
+  font-size: var(--font-ui-medium);
+}
+
+/* The properties, two side by side: the name of each above what it holds. */
 .spellbook-world-fields {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--size-2-1);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--size-4-2) var(--size-4-3);
   margin: var(--size-4-3) 0 0;
+  padding-block: var(--size-4-3);
+  border-block: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-world-narrow .spellbook-world-fields {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.spellbook-world-field {
+  min-width: 0;
 }
 
 .spellbook-world-field-name {
+  padding-inline: var(--size-2-3);
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.04em;
   text-align: start;
+  text-transform: uppercase;
 }
 
 .spellbook-world-field-value {
-  margin: 0 0 var(--size-4-2);
+  margin: 0;
   color: var(--text-normal);
   font-size: var(--font-ui-small);
   overflow-wrap: anywhere;
@@ -388,11 +666,67 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--size-4-2);
+  margin-block-start: var(--size-2-3);
+}
+
+.spellbook-world-sheet-rest .spellbook-world-detail-actions {
   margin-block: var(--size-4-3);
 }
 
 .spellbook-world-section-head {
   margin-block-start: var(--size-4-4);
+}
+
+/* "Add", at the end of the heading of "Related". */
+.spellbook-world-section-head .spellbook-world-relate {
+  height: auto;
+  margin-inline-start: auto;
+  padding: var(--size-2-1) var(--size-4-2);
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-world-relation-group + .spellbook-world-relation-group {
+  margin-block-start: var(--size-4-2);
+}
+
+.spellbook-world-relation-type,
+.spellbook-world-relation-side {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-3);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-align: start;
+}
+
+.spellbook-world-relation-side {
+  margin-block: var(--size-4-3) var(--size-2-3);
+  font-weight: var(--font-semibold);
+}
+
+/* The other entity's name, then how the two have to do with each other. */
+.spellbook-world-row .spellbook-world-relation-open {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--size-4-2);
+}
+
+.spellbook-world-relation-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.spellbook-world-relation-label {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.spellbook-world-relation-lost .spellbook-world-relation-name {
+  color: var(--text-faint);
 }
 
 .spellbook-world-rows {
@@ -428,8 +762,20 @@
 }
 
 .spellbook-world-row .spellbook-world-row-unlink,
+.spellbook-world-row .spellbook-world-relation-edit,
+.spellbook-world-row .spellbook-world-relation-remove,
 .spellbook-world-row .spellbook-world-mention-link {
   flex: 0 0 auto;
+}
+
+/* Under a scene its synopsis, under an event its date in the story. */
+.spellbook-world-row-note {
+  padding-inline: var(--size-4-2);
+  padding-block-end: var(--size-2-3);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  overflow-wrap: anywhere;
+  text-align: start;
 }
 
 .spellbook-world-mention + .spellbook-world-mention {
@@ -460,6 +806,14 @@
 .spellbook-world.spellbook-is-mobile .spellbook-world-find,
 .spellbook-world.spellbook-is-mobile .spellbook-world-row-open,
 .spellbook-world.spellbook-is-mobile .spellbook-world-mention-link,
+.spellbook-world.spellbook-is-mobile .spellbook-world-layout-button,
+.spellbook-world.spellbook-is-mobile .spellbook-world-card-sheet,
+.spellbook-world.spellbook-is-mobile .spellbook-world-choose-picture,
+.spellbook-world.spellbook-is-mobile .spellbook-world-remove-picture,
+.spellbook-world.spellbook-is-mobile .spellbook-world-relate,
+.spellbook-world.spellbook-is-mobile .spellbook-world-box,
+.spellbook-world.spellbook-is-mobile .spellbook-world-table-sort,
+.spellbook-world.spellbook-is-mobile .spellbook-world-table-entity,
 .spellbook-world.spellbook-is-mobile .spellbook-world-card-scenes {
   min-height: var(--spellbook-world-touch);
 }
@@ -477,6 +831,14 @@
   .spellbook-world .spellbook-world-find,
   .spellbook-world .spellbook-world-row-open,
   .spellbook-world .spellbook-world-mention-link,
+  .spellbook-world .spellbook-world-layout-button,
+  .spellbook-world .spellbook-world-card-sheet,
+  .spellbook-world .spellbook-world-choose-picture,
+  .spellbook-world .spellbook-world-remove-picture,
+  .spellbook-world .spellbook-world-relate,
+  .spellbook-world .spellbook-world-box,
+  .spellbook-world .spellbook-world-table-sort,
+  .spellbook-world .spellbook-world-table-entity,
   .spellbook-world .spellbook-world-card-scenes {
     min-height: var(--spellbook-world-touch);
   }
@@ -591,6 +953,17 @@
 .spellbook-world-picker-note {
   padding: var(--size-4-2);
   text-align: start;
+}
+
+/* The second box of the window that relates two entities: the label. */
+.spellbook-world-relation-picker .spellbook-world-relation-label-box {
+  margin-block-start: var(--size-4-2);
+}
+
+/* A picture to choose: a small view of it in front of its name. */
+.spellbook-world-picker .spellbook-world-picker-thumb {
+  width: 44px;
+  height: 44px;
 }
 
 /* --------------------------------------------- The window: entity types */

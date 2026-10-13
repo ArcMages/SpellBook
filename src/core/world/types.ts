@@ -1,22 +1,35 @@
-// The types an entity of the world can have: character, place, faction, item
-// and whatever types the writer adds.
+// The types an entity of the world can have: character, place, faction,
+// item, lore, creature, culture, and whatever types the writer adds.
 //
 //   entityTypes:
 //     - id: character
 //       name: Character
 //       folder: Characters
-//       fields: [role, age, appearance, goal, summary]
+//       fields: [role, age, occupation, appearance, personality, voice, goal, arc, summary]
+//       fieldsVersion: 2
 //       color: blue
 //       icon: user
 //
 // The list lives in the project index under "entityTypes", so that it syncs
-// with the project. The four types above the writer's own are built in: they
-// are there also when the index says nothing about them, and cannot be
+// with the project. The seven types above the writer's own are built in:
+// they are there also when the index says nothing about them, and cannot be
 // removed (their commands rely on them), but their name, folder, fields,
 // colour and icon can be changed like any other's.
 //
 // A type's id is what an entity note says in its "type" property. It never
 // changes once the type exists, so renaming a type leaves every note alone.
+//
+// Projects made by an earlier version: the first version had four built-in
+// types, and fewer fields for a character and a place. A list stored then is
+// read like this:
+//   - a built-in type it does not mention is added after the others, as
+//     always, so lore, creature and culture simply appear;
+//   - a character or a place whose fields are exactly what the first version
+//     gave them (the writer never changed them) gets the fields of today;
+//   - whatever the writer changed, and every type of their own, stays as it
+//     is written. A list stored by this version says "fieldsVersion: 2" on
+//     those two types, so that fields the writer later sets back to the old
+//     ones are kept as well.
 
 import { readColor } from '../cards/colors';
 import type { CardColor } from '../cards/colors';
@@ -34,6 +47,10 @@ export const SUMMARY_KEY = 'summary';
 export const ALIASES_KEY = 'aliases';
 /** The property of a scene or a timeline event that lists the entities in it, as links. */
 export const ENTITIES_KEY = 'entities';
+/** The property of an entity note that names its picture: a link to an image file of the vault. */
+export const IMAGE_KEY = 'image';
+/** The property of an entity note that lists the entities it has to do with: links, each with a short label. */
+export const RELATED_KEY = 'related';
 
 /** The icons a type can have, by their names in Obsidian's icon set; the first is what a new type gets. */
 export const ENTITY_ICONS = [
@@ -57,6 +74,10 @@ export const ENTITY_ICONS = [
   'skull',
   'sparkles',
   'scroll',
+  'landmark',
+  'languages',
+  'feather',
+  'mountain',
 ] as const;
 
 export interface EntityType {
@@ -71,28 +92,52 @@ export interface EntityType {
   readonly color: CardColor | null;
   /** The name of an icon in Obsidian's set. */
   readonly icon: string;
-  /** True for the four types every project has. */
+  /** True for the types every project has. */
   readonly builtIn: boolean;
 }
 
-/** The four types every project has. */
+/** The types every project has. */
 export const BUILT_IN_TYPES: readonly EntityType[] = Object.freeze([
   {
     id: 'character',
     name: 'Character',
     folder: 'Characters',
-    fields: ['role', 'age', 'appearance', 'goal', SUMMARY_KEY],
+    fields: ['role', 'age', 'occupation', 'appearance', 'personality', 'voice', 'goal', 'arc', SUMMARY_KEY],
     color: 'blue',
     icon: 'user',
     builtIn: true,
   },
-  { id: 'place', name: 'Place', folder: 'Places', fields: ['kind', 'region', SUMMARY_KEY], color: 'green', icon: 'map-pin', builtIn: true },
+  {
+    id: 'place',
+    name: 'Place',
+    folder: 'Places',
+    fields: ['kind', 'region', 'atmosphere', 'landmarks', SUMMARY_KEY],
+    color: 'green',
+    icon: 'map-pin',
+    builtIn: true,
+  },
   { id: 'faction', name: 'Faction', folder: 'Factions', fields: ['kind', 'leader', SUMMARY_KEY], color: 'red', icon: 'flag', builtIn: true },
   { id: 'item', name: 'Item', folder: 'Items', fields: ['kind', 'owner', SUMMARY_KEY], color: 'orange', icon: 'gem', builtIn: true },
+  // Legends, tales, myths, history, religion, customs.
+  { id: 'lore', name: 'Lore', folder: 'Lore', fields: ['kind', 'period', 'told-by', SUMMARY_KEY], color: 'purple', icon: 'scroll', builtIn: true },
+  { id: 'creature', name: 'Creature', folder: 'Creatures', fields: ['kind', 'habitat', SUMMARY_KEY], color: 'yellow', icon: 'paw-print', builtIn: true },
+  // Peoples and their languages.
+  { id: 'culture', name: 'Culture', folder: 'Cultures', fields: ['kind', 'region', SUMMARY_KEY], color: 'cyan', icon: 'users', builtIn: true },
 ] satisfies EntityType[]);
 
+/** What a stored list says on a built-in type whose fields were written by this version. */
+export const FIELDS_VERSION_KEY = 'fieldsVersion';
+/** The version of the built-in types' fields: 1 had fewer for a character and a place. */
+export const FIELDS_VERSION = 2;
+
+/** The fields the first version gave the built-in types that have more today. */
+const FIRST_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  character: ['role', 'age', 'appearance', 'goal', SUMMARY_KEY],
+  place: ['kind', 'region', SUMMARY_KEY],
+};
+
 /** Properties that are not a type's to list: they have a meaning of their own. */
-const RESERVED_FIELDS: ReadonlySet<string> = new Set([TYPE_KEY, ALIASES_KEY, ENTITIES_KEY]);
+const RESERVED_FIELDS: ReadonlySet<string> = new Set([TYPE_KEY, ALIASES_KEY, ENTITIES_KEY, IMAGE_KEY, RELATED_KEY]);
 
 /** How a type is told from another: its id without regard to capitals or spaces around it. */
 export function typeKey(id: string): string {
@@ -110,7 +155,8 @@ function text(value: unknown): string {
 /**
  * Read a list of property names: a list, or one line with commas between the
  * names (what the writer types). Empty names, repeats and the properties with
- * a meaning of their own (type, aliases, entities) are left out.
+ * a meaning of their own (type, aliases, entities, image, related) are left
+ * out.
  */
 export function readFields(value: unknown): string[] {
   const raw: unknown[] = typeof value === 'string' ? value.split(/[,\n]/) : Array.isArray(value) ? value : [];
@@ -126,6 +172,20 @@ export function readFields(value: unknown): string[] {
   return fields;
 }
 
+/**
+ * True for a stored built-in type that an earlier version wrote and the
+ * writer never changed the fields of: it does not say which version its
+ * fields are of, and they are exactly what that version gave the type.
+ */
+function isFirstVersion(id: string, item: Record<string, unknown>): boolean {
+  const first = FIRST_FIELDS[id];
+  if (first === undefined) return false;
+  const version: unknown = item[FIELDS_VERSION_KEY];
+  if (typeof version === 'number' && version >= FIELDS_VERSION) return false;
+  const stored = readFields(item['fields']);
+  return stored.length === first.length && stored.every((field, index) => field === first[index]);
+}
+
 /** The first of `names` that no type in `types` uses as its folder; " 2", " 3" are added until one is free. */
 function freeFolder(wanted: string, taken: ReadonlySet<string>): string {
   if (!taken.has(clashKey(wanted))) return wanted;
@@ -139,7 +199,9 @@ function freeFolder(wanted: string, taken: ReadonlySet<string>): string {
  * Read the types of a project from what its index holds under "entityTypes".
  * Whatever cannot be understood is left out, never guessed at: an entry
  * without an id, a second entry with an id already seen. A built-in type the
- * list does not have is added after the others, as it is built in.
+ * list does not have is added after the others, as it is built in; and a
+ * built-in type that still has the fields an earlier version gave it gets
+ * the fields of today (see the top of this file).
  */
 export function readEntityTypes(raw: unknown): EntityType[] {
   const types: EntityType[] = [];
@@ -159,7 +221,7 @@ export function readEntityTypes(raw: unknown): EntityType[] {
       id,
       name,
       folder,
-      fields: item['fields'] === undefined && builtIn ? builtIn.fields : readFields(item['fields']),
+      fields: builtIn && (item['fields'] === undefined || isFirstVersion(builtIn.id, item)) ? builtIn.fields : readFields(item['fields']),
       // A colour that is written out and is none of the eight means "no colour"; a built-in type that says nothing keeps its own.
       color: item['color'] === undefined && builtIn ? builtIn.color : readColor(item['color']),
       icon,
@@ -182,6 +244,8 @@ export function writeEntityTypes(types: readonly EntityType[]): unknown[] {
     name: type.name,
     folder: type.folder,
     fields: [...type.fields],
+    // So that fields set back to an earlier version's are known to be the writer's choice.
+    ...(type.builtIn && FIRST_FIELDS[type.id] !== undefined ? { [FIELDS_VERSION_KEY]: FIELDS_VERSION } : {}),
     color: type.color,
     icon: type.icon,
   }));
@@ -278,7 +342,7 @@ export function changeType(types: readonly EntityType[], id: string, details: Ty
 export function removeType(types: readonly EntityType[], id: string): TypeEdit {
   const type = findType(types, id);
   if (!type) return no('That type is no longer in the list.');
-  if (type.builtIn) return no(`"${type.name}" is one of the four types every project has, and cannot be removed.`);
+  if (type.builtIn) return no(`"${type.name}" is one of the types every project has, and cannot be removed.`);
   return { ok: true, types: types.filter((other) => other.id !== type.id) };
 }
 
