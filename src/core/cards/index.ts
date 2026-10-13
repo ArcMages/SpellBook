@@ -157,6 +157,8 @@ export { moveEarlier } from './moves';
 export { moveLater } from './moves';
 /** The move for a card dropped into a gap between cards; null when that changes nothing or the gap is not a number. */
 export { dropAt } from './moves';
+/** The move for a scene's card dropped onto a folder's card: into that folder, at its end; null for anything else. */
+export { dropInto } from './moves';
 
 // ------------------------------------------------------------------ the grid
 

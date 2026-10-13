@@ -3,9 +3,9 @@
 // cards their places first.
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildBoard, dropAt, folderScope } from '../../../src/core/cards';
+import { buildBoard, dropAt, dropInto, folderScope } from '../../../src/core/cards';
 import type { Board } from '../../../src/core/cards';
-import { DROP_AFTER_CLASS, DROP_BEFORE_CLASS } from '../../../src/features/corkboard/corkboardView';
+import { DROP_AFTER_CLASS, DROP_BEFORE_CLASS, DROP_INTO_CLASS } from '../../../src/features/corkboard/corkboardView';
 import { DRAGGED_CLASS, DRAG_ACTIVE_CLASS, GHOST_CLASS, TOUCH_HOLD_MS } from '../../../src/ui/dragDrop';
 import { point } from '../../binderScreen';
 import { fakeDocument } from '../../obsidianStub';
@@ -85,6 +85,13 @@ function marks(pane: FakeElement): string[] {
     if (card.hasClass(DROP_AFTER_CLASS)) return [`${title}: after`];
     return [];
   });
+}
+
+/** The titles of the folder cards that are marked as where a drop would put the scene into. */
+function into(pane: FakeElement): string[] {
+  return cardsOf(pane)
+    .filter((card) => card.hasClass(DROP_INTO_CLASS))
+    .map((card) => card.withClass('spellbook-card-title')[0]?.text ?? '');
 }
 
 function boardOf(host: FakeHost, scope = undefined as ReturnType<typeof folderScope> | undefined): Board {
@@ -176,13 +183,103 @@ describe('dragging a card with the mouse', () => {
     expect(titles(pane)).toEqual([INNER_NAME, 'The Letter']);
   });
 
+  it('puts a scene into a folder when it is dropped onto the middle of the folder\'s card', async () => {
+    const host = novelHost();
+    const { pane } = await openBoard(host);
+    layOut(pane, 4);
+    const card = cardOf(pane, 'Closing');
+    const folder = cardOf(pane, 'Part one');
+    const at = middle(folder);
+
+    carry(card, at.x, at.y);
+    // The folder itself is marked, and no gap is.
+    expect(into(pane)).toEqual(['Part one']);
+    expect(marks(pane)).toEqual([]);
+    // On to the edge of the folder's card: that is the gap beside it, as before.
+    point(gripOf(card), 'pointermove', folder.rect.left + 10, at.y);
+    expect(into(pane)).toEqual([]);
+    expect(marks(pane)).toEqual(['Part one: before']);
+    point(gripOf(card), 'pointermove', folder.rect.right - 10, at.y);
+    expect(into(pane)).toEqual([]);
+    expect(marks(pane)).toEqual(['Ghost: before']);
+    // And back onto its middle.
+    point(gripOf(card), 'pointermove', at.x + 20, at.y - 30);
+    expect(into(pane)).toEqual(['Part one']);
+    expect(marks(pane)).toEqual([]);
+    expect(host.moves).toEqual([]);
+
+    const before = boardOf(host);
+    letGo(card, at.x + 20, at.y - 30);
+    // The move the binder itself makes for "move into folder": the end of that folder.
+    expect(host.moves).toEqual([dropInto(before, { kind: 'scene', path: CLOSING }, { kind: 'folder', id: 'f-one' })]);
+    expect(host.moves).toEqual([{ ref: { kind: 'scene', path: CLOSING }, placement: { at: 'end', parentId: 'f-one' } }]);
+    expect(into(pane)).toEqual([]);
+    expect(fakeDocument.body.withClass(GHOST_CLASS)).toEqual([]);
+
+    await rest(host);
+    // It is off the manuscript's own level now: it is inside the folder.
+    expect(titles(pane)).toEqual(['Opening', 'Part one', 'Ghost']);
+  });
+
+  it('shows the scene inside the folder afterwards, at its end', async () => {
+    const host = novelHost();
+    const { pane, view } = await openBoard(host);
+    layOut(pane, 4);
+    const card = cardOf(pane, 'Opening');
+    const at = middle(cardOf(pane, 'Part one'));
+    carry(card, at.x, at.y);
+    letGo(card, at.x, at.y);
+    await rest(host);
+    view.showScope(folderScope('f-one'));
+    await rest(host);
+    expect(titles(pane)).toEqual(['The Letter', INNER_NAME, 'Opening']);
+  });
+
+  it('only takes a scene onto a folder: a scene on the middle of a scene goes into the gap, as it did', async () => {
+    const host = novelHost();
+    const { pane } = await openBoard(host);
+    layOut(pane, 4);
+    const card = cardOf(pane, 'Closing');
+    const opening = cardOf(pane, 'Opening');
+    carry(card, middle(opening).x - 1, middle(opening).y);
+    expect(into(pane)).toEqual([]);
+    expect(marks(pane)).toEqual(['Opening: before']);
+    letGo(card, middle(opening).x - 1, middle(opening).y);
+    expect(host.moves.map((move) => move.placement)).toEqual([{ at: 'start', parentId: null }]);
+  });
+
+  it('puts a scene into a folder inside the folder the board shows', async () => {
+    const host = novelHost();
+    const { pane, view } = await openBoard(host);
+    view.showScope(folderScope('f-one'));
+    layOut(pane, 3);
+    const letter = cardOf(pane, 'The Letter');
+    const inner = cardOf(pane, INNER_NAME);
+    carry(letter, middle(inner).x, middle(inner).y);
+    expect(into(pane)).toEqual([INNER_NAME]);
+    letGo(letter, middle(inner).x, middle(inner).y);
+    expect(host.moves).toEqual([{ ref: { kind: 'scene', path: 'Manuscript/The Letter.md' }, placement: { at: 'end', parentId: 'f-inner' } }]);
+    // A folder's own card held over itself, or over nothing it can go into, marks no folder.
+    await rest(host);
+    layOut(pane, 3);
+    const folder = cardOf(pane, INNER_NAME);
+    carry(folder, middle(folder).x, middle(folder).y);
+    expect(into(pane)).toEqual([]);
+    letGo(folder, middle(folder).x, middle(folder).y);
+    expect(host.moves).toHaveLength(1);
+  });
+
   it('drops nothing when Escape is pressed', async () => {
     const host = novelHost();
     const { pane } = await openBoard(host);
     layOut(pane, 4);
     const card = cardOf(pane, 'Opening');
     const closing = cardOf(pane, 'Closing');
-    carry(card, closing.rect.left + 10, middle(closing).y);
+    // Held over a folder: the mark goes with the drag.
+    carry(card, middle(cardOf(pane, 'Part one')).x, middle(closing).y);
+    expect(into(pane)).toEqual(['Part one']);
+    point(gripOf(card), 'pointermove', closing.rect.left + 10, middle(closing).y);
+    expect(into(pane)).toEqual([]);
     expect(marks(pane)).toEqual(['Closing: before']);
     card.fire('keydown', { key: 'Escape' });
     expect(marks(pane)).toEqual([]);

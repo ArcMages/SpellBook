@@ -86,3 +86,23 @@ export function dropAt(board: Board, card: NodeRef, gap: number): CardMove | nul
   if (!before) return null;
   return { ref, placement: { at: 'after', sibling: cardRef(before) } };
 }
+
+/**
+ * The move for a scene's card dropped onto a folder's card: the scene goes
+ * into that folder, at its end. It is the binder's own "move into folder",
+ * so the store treats it the same.
+ *
+ * Null when there is nothing to move: one of the two is not on the board,
+ * the card that is moved is not a scene (a folder is put into another one
+ * from the binder, where its whole contents can be seen), or what it is
+ * dropped onto is not a folder.
+ *
+ * @param card the card that is moved, or a reference to its binder node
+ * @param onto the card it is dropped onto, or a reference to its binder node
+ */
+export function dropInto(board: Board, card: NodeRef, onto: NodeRef): CardMove | null {
+  const moving = board.cards[cardIndex(board, card)];
+  const target = board.cards[cardIndex(board, onto)];
+  if (!moving || !target || moving.kind !== 'scene' || target.kind !== 'folder') return null;
+  return { ref: cardRef(moving), placement: { at: 'end', parentId: target.id } };
+}

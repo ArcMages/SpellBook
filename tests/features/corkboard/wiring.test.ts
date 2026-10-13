@@ -11,6 +11,7 @@ import {
   CORKBOARD_ICON,
   CORKBOARD_VIEW_TYPE,
   CorkboardView,
+  DROP_INTO_CLASS,
   NO_PROJECT_TEXT,
 } from '../../../src/features/corkboard/corkboardView';
 import {
@@ -36,6 +37,7 @@ import type { SceneLineService, StatusSegment } from '../../../src/core/progress
 import { TagListsModal } from '../../../src/features/corkboard/tagListsModal';
 import { WORD_COUNT_DEBOUNCE_MS, WORD_COUNT_SLICE_NOTES } from '../../../src/core/wordCountCache';
 import { SHOW_ON_CORKBOARD } from '../../../src/views/binderActions';
+import { point } from '../../binderScreen';
 import { MemoryVault } from '../../memoryVault';
 import { Platform as StubPlatform, resetPlatform } from '../../obsidianStub';
 import type { FakeElement } from '../../obsidianStub';
@@ -447,6 +449,49 @@ describe('what is changed on the screens reaches the notes through the store', (
     const binder = binderOnDisk(s.vault, NOVEL_INDEX) as unknown[];
     expect(binder.map((entry) => (typeof entry === 'string' ? entry : 'folder'))).toEqual(['folder', OPENING, 'Manuscript/Ghost.md', CLOSING]);
     expect(s.vault.bodyOf(NOVEL_INDEX)).toBe(INDEX_BODY);
+    expect(notices()).toEqual([]);
+  });
+
+  it('drops a scene onto a folder card: the scene moves into that folder in the binder, through the store', async () => {
+    const s = await stage();
+    const { pane } = await openCorkboard(s);
+    expect(titles(pane)).toEqual(['Opening', 'Part one', 'Ghost', 'Closing']);
+    // The stand-in elements lay nothing out: give the board and its cards places, side by side.
+    one(pane, 'spellbook-board-scroll').rect = { top: 0, bottom: 600, left: 0, right: 1000, width: 1000, height: 600 };
+    titles(pane).forEach((title, index) => {
+      const left = 20 + index * 220;
+      cardOf(pane, title).rect = { top: 20, bottom: 120, left, right: left + 200, width: 200, height: 100 };
+    });
+    const card = cardOf(pane, 'Closing');
+    const grip = one(card, 'spellbook-card-title');
+    const folder = cardOf(pane, 'Part one').rect;
+    const onto = { x: (folder.left + folder.right) / 2, y: 70 };
+    const writesBefore = s.vault.writes.length;
+
+    point(grip, 'pointerdown', card.rect.left + 100, 70);
+    point(grip, 'pointermove', card.rect.left + 94, 70);
+    point(grip, 'pointermove', onto.x, onto.y);
+    expect(cardOf(pane, 'Part one').hasClass(DROP_INTO_CLASS)).toBe(true);
+    point(grip, 'pointerup', onto.x, onto.y);
+    await calm(s);
+
+    // The index note lists the scene as the last one inside the folder, and nowhere else.
+    const binder = binderOnDisk(s.vault, NOVEL_INDEX) as Array<string | { folder: string; children: unknown[] }>;
+    expect(binder.map((entry) => (typeof entry === 'string' ? entry : `[${entry.folder}]`))).toEqual([
+      OPENING,
+      '[Part one]',
+      'Manuscript/Ghost.md',
+    ]);
+    const partOne = binder[1] as { children: unknown[] };
+    expect(partOne.children[partOne.children.length - 1]).toBe(CLOSING);
+    expect(JSON.stringify(binder).split(JSON.stringify(CLOSING))).toHaveLength(2); // listed once
+    // One change of the index: the same intent the binder's "move to folder" uses. No note was renamed or rewritten.
+    expect(s.vault.writes.slice(writesBefore)).toEqual([{ op: 'updateFrontmatter', path: NOVEL_INDEX }]);
+    expect(s.vault.has(inNovel(CLOSING))).toBe(true);
+    expect(s.vault.bodyOf(NOVEL_INDEX)).toBe(INDEX_BODY);
+    // The board follows: the card is off this level, and the folder counts its words.
+    expect(titles(pane)).toEqual(['Opening', 'Part one', 'Ghost']);
+    expect(cardOf(pane, 'Part one').hasClass(DROP_INTO_CLASS)).toBe(false);
     expect(notices()).toEqual([]);
   });
 

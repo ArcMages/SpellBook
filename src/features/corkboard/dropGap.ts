@@ -49,3 +49,37 @@ export function gapAt(boxes: readonly CardBox[], x: number, y: number, rtl: bool
   }
   return boxes.length;
 }
+
+/**
+ * How much of a card, at each of its two ends along the way the cards are
+ * read, still belongs to the gap beside it. The half in between is the card
+ * itself: a drop there is a drop onto the card.
+ */
+export const CARD_EDGE_SHARE = 0.25;
+
+/**
+ * The card a pointer is on, for dropping one card onto another (a scene onto
+ * a folder): the place in `boxes` of the card whose middle part the pointer
+ * is over. Null when the pointer is on no card, or only on the edge of one,
+ * where a drop goes into the gap beside it (see gapAt).
+ *
+ * Side by side, the middle part is the middle half of the card's width; in a
+ * single column, of its height.
+ *
+ * @param boxes the cards in the order they are read
+ */
+export function cardAt(boxes: readonly CardBox[], x: number, y: number): number | null {
+  const first = boxes[0];
+  if (!first || Number.isNaN(x) || Number.isNaN(y)) return null;
+  const single = boxes.every((box) => Math.abs(box.left - first.left) < 1);
+  for (let index = 0; index < boxes.length; index++) {
+    const box = boxes[index];
+    if (!box || x < box.left || x > box.right || y < box.top || y > box.bottom) continue;
+    const from = single ? box.top : box.left;
+    const to = single ? box.bottom : box.right;
+    const at = single ? y : x;
+    const edge = (to - from) * CARD_EDGE_SHARE;
+    return at >= from + edge && at <= to - edge ? index : null;
+  }
+  return null;
+}

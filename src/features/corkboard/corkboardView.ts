@@ -42,6 +42,7 @@ import {
   buildSceneCard,
   cardRef,
   dropAt,
+  dropInto,
   folderScope,
   gridLayout,
   inspectorPatch,
@@ -73,7 +74,7 @@ import { MISSING_LABEL } from '../../ui/missingNote';
 import { safely } from '../../ui/safely';
 import { CARD_CLASS, buildFolderParts, buildSceneParts, describeScenes, drawFolder, drawScene } from './cardElements';
 import type { CardParts } from './cardElements';
-import { gapAt } from './dropGap';
+import { cardAt, gapAt } from './dropGap';
 import type { CardBox } from './dropGap';
 import type { CardsChange, CardsProject, CorkboardHost } from './host';
 import { MORE_LABEL, iconButton, placeUnder, setShown, settle, tagTitle } from './parts';
@@ -98,6 +99,8 @@ export const STARTING_TEXT = 'Spellbook is still starting...';
 /** On the card a dragged card would be put in front of, and on the last card when it would go to the end. */
 export const DROP_BEFORE_CLASS = 'spellbook-drop-before';
 export const DROP_AFTER_CLASS = 'spellbook-drop-after';
+/** On a folder's card while a scene is held over it: a drop would put the scene into that folder. */
+export const DROP_INTO_CLASS = 'spellbook-drop-into';
 /** On the card of the scene that is open in the editor. */
 export const ACTIVE_CLASS = 'spellbook-is-active';
 
@@ -212,6 +215,8 @@ export class CorkboardView extends ItemView {
   private boxes: CardBox[] | null = null;
   /** The card that shows where a drop would go, and how. */
   private marker: { readonly el: HTMLElement; readonly cls: string } | null = null;
+  /** The folder card that carries the mark for "a drop here goes into this folder", if any. */
+  private intoEl: HTMLElement | null = null;
 
   constructor(leaf: WorkspaceLeaf, host: CorkboardHost) {
     super(leaf);
@@ -347,6 +352,7 @@ export class CorkboardView extends ItemView {
       },
       end: () => {
         this.showGap(null);
+        this.showInto(null);
         this.boxes = null;
       },
     });
@@ -397,6 +403,7 @@ export class CorkboardView extends ItemView {
     this.activeEl = null;
     this.cursor = null;
     this.marker = null;
+    this.intoEl = null;
     this.boxes = null;
   }
 
@@ -548,6 +555,7 @@ export class CorkboardView extends ItemView {
       if (this.cursor === record) this.cursor = null;
       if (this.activeEl === record.el) this.activeEl = null;
       if (this.marker?.el === record.el) this.marker = null;
+      if (this.intoEl === record.el) this.intoEl = null;
     }
     const kept = this.order.filter((record) => next.has(record.key));
     let first = 0;
@@ -1141,8 +1149,15 @@ export class CorkboardView extends ItemView {
     });
   }
 
-  /** The move a drop at a place on the screen would make, and the gap it lands in; null when it would change nothing. */
-  private dropFor(dragged: Dragged, point: ScreenPoint): { gap: number; move: CardMove } | null {
+  /**
+   * The move a drop at a place on the screen would make; null when it would
+   * change nothing. It comes with where it lands: the gap between two cards
+   * (`gap`), or the folder card a scene is dropped onto (`into`).
+   */
+  private dropFor(
+    dragged: Dragged,
+    point: ScreenPoint,
+  ): { readonly gap: number | null; readonly into: HTMLElement | null; readonly move: CardMove } | null {
     const els = this.els;
     const board = this.board;
     const project = this.project;
@@ -1150,18 +1165,39 @@ export class CorkboardView extends ItemView {
     const box = els.scroll.getBoundingClientRect();
     // Beside the board, or above or below what can be seen of it, is nowhere.
     if (point.x < box.left || point.x > box.right || point.y < box.top || point.y > box.bottom) return null;
-    const gap = gapAt(this.boxes, point.x, point.y + els.scroll.scrollTop - box.top, this.readsRightToLeft());
+    const y = point.y + els.scroll.scrollTop - box.top;
+
+    // On the middle of a folder's card, a scene goes into that folder (at its
+    // end): the same move the binder makes. The edges of the card still mean
+    // the gap beside it, so a scene can be put before or after a folder too.
+    const over = cardAt(this.boxes, point.x, y);
+    const target = over === null ? undefined : this.order[over];
+    if (target && target.card.kind === 'folder') {
+      const move = dropInto(board, dragged.ref, cardRef(target.card));
+      if (move) return { gap: null, into: target.el, move };
+    }
+
+    const gap = gapAt(this.boxes, point.x, y, this.readsRightToLeft());
     if (gap === null) return null;
     const move = dropAt(board, dragged.ref, gap);
-    return move ? { gap, move } : null;
+    return move ? { gap, into: null, move } : null;
   }
 
   /** What to show for the place the pointer is at while a card is dragged. */
   private hintAt(dragged: Dragged, point: ScreenPoint): DropHint | null {
     const found = this.dropFor(dragged, point);
     this.showGap(found ? found.gap : null);
+    this.showInto(found ? found.into : null);
     // The board marks the place itself, on the card next to it; the drag engine has nothing to draw.
     return found ? {} : null;
+  }
+
+  /** Mark the folder card a drop would put the scene into; null takes the mark away. */
+  private showInto(el: HTMLElement | null): void {
+    if (this.intoEl === el) return;
+    this.intoEl?.removeClass(DROP_INTO_CLASS);
+    this.intoEl = el;
+    el?.addClass(DROP_INTO_CLASS);
   }
 
   /** Mark the gap a drop would go into: on the card after it, or on the last card for the end of the board. */

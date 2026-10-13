@@ -468,6 +468,15 @@
   inset-inline-end: calc(-1 * var(--size-4-2));
 }
 
+/* A folder's card while a scene is held over its middle: a drop here puts
+   the scene into that folder. A ring around the whole card, so that it cannot
+   be mistaken for the line that marks a gap. */
+.spellbook-board .spellbook-card.spellbook-drop-into {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+  background-color: var(--background-modifier-hover);
+}
+
 /* In a single column (a phone, a narrow pane) the cards follow each other
    downwards, so the line lies across. */
 .spellbook-board.spellbook-is-single .spellbook-card.spellbook-drop-before::before,

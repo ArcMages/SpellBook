@@ -3,7 +3,7 @@
 // order that comes out.
 
 import { describe, expect, it } from 'vitest';
-import { buildBoard, cardIndex, cardRef, dropAt, folderScope, moveEarlier, moveLater } from '../../src/core/cards';
+import { buildBoard, cardIndex, cardRef, dropAt, dropInto, folderScope, moveEarlier, moveLater } from '../../src/core/cards';
 import type { Board, BoardScope, CardMove } from '../../src/core/cards';
 import { childrenOf, flattenScenes, folderRef, moveNode, sceneRef } from '../../src/core/binderTree';
 import type { Binder, BinderNode, NodeRef } from '../../src/core/types';
@@ -300,5 +300,48 @@ describe('dropAt', () => {
     expect(() => dropAt(board, ref('A'), 3)).not.toThrow();
     expect(() => moveEarlier(board, ref('B'))).not.toThrow();
     expect(() => moveLater(board, ref('B'))).not.toThrow();
+    expect(() => dropInto(board, ref('A'), ref('[Part one]'))).not.toThrow();
+  });
+});
+
+describe('dropInto: a scene dropped onto a folder', () => {
+  it('puts the scene into that folder, at its end, and takes it off the level it was on', () => {
+    const board = boardOf(binder);
+    const move = dropInto(board, ref('A'), ref('[Part one]'));
+    expect(move).toEqual({ ref: sceneRef('Manuscript/A.md'), placement: { at: 'end', parentId: 'f-Part one' } });
+    const after = apply(binder, move);
+    expect(orderIn(after, 'f-Part one')).toEqual([...PART_ONE, 'A']);
+    expect(orderIn(after, null)).toEqual(['[Part one]', 'B', '[Part two]', 'D']);
+    // No scene is lost, and none is there twice.
+    expect([...flattenScenes(after)].sort()).toEqual([...flattenScenes(binder)].sort());
+  });
+
+  it('works from either side of the folder, and for a folder further along the board', () => {
+    const board = boardOf(binder);
+    expect(orderIn(apply(binder, dropInto(board, ref('D'), ref('[Part one]'))), 'f-Part one')).toEqual([...PART_ONE, 'D']);
+    expect(orderIn(apply(binder, dropInto(board, ref('A'), ref('[Part two]'))), 'f-Part two')).toEqual(['G', 'A']);
+  });
+
+  it('works inside a folder that is shown on the board: into a folder inside it', () => {
+    const board = boardOf(binder, PART_ONE_SCOPE);
+    const move = dropInto(board, ref(HEBREW.letter), ref('[Inner]'));
+    expect(move?.placement).toEqual({ at: 'end', parentId: 'f-Inner' });
+    const after = apply(binder, move);
+    expect(orderIn(after, 'f-Inner')).toEqual(['E', HEBREW.letter]);
+    expect(orderIn(after, 'f-Part one')).toEqual(['C', '[Inner]', 'F']);
+  });
+
+  it('has nothing to do for anything else', () => {
+    const board = boardOf(binder);
+    // A folder is not put into a folder this way; a scene is not dropped onto a scene, or onto itself.
+    expect(dropInto(board, ref('[Part two]'), ref('[Part one]'))).toBeNull();
+    expect(dropInto(board, ref('[Part one]'), ref('[Part one]'))).toBeNull();
+    expect(dropInto(board, ref('A'), ref('B'))).toBeNull();
+    expect(dropInto(board, ref('A'), ref('A'))).toBeNull();
+    // Neither card may be missing from the board: C and Inner are a level further in.
+    expect(dropInto(board, ref('C'), ref('[Part one]'))).toBeNull();
+    expect(dropInto(board, ref('A'), ref('[Inner]'))).toBeNull();
+    expect(dropInto(board, ref('Nowhere'), ref('[Part one]'))).toBeNull();
+    expect(dropInto(boardOf([]), ref('A'), ref('[Part one]'))).toBeNull();
   });
 });
