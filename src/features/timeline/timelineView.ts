@@ -49,11 +49,13 @@ import { MORE_LABEL, TIMELINE_ICONS, eventMenu } from './timelineMenus';
 import {
   META_FROM_WIDTH,
   MIN_CARD_WIDTH,
+  anyCardInView,
   axisTicks,
   boxCross,
   boxesIn,
   fitScale,
   isPhoneWidth,
+  laneOnShow,
   layoutScene,
   rangeText,
   readContent,
@@ -90,9 +92,14 @@ const KEY_STEPS: Readonly<Record<string, readonly [number, number] | undefined>>
 const BAR_SLACK = 64;
 /** The undated strip lists this many events at most; the rest are counted. */
 const UNDATED_SHOWN = 300;
-/** Room left after the last lane: more on a phone, where Obsidian's bar floats over the bottom of the pane. */
-const END_ROOM = 16;
-const PHONE_END_ROOM = 96;
+/**
+ * Room left after the last lane, so that it can be scrolled clear of what
+ * floats over the bottom of the pane: Obsidian's status bar on a desktop and
+ * a tablet (about 30 pixels high, in the bottom corner), and its taller
+ * navigation bar on a phone.
+ */
+export const END_ROOM = 48;
+export const PHONE_END_ROOM = 96;
 
 const HIDDEN = 'spellbook-is-hidden';
 const px = (value: number): string => `${Math.round(value * 100) / 100}px`;
@@ -171,6 +178,8 @@ export class TimelineView extends ItemView {
   private crossLength = 0;
   /** The lane shown in the phone layout. */
   private laneKey: string | null = null;
+  /** Set when another lane came on show in the phone layout: at the next layout the view goes to its events, unless some are in view already. */
+  private seekLane = false;
   private undatedOpen = false;
   private undatedDrawn = '';
 
@@ -515,14 +524,31 @@ export class TimelineView extends ItemView {
       return;
     }
     this.rtl = els.root.ownerDocument.defaultView?.getComputedStyle(els.root).direction === 'rtl';
-    const scale = (this.scales[this.mode] ??= fitScale(content, this.mode, this.vertical, this.alongLength));
-    this.scene = layoutScene(content, {
-      mode: this.mode,
-      vertical: this.vertical,
-      scale,
-      laneKey: this.laneKey,
-      crossLength: this.crossLength,
-    });
+    // The lane that was on show is gone (hidden, or removed): the one shown instead may have its events elsewhere.
+    if (this.vertical && this.laneKey !== null && laneOnShow(content, this.mode, this.laneKey)?.key !== this.laneKey) {
+      this.seekLane = true;
+    }
+    const lay = (scale: TimeScale): Scene =>
+      layoutScene(content, {
+        mode: this.mode,
+        vertical: this.vertical,
+        scale,
+        laneKey: this.laneKey,
+        crossLength: this.crossLength,
+      });
+    // A view that was never set shows the events: all of them, or on a narrow pane those of the lane on show.
+    let scale = (this.scales[this.mode] ??= fitScale(content, this.mode, this.vertical, this.alongLength, this.laneKey));
+    let scene = lay(scale);
+    if (this.seekLane) {
+      this.seekLane = false;
+      // Another lane came on show. It stays at the dates in view when it has
+      // something there; otherwise the view goes to where its events are.
+      if (this.vertical && !anyCardInView(scene, scale, this.alongLength)) {
+        scale = this.scales[this.mode] = fitScale(content, this.mode, this.vertical, this.alongLength, this.laneKey);
+        scene = lay(scale);
+      }
+    }
+    this.scene = scene;
     if (this.vertical) this.laneKey = this.scene.lanes[0]?.lane.key ?? null;
     this.drawLanes();
     this.reposition();
@@ -616,8 +642,10 @@ export class TimelineView extends ItemView {
       tab.toggleClass('is-active', lane.key === current);
       this.laneLabel(tab, lane.name, lane.kind === 'lane', lane.color);
       this.switcherTaps.set(tab, () => {
+        if (lane.key === this.laneKey) return;
         this.laneKey = lane.key;
         this.crossScroll = 0;
+        this.seekLane = true;
         this.relayout();
       });
     }

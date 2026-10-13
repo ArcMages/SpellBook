@@ -19,6 +19,7 @@ import {
   dayNumberToStoryDate,
   dayToPosition,
   displayLanes,
+  eventLaneKeys,
   fitAll,
   formatStoryDateRange,
   laneBands,
@@ -78,10 +79,12 @@ const CARD_GAP_DOWN = 6;
 const CARD_CHROME = 48;
 const LETTER_WIDTH = 7.5;
 
-/** When time runs down: the room at both sides of the columns, between them, and the least width of one. */
+/**
+ * When time runs down there is one column of cards, as wide as the pane:
+ * this is the room left free at both of its sides. A card never reaches past
+ * the pane, however narrow that is.
+ */
 export const COLUMN_PAD = 8;
-export const COLUMN_GAP = 6;
-export const MIN_COLUMN_WIDTH = 132;
 
 /** In story order, the distance from one event to the next can be zoomed between these. */
 export const STORY_MIN_STEP = 48;
@@ -275,22 +278,21 @@ export function layoutScene(content: TimelineContent, options: SceneOptions): Sc
   const base = { mode, vertical, scale, display, shown };
 
   if (vertical) {
-    const lane = shown.find((candidate) => candidate.key === options.laneKey) ?? shown[0];
-    if (lane === undefined) return { ...base, lanes: [], bands: [], crossSize: 0, trackSize: 0 };
+    const lane = laneOnShow(content, mode, options.laneKey);
+    if (lane === null) return { ...base, lanes: [], bands: [], crossSize: 0, trackSize: 0 };
     const laid = layoutLaneVertical(events, content.lanes, lane.name, {
       scale,
       measure: cardHeight,
       hidden,
       gap: CARD_GAP_DOWN,
     });
-    const columns = Math.max(1, laid.columnCount);
-    const room = Math.max(0, options.crossLength - 2 * COLUMN_PAD - (columns - 1) * COLUMN_GAP);
-    const trackSize = Math.max(MIN_COLUMN_WIDTH, Math.floor(room / columns));
-    const crossSize = 2 * COLUMN_PAD + columns * trackSize + (columns - 1) * COLUMN_GAP;
-    const items = laid.items.map((item) => ({ ...item, track: item.column, size: item.height }));
+    // One column, exactly as wide as the pane has room for: nothing to scroll sideways, nothing cut off.
+    const crossSize = Math.max(0, options.crossLength);
+    const trackSize = Math.max(0, crossSize - 2 * COLUMN_PAD);
+    const items = laid.items.map((item) => ({ ...item, track: 0, size: item.height }));
     return {
       ...base,
-      lanes: [laneOf(content, lane, columns, items, 0, crossSize)],
+      lanes: [laneOf(content, lane, 1, items, 0, crossSize)],
       bands: [{ lane: lane.key, start: 0, size: crossSize }],
       crossSize,
       trackSize,
@@ -310,9 +312,7 @@ export function layoutScene(content: TimelineContent, options: SceneOptions): Sc
 
 /** Where a card sits across the time axis, and how thick it is. */
 export function boxCross(scene: Scene, lane: LaneBoxes, box: Box): { readonly start: number; readonly size: number } {
-  if (scene.vertical) {
-    return { start: COLUMN_PAD + box.track * (scene.trackSize + COLUMN_GAP), size: scene.trackSize };
-  }
+  if (scene.vertical) return { start: COLUMN_PAD, size: scene.trackSize };
   const padding = LANE_METRICS.padding ?? 0;
   return { start: lane.start + padding + box.track * (ROW_SIZE + ROW_GAP), size: ROW_SIZE };
 }
@@ -362,11 +362,55 @@ export function boxesIn(scene: Scene, part: SceneWindow): PlacedBox[] {
 
 // ------------------------------------------------------------ scale helpers
 
-/** "Fit": the scale that shows everything. */
-export function fitScale(content: TimelineContent | null, mode: TimeMode, vertical: boolean, length: number): TimeScale {
+/**
+ * The lane that is drawn when time runs down: the one asked for. When none
+ * was asked for yet, or that one is gone, it is the first lane this device
+ * shows that has an event to show (a writer who dates no scenes would
+ * otherwise always open on an empty Manuscript lane), or simply the first
+ * when all are empty. Null when there is no lane to show.
+ */
+export function laneOnShow(content: TimelineContent, mode: TimeMode, laneKey: string | null): DisplayLane | null {
+  const events = placedEvents(content, mode);
+  const shown = visibleLanes(displayLanes(content.lanes, events), content.data.hiddenLanes);
+  const asked = shown.find((candidate) => candidate.key === laneKey);
+  if (asked !== undefined) return asked;
+  const filled = new Set<string>();
+  for (const event of events) {
+    if (event.start === null) continue;
+    for (const key of eventLaneKeys(event, content.lanes)) filled.add(key);
+  }
+  return shown.find((candidate) => filled.has(candidate.key)) ?? shown[0] ?? null;
+}
+
+/** The events that are placed in a mode and show in one lane. */
+function eventsOfLane(content: TimelineContent, mode: TimeMode, laneKey: string): TimelineEvent[] {
+  return placedEvents(content, mode).filter((event) => eventLaneKeys(event, content.lanes).includes(laneKey));
+}
+
+/**
+ * "Fit": the scale that shows the events.
+ *
+ * Across a wide pane that is every dated event, with all the lanes under
+ * each other. Down a narrow one a single lane is on show, so it is the
+ * events of that lane that are fitted: fitting the whole timeline there
+ * would often show a long empty stretch, with the lane's own events out of
+ * sight.
+ *
+ * @param laneKey when time runs down: the lane on show (see `laneOnShow`); otherwise not used
+ */
+export function fitScale(
+  content: TimelineContent | null,
+  mode: TimeMode,
+  vertical: boolean,
+  length: number,
+  laneKey: string | null = null,
+): TimeScale {
+  const lane = vertical && content !== null ? laneOnShow(content, mode, laneKey) : null;
   if (mode === 'story') {
     const step = vertical ? STORY_STEP_DOWN : DEFAULT_NARRATIVE_SPACING;
-    return makeScale(step, -FIT_PADDING / step);
+    // Each event stands on a day of its own; the lane's first one comes at the top.
+    const first = lane === null || content === null ? null : timelineExtent(eventsOfLane(content, mode, lane.key));
+    return makeScale(step, (first?.firstDay ?? 0) - FIT_PADDING / step);
   }
   const options = {
     paddingStart: FIT_PADDING,
@@ -374,7 +418,21 @@ export function fitScale(content: TimelineContent | null, mode: TimeMode, vertic
     paddingEnd: FIT_PADDING + (vertical ? CARD_HEIGHT : MAX_CARD_WIDTH),
   };
   if (content === null) return fitAll(null, length, options);
-  return fitAll(timelineExtent(content.model.dated), length, { ...options, fallbackDay: content.data.today });
+  const laneExtent = lane === null ? null : timelineExtent(eventsOfLane(content, mode, lane.key));
+  // A lane with no dated event of its own: the whole timeline, as on a wide pane.
+  const extent = laneExtent ?? timelineExtent(content.model.dated);
+  return fitAll(extent, length, { ...options, fallbackDay: content.data.today });
+}
+
+/**
+ * Whether any card of the scene touches the stretch of the time axis that
+ * is in view under `scale` (the scale the view has slid to, which may be
+ * another than the one the cards were placed with).
+ */
+export function anyCardInView(scene: Scene, scale: TimeScale, length: number): boolean {
+  const from = -dayToPosition(scale, scene.scale.originDay);
+  const to = from + Math.max(0, length);
+  return scene.lanes.some((lane) => lane.boxes.some((box) => box.along <= to && box.along + box.size >= from));
 }
 
 /** Zoom about a point. In story order the distance between two events stays within its limits. */

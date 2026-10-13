@@ -1,9 +1,11 @@
 // Laying out the timeline: which row each event card goes in, where it
 // starts and how long it is, so that no two cards of a lane overlap.
 //
-// The work is the same whichever way time runs. Across the screen, a card's
-// length along the axis is its width and cards stack in rows; down a phone
-// screen, it is its height and cards sit side by side in columns.
+// Across the screen, a card's length along the axis is its width, and cards
+// that would overlap stack in rows. Down a phone screen there is no room for
+// cards side by side: every card takes the whole width, so the cards of a
+// lane follow each other in one column, in time order, each as near to its
+// date as the card before it allows.
 //
 // The cost grows with n log n for n events, also when thousands of them fall
 // on the same day: free rows are kept in a heap, never searched one by one.
@@ -106,12 +108,15 @@ export interface TimelineLayout {
 export interface StackedEvent {
   readonly kind: 'event';
   readonly event: TimelineEvent;
-  /** The column, counted from 0. */
+  /** Always 0: on a phone there is one column, as wide as the pane. */
   readonly column: number;
-  /** Where the card starts along the time axis (its top), in pixels. */
+  /** Where the card starts along the time axis (its top), in pixels: where its date is, or lower when earlier cards are in the way. */
   readonly position: number;
+  /** How far below its date the card was put, in pixels; 0 when it sits where its date is. */
+  readonly pushed: number;
   /** How tall the card is, in pixels. */
   readonly height: number;
+  /** True when the event lasts from one date to another. (Its card is no taller for it: the dates are written on it.) */
   readonly isSpan: boolean;
 }
 
@@ -125,6 +130,7 @@ export interface StackedCluster {
   readonly label: string;
   readonly column: number;
   readonly position: number;
+  readonly pushed: number;
   readonly height: number;
 }
 
@@ -135,8 +141,9 @@ export type StackedItem = StackedEvent | StackedCluster;
 export interface VerticalLaneLayout {
   /** The lane; null when no lane of that name is shown. */
   readonly lane: DisplayLane | null;
-  /** How many columns of cards are needed side by side. */
+  /** How many columns of cards there are: 1, or 0 when the lane has no dated events (or is not shown). */
   readonly columnCount: number;
+  /** The cards from top to bottom, in time order. No two overlap. */
   readonly items: readonly StackedItem[];
 }
 
@@ -212,6 +219,8 @@ interface Draft {
   until: number;
   length: number;
   track: number;
+  /** How far past `from` the card was put (one column only); 0 otherwise. */
+  push: number;
 }
 
 interface Dated {
@@ -298,14 +307,39 @@ function assignTracks(drafts: readonly Draft[], gap: number): number {
   return trackEnd.length;
 }
 
-/** Lay out the events of one lane. Returns the cards in order of position, and how many tracks they need. */
-function placeLane(events: readonly Dated[], settings: Settings): { readonly drafts: Draft[]; readonly tracks: number } {
+/**
+ * Put every card in one column: each starts where its date is, or right
+ * after the card before it (with the gap between) when that one is still in
+ * the way. The drafts must come in order of position; they stay in it, so
+ * events at the same moment follow each other.
+ */
+function stackInOneColumn(drafts: readonly Draft[], gap: number): number {
+  let end = Number.NEGATIVE_INFINITY;
+  for (const draft of drafts) {
+    const at = Math.max(draft.from, end + gap);
+    draft.push = at - draft.from;
+    draft.track = 0;
+    end = at + draft.length;
+  }
+  return drafts.length === 0 ? 0 : 1;
+}
+
+/**
+ * Lay out the events of one lane. Returns the cards in order of position, and how many tracks they need.
+ *
+ * @param oneColumn true for a phone: no card beside another, and a span no longer than its card
+ */
+function placeLane(
+  events: readonly Dated[],
+  settings: Settings,
+  oneColumn = false,
+): { readonly drafts: Draft[]; readonly tracks: number } {
   const { pxPerDay } = settings.scale;
   const sorted = [...events].sort(byStart);
   const drafts: Draft[] = [];
   const draftOf = (item: Dated): Draft => {
     const from = item.startDay * pxPerDay;
-    return { members: [item], startDay: item.startDay, from, until: from, length: 0, track: 0 };
+    return { members: [item], startDay: item.startDay, from, until: from, length: 0, track: 0, push: 0 };
   };
   let open: Draft | null = null;
   for (const item of sorted) {
@@ -328,6 +362,11 @@ function placeLane(events: readonly Dated[], settings: Settings): { readonly dra
     if (draft.members.length > 1) {
       draft.length = measured(settings, clusterLabel(draft.members.length), null);
       draft.until = draft.from + draft.length;
+    } else if (oneColumn) {
+      // In one column a bar as long as its dates would push everything that
+      // happens meanwhile far below its own date: a span is a card like any other.
+      draft.length = measured(settings, only.event.title, only.event);
+      draft.until = draft.from + draft.length;
     } else {
       const card = measured(settings, only.event.title, only.event);
       draft.length = Math.max(card, (only.endDay - only.startDay) * pxPerDay);
@@ -335,6 +374,7 @@ function placeLane(events: readonly Dated[], settings: Settings): { readonly dra
       draft.until = Math.max(draft.from + card, only.endDay * pxPerDay);
     }
   }
+  if (oneColumn) return { drafts, tracks: stackInOneColumn(drafts, settings.gap) };
   return { drafts, tracks: assignTracks(drafts, settings.gap) };
 }
 
@@ -358,7 +398,7 @@ function toPlaced(draft: Draft, scale: TimeScale): PlacedItem {
 
 function toStacked(draft: Draft, scale: TimeScale): StackedItem {
   const placed = toPlaced(draft, scale);
-  const base = { column: placed.row, position: placed.position, height: placed.width };
+  const base = { column: placed.row, position: placed.position + draft.push, pushed: draft.push, height: placed.width };
   if (placed.kind === 'event') return { kind: 'event', event: placed.event, isSpan: placed.isSpan, ...base };
   return {
     kind: 'cluster',
@@ -421,10 +461,17 @@ export function layoutTimeline(
 }
 
 /**
- * Lay out one lane for a phone, with time running from top to bottom. It
- * works as `layoutTimeline` does, turned a quarter: `measure` gives a card's
- * height, a span is as tall as its dates, and cards that would overlap sit
- * side by side in columns.
+ * Lay out one lane for a phone, with time running from top to bottom.
+ *
+ * A phone has no room for cards side by side, so the lane is one column in
+ * which every card can take the whole width of the pane. The cards come in
+ * time order (on the same day the longer event first, then in the order the
+ * events were given). Each card starts where its date is on the axis, unless
+ * the card before it is still in the way: then it follows that card, with
+ * the gap between them. So no two cards overlap, and events at the same
+ * moment follow each other. `measure` gives a card's height; a span is no
+ * taller than any other card (its dates are written on it). Zoomed far out,
+ * single-date events that crowd together still merge into clusters.
  *
  * @param events   the events of the whole timeline; only those in the lane are placed
  * @param lanes    the lanes of the project index (see `readLanes`)
@@ -444,6 +491,6 @@ export function layoutLaneVertical(
   if (lane === undefined) return { lane: null, columnCount: 0, items: [] };
   const byLane = eventsByLane(placed, lanes, new Set([lane.key]));
   const settings = settingsOf(options);
-  const { drafts, tracks } = placeLane(byLane.get(lane.key) ?? [], settings);
+  const { drafts, tracks } = placeLane(byLane.get(lane.key) ?? [], settings, true);
   return { lane, columnCount: tracks, items: drafts.map((draft) => toStacked(draft, settings.scale)) };
 }

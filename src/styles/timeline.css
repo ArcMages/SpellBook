@@ -109,12 +109,16 @@
   flex-basis: 100%;
 }
 
+/* The buttons. Never wider than the pane: on a narrow one they go on to a
+   second line, so the last button is not cut off. */
 .spellbook-timeline-toolbar {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--size-2-2);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .spellbook-timeline-modes {

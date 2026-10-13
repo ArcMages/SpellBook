@@ -9,7 +9,6 @@ import {
   COLUMN_PAD,
   MAX_CARD_WIDTH,
   MIN_CARD_WIDTH,
-  MIN_COLUMN_WIDTH,
   NO_SCENE_LABEL,
   PHONE_BELOW,
   ROW_SIZE,
@@ -17,12 +16,14 @@ import {
   STORY_MIN_STEP,
   WIDE_FROM,
   allLanes,
+  anyCardInView,
   axisTicks,
   boxCross,
   boxesIn,
   cardWidth,
   fitScale,
   isPhoneWidth,
+  laneOnShow,
   layoutScene,
   rangeText,
   readContent,
@@ -198,7 +199,7 @@ describe('finding the cards near the view', () => {
 });
 
 describe('a scene for a phone', () => {
-  it('shows one lane, time running down, in columns as wide as the pane allows', () => {
+  it('shows one lane, time running down, in one column as wide as the pane', () => {
     const content = readContent(sample());
     const scale = fitScale(content, 'date', true, 500);
     const scene = layoutScene(content, { mode: 'date', vertical: true, scale, laneKey: null, crossLength: 304 });
@@ -210,30 +211,95 @@ describe('a scene for a phone', () => {
     const lane = plot.lanes[0];
     if (!lane) throw new Error('no lane');
     expect(lane.boxes.map((box) => box.event?.title)).toEqual(['The war begins', 'Siege']);
+    expect(lane.trackCount).toBe(1);
+    expect(plot.crossSize).toBe(304); // exactly the pane: nothing to scroll sideways
     expect(plot.trackSize).toBe(304 - 2 * COLUMN_PAD);
     const [war, siege] = lane.boxes;
     if (!war || !siege) throw new Error('no boxes');
     expect(war.size).toBe(CARD_HEIGHT);
-    expect(siege.size).toBeCloseTo(61 * scale.pxPerDay, 5);
-    expect(boxCross(plot, lane, war)).toEqual({ start: COLUMN_PAD, size: 304 - 2 * COLUMN_PAD });
+    // A span is a card like any other here; that it lasts is on the card, in its dates.
+    expect(siege.size).toBe(CARD_HEIGHT);
+    expect(siege.isSpan).toBe(true);
+    expect(siege.event?.end && storyDateToText(siege.event.end)).toBe('1923-08-01');
+    for (const box of lane.boxes) {
+      expect(boxCross(plot, lane, box)).toEqual({ start: COLUMN_PAD, size: 304 - 2 * COLUMN_PAD });
+    }
   });
 
-  it('never makes a column narrower than a card can be read in', () => {
+  it('never lets a card reach past the pane: events at the same moment follow each other down the axis', () => {
     const data = sample({
       events: Array.from({ length: 6 }, (_, index) => note(`${EVENTS}Same day ${index}.md`, { date: '1923-04-12', timelines: ['Main plot'] })),
       scenes: [],
     });
     const content = readContent(data);
-    const scene = layoutScene(content, {
-      mode: 'date',
-      vertical: true,
-      scale: fitScale(content, 'date', true, 500),
-      laneKey: 'main plot',
-      crossLength: 304,
+    for (const paneWidth of [304, 200, 90]) {
+      const scene = layoutScene(content, {
+        mode: 'date',
+        vertical: true,
+        scale: fitScale(content, 'date', true, 500),
+        laneKey: 'main plot',
+        crossLength: paneWidth,
+      });
+      const lane = scene.lanes[0];
+      if (!lane) throw new Error('no lane');
+      expect(lane.trackCount, String(paneWidth)).toBe(1);
+      expect(scene.crossSize, String(paneWidth)).toBe(paneWidth);
+      expect(lane.boxes.map((box) => box.event?.title)).toEqual([0, 1, 2, 3, 4, 5].map((index) => `Same day ${index}`));
+      lane.boxes.forEach((box, index) => {
+        const cross = boxCross(scene, lane, box);
+        expect(cross.start).toBe(COLUMN_PAD);
+        expect(cross.start + cross.size, String(paneWidth)).toBeLessThanOrEqual(paneWidth - COLUMN_PAD);
+        // One under the other, none over another.
+        const before = lane.boxes[index - 1];
+        if (before) expect(box.along).toBeGreaterThanOrEqual(before.along + before.size);
+      });
+    }
+  });
+
+  it('fits the events of the lane on show, so it does not open on an empty stretch', () => {
+    // The manuscript's scenes are in 1923; the backstory reaches back fifty years.
+    const data = sample({
+      timelines: [{ name: 'Main plot', color: 'purple' }, { name: 'Backstory', color: 'orange' }],
+      events: [
+        note(`${EVENTS}The war begins.md`, { date: '1923-04-12', timelines: ['Main plot'] }),
+        note(`${EVENTS}The old king dies.md`, { date: '1873-01-05', timelines: ['Backstory'] }),
+        note(`${EVENTS}A treaty.md`, { date: '1890-06-01', timelines: ['Backstory'] }),
+      ],
     });
-    expect(scene.lanes[0]?.trackCount).toBe(6);
-    expect(scene.trackSize).toBe(MIN_COLUMN_WIDTH);
-    expect(scene.crossSize).toBeGreaterThan(304); // wider than the pane: it scrolls sideways
+    const content = readContent(data);
+    const length = 500;
+    const inView = (laneKey: string | null): Array<[string | undefined, boolean]> => {
+      const scale = fitScale(content, 'date', true, length, laneKey);
+      const scene = layoutScene(content, { mode: 'date', vertical: true, scale, laneKey, crossLength: 304 });
+      expect(anyCardInView(scene, scale, length)).toBe(true);
+      return (scene.lanes[0]?.boxes ?? []).map((box) => [box.event?.title, box.along >= 0 && box.along + box.size <= length]);
+    };
+    expect(laneOnShow(content, 'date', null)?.name).toBe('Manuscript');
+    expect(inView(null)).toEqual([['Opening', true], ['Ending', true]]);
+    expect(inView('main plot')).toEqual([['The war begins', true]]);
+    expect(inView('backstory')).toEqual([['The old king dies', true], ['A treaty', true]]);
+
+    // Fitted to the whole timeline instead, the manuscript's lane would open on fifty empty years.
+    const whole = fitScale(content, 'date', false, length);
+    const far = layoutScene(content, { mode: 'date', vertical: true, scale: whole, laneKey: null, crossLength: 304 });
+    expect(far.lanes[0]?.boxes.every((box) => box.along > length / 2)).toBe(true);
+
+    // A lane that is hidden is not the one on show; a view slid far away has no card in it.
+    const hidden = readContent({ ...data, hiddenLanes: ['Main plot'] });
+    expect(laneOnShow(hidden, 'date', 'main plot')?.name).toBe('Manuscript');
+    const scale = fitScale(content, 'date', true, length, 'main plot');
+    const scene = layoutScene(content, { mode: 'date', vertical: true, scale, laneKey: 'main plot', crossLength: 304 });
+    expect(anyCardInView(scene, makeScale(scale.pxPerDay, scale.originDay + 100000), length)).toBe(false);
+  });
+
+  it('in story order, starts at the first event of the lane on show', () => {
+    const content = readContent(sample());
+    const scale = fitScale(content, 'story', true, 500, 'main plot');
+    const scene = layoutScene(content, { mode: 'story', vertical: true, scale, laneKey: 'main plot', crossLength: 304 });
+    const first = scene.lanes[0]?.boxes[0];
+    expect(first?.event?.title).toBe('The war begins');
+    expect(first?.along).toBeGreaterThanOrEqual(0);
+    expect(first?.along).toBeLessThan(100); // near the top, not after the other lanes' events
   });
 });
 

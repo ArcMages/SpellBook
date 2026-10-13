@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   BY_STORY_LABEL,
   CARDS_PER_FRAME,
+  END_ROOM,
   NO_EVENTS_HINT,
   NO_PROJECT_MESSAGE,
   TIMELINE_VIEW_NAME,
@@ -49,7 +50,9 @@ import type { Stage } from './screen';
 
 /** The zoom the sample fits a wide pane at, in pixels per day, and the one it fits a phone at. */
 const DAY = 492 / 122;
-const DAY_DOWN = 404 / 122;
+// At phone width the lane on show is what is fitted. It opens on the
+// manuscript's lane, whose two scenes are 110 days apart (1 April to 20 July).
+const DAY_DOWN = 404 / 110;
 
 const WAR = `${EVENTS}The war begins.md`;
 const layer = (s: Stage): { x: number; y: number } => shiftOf(one(s.pane, 'spellbook-timeline-cards'));
@@ -863,10 +866,15 @@ describe('at phone width', () => {
     expect(war.x).toBe(8);
     expect(war.width).toBe(PHONE.width - 16);
     expect(war.height).toBe(48);
+    // The lane has events at the dates in view, so the view stays where it was.
     expect(war.y).toBeCloseTo(24 + 11 * DAY_DOWN, 1);
+    // An event that lasts is a card like the others here, as wide as the pane; its dates are written on it.
     const siege = cardOf(s, 'Siege');
-    expect(boxOf(siege).height).toBeCloseTo(61 * DAY_DOWN, 1);
+    expect(boxOf(siege)).toMatchObject({ x: 8, width: PHONE.width - 16, height: 48 });
+    expect(boxOf(siege).y).toBeCloseTo(24 + 61 * DAY_DOWN, 1);
+    expect(siege.hasClass('spellbook-is-span')).toBe(true);
     expect(siege.hasClass('spellbook-has-meta')).toBe(true);
+    expect(one(siege, 'spellbook-timeline-card-date').text).toMatch(/^1 Jun.*1 Aug 1923$/);
     // The axis runs down the start side.
     const ticks = one(s.pane, 'spellbook-timeline-axis').children;
     const places = ticks.map((tick) => boxOf(tick).y);
@@ -890,7 +898,7 @@ describe('at phone width', () => {
     point(war, 'pointerdown', from.x, from.y, 'touch');
     s.host.timers.advance(TOUCH_HOLD_MS);
     point(war, 'pointermove', from.x + 80, from.y + 10 * DAY_DOWN, 'touch');
-    expect(war.style['transform']).toMatch(/^translate3d\(80px, 33\.1\d?px, 0\)$/);
+    expect(war.style['transform']).toMatch(/^translate3d\(80px, 36\.7\d?px, 0\)$/);
     point(war, 'pointerup', from.x + 80, from.y + 10 * DAY_DOWN, 'touch');
     await settle(s);
     expect(s.host.changes[0]?.[0]?.patch).toEqual({ date: '1923-04-22' }); // sideways changes no lane here
@@ -925,6 +933,112 @@ describe('at phone width', () => {
     expect(laneNames(s)).toEqual(['Manuscript', 'Main plot', 'רקע', 'Other']);
     expect(boxOf(cardOf(s, 'Opening'))).toMatchObject({ x: 24, y: 8 });
     expect(boxOf(cardOf(s, 'Siege')).width).toBeCloseTo(61 * DAY, 1);
+  });
+
+  it('opens on the events of the lane on show, not on an empty stretch', async () => {
+    // The backstory is fifty years before the manuscript: fitted together, either lane would open empty.
+    const host = new FakeHost(
+      sample({
+        timelines: [{ name: 'Main plot', color: 'purple' }, { name: 'Backstory', color: 'orange' }],
+        events: [
+          note(`${EVENTS}The war begins.md`, { date: '1923-04-12', timelines: ['Main plot'] }),
+          note(`${EVENTS}The old king dies.md`, { date: '1873-01-05', timelines: ['Backstory'] }),
+          note(`${EVENTS}A treaty.md`, { date: '1890-06-01', timelines: ['Backstory'] }),
+        ],
+      }),
+    );
+    const s = await open(host, PHONE);
+    const inView = (title: string): boolean => {
+      const box = boxOf(cardOf(s, title));
+      const top = box.y + layer(s).y;
+      return top >= 0 && top + box.height <= PHONE.height;
+    };
+    expect(titles(s)).toEqual(['Opening', 'Ending']);
+    expect(inView('Opening') && inView('Ending')).toBe(true);
+    expect(boxOf(cardOf(s, 'Opening')).y).toBe(24); // the first one at the top, with a little air
+    expect(rangeOf(s)).toMatch(/1923/);
+
+    // The plot's one event is among the dates in view: the view stays put.
+    click(tab(s, 1));
+    expect(inView('The war begins')).toBe(true);
+    expect(rangeOf(s)).toMatch(/1923/);
+
+    // The backstory has nothing there: the view goes to where its events are.
+    click(tab(s, 2));
+    await settle(s);
+    expect(titles(s)).toEqual(['The old king dies', 'A treaty']);
+    expect(inView('The old king dies') && inView('A treaty')).toBe(true);
+    expect(rangeOf(s)).toMatch(/^187\d/);
+
+    // "Fit" fits the lane on show as well.
+    drag(s.viewport, at(s, 150, 100), at(s, 150, 400), 'touch');
+    await settle(s);
+    click(button(s, 'Fit'));
+    await settle(s);
+    expect(inView('The old king dies') && inView('A treaty')).toBe(true);
+  });
+
+  it('gives every card the width of the pane, one under the other, also when they are at the same moment', async () => {
+    const host = new FakeHost(
+      sample({
+        events: [
+          ...[0, 1, 2, 3].map((index) => note(`${EVENTS}Same day ${index}.md`, { date: '1923-04-12', timelines: ['Main plot'] })),
+          note(`${EVENTS}מכתב.md`, { date: '1923-04-12', timelines: ['Main plot'] }),
+          note(`${EVENTS}All spring.md`, { date: '1923-04-12', end: '1923-06-20', timelines: ['Main plot'] }),
+        ],
+        scenes: [],
+      }),
+    );
+    for (const size of [PHONE, { ...PHONE, pane: 200, width: 124 }]) {
+      const s = await open(host, size);
+      // No scene has a date, so the manuscript's lane is empty: the view opens on the first lane that has events.
+      expect(s.pane.withClass('spellbook-timeline-lane-tab', 'is-active').map((active) => active.fullText)).toEqual(['Main plot']);
+      expect(s.pane.withClass('spellbook-timeline-lane-tab')[0]?.fullText).toBe('Manuscript');
+      // In time order; at the same moment the one that lasts first, then as they came.
+      expect(titles(s)).toEqual(['All spring', 'Same day 0', 'Same day 1', 'Same day 2', 'Same day 3', 'מכתב']);
+      const boxes = cards(s).map(boxOf);
+      boxes.forEach((box, index) => {
+        expect(box.x).toBe(8);
+        expect(box.width).toBe(size.width - 16);
+        expect(box.x + box.width).toBeLessThanOrEqual(size.width); // never past the pane
+        expect(box.height).toBe(48);
+        const above = boxes[index - 1];
+        if (above) expect(box.y).toBe(above.y + above.height + 6);
+      });
+      // Nothing is wider than the pane, so there is nothing to scroll sideways.
+      drag(s.viewport, at(s, 100, 300), at(s, 20, 300), 'touch');
+      await settle(s);
+      expect(layer(s).x).toBe(0);
+      await s.shell.close();
+    }
+  });
+});
+
+describe('room at the bottom of a wide pane', () => {
+  it('lets the last lane be scrolled clear of the status bar that floats over the bottom of the pane', async () => {
+    const s = await open();
+    const bands = s.pane.withClass('spellbook-timeline-band').map(boxOf);
+    const last = bands[bands.length - 1];
+    if (!last) throw new Error('no lanes');
+    const lanesEnd = last.y + last.height;
+    expect(lanesEnd).toBeLessThan(WIDE.height);
+
+    // A pane exactly as tall as the lanes: the last lane ends at the bottom edge, under the bar.
+    resize(s, { ...WIDE, height: lanesEnd });
+    await settle(s);
+    drag(s.viewport, at(s, 300, lanesEnd - 10), at(s, 300, lanesEnd - 210));
+    await settle(s);
+    expect(END_ROOM).toBeGreaterThanOrEqual(40); // taller than the bar
+    expect(layer(s)).toEqual({ x: 0, y: -END_ROOM }); // that far, and no further
+    // The lanes' names move with their lanes.
+    expect(one(s.pane, 'spellbook-timeline-names-layer').style['transform']).toBe(`translate3d(0, ${-END_ROOM}px, 0)`);
+
+    // With that much room to spare under the last lane, nothing needs to scroll.
+    resize(s, { ...WIDE, height: lanesEnd + END_ROOM });
+    await settle(s);
+    drag(s.viewport, at(s, 300, lanesEnd - 10), at(s, 300, lanesEnd - 210));
+    await settle(s);
+    expect(layer(s)).toEqual({ x: 0, y: 0 });
   });
 });
 

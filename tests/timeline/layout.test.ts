@@ -508,27 +508,87 @@ describe('layoutLaneVertical', () => {
   // For a phone: time runs down, and the measuring function gives a card's height.
   const vertical = { scale, measure: (): number => 44 };
 
-  it('places the cards of one lane down the axis, side by side when they would overlap', () => {
+  it('places the cards of one lane down the axis in one column, a card that would overlap following the one before', () => {
     const events = [
       event('First', { date: '1923-01-01', timelines: ['Main plot'] }), // 0 to 44
-      event('Second', { date: '1923-01-11', timelines: ['Main plot'] }), // starts at 20: overlaps
-      event('Third', { date: '1923-03-01', timelines: ['Main plot'] }), // starts at 118: free again
+      event('Second', { date: '1923-01-11', timelines: ['Main plot'] }), // its date is at 20: under First, so it follows it
+      event('Third', { date: '1923-03-01', timelines: ['Main plot'] }), // its date is at 118: free, so it sits there
       event('Elsewhere', { date: '1923-01-01', timelines: ['Backstory'] }),
     ];
     const layout = layoutLaneVertical(events, stored, 'main plot', vertical);
     expect(layout.lane?.name).toBe('Main plot');
-    expect(layout.columnCount).toBe(2);
+    expect(layout.columnCount).toBe(1);
     expect(layout.items).toEqual([
-      { kind: 'event', event: events[0], isSpan: false, column: 0, position: 0, height: 44 },
-      { kind: 'event', event: events[1], isSpan: false, column: 1, position: 20, height: 44 },
-      { kind: 'event', event: events[2], isSpan: false, column: 0, position: 118, height: 44 },
+      { kind: 'event', event: events[0], isSpan: false, column: 0, position: 0, pushed: 0, height: 44 },
+      // 44 for the card above and 8 between them: 32 below where its date is.
+      { kind: 'event', event: events[1], isSpan: false, column: 0, position: 52, pushed: 32, height: 44 },
+      { kind: 'event', event: events[2], isSpan: false, column: 0, position: 118, pushed: 0, height: 44 },
     ]);
   });
 
-  it('makes a span as tall as its dates', () => {
-    const events = [event(HEBREW.battle, { date: '1923-01-01', end: '1923-04-11', timelines: ['Main plot'] })];
-    const [card] = layoutLaneVertical(events, stored, 'Main plot', vertical).items;
-    expect(card).toMatchObject({ kind: 'event', isSpan: true, column: 0, position: 0, height: 200 });
+  it('lets events at the same moment follow each other, in a steady order', () => {
+    const events = [
+      event('Morning', { date: '1923-01-01', timelines: ['Main plot'] }),
+      event('Noon', { date: '1923-01-01', timelines: ['Main plot'] }),
+      event('The whole winter', { date: '1923-01-01', end: '1923-03-01', timelines: ['Main plot'] }),
+      event(HEBREW.battle, { date: '1923-01-01', timelines: ['Main plot'] }),
+    ];
+    const layout = layoutLaneVertical(events, stored, 'Main plot', { ...vertical, gap: 6 });
+    expect(layout.columnCount).toBe(1);
+    // The one that lasts comes first, then the others in the order they were given.
+    expect(layout.items.map((item) => (item.kind === 'event' ? item.event.title : ''))).toEqual([
+      'The whole winter',
+      'Morning',
+      'Noon',
+      HEBREW.battle,
+    ]);
+    expect(layout.items.map((item) => [item.column, item.position, item.pushed])).toEqual([
+      [0, 0, 0],
+      [0, 50, 50],
+      [0, 100, 100],
+      [0, 150, 150],
+    ]);
+  });
+
+  it('keeps a span no taller than any other card, so what happens meanwhile stays near its own date', () => {
+    const events = [
+      event(HEBREW.battle, { date: '1923-01-01', end: '1923-04-11', timelines: ['Main plot'] }),
+      event('Meanwhile', { date: '1923-02-20', timelines: ['Main plot'] }), // its date is at 100
+    ];
+    const [bar, meanwhile] = layoutLaneVertical(events, stored, 'Main plot', vertical).items;
+    expect(bar).toMatchObject({ kind: 'event', isSpan: true, column: 0, position: 0, pushed: 0, height: 44 });
+    expect(meanwhile).toMatchObject({ kind: 'event', isSpan: false, column: 0, position: 100, pushed: 0 });
+  });
+
+  it('never puts two cards over each other, keeps time order, and comes out alike wherever the view has slid', () => {
+    const events = Array.from({ length: 400 }, (_, index) => {
+      const day = 1 + ((index * 7) % 28);
+      const month = 1 + ((index * 5) % 12);
+      const date = `1923-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const end = index % 9 === 0 ? { end: '1924-01-15' } : {};
+      return event(`Event ${index}`, { date, ...end, timelines: ['Main plot'] });
+    });
+    const layout = layoutLaneVertical(events, stored, 'Main plot', vertical);
+    expect(layout.columnCount).toBe(1);
+    expect(layout.items).toHaveLength(400);
+    for (let index = 1; index < layout.items.length; index++) {
+      const above = layout.items[index - 1];
+      const below = layout.items[index];
+      if (!above || !below || above.kind !== 'event' || below.kind !== 'event') throw new Error('not an event');
+      expect(below.column).toBe(0);
+      expect(below.position).toBeGreaterThanOrEqual(above.position + above.height + 8);
+      expect(below.pushed).toBeGreaterThanOrEqual(0);
+      // Time order: where the date of the lower card is on the axis is never above that of the upper one.
+      expect(below.position - below.pushed).toBeGreaterThanOrEqual(above.position - above.pushed);
+    }
+    // Slid a year on: every card moved by the same amount, and none changed places.
+    const slid = layoutLaneVertical(events, stored, 'Main plot', { ...vertical, scale: makeScale(scale.pxPerDay, scale.originDay + 365) });
+    const shift = (slid.items[0]?.position ?? 0) - (layout.items[0]?.position ?? 0);
+    expect(shift).toBeCloseTo(-365 * scale.pxPerDay, 6);
+    slid.items.forEach((item, index) => {
+      expect(item.position - (layout.items[index]?.position ?? 0)).toBeCloseTo(shift, 6);
+      expect(item.pushed).toBeCloseTo(layout.items[index]?.pushed ?? -1, 6);
+    });
   });
 
   it('clusters crowded events when zoomed far out, as the wide layout does', () => {

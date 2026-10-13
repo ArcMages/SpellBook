@@ -188,6 +188,18 @@ describe('src/styles/timeline.css', () => {
     expect(css).not.toMatch(/min-height:\s*var\(/);
   });
 
+  it('never lets the toolbar be wider than the pane: its buttons go on to a second line instead of being cut off', () => {
+    const toolbar = bodyOf('.spellbook-timeline-toolbar');
+    expect(toolbar).toMatch(/flex-wrap:\s*wrap/);
+    expect(toolbar).toMatch(/max-width:\s*100%/);
+    expect(toolbar).toMatch(/min-width:\s*0/);
+    // It may shrink below the width of all its buttons in a row; "0 0 auto" was what cut the last one off.
+    expect(toolbar).toMatch(/flex:\s*0 1 auto/);
+    expect(bodyOf('.spellbook-timeline-header')).toMatch(/flex-wrap:\s*wrap/);
+    // The lanes of a narrow pane scroll sideways rather than being cut off.
+    expect(bodyOf('.spellbook-timeline-switcher')).toMatch(/overflow-x:\s*auto/);
+  });
+
   it('makes everything that is tapped big enough for a finger on a touch screen', () => {
     expect(css).toMatch(/--spellbook-timeline-target:\s*44px/);
     const coarse = /@media\s*\(pointer:\s*coarse\)\s*\{([\s\S]*?\})\s*\}/.exec(css)?.[1] ?? '';
