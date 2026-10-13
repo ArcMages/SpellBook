@@ -1,0 +1,361 @@
+/*
+ * Spellbook: the snapshots of a scene, its saved versions: the list, one
+ * snapshot to read, and two versions compared.
+ *
+ * The rules of styles.css hold here too:
+ *   - every class starts with "spellbook-", every variable with "--spellbook-";
+ *   - colours and spacing come only from Obsidian's CSS variables, so the
+ *     plugin follows the user's theme in light and dark mode;
+ *   - sides are named "start" and "end", never by their physical names, so
+ *     that everything mirrors when Obsidian itself runs the other way;
+ *   - nothing may depend on hover alone, and every layout must work at phone width.
+ *
+ * What was added and what was removed are never told apart by colour alone:
+ * added text is underlined and its paragraph carries a plus, removed text is
+ * struck through and its paragraph carries a minus.
+ */
+
+/* --------------------------------------------------------------------- Pane */
+
+/* Obsidian's pane around the snapshots: they bring their own margins and do
+   their own scrolling. (The class is repeated to outweigh Obsidian's own rule
+   for pane contents.) */
+.spellbook-snapshots-pane.spellbook-snapshots-pane {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.spellbook-snapshots {
+  --spellbook-snapshots-touch: 44px;
+  --spellbook-snapshots-bar-room: 80px;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+/* The name of the pane, the scene's title and "Take snapshot". */
+.spellbook-snapshots-header {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2) var(--size-4-3);
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-snapshots-names {
+  flex: 1 1 10em;
+  min-width: 0;
+}
+
+.spellbook-snapshots-heading {
+  color: var(--text-muted);
+  text-align: start;
+}
+
+/* The scene's title is the writer's own text: it takes its own direction. */
+.spellbook-snapshots-scene {
+  overflow: hidden;
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-snapshots-status {
+  flex: 0 0 auto;
+  padding-inline: var(--size-4-3);
+  color: var(--text-muted);
+  text-align: start;
+}
+
+.spellbook-snapshots-status:not(:empty) {
+  padding-block: var(--size-4-1);
+}
+
+.spellbook-snapshots-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+}
+
+/* On a phone, Obsidian's own bar floats over the bottom of the pane. */
+.spellbook-snapshots.spellbook-is-phone .spellbook-snapshots-body {
+  padding-block-end: max(
+    var(--spellbook-snapshots-bar-room),
+    calc(var(--mobile-navbar-height, 0px) + var(--safe-area-inset-bottom, 0px) + var(--size-4-4))
+  );
+}
+
+.spellbook-snapshots-message {
+  padding-block: var(--size-4-4);
+  color: var(--text-muted);
+  line-height: var(--line-height-normal);
+  text-align: start;
+}
+
+/* ------------------------------------------------------------------ Buttons */
+
+.spellbook-snapshots-button,
+.spellbook-snapshots-take {
+  flex: 0 0 auto;
+}
+
+/* On touch screens every button is tall enough for a finger. */
+.spellbook-snapshots.spellbook-is-mobile .spellbook-snapshots-button,
+.spellbook-snapshots.spellbook-is-mobile .spellbook-snapshots-take {
+  min-height: var(--spellbook-snapshots-touch);
+  padding-inline: var(--size-4-3);
+}
+
+/* Delete is the one that takes something away. */
+.spellbook-snapshots-delete {
+  color: var(--text-error);
+}
+
+/* The button that says what a snapshot is compared with may carry a long name. */
+.spellbook-snapshots-against {
+  flex: 0 1 auto;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------- List */
+
+.spellbook-snapshots-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.spellbook-snapshots-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2) var(--size-4-3);
+  padding-block: var(--size-4-2);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-snapshots-row-main {
+  flex: 1 1 14em;
+  min-width: 0;
+}
+
+.spellbook-snapshots-name-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--size-2-2) var(--size-4-2);
+}
+
+/* A snapshot's name is the writer's own text. */
+.spellbook-snapshots-name {
+  min-width: 0;
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.spellbook-snapshots-badge {
+  padding-inline: var(--size-2-3);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-snapshots-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-2-1) var(--size-4-3);
+  color: var(--text-muted);
+  text-align: start;
+}
+
+.spellbook-snapshots-actions,
+.spellbook-snapshots-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-2);
+}
+
+.spellbook-snapshots-bar {
+  padding-block-end: var(--size-4-2);
+}
+
+/* In a narrow pane the buttons of a row stand under its name, in a row of their own. */
+.spellbook-snapshots.spellbook-is-narrow .spellbook-snapshots-actions {
+  flex: 1 1 100%;
+}
+
+.spellbook-snapshots.spellbook-is-narrow .spellbook-snapshots-actions .spellbook-snapshots-button {
+  flex: 1 1 auto;
+}
+
+/* ------------------------------------------------------- A snapshot's text */
+
+.spellbook-snapshots-shown {
+  padding-block-end: var(--size-4-2);
+}
+
+.spellbook-snapshots-text,
+.spellbook-snapshots-diff {
+  color: var(--text-normal);
+  font-family: var(--font-text);
+  font-size: var(--font-text-size);
+  line-height: var(--line-height-normal);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* A paragraph is the writer's own text: it takes its own direction. */
+.spellbook-snapshots-para {
+  min-width: 0;
+  margin-block: 0 var(--size-4-2);
+  overflow-wrap: anywhere;
+  text-align: start;
+  white-space: pre-wrap;
+}
+
+/* --------------------------------------------------------------- Comparison */
+
+.spellbook-snapshots-summary {
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+  text-align: start;
+}
+
+.spellbook-snapshots-legend {
+  padding-block-end: var(--size-4-2);
+  color: var(--text-muted);
+  text-align: start;
+}
+
+/* One paragraph of the comparison: one cell in a narrow pane, the old beside the new in a wide one. */
+.spellbook-snapshots-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--size-4-4);
+}
+
+.spellbook-snapshots-diff.is-two-columns .spellbook-snapshots-pair {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.spellbook-snapshots-heads {
+  padding-block-end: var(--size-4-2);
+  color: var(--text-muted);
+  font-family: var(--font-interface);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-snapshots-side-head {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+/* In one column the two names stand one above the other, with an arrow of words between them in the summary. */
+.spellbook-snapshots-diff:not(.is-two-columns) .spellbook-snapshots-heads {
+  gap: var(--size-2-1);
+}
+
+/* A cell: the sign that says what became of the paragraph, then the paragraph. */
+.spellbook-snapshots-cell {
+  display: flex;
+  align-items: baseline;
+  gap: var(--size-4-2);
+  min-width: 0;
+  padding-inline-start: var(--size-4-2);
+  border-inline-start: var(--size-2-1) solid transparent;
+}
+
+.spellbook-snapshots-cell > .spellbook-snapshots-para {
+  flex: 1 1 auto;
+}
+
+.spellbook-snapshots-sign {
+  flex: 0 0 1em;
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+  font-weight: var(--font-bold);
+  text-align: center;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.spellbook-snapshots-cell.is-added {
+  border-inline-start-color: var(--color-green);
+}
+
+.spellbook-snapshots-cell.is-removed {
+  border-inline-start-color: var(--color-red);
+}
+
+.spellbook-snapshots-cell.is-changed {
+  border-inline-start-color: var(--text-accent);
+}
+
+/* The side a paragraph is not on stays empty, and shows no line. */
+.spellbook-snapshots-cell.is-empty {
+  border-inline-start-color: transparent;
+}
+
+.spellbook-snapshots-cell.is-added .spellbook-snapshots-sign {
+  color: var(--color-green);
+}
+
+.spellbook-snapshots-cell.is-removed .spellbook-snapshots-sign {
+  color: var(--color-red);
+}
+
+/* Added: underlined. Removed: struck through. The colour only helps. */
+.spellbook-snapshots-added {
+  color: var(--color-green);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+
+.spellbook-snapshots-removed {
+  color: var(--color-red);
+  text-decoration: line-through;
+}
+
+.spellbook-snapshots-fold {
+  display: flex;
+  justify-content: center;
+  padding-block: var(--size-4-1) var(--size-4-3);
+}
+
+.spellbook-snapshots-unfold {
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------- The restore window */
+
+/* Which snapshot is about to be restored: the writer's own text. */
+.spellbook-snapshots-restore-which {
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+  text-align: start;
+}
