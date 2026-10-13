@@ -46,6 +46,7 @@ import {
   WORLD_ICONS,
   iconButton,
   placeUnder,
+  setColor,
   setShown,
   settle,
   textButton,
@@ -312,6 +313,8 @@ export class WorldView extends ItemView {
       attr: { role: 'listitem', tabindex: 0, 'data-path': entity.path },
     });
     card.toggleClass('is-selected', entity.path === this.selected);
+    // The card's edge and its icon take the colour of its type.
+    setColor(card, group.type?.color ?? null);
     const head = card.createDiv({ cls: 'spellbook-world-card-head' });
     typeBadge(head, group.type);
     head.createSpan({ cls: 'spellbook-world-card-name', text: entity.name, attr: { dir: 'auto' } });
