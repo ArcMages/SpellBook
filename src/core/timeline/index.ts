@@ -6,10 +6,11 @@
 // How the pieces fit, for a screen:
 //
 //   const lanes = readLanes(index.timelines).lanes;
-//   const { dated, undated } = readTimeline(eventNotes, sceneNotes);
+//   const calendar = readCalendar(index.calendar).calendar;   // null: the real-world calendar
+//   const { dated, undated } = readTimeline(eventNotes, sceneNotes, calendar);
 //   const scale = fitAll(timelineExtent(dated), viewportWidth);
 //   const layout = layoutTimeline(dated, lanes, { scale, measure, hidden });
-//   const axis = ticksFor(scale, viewportWidth);
+//   const axis = ticksFor(scale, viewportWidth, MIN_LABEL_GAP, calendar);
 //
 // and to change a note, at the moment of writing and on its fresh properties:
 //
@@ -59,6 +60,57 @@ export { compareStoryDates } from './storyDate';
 export { shiftStoryDate } from './storyDate';
 /** Move a start date and bring its end along, so a span keeps its length. */
 export { moveDates } from './storyDate';
+/** The first and the last day number a calendar has (the real-world one's when none is given). */
+export { dayNumberLimits } from './storyDate';
+
+// ------------------------------------------------------- invented calendars
+
+/** One month of an invented calendar: its name and its number of days. */
+export type { CalendarMonth } from './calendar';
+/** One era of an invented calendar: its name, its short form and the year it begins in. */
+export type { CalendarEra } from './calendar';
+/** The era that counts backwards from before the first era: its name and short form. */
+export type { CalendarBefore } from './calendar';
+/** The leap rule of an invented calendar: one month gains days every so many years. */
+export type { CalendarLeap } from './calendar';
+/** An invented calendar: its name, months, days of the week, eras and leap rule. */
+export type { StoryCalendar } from './calendar';
+/** What reading the "calendar" key of the project index came to: a calendar, or why not. */
+export type { CalendarReading } from './calendar';
+/** A ready-made calendar to start from, with the name the list shows for it. */
+export type { CalendarPreset } from './calendar';
+/** A year as its era counts it: which era, and the year within it. */
+export type { EraYear } from './calendar';
+/** The key of the project index that holds the calendar: "calendar". */
+export { CALENDAR_KEY } from './calendar';
+/** The most months an invented calendar can have: 99. */
+export { MAX_MONTHS } from './calendar';
+/** The most days a month of an invented calendar can have: 999. */
+export { MAX_MONTH_DAYS } from './calendar';
+/** The most days a week of an invented calendar can have: 99. */
+export { MAX_WEEKDAYS } from './calendar';
+/** The most eras an invented calendar can have: 20. */
+export { MAX_ERAS } from './calendar';
+/** The highest year an era can count to: 9999. */
+export { MAX_ERA_YEAR } from './calendar';
+/** The starting points the Calendar window offers: the real world and two invented calendars. */
+export { CALENDAR_PRESETS } from './calendar';
+/** Check a calendar; gives what is wrong with it in plain English, or null. */
+export { checkCalendar } from './calendar';
+/** Read the "calendar" key of the project index; never throws. */
+export { readCalendar } from './calendar';
+/** A calendar as plain data, ready to store in the project index. */
+export { calendarToIndexValue } from './calendar';
+/** The era a year of the running count falls in, and the year as that era counts it. */
+export { eraYearOf } from './calendar';
+/** The year of the running count for a year as an era counts it; null when the era has no such year. */
+export { runningYearOf } from './calendar';
+/** The number of days in a month of a year of an invented calendar. */
+export { calendarDaysInMonth } from './calendar';
+/** The name of the day of the week a day number falls on; "" when the calendar has no week. */
+export { calendarWeekday } from './calendar';
+/** An example of a date as an invented calendar writes it, for messages. */
+export { calendarExampleText } from './calendar';
 
 // ------------------------------------------------------------------ events
 
@@ -90,12 +142,35 @@ export { readEvent } from './events';
 export { readSceneEvent } from './events';
 /** Read all events of a project from its event notes and its scenes. */
 export { readTimeline } from './events';
+/** A date written in a note that a calendar cannot read: the note, the property and the text. */
+export type { MisfitDate } from './events';
+/** The dates written in notes that a calendar could not read; lists them and changes nothing. */
+export { datesOutsideCalendar } from './events';
 /** Make a function that finds which scene of the manuscript a link points at. */
 export { createSceneResolver } from './events';
 /** The properties of a new event note: the "spellbook: event" mark, the date and the timelines. */
 export { newEventFrontmatter } from './events';
 /** The change that moves an event to a new date, keeping its precision and a span's length. */
 export { redateEventPatch } from './events';
+
+// ---------------------------------------------------------------- entities
+
+/** The folder of a project that holds the entity notes: "World". */
+export { WORLD_FOLDER } from './entities';
+/** The property of an event or a scene that lists its entities: "entities". */
+export { ENTITIES_KEY } from './entities';
+/** One entity an event names: its key, the name to show, and its note's path when it has one. */
+export type { EventEntity } from './entities';
+/** The notes of the World folder, and what links to them resolve to. */
+export type { EntityIndex } from './entities';
+/** Index the notes of the World folder, so that links can be matched to them. */
+export { createEntityIndex } from './entities';
+/** The entities an event names, each once, in the order the note lists them. */
+export { eventEntities } from './entities';
+/** True when an event names at least one of the entities wanted. */
+export { eventHasEntity } from './entities';
+/** The change that makes a note name exactly the entities wanted. */
+export { setEntitiesPatch } from './entities';
 
 // ----------------------------------------------------- changes to a note
 

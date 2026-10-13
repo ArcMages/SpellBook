@@ -39,6 +39,7 @@ describe('readEvent', () => {
       end: date(1923, 4, 20),
       timelines: ['Main plot', 'Backstory'],
       scenes: ['Opening', 'Manuscript/The Letter.md'],
+      entities: [],
       tags: ['war', 'home'],
       problems: [],
     });
@@ -317,7 +318,7 @@ describe('small helpers', () => {
       'timelines-unreadable',
       'scenes-unreadable',
     ];
-    const sentences = problems.map(describeEventProblem);
+    const sentences = problems.map((problem) => describeEventProblem(problem));
     for (const sentence of sentences) expect(sentence).toMatch(/^[A-Z].+\.$/);
     expect(new Set(sentences).size).toBe(problems.length);
   });

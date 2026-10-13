@@ -147,6 +147,14 @@ export const MERGED_LIST_KEYS: readonly string[] = ['statuses', 'labels', 'timel
 /** The keys of the index that hold a group of values by name; a copy's extra entries are added. */
 export const MERGED_GROUP_KEYS: readonly string[] = ['marks', 'targets'];
 
+/**
+ * The keys of the index that hold one thing that only makes sense whole: the
+ * story calendar (its months, eras and leap rule belong together). A copy's
+ * is taken over, as it is, only when the index has none at all; where both
+ * have one, the index keeps its own and nothing of the copy's is mixed in.
+ */
+export const MERGED_WHOLE_KEYS: readonly string[] = ['calendar'];
+
 /** What was brought over from a copy under one key of the index. */
 export interface MergedData {
   /** The key of the index: "labels", "marks" and so on. */
@@ -283,6 +291,13 @@ export function mergeConflictData(
     if (merged === null) continue;
     changes[key] = merged.value;
     added.push({ key, items: merged.items });
+  }
+  for (const key of MERGED_WHOLE_KEYS) {
+    const theirs = own(copy, key);
+    if (!isGroup(theirs) || !isBlank(own(main, key))) continue;
+    changes[key] = cloned(theirs);
+    const name = theirs['name'];
+    added.push({ key, items: [typeof name === 'string' && name.trim() !== '' ? name.trim() : key] });
   }
   return { changes, added };
 }

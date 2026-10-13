@@ -69,6 +69,8 @@ export class FakeHost implements TimelineHost {
   /** Every change of the lanes that was asked for, with what it came to. */
   readonly laneSaves: Array<{ result: LaneChange; noteChanges: readonly NoteChange[] }> = [];
   readonly hidden: string[][] = [];
+  /** Every calendar that was asked to be stored: plain data, or null for the real-world one. */
+  readonly calendarSaves: Array<Readonly<Record<string, unknown>> | null> = [];
   /** Set to make the next event note fail to be made. */
   createResult: CreateEventResult | null = null;
   /** Set to make writing notes fail. */
@@ -138,6 +140,12 @@ export class FakeHost implements TimelineHost {
       this.announce();
     }
     return result;
+  }
+
+  async saveCalendar(value: Readonly<Record<string, unknown>> | null): Promise<void> {
+    this.calendarSaves.push(value);
+    if (this.failWrites) throw new Error('the disk is full');
+    if (this.data) this.set({ calendar: value ?? undefined });
   }
 
   setHiddenLanes(names: readonly string[]): void {

@@ -5,12 +5,15 @@
 // pixels along the time axis from the start of the visible area. The screen
 // decides which way the axis runs (across, down, or right to left).
 
+import { calendarYearLength, firstCalendarYear, lastCalendarYear, shortestCalendarMonth } from './calendar';
+import type { StoryCalendar } from './calendar';
 import type { TimelineEvent } from './events';
 import {
   MAX_DAY_NUMBER,
   MAX_YEAR,
   MIN_DAY_NUMBER,
   MIN_YEAR,
+  dayNumberLimits,
   dayNumberToStoryDate,
   formatStoryDate,
   sameStoryDate,
@@ -195,10 +198,96 @@ const COARSEST = LADDER[LADDER.length - 1] as Rung;
 /** No axis ever needs more marks than this; it stops a slip elsewhere from freezing the screen. */
 const MAX_TICKS = 2000;
 
-/** The finest step whose labels are at least `minGap` pixels apart at this zoom. */
-function rungFor(scale: TimeScale, minGap: number): Rung {
+const LADDERS = new WeakMap<StoryCalendar, readonly Rung[]>();
+
+/** The steps of an invented calendar: the same ones, as long as its own months and years are. */
+function ladderOf(calendar: StoryCalendar | null | undefined): readonly Rung[] {
+  if (calendar === undefined || calendar === null) return LADDER;
+  let ladder = LADDERS.get(calendar);
+  if (ladder === undefined) {
+    const year = calendarYearLength(calendar);
+    ladder = LADDER.map((rung): Rung => {
+      if (rung.base === 'day') return rung;
+      if (rung.base === 'month') return { ...rung, shortest: shortestCalendarMonth(calendar) };
+      return { ...rung, shortest: rung.years * year };
+    });
+    LADDERS.set(calendar, ladder);
+  }
+  return ladder;
+}
+
+/**
+ * How many characters the longest label of a step can have in an invented
+ * calendar: "1203 AE", "Seedfall 1203 AE" or "17 Seedfall 1203 AE".
+ */
+function longestLabel(calendar: StoryCalendar, base: Rung['base']): number {
+  let era = calendar.before?.short.length ?? 0;
+  for (const entry of calendar.eras) era = Math.max(era, entry.short.length);
+  const year = 5 + era;
+  if (base === 'year') return year;
+  let month = 0;
+  for (const entry of calendar.months) month = Math.max(month, entry.name.length);
+  return (base === 'day' ? 3 : 0) + month + 1 + year;
+}
+
+/**
+ * The least distance between the labels of a step. With an invented calendar
+ * and a letter width, it is at least the room the step's longest label takes:
+ * the names of months are the writer's, and may be long.
+ */
+function gapFor(rung: Rung, minGap: number, calendar: StoryCalendar | null | undefined, letterWidth: number): number {
   const gap = Number.isFinite(minGap) && minGap > 0 ? minGap : MIN_LABEL_GAP;
-  return LADDER.find((rung) => rung.shortest * scale.pxPerDay >= gap) ?? COARSEST;
+  if (calendar === undefined || calendar === null || !(letterWidth > 0)) return gap;
+  // Never more than the closest zoom can give a day, or the days of a calendar with long names could not be reached at all.
+  const room = Math.min(MAX_PX_PER_DAY * 0.9, Math.ceil(longestLabel(calendar, rung.base) * letterWidth) + 16);
+  return Math.max(gap, room);
+}
+
+/** The finest step whose labels are at least their gap apart at this zoom. */
+function rungFor(scale: TimeScale, minGap: number, calendar?: StoryCalendar | null, letterWidth = 0): Rung {
+  const ladder = ladderOf(calendar);
+  return (
+    ladder.find((rung) => rung.shortest * scale.pxPerDay >= gapFor(rung, minGap, calendar, letterWidth)) ??
+    (ladder[ladder.length - 1] as Rung)
+  );
+}
+
+/**
+ * The years of an invented calendar to mark between two years of its running
+ * count: the first year of every era, and within each era the years (as that
+ * era counts them) that the step divides. In order.
+ */
+function roundYears(calendar: StoryCalendar, from: number, to: number, step: number): number[] {
+  const years: number[] = [];
+  const firstRunning = firstCalendarYear(calendar);
+  const lastRunning = lastCalendarYear(calendar);
+  const first = calendar.yearZero ? 0 : 1;
+  const low = Math.max(from, firstRunning);
+  const high = Math.min(to, lastRunning);
+
+  // The "before" era counts backwards: its year N is the running year first - N.
+  const beforeHigh = Math.min(high, first - 1);
+  if (calendar.before !== null && low <= beforeHigh) {
+    const fromCount = first - beforeHigh;
+    const toCount = first - low;
+    const counts: number[] = [];
+    for (let count = Math.ceil(fromCount / step) * step; count <= toCount && counts.length < MAX_TICKS; count += step) {
+      if (count >= 1) counts.push(count);
+    }
+    for (const count of counts.reverse()) years.push(first - count);
+  }
+  calendar.eras.forEach((era, index) => {
+    const next = calendar.eras[index + 1];
+    const eraLow = Math.max(low, era.start);
+    const eraHigh = Math.min(high, next === undefined ? lastRunning : next.start - 1);
+    if (eraLow > eraHigh) return;
+    if (eraLow === era.start) years.push(era.start);
+    const offset = era.start - first;
+    for (let own = Math.ceil((eraLow - offset) / step) * step; own + offset <= eraHigh && years.length < MAX_TICKS; own += step) {
+      if (own + offset !== era.start) years.push(own + offset);
+    }
+  });
+  return years;
 }
 
 /**
@@ -208,21 +297,57 @@ function rungFor(scale: TimeScale, minGap: number): Rung {
  * apart. Marks stand on round dates: the first of a month, 1 January, years
  * that the step divides.
  *
+ * With an invented calendar the marks are that calendar's own years, months
+ * and days, labelled with its month and era names. Every era's first year is
+ * marked, and a round year that would crowd it is left out.
+ *
  * @param viewportLength the length of the visible area along the time axis, in pixels
  * @param minGap         the least distance between two labels; default 80
+ * @param calendar       the project's invented calendar, when it has one
+ * @param letterWidth    with an invented calendar: the width of a letter of a label, in pixels. When given, a
+ *   step is only used where its longest label ("17 Seedfall 1203 AE") has room; 0 (the default) goes by `minGap` alone
  */
-export function ticksFor(scale: TimeScale, viewportLength: number, minGap: number = MIN_LABEL_GAP): TickPlan {
-  const rung = rungFor(scale, minGap);
+export function ticksFor(
+  scale: TimeScale,
+  viewportLength: number,
+  minGap: number = MIN_LABEL_GAP,
+  calendar?: StoryCalendar | null,
+  letterWidth = 0,
+): TickPlan {
+  const rung = rungFor(scale, minGap, calendar, letterWidth);
   const ticks: Tick[] = [];
   const length = pixels(viewportLength, 0);
-  const from = Math.max(MIN_DAY_NUMBER, Math.floor(positionToDay(scale, 0)));
-  const to = Math.min(MAX_DAY_NUMBER, Math.ceil(positionToDay(scale, length)));
+  const limits = calendar === undefined || calendar === null ? { first: MIN_DAY_NUMBER, last: MAX_DAY_NUMBER } : dayNumberLimits(calendar);
+  const from = Math.max(limits.first, Math.floor(positionToDay(scale, 0)));
+  const to = Math.min(limits.last, Math.ceil(positionToDay(scale, length)));
   if (!(from <= to)) return { unit: rung.unit, ticks };
 
   const mark = (date: StoryDate): void => {
     const day = storyDateToDayNumber(date);
     ticks.push({ day, position: dayToPosition(scale, day), label: formatStoryDate(date) });
   };
+
+  if (rung.base === 'year' && calendar !== undefined && calendar !== null) {
+    const gap = gapFor(rung, minGap, calendar, letterWidth) * 0.75;
+    const firstYear = dayNumberToStoryDate(from, 'year', calendar).year - rung.years;
+    const lastYear = dayNumberToStoryDate(to, 'year', calendar).year;
+    const eraStarts = new Set(calendar.eras.map((era) => era.start));
+    for (const year of roundYears(calendar, firstYear, lastYear, rung.years)) {
+      const date = storyDate(year, undefined, undefined, calendar);
+      if (date === null || ticks.length >= MAX_TICKS) continue;
+      const position = dayToPosition(scale, storyDateToDayNumber(date));
+      const previous = ticks[ticks.length - 1];
+      if (previous !== undefined && position - previous.position < gap) {
+        // Two marks too close to both be read: the start of an era is the one to keep.
+        if (!eraStarts.has(year)) continue;
+        ticks.pop();
+      }
+      mark(date);
+    }
+    // Years before the visible area were looked at so that the first label can show from the edge: one is enough.
+    while (ticks.length > 1 && (ticks[1] as Tick).day <= from) ticks.shift();
+    return { unit: rung.unit, ticks: ticks.filter((tick) => tick.day <= to) };
+  }
 
   if (rung.base === 'year') {
     const firstYear = dayNumberToStoryDate(from, 'year').year;
@@ -236,7 +361,7 @@ export function ticksFor(scale: TimeScale, viewportLength: number, minGap: numbe
     return { unit: rung.unit, ticks };
   }
 
-  let date = dayNumberToStoryDate(from, rung.base);
+  let date = dayNumberToStoryDate(from, rung.base, calendar);
   while (storyDateToDayNumber(date) <= to && ticks.length < MAX_TICKS) {
     mark(date);
     const next = shiftStoryDate(date, 1);

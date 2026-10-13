@@ -10,7 +10,9 @@ import { Notice } from 'obsidian';
 import type { App } from 'obsidian';
 import { iconName } from '../../ui/icons';
 import type { Feature, FeatureContext } from '../registry';
+import { TimelineActions } from './timelineActions';
 import { TIMELINE_ICONS } from './timelineMenus';
+import { readContent } from './timelineScene';
 import { TIMELINE_VIEW_TYPE, createTimelineView } from './timelineView';
 import { TimelineWiring } from './timelineWiring';
 
@@ -25,6 +27,9 @@ export const OPEN_TIMELINE_NAME = 'Open timeline';
 /** What the ribbon button says when it is pointed at. */
 export const OPEN_TIMELINE_TOOLTIP = 'Open Spellbook timeline';
 export const TIMELINE_NOT_OPENED = 'The timeline could not be opened.';
+/** The command that opens the window in which the project's story calendar is defined. */
+export const EDIT_CALENDAR_COMMAND = 'edit-story-calendar';
+export const EDIT_CALENDAR_NAME = 'Edit story calendar';
 
 /** How long a notice about something that went wrong stays up, in milliseconds. */
 const PROBLEM_NOTICE_MS = 10000;
@@ -70,6 +75,24 @@ export const timelineFeature: Feature = {
 
     context.plugin.registerView(TIMELINE_VIEW_TYPE, (leaf) => createTimelineView(leaf, host));
     context.plugin.addCommand({ id: OPEN_TIMELINE_COMMAND, name: OPEN_TIMELINE_NAME, callback: open });
+
+    // The calendar can be edited without the timeline on screen: the window
+    // only needs what the host knows of the project at that moment.
+    const actions = new TimelineActions(
+      host,
+      () => {
+        const data = host.isReleased ? null : host.getData();
+        return data === null ? null : readContent(data);
+      },
+      () => 'date',
+    );
+    context.plugin.addCommand({
+      id: EDIT_CALENDAR_COMMAND,
+      name: EDIT_CALENDAR_NAME,
+      callback: () => {
+        actions.askCalendar();
+      },
+    });
     context.plugin.addRibbonIcon(iconName(...TIMELINE_ICONS.view) ?? 'calendar', OPEN_TIMELINE_TOOLTIP, open);
   },
 };

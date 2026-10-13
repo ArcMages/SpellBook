@@ -15,10 +15,13 @@ import {
   MAX_PX_PER_DAY,
   MIN_LABEL_GAP,
   clampZoom,
+  createEntityIndex,
   dateAtPosition,
   dayNumberToStoryDate,
   dayToPosition,
   displayLanes,
+  eventEntities,
+  eventHasEntity,
   eventLaneKeys,
   fitAll,
   formatStoryDateRange,
@@ -29,6 +32,7 @@ import {
   narrativeOrder,
   positionToDay,
   precisionForScale,
+  readCalendar,
   readLanes,
   readTimeline,
   storyDateToDayNumber,
@@ -39,11 +43,14 @@ import {
 } from '../../core/timeline';
 import type {
   DisplayLane,
+  EntityIndex,
+  EventEntity,
   Lane,
   LaneBand,
   LaneList,
   LaneMetrics,
   NarrativeItem,
+  StoryCalendar,
   StoryDate,
   TimeScale,
   TimelineEvent,
@@ -102,10 +109,14 @@ export function isPhoneWidth(width: number, wasPhone: boolean): boolean {
   return wasPhone ? width < WIDE_FROM : width < PHONE_BELOW;
 }
 
+/** A card that names entities is at least this wide, so that a chip or two can be read under its title. */
+export const ENTITY_CARD_WIDTH = 160;
+
 /** The room a card needs along a time axis that runs across: by the length of its title, within limits. */
 export function cardWidth(text: string, event: TimelineEvent | null): number {
   if (event === null) return CLUSTER_SIZE;
-  return Math.min(MAX_CARD_WIDTH, Math.max(MIN_CARD_WIDTH, Math.round(CARD_CHROME + text.length * LETTER_WIDTH)));
+  const least = event.entities.length > 0 ? ENTITY_CARD_WIDTH : MIN_CARD_WIDTH;
+  return Math.min(MAX_CARD_WIDTH, Math.max(least, Math.round(CARD_CHROME + text.length * LETTER_WIDTH)));
 }
 
 /** The room a card needs along a time axis that runs down. */
@@ -121,6 +132,21 @@ export interface TimelineContent {
   readonly laneList: LaneList;
   /** The lanes the project lists. */
   readonly lanes: readonly Lane[];
+  /** The project's invented calendar; null for the real-world one. */
+  readonly calendar: StoryCalendar | null;
+  /** Why the stored calendar could not be used, in plain English; null when all is well. */
+  readonly calendarProblem: string | null;
+  /** The notes of the World folder, and what links to them resolve to. */
+  readonly entityIndex: EntityIndex;
+  /** The entities each event names, by the event's path. Events that name none are not in here. */
+  readonly entities: ReadonlyMap<string, readonly EventEntity[]>;
+  /** Every entity there is to choose from: the notes of the World folder, then those events name that have no note. */
+  readonly allEntities: readonly EventEntity[];
+  /** The entities the timeline is narrowed to (by key); empty when every event shows. */
+  readonly filter: readonly string[];
+  /** How many events the filter leaves out. */
+  readonly filteredOut: number;
+  /** The events that are shown: when the timeline is narrowed, only those that name one of the entities chosen. */
   readonly model: TimelineModel;
   /** Every event, dated or not, by its path. */
   readonly events: ReadonlyMap<string, TimelineEvent>;
@@ -132,9 +158,32 @@ export interface TimelineContent {
   readonly storyEvents: readonly TimelineEvent[];
 }
 
-export function readContent(data: TimelineData): TimelineContent {
+/**
+ * @param filter the keys of the entities to narrow the timeline to: only events that name at least one of them are kept
+ */
+export function readContent(data: TimelineData, filter: readonly string[] = []): TimelineContent {
   const laneList = readLanes(data.timelines);
-  const model = readTimeline(data.events, data.scenes);
+  const reading = readCalendar(data.calendar);
+  const calendar = reading.calendar;
+  const whole = readTimeline(data.events, data.scenes, calendar);
+
+  const entityIndex = createEntityIndex(data.world ?? []);
+  const entities = new Map<string, readonly EventEntity[]>();
+  const extra = new Map<string, EventEntity>();
+  for (const event of [...whole.dated, ...whole.undated]) {
+    if (event.entities.length === 0) continue;
+    const named = eventEntities(event, entityIndex);
+    entities.set(event.path, named);
+    for (const entity of named) if (entity.path === null && !extra.has(entity.key)) extra.set(entity.key, entity);
+  }
+  const allEntities = [...entityIndex.all, ...extra.values()];
+  // An entity that is gone altogether no longer narrows anything.
+  const wanted = new Set(filter.filter((key) => allEntities.some((entity) => entity.key === key)));
+  const keep = (event: TimelineEvent): boolean => eventHasEntity(event, wanted, entityIndex);
+  const model: TimelineModel =
+    wanted.size === 0 ? whole : { dated: whole.dated.filter(keep), undated: whole.undated.filter(keep) };
+  const filteredOut = whole.dated.length + whole.undated.length - model.dated.length - model.undated.length;
+
   const frontmatter = new Map<string, unknown>();
   for (const note of [...data.events, ...data.scenes]) {
     if (!frontmatter.has(note.path)) frontmatter.set(note.path, note.frontmatter);
@@ -146,7 +195,23 @@ export function readContent(data: TimelineData): TimelineContent {
   const storyEvents = story.map(
     (item): TimelineEvent => ({ ...item.event, start: dayNumberToStoryDate(item.position, 'day'), end: null }),
   );
-  return { data, laneList, lanes: laneList.lanes, model, events, frontmatter, story, storyEvents };
+  return {
+    data,
+    laneList,
+    lanes: laneList.lanes,
+    calendar,
+    calendarProblem: reading.problem,
+    entityIndex,
+    entities,
+    allEntities,
+    filter: [...wanted],
+    filteredOut,
+    model,
+    events,
+    frontmatter,
+    story,
+    storyEvents,
+  };
 }
 
 /** The events that are placed in a mode: the dated ones by date, all of them in story order. */
@@ -421,7 +486,8 @@ export function fitScale(
   const laneExtent = lane === null ? null : timelineExtent(eventsOfLane(content, mode, lane.key));
   // A lane with no dated event of its own: the whole timeline, as on a wide pane.
   const extent = laneExtent ?? timelineExtent(content.model.dated);
-  return fitAll(extent, length, { ...options, fallbackDay: content.data.today });
+  // With nothing to show, the real-world calendar opens on today; an invented one on its first year.
+  return fitAll(extent, length, { ...options, fallbackDay: content.calendar === null ? content.data.today : 0 });
 }
 
 /**
@@ -455,12 +521,25 @@ export function zoomIntoCluster(scale: TimeScale, box: Box, length: number): Tim
   return makeScale(pxPerDay, (firstDay + lastDay) / 2 - length / 2 / pxPerDay);
 }
 
-/** The dates in view, for the header. */
-export function rangeText(mode: TimeMode, scale: TimeScale, length: number): string {
+/**
+ * The dates in view, for the header.
+ *
+ * @param calendar the project's invented calendar, when it has one
+ */
+export function rangeText(mode: TimeMode, scale: TimeScale, length: number, calendar: StoryCalendar | null = null): string {
   if (mode === 'story') return 'Story order';
-  const precision = precisionForScale(scale);
-  return formatStoryDateRange(dateAtPosition(scale, 0, precision), dateAtPosition(scale, Math.max(0, length), precision));
+  const precision = precisionForScale(scale, calendar);
+  return formatStoryDateRange(
+    dateAtPosition(scale, 0, precision, calendar),
+    dateAtPosition(scale, Math.max(0, length), precision, calendar),
+  );
 }
+
+/** The width of a letter of a label on the axis, more or less: what the room for a long month name is worked out from. */
+export const TICK_LETTER_WIDTH = 6.5;
+/** The least distance between two labels down a narrow pane: with an invented calendar a label may take three short lines. */
+export const DOWN_LABEL_GAP = 56;
+export const DOWN_CALENDAR_LABEL_GAP = 64;
 
 /** One label on the axis. */
 export interface AxisTick {
@@ -482,8 +561,12 @@ export function axisTicks(
   vertical: boolean,
 ): AxisTick[] {
   if (mode !== 'story') {
-    return ticksFor(scale, length, vertical ? 56 : MIN_LABEL_GAP).ticks.map(
-      (tick): AxisTick => ({ position: tick.position, label: tick.label, ownText: false }),
+    const calendar = content.calendar;
+    // The names of an invented calendar's months and eras are the writer's own text.
+    // Across, a label is one line and needs the room of its longest month name. Down, it wraps in its column.
+    const gap = vertical ? (calendar === null ? DOWN_LABEL_GAP : DOWN_CALENDAR_LABEL_GAP) : MIN_LABEL_GAP;
+    return ticksFor(scale, length, gap, calendar, vertical ? 0 : TICK_LETTER_WIDTH).ticks.map(
+      (tick): AxisTick => ({ position: tick.position, label: tick.label, ownText: calendar !== null }),
     );
   }
   const story = content.story;

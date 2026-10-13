@@ -25,6 +25,9 @@ export const TIMELINE_ICONS = {
   open: ['file-text', 'file'],
   openInNewTab: ['file-plus', 'file'],
   date: ['calendar'],
+  calendar: ['calendar-cog', 'calendar-days', 'calendar'],
+  entities: ['users', 'user'],
+  filter: ['filter', 'list-filter'],
   moveToLane: ['arrow-right-left', 'move'],
   addToLane: ['copy-plus', 'plus'],
   removeFromLane: ['x'],
@@ -128,6 +131,14 @@ export function eventMenu(
       .setDisabled(event.start === null)
       .onClick(() => {
         actions.shift(event, 1);
+      });
+  });
+  menu.addItem((item) => {
+    item
+      .setTitle('Entities')
+      .setIcon(iconName(...TIMELINE_ICONS.entities))
+      .onClick(() => {
+        actions.askEntities(event);
       });
   });
   menu.addSeparator();

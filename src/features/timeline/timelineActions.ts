@@ -26,12 +26,14 @@ import {
   renameLane,
   renameLaneInEventPatch,
   sameStoryDate,
+  setEntitiesPatch,
   shiftStoryDate,
   storyDateToFrontmatter,
   storyDateToText,
 } from '../../core/timeline';
 import type {
   DisplayLane,
+  EventEntity,
   FrontmatterPatch,
   LaneChange,
   LaneColor,
@@ -42,6 +44,8 @@ import type {
 import { ConfirmModal } from '../../ui/confirmModal';
 import { safely } from '../../ui/safely';
 import { TextPromptModal } from '../../ui/textPromptModal';
+import { CalendarModal } from './calendarModal';
+import { EntityPickerModal } from './entityPicker';
 import { EventModal } from './eventModal';
 import type { NoteChange, TimelineHost } from './timelineHost';
 import { allLanes } from './timelineScene';
@@ -164,9 +168,14 @@ export class TimelineActions {
       end: '',
       dateNeeded: false,
       note: names[0] === undefined ? undefined : `Lane: ${names[0]}`,
+      calendar: content.calendar,
+      entities: { all: content.allEntities, chosen: [] },
       submit: async (answer) => {
         const frontmatter = newEventFrontmatter(answer.start, names);
         if (answer.end !== null) frontmatter['end'] = storyDateToFrontmatter(answer.end);
+        // A new event names its entities only when some were chosen.
+        const entities = setEntitiesPatch({}, answer.entities ?? [], content.entityIndex);
+        Object.assign(frontmatter, entities);
         const result = await this.host.createEvent({ title: answer.title, frontmatter });
         return result.ok ? null : result.message;
       },
@@ -175,6 +184,8 @@ export class TimelineActions {
 
   /** Open the window that asks for an event's dates: "Change date", or "Set date" for an undated one. */
   askDates(event: TimelineEvent): void {
+    const content = this.current();
+    if (content === null) return;
     new EventModal(this.host.app, {
       heading: event.start === null ? 'Set date' : 'Change date',
       confirm: 'Save',
@@ -183,12 +194,72 @@ export class TimelineActions {
       end: event.end === null ? '' : storyDateToText(event.end),
       dateNeeded: true,
       note: event.title,
+      calendar: content.calendar,
+      entities: { all: content.allEntities, chosen: this.entitiesOf(event) },
       submit: async (answer) => {
         if (answer.start === null) return null;
-        const change = this.datesChange(event, answer.start, answer.end);
+        const dates = this.datesChange(event, answer.start, answer.end);
+        const entities = answer.entities === null ? null : this.entitiesChange(event, answer.entities);
+        // One note, one write: the dates and the entities go together.
+        const patch = { ...(dates?.patch ?? {}), ...(entities?.patch ?? {}) };
+        if (isEmptyPatch(patch)) return null;
+        await this.host.applyNoteChanges([
+          {
+            path: event.path,
+            patch,
+            remake: (frontmatter) => ({ ...(dates?.patch ?? {}), ...(entities?.remake(frontmatter) ?? {}) }),
+          },
+        ]);
+        return null;
+      },
+    }).open();
+  }
+
+  /** The entities an event names, as the screen shows them. */
+  entitiesOf(event: TimelineEvent): readonly EventEntity[] {
+    return this.current()?.entities.get(event.path) ?? [];
+  }
+
+  /** Open the list of entities for one event: tick the ones it involves. */
+  askEntities(event: TimelineEvent): void {
+    const content = this.current();
+    if (content === null) return;
+    const chosen = this.entitiesOf(event);
+    new EntityPickerModal(this.host.app, {
+      heading: 'Entities',
+      confirm: 'Save',
+      note: event.title,
+      all: content.allEntities,
+      chosen: chosen.map((entity) => entity.key),
+      submit: async (keys) => {
+        const change = this.entitiesChange(event, keys);
         if (change !== null) await this.host.applyNoteChanges([change]);
         return null;
       },
+    }).open();
+  }
+
+  /** The change that makes an event name exactly the entities chosen; null when it does so already. */
+  private entitiesChange(event: TimelineEvent, keys: readonly string[]): NoteChange | null {
+    const content = this.current();
+    if (content === null) return null;
+    const index = content.entityIndex;
+    const make = (frontmatter: unknown): FrontmatterPatch => setEntitiesPatch(frontmatter, keys, index);
+    const patch = make(this.frontmatterOf(event));
+    return isEmptyPatch(patch) ? null : { path: event.path, patch, remake: make };
+  }
+
+  /** Open the window that defines the calendar the project's story dates are counted in. */
+  askCalendar(): void {
+    const content = this.current();
+    if (content === null) {
+      new Notice('No Spellbook project is open.', REFUSAL_NOTICE_MS);
+      return;
+    }
+    new CalendarModal(this.host.app, {
+      stored: content.data.calendar,
+      notes: [...content.data.events, ...content.data.scenes],
+      save: (value) => this.host.saveCalendar(value),
     }).open();
   }
 

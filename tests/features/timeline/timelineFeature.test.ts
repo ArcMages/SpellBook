@@ -87,7 +87,10 @@ describe('plugging the timeline in', () => {
     expect(w.plugin.viewTypes).toEqual(['spellbook-timeline']);
     expect(TIMELINE_VIEW_TYPE).toBe('spellbook-timeline');
     // Obsidian puts "Spellbook: " in front of the command's name itself.
-    expect(w.plugin.commands.map((command) => [command.id, command.name])).toEqual([['open-timeline', 'Open timeline']]);
+    expect(w.plugin.commands.map((command) => [command.id, command.name])).toEqual([
+      ['open-timeline', 'Open timeline'],
+      ['edit-story-calendar', 'Edit story calendar'],
+    ]);
     expect([OPEN_TIMELINE_COMMAND, OPEN_TIMELINE_NAME]).toEqual(['open-timeline', 'Open timeline']);
     expect(w.plugin.ribbonIcons.map((icon) => [icon.icon, icon.title, icon.shown])).toEqual([
       ['calendar-range', OPEN_TIMELINE_TOOLTIP, true],

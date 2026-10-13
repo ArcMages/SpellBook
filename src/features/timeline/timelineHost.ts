@@ -21,6 +21,14 @@ export interface TimelineData {
   readonly projectName: string;
   /** The value stored under the "timelines" key of the project index, exactly as it is stored. */
   readonly timelines: unknown;
+  /**
+   * The value stored under the "calendar" key of the project index, exactly as
+   * it is stored: the project's invented calendar. Nothing there means the
+   * real-world calendar.
+   */
+  readonly calendar?: unknown;
+  /** The paths of the notes in the project's World/ folder (its entities), written the same way as the other paths. */
+  readonly world?: readonly string[];
   /** Every note in the project's Timeline/ folder, with its properties as they are. */
   readonly events: readonly TimelineNote[];
   /** Every scene of the manuscript, with its properties. Scenes without a date are simply not shown. */
@@ -107,6 +115,16 @@ export interface TimelineHost {
    * carries a message that the screen shows.
    */
   saveLanes(make: (timelines: unknown) => LaneChange, noteChanges: readonly NoteChange[]): Promise<LaneChange>;
+
+  /**
+   * Store the project's calendar under the "calendar" key of the project
+   * index, or take the key away (null: the real-world calendar). No note is
+   * touched: dates stay as they are written. Rejects when the index could
+   * not be saved; the screen then tells the writer.
+   *
+   * @param value the calendar as plain data (see `calendarToIndexValue`), or null
+   */
+  saveCalendar(value: Readonly<Record<string, unknown>> | null): Promise<void>;
 
   /** Remember, on this device only, which lanes are hidden; then announce the change. */
   setHiddenLanes(names: readonly string[]): void;

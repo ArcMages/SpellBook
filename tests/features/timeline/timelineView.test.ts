@@ -461,6 +461,7 @@ describe('events', () => {
       'Change date',
       'Move earlier',
       'Move later',
+      'Entities',
       '---',
       'Move to lane',
       'Also show in lane',
