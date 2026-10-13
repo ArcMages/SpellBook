@@ -10,10 +10,17 @@
 // This file holds the plain logic for that situation:
 //   - telling which of several index notes in one folder is the project's
 //     own and which are copies of it, in a way that comes out the same on
-//     every device (it goes by the notes' names and titles, never by which
-//     one happens to be open);
+//     every device (it goes by where the notes are and what they are called,
+//     never by which one happens to be open);
 //   - merging a copy into the index: every scene that only the copy lists is
 //     added at the end. Nothing is ever removed or put in another order.
+//
+// What the two notes say (their title property, their binders) plays no part
+// in telling them apart. A copy is the other device's version of the index,
+// so it differs from the index in whatever that device changed, and that can
+// be the title as easily as the binder. Going by the name alone also means
+// the answer cannot be out of date: a note's path is always known, while
+// what Obsidian remembers of its properties can lag behind the file.
 
 import { flattenScenes } from './binderTree';
 import { clashKey, noteTitle, parentPath, pathKey } from './paths';
@@ -41,18 +48,17 @@ function isNamedAfter(copy: string, main: string): boolean {
 export interface IndexNote {
   /** Vault path of the index note. */
   readonly indexPath: string;
-  /** Its title property, or null when it has none. */
-  readonly explicitTitle: string | null;
 }
 
 /**
  * Find the index notes that are conflicting copies of another index note.
  *
- * An index note is a copy when another index note sits in the same folder,
- * the copy's name is that note's name with something added ("Novel 2" next
- * to "Novel"), and both carry the same title property (a copy is the same
- * note, after all). Anything else is left alone: two index notes in one
- * folder with names or titles of their own are two projects.
+ * An index note is a copy when another index note sits in the same folder
+ * and the copy's name is that note's name with something added ("Novel 2"
+ * next to "Novel"). Their titles do not matter: the two versions may well
+ * disagree about the title, when that is what one device changed. Two index
+ * notes in one folder whose names have nothing to do with each other are
+ * left alone: they are two projects.
  *
  * @param indexes every project index note in the vault
  * @returns for each copy (by its vault path), the path of the index note it is a copy of
@@ -76,8 +82,7 @@ export function conflictCopies(indexes: Iterable<IndexNote>): Map<string, string
       let main: string | null = null;
       for (const candidate of group) {
         const other = candidate.indexPath;
-        if (other === path || candidate.explicitTitle !== note.explicitTitle) continue;
-        if (!isNamedAfter(title, noteTitle(other))) continue;
+        if (other === path || !isNamedAfter(title, noteTitle(other))) continue;
         if (main === null || other.length < main.length || (other.length === main.length && other < main)) {
           main = other;
         }

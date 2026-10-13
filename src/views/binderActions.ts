@@ -304,7 +304,13 @@ export class BinderActions {
     const result = await scope.services.store.deleteScene(path, inProject);
     if (!this.report(result)) return;
     scope.services.selection.drop(inProject, sceneRef(path));
-    new Notice(`Moved "${title}" to the trash.`);
+    // Only say that a note went to the trash when one did: the note may have
+    // been deleted or moved out of the project while the question was open.
+    new Notice(
+      result.value.trashed
+        ? `Moved "${title}" to the trash.`
+        : `Removed "${title}" from the binder. Its note was no longer in the project, so nothing was moved to the trash.`,
+    );
   }
 
   /** Remove a binder folder. Its scenes stay: they move up to where the folder was. */
@@ -375,7 +381,15 @@ export class BinderActions {
         const text = result.value.textDiffers
           ? " Its own text was not the same as the index note's: if you wrote notes there, you will find them in the trash."
           : '';
-        new Notice(`Merged the copy "${name}": ${what}. The copy was moved to the trash.${text}`, PROBLEM_NOTICE_MS);
+        // Nor is the title: the two versions may not have agreed about it.
+        const title =
+          result.value.otherTitle === null
+            ? ''
+            : ` The copy was titled "${result.value.otherTitle}"; the project keeps its own title.`;
+        new Notice(
+          `Merged the copy "${name}": ${what}. The copy was moved to the trash.${text}${title}`,
+          PROBLEM_NOTICE_MS,
+        );
       }
     } finally {
       this.merging = false;

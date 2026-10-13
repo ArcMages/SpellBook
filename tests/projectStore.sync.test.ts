@@ -450,6 +450,36 @@ describe('a scene note is deleted outside the plugin', () => {
 });
 
 describe('the index note or the project folder is renamed', () => {
+  it('tells listeners that the open project moved, and where it was', async () => {
+    const { store, vault, changes } = await openSeeded(threeScenes);
+    vault.external.rename('Novel', 'Saga');
+    await settle(store);
+    expect(project(store).indexPath).toBe('Saga/Novel.md');
+    expect(changes.filter((change) => change.type === 'project')).toEqual([
+      { type: 'project', movedFrom: 'Novel/Novel.md' },
+    ]);
+
+    changes.length = 0;
+    vault.external.rename('Saga/Novel.md', 'Saga/Saga.md');
+    await settle(store);
+    expect(changes.filter((change) => change.type === 'project')).toEqual([
+      { type: 'project', movedFrom: 'Saga/Novel.md' },
+    ]);
+
+    // An ordinary change to the same project says nothing of the kind ...
+    changes.length = 0;
+    valueOf(await store.addFolder('Part'));
+    expect(changes).toEqual([{ type: 'project' }]);
+  });
+
+  it('does not take another project that is opened for the old one moved', async () => {
+    const vault = new MemoryVault();
+    seedProject(vault, { folder: 'Other', title: 'Other Book', scenes: { Elsewhere: 1024 } });
+    const { store, changes } = await openSeeded(threeScenes, vault);
+    valueOf(await store.openProject('Other/Other.md'));
+    expect(changes.filter((change) => change.type === 'project')).toEqual([{ type: 'project' }]);
+  });
+
   it('follows a renamed index note and keeps working', async () => {
     const { store, vault, timers } = await openSeeded(threeScenes);
 

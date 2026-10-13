@@ -61,6 +61,16 @@ export class BinderSelection {
     if (current !== null && sameRef(current, ref)) this.select(indexPath, null);
   }
 
+  /**
+   * A project is at another path now (its index note or its folder was
+   * renamed or moved): a selection in it stays with it. Rows are known by
+   * paths inside the project folder and by folder ids, which such a move
+   * does not change. Nobody is told: the same row is still the selected one.
+   */
+  moveProject(from: string, to: string): void {
+    if (this.project === from) this.project = to;
+  }
+
   /** Be told when the selection changes or is to be brought into view. Returns a function that stops it. */
   onChange(listener: () => void): () => void {
     this.listeners.add(listener);

@@ -6,9 +6,9 @@ import { flattenScenes } from '../src/core/binderTree';
 import { conflictCopies, mergeConflictCopy } from '../src/core/conflictCopies';
 import type { Binder } from '../src/core/types';
 
-/** The copies among index notes that all carry the same title. */
+/** The copies among index notes at these paths. */
 const copiesOf = (...paths: string[]): Record<string, string> =>
-  Object.fromEntries(conflictCopies(paths.map((indexPath) => ({ indexPath, explicitTitle: 'My Novel' }))));
+  Object.fromEntries(conflictCopies(paths.map((indexPath) => ({ indexPath }))));
 
 describe('conflictCopies', () => {
   it('takes "<Project> 2" next to "<Project>" for a copy of it', () => {
@@ -76,35 +76,29 @@ describe('conflictCopies', () => {
     expect(copiesOf()).toEqual({});
   });
 
-  it('takes two indexes with titles of their own for two projects, whatever their names', () => {
-    // "Book 2" next to "Book" at the top of a vault: a sequel, not a copy.
-    const sequel = conflictCopies([
-      { indexPath: 'Book.md', explicitTitle: 'Book' },
-      { indexPath: 'Book 2.md', explicitTitle: 'Book 2' },
-    ]);
-    expect([...sequel]).toEqual([]);
-    const untitled = conflictCopies([
-      { indexPath: 'Novel/Novel.md', explicitTitle: 'My Novel' },
-      { indexPath: 'Novel/Novel 2.md', explicitTitle: null },
-    ]);
-    expect([...untitled]).toEqual([]);
+  it('goes by where the notes are and what they are called, never by what they say', () => {
+    // A copy is the other device's version of the index. What that device
+    // changed may be the title itself, so the titles of the two say nothing:
+    // whatever else each note carries, the answer is the same.
+    const withTitles = (main: string | null, copy: string | null): Array<[string, string]> => {
+      const notes = [
+        { indexPath: 'Novel/Novel.md', explicitTitle: main },
+        { indexPath: 'Novel/Novel 2.md', explicitTitle: copy },
+      ];
+      return [...conflictCopies(notes)];
+    };
+    const found = [['Novel/Novel 2.md', 'Novel/Novel.md']];
+    expect(withTitles('My Novel', 'My Novel')).toEqual(found);
+    expect(withTitles('My Novel, draft 2', 'My Novel')).toEqual(found); // one device changed the title
+    expect(withTitles('My Novel', null)).toEqual(found);
+    expect(withTitles(null, null)).toEqual(found);
   });
 
-  it('takes a copy for a copy when neither note has a title property', () => {
-    const copies = conflictCopies([
-      { indexPath: 'Novel/Novel 2.md', explicitTitle: null },
-      { indexPath: 'Novel/Novel.md', explicitTitle: null },
-    ]);
-    expect([...copies]).toEqual([['Novel/Novel 2.md', 'Novel/Novel.md']]);
-  });
-
-  it('picks, among several notes a copy is named after, one that has its title', () => {
-    const copies = conflictCopies([
-      { indexPath: 'Novel/Novel.md', explicitTitle: 'Another book' },
-      { indexPath: 'Novel/Novel 2.md', explicitTitle: 'My Novel' },
-      { indexPath: 'Novel/Novel 2 (conflicted copy).md', explicitTitle: 'My Novel' },
-    ]);
-    expect([...copies]).toEqual([['Novel/Novel 2 (conflicted copy).md', 'Novel/Novel 2.md']]);
+  it('takes a copy of a copy for a copy of the original, the shortest name it is built on', () => {
+    expect(copiesOf('Novel/Novel.md', 'Novel/Novel 2.md', 'Novel/Novel 2 (conflicted copy).md')).toEqual({
+      'Novel/Novel 2.md': 'Novel/Novel.md',
+      'Novel/Novel 2 (conflicted copy).md': 'Novel/Novel.md',
+    });
   });
 });
 

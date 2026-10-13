@@ -116,6 +116,22 @@ export interface MergedCopy {
   readonly added: string[];
   /** True when the copy's text (below its properties) was not the same as the index note's. */
   readonly textDiffers: boolean;
+  /**
+   * The copy's title property, when it was not the same as the index note's;
+   * null when the two agreed or the copy had none. A title is not merged: the
+   * project keeps its own.
+   */
+  readonly otherTitle: string | null;
+}
+
+/** What deleting a scene came to. */
+export interface DeletedScene {
+  /**
+   * True when the scene's note was moved to the trash. False when the scene
+   * was taken out of the binder but had no note in the project any more (it
+   * was deleted or moved away in the meantime), so nothing went to the trash.
+   */
+  readonly trashed: boolean;
 }
 
 export interface StoreDeps {
@@ -204,6 +220,13 @@ export class ProjectStore {
 
   private active: ActiveProject | null = null;
   private snapshot: ProjectSnapshot | null = null;
+  /**
+   * The opening of a project that the snapshot was last worked out for. A
+   * project keeps this through a rename of its index note or its folder, and
+   * gets a new one each time it is opened: that is how a project that moved
+   * is told from another project that took its place.
+   */
+  private snapshotOf: ActiveProject | null = null;
   private snapshotSignature = '';
   private revision = 0;
   /** The open project's notes as they were when the snapshot was last worked out. */
@@ -733,9 +756,13 @@ export class ProjectStore {
     );
   }
 
-  /** Take a scene out of the binder and move its note to the trash. */
-  deleteScene(path: string, inProject?: string): Promise<IntentResult> {
-    return this.run(async (): Promise<IntentResult> => {
+  /**
+   * Take a scene out of the binder and move its note to the trash. The result
+   * says whether a note went to the trash: an entry whose note is no longer
+   * in the project is taken out of the binder all the same.
+   */
+  deleteScene(path: string, inProject?: string): Promise<IntentResult<DeletedScene>> {
+    return this.run(async (): Promise<IntentResult<DeletedScene>> => {
       const active = this.active;
       const blocked = this.whyNotWritable(active);
       if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
@@ -759,7 +786,8 @@ export class ProjectStore {
 
       const file = this.projectFiles(active).get(pathKey(rel));
       if (!file) {
-        return taken ? done(undefined) : noop('not-found', 'That scene is no longer in the project.');
+        // The entry is gone from the binder, but there was no note to move to the trash.
+        return taken ? done({ trashed: false }) : noop('not-found', 'That scene is no longer in the project.');
       }
       if (!taken && !isInside(MANUSCRIPT_FOLDER, file.rel)) {
         // The binder on disk no longer lists it, and it is not a manuscript note: leave it be.
@@ -784,7 +812,7 @@ export class ProjectStore {
         );
       }
       this.knownOrders.delete(file.path);
-      return done(undefined);
+      return done({ trashed: true });
     }, inProject);
   }
 
@@ -863,7 +891,8 @@ export class ProjectStore {
    * Only the binder is merged. The copy's own text (the notes a writer may
    * keep in the index note) goes to the trash with it; `textDiffers` tells
    * whether that text was different from the index note's, so that the
-   * writer can be told where to find it.
+   * writer can be told where to find it. The copy's title is not taken over
+   * either; `otherTitle` gives it when it was not the index note's.
    *
    * @param copyPath the vault path of the copy, as the snapshot's `conflicts` gives it
    * @returns the scene paths that were added (relative to the project folder)
@@ -874,7 +903,12 @@ export class ProjectStore {
       const blocked = this.whyNotWritable(active);
       if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
 
-      // Only a note that is known as a copy of this very index is ever merged and trashed.
+      // Only a conflicting copy of this very index is ever merged and trashed.
+      // What makes a note one is checked against things that cannot be out of
+      // date: where it is and what it is called (a path is always known), and
+      // that it is marked as a project, which is read from the file itself
+      // below. Nothing here goes by what Obsidian last remembered of the
+      // note's properties, which can lag behind the file.
       if (this.mainIndexOf(copyPath) !== active.indexPath) {
         if (!this.vault.exists(copyPath)) return noop('not-found', 'That copy is no longer in the vault.');
         return refused('not-a-copy', `"${copyPath}" is not a conflicting copy of this project's index.`);
@@ -906,7 +940,10 @@ export class ProjectStore {
       }
 
       let added: string[] = [];
-      const merged = await this.mutateBinder<undefined>((onDisk) => {
+      // The index note's own title, as it is on disk when the binder is merged.
+      const index: { title: string | null } = { title: null };
+      const merged = await this.mutateBinder<undefined>((onDisk, title) => {
+        index.title = title;
         const outcome = mergeCopyInto(onDisk, parsed.binder);
         added = [...outcome.added];
         // Nothing new in the copy: the index is not written at all.
@@ -935,7 +972,9 @@ export class ProjectStore {
             ` copy could not be moved to the trash (${messageOf(error)}). It is still at "${copyPath}".`,
         );
       }
-      return done({ added, textDiffers });
+      // The two versions may disagree about the title: the project keeps its own.
+      const otherTitle = parsed.title !== null && parsed.title !== index.title ? parsed.title : null;
+      return done({ added, textDiffers, otherTitle });
     }, inProject);
   }
 
@@ -1081,11 +1120,14 @@ export class ProjectStore {
 
   /**
    * Apply one change to the binder inside a single read-modify-write of the
-   * index note. `change` sees the binder as it is on disk right now and
-   * decides what to do. Renames waiting in `pendingRenames` ride along in the
-   * same write. Nothing is written when there is nothing to change.
+   * index note. `change` sees the binder as it is on disk right now (and the
+   * index note's title property, null when it has none) and decides what to
+   * do. Renames waiting in `pendingRenames` ride along in the same write.
+   * Nothing is written when there is nothing to change.
    */
-  private async mutateBinder<T>(change: (onDisk: Binder) => BinderChange<T>): Promise<IntentResult<T>> {
+  private async mutateBinder<T>(
+    change: (onDisk: Binder, title: string | null) => BinderChange<T>,
+  ): Promise<IntentResult<T>> {
     const active = this.active;
     const blocked = this.whyNotWritable(active);
     if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
@@ -1110,7 +1152,7 @@ export class ProjectStore {
         }
         box.understood = true;
         const renamed = replaceScenePaths(parsed.binder, renames);
-        const result = change(renamed.binder);
+        const result = change(renamed.binder, parsed.title);
         box.outcome = result;
         if (result.status === 'done') {
           writeBinder(frontmatter, result.binder);
@@ -1238,6 +1280,7 @@ export class ProjectStore {
     const active = this.active;
     if (!active) {
       this.snapshotFiles = new Map();
+      this.snapshotOf = null;
       if (this.snapshot !== null) {
         this.snapshot = null;
         this.snapshotSignature = '';
@@ -1289,11 +1332,19 @@ export class ProjectStore {
       conflicts,
     };
     const signature = JSON.stringify(body);
-    if (this.snapshot !== null && signature === this.snapshotSignature) return;
+    const before = this.snapshot;
+    // The same opening of the same project, now at another path: it was
+    // renamed or moved, and listeners are told where it was.
+    const movedFrom =
+      before !== null && this.snapshotOf === active && before.indexPath !== active.indexPath
+        ? before.indexPath
+        : null;
+    this.snapshotOf = active;
+    if (before !== null && signature === this.snapshotSignature) return;
     this.snapshotSignature = signature;
     this.revision += 1;
     this.snapshot = { ...body, revision: this.revision };
-    this.emit({ type: 'project' });
+    this.emit(movedFrom === null ? { type: 'project' } : { type: 'project', movedFrom });
   }
 
   private emit(change: StoreChange): void {

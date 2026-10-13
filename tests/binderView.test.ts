@@ -172,30 +172,31 @@ describe('the tree', () => {
     for (const cls of classes) expect(cls).toMatch(known);
   });
 
-  it('lets every title choose its own direction, and keeps numbers left to right', async () => {
+  it('lets every title choose its own direction, and keeps every count in one column at the end of its row', async () => {
     const s = await stage(novel());
     for (const title of ['Opening', 'Part one', 'חלק פנימי', 'מכתב לאחותי', 'Ghost', 'Loose', 'Maps', 'City']) {
       const row = rowOf(s.pane, title);
       const body = partOf(row, 'spellbook-row-body') as FakeElement;
-      expect(body.attrs['dir'], title).toBe('auto');
-      // The title's text is the first thing in the element that picks the
-      // direction, and nothing before it has a say.
+      // Only the title takes the direction of its own text ...
       expect(body.children[0]?.hasClass('spellbook-title'), title).toBe(true);
-      expect(body.children[0]?.attrs['dir'], title).toBeUndefined();
-      // The word count sits after the title, in the same element, so it ends
-      // up at the opposite end from the title whichever way the title reads.
+      expect(body.children[0]?.attrs['dir'], title).toBe('auto');
+      // ... and nothing around it does. A Hebrew title must not mirror its
+      // row: that would put its count at the other side from every other count.
+      expect(body.attrs['dir'], title).toBeUndefined();
+      expect(row.attrs['dir'], title).toBeUndefined();
+      // The word count comes after the title, so it sits at the end of the row.
       const count = body.children[1];
       if (count) {
         expect(count.hasClass('spellbook-count-outer'), title).toBe(true);
         expect(count.attrs['dir'], title).toBe('ltr');
       }
     }
-    // The fold arrow is outside that element: it follows the app, not the title.
+    // The fold arrow follows the app, not the title.
     const folder = rowOf(s.pane, 'חלק פנימי');
     expect(folder.children[0]?.hasClass('collapse-icon')).toBe(true);
     expect(folder.children[0]?.attrs['dir']).toBeUndefined();
     // Section names are the app's own words: no direction of their own.
-    expect(partOf(rowOf(s.pane, 'Manuscript'), 'spellbook-row-body')?.attrs['dir']).toBeUndefined();
+    expect(partOf(rowOf(s.pane, 'Manuscript'), 'spellbook-title')?.attrs['dir']).toBeUndefined();
     // The project's name is the writer's text too.
     expect(one(s.pane, 'spellbook-project-name').attrs['dir']).toBe('auto');
   });
@@ -287,9 +288,9 @@ describe('the sample novel', () => {
     expect(counts.every((count) => /^\d{1,3}(,\d{3})*$/.test(count))).toBe(true);
     expect(number(countOf(s.pane, 'Manuscript'))).toBe(counts.reduce((sum, count) => sum + number(count), 0));
 
-    // The Hebrew scene: its row takes the direction of its title.
+    // The Hebrew scene: its title takes the direction of its own text.
     const letter = rowOf(s.pane, 'מכתב לאחותי');
-    expect(partOf(letter, 'spellbook-row-body')?.attrs['dir']).toBe('auto');
+    expect(partOf(letter, 'spellbook-title')?.attrs['dir']).toBe('auto');
     expect(number(countOf(s.pane, 'מכתב לאחותי'))).toBeGreaterThan(0);
 
     // Looking at it all wrote nothing more than creating it did.
@@ -521,6 +522,11 @@ describe('on a phone', () => {
     const s = await stage(novel());
     expect(one(s.pane, 'spellbook-binder').hasClass('spellbook-is-mobile')).toBe(true);
   });
+
+  it('marks the panel as being on a phone, so the list ends clear of the bar that floats over the bottom', async () => {
+    const s = await stage(novel());
+    expect(one(s.pane, 'spellbook-binder').hasClass('spellbook-is-phone')).toBe(true);
+  });
 });
 
 describe('on a desktop or a tablet', () => {
@@ -537,6 +543,7 @@ describe('on a desktop or a tablet', () => {
     await tick();
     expect(tablet.fake.workspace.leftSplit.collapses).toBe(0);
     expect(one(tablet.pane, 'spellbook-binder').hasClass('spellbook-is-mobile')).toBe(true);
+    expect(one(tablet.pane, 'spellbook-binder').hasClass('spellbook-is-phone')).toBe(false);
   });
 });
 
@@ -604,6 +611,44 @@ describe('the active note', () => {
     // Hidden inside something folded shut (no height): stay.
     s.fake.workspace.setActiveFile(fileAt(HEBREW));
     expect(list.scrollTop).toBe(90);
+    // And stay later on as well: the list was there to be measured, so
+    // nothing is left to be done when the panel's size next changes.
+    rowOf(s.pane, 'מכתב לאחותי').rect = { top: 900, bottom: 930, left: 0, right: 300, width: 300, height: 30 };
+    s.view.onResize();
+    expect(list.scrollTop).toBe(90);
+  });
+
+  it('is scrolled into view once the panel can be measured, when it changed while the panel was hidden', async () => {
+    const s = await stage(novel());
+    const list = scroller(s.pane);
+    list.scrollTop = 0;
+    // The binder is behind another tab of its sidebar: nothing has a size.
+    s.fake.workspace.setActiveFile(fileAt(LETTER)); // through the quick switcher, say
+    expect(picture(s.pane)).toContain('    The Letter 4 *');
+    expect(list.scrollTop).toBe(0);
+
+    // The binder's tab comes to the front: Obsidian tells the panel that its size changed.
+    list.rect = { top: 100, bottom: 400, left: 0, right: 300, width: 300, height: 300 };
+    rowOf(s.pane, 'The Letter').rect = { top: 520, bottom: 550, left: 0, right: 300, width: 300, height: 30 };
+    s.view.onResize();
+    expect(list.scrollTop).toBe(150); // down, just far enough
+    // Once is enough: the list is not pulled back when the writer scrolls away.
+    list.scrollTop = 0;
+    s.view.onResize();
+    expect(list.scrollTop).toBe(0);
+  });
+
+  it('is scrolled to once the panel can be measured, even when the list was drawn again in between', async () => {
+    const s = await stage(novel());
+    const list = scroller(s.pane);
+    s.fake.workspace.setActiveFile(fileAt(LETTER));
+    s.vault.external.create('Novel/Research/Bridges.md'); // the list is drawn again while hidden
+    await rest(s);
+
+    list.rect = { top: 100, bottom: 400, left: 0, right: 300, width: 300, height: 300 };
+    rowOf(s.pane, 'The Letter').rect = { top: 520, bottom: 550, left: 0, right: 300, width: 300, height: 30 };
+    s.view.onResize();
+    expect(list.scrollTop).toBe(150);
   });
 
   it('stays highlighted when the list is drawn again, and the list does not jump', async () => {
@@ -738,6 +783,10 @@ describe('the header', () => {
       ['My Novel', true],
       ['Other Book', false],
     ]);
+    // A project's title is the writer's own text: in the menu, too, it chooses its own direction.
+    for (const item of menu?.items ?? []) {
+      expect(item.titleEl?.children.map((part) => [part.text, part.attrs['dir']])).toEqual([[item.title, 'auto']]);
+    }
   });
 
   it('switches to the project that is picked, and remembers it on this device', async () => {

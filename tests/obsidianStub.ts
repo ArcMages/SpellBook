@@ -65,8 +65,16 @@ export function getFrontMatterInfo(content: string): FrontMatterInfo {
 // The plugin's timers call window.setTimeout, as code that runs in Obsidian
 // should. Plain Node has no `window`, so the stand-in provides one: Node's own
 // global object, which has the same timer functions.
-const nodeGlobals = globalThis as { window?: unknown };
+const nodeGlobals = globalThis as { window?: unknown; createFragment?: unknown };
 if (nodeGlobals.window === undefined) nodeGlobals.window = globalThis;
+
+// Obsidian adds createFragment() to every page: a piece of page that is not
+// on the page yet, to be filled in and handed over (to a menu item, say).
+nodeGlobals.createFragment = (callback?: (fragment: FakeElement) => void): FakeElement => {
+  const fragment = new FakeElement('#fragment');
+  callback?.(fragment);
+  return fragment;
+};
 
 /** What createEl, createDiv and createSpan accept: Obsidian's DomElementInfo, or just a class name. */
 export type FakeElementInfo =
@@ -712,8 +720,12 @@ export class MenuItem {
   warning = false;
   private clicked: ((event: unknown) => unknown) | null = null;
 
-  setTitle(title: string): this {
-    this.title = title;
+  /** What the title was built from, when it was given as a piece of page instead of plain text. */
+  titleEl: FakeElement | null = null;
+
+  setTitle(title: string | FakeElement): this {
+    this.titleEl = typeof title === 'string' ? null : title;
+    this.title = typeof title === 'string' ? title : title.fullText;
     return this;
   }
 

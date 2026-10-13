@@ -90,14 +90,38 @@ describe('finding a conflicting copy', () => {
     expect(store.listProjects().map((entry) => entry.title)).toEqual(['My Novel', 'The Sequel']);
   });
 
-  it('leaves a note with the copy\'s kind of name but a title of its own alone as well', async () => {
+  it('finds a copy whose title is not the index note\'s: the title may be the very thing one device changed', async () => {
+    // On one device the writer retitled the project; on another, offline, a
+    // scene was added. The sync service kept both versions of the index.
     const vault = new MemoryVault();
-    vault.seed(COPY, { frontmatter: copyOf(['Manuscript/Z.md'], { title: 'My Novel, book two' }) });
+    vault.seed(COPY, { frontmatter: copyOf(['Manuscript/A.md', 'Manuscript/D.md'], { title: 'My Novel, draft 2' }) });
+    vault.seed('Novel/Manuscript/D.md', { body: sceneBody('D') });
     const { store } = await openSeeded(threeScenes, vault);
-    expect(project(store).conflicts).toEqual([]);
-    expect(store.listProjects().map((entry) => entry.indexPath)).toEqual([INDEX, COPY]);
-    // And it is never merged away.
-    expect(await store.mergeConflictCopy(COPY)).toMatchObject({ status: 'refused', reason: 'not-a-copy' });
+    expect(project(store).conflicts).toEqual([COPY]);
+    // It is not offered as a second project in the same folder.
+    expect(store.listProjects().map((entry) => entry.indexPath)).toEqual([INDEX]);
+
+    // Merging keeps the project's own title, and says what the copy's was.
+    expect(valueOf(await store.mergeConflictCopy(COPY))).toEqual({
+      added: ['Manuscript/D.md'],
+      textDiffers: true,
+      otherTitle: 'My Novel, draft 2',
+    });
+    expect(vault.frontmatterOf(INDEX)?.['title']).toBe('My Novel');
+    expect(vault.trashed).toEqual([COPY]);
+  });
+
+  it('does not let a session open such a copy in place of the project', async () => {
+    const vault = new MemoryVault();
+    // The copy's title sorts before the project's own.
+    vault.seed(COPY, { frontmatter: copyOf(['Manuscript/Z.md'], { title: 'A new title' }) });
+    seedProject(vault, threeScenes);
+    const { store } = makeStore(vault);
+    const session = new ProjectSession(store, new DevicePrefs(new MemoryDeviceStorage()));
+    session.start();
+    await quiet(store);
+    expect(project(store).indexPath).toBe(INDEX);
+    expect(project(store).conflicts).toEqual([COPY]);
     expect(vault.writes).toEqual([]);
   });
 
@@ -121,7 +145,7 @@ describe('merging a conflicting copy', () => {
     const { store, vault, indexPath } = await openSeeded(threeScenes, withCopy());
     const result = await store.mergeConflictCopy(COPY);
 
-    expect(valueOf(result)).toEqual({ added: ['Manuscript/D.md'], textDiffers: false });
+    expect(valueOf(result)).toEqual({ added: ['Manuscript/D.md'], textDiffers: false, otherTitle: null });
     expect(binderOnDisk(vault, indexPath)).toEqual([
       'Manuscript/A.md',
       'Manuscript/B.md',
@@ -205,6 +229,32 @@ describe('merging a conflicting copy', () => {
     expect(binderOnDisk(vault, indexPath)).toContain('Manuscript/D.md');
   });
 
+  it('does not decide what a copy is by a title that an index lagging behind remembers', async () => {
+    // What makes a note a copy is its place and its name, which are always
+    // known, and its project marker, which is read from the file itself. A
+    // title that changed on disk a moment ago cannot change the answer, in
+    // either direction: the title the merge reports is the one on disk.
+    const { store, vault, indexPath } = await openSeeded(threeScenes, withCopy(['Manuscript/A.md', 'Manuscript/D.md']));
+    vault.holdMetadata();
+    vault.external.write(
+      COPY,
+      { frontmatter: copyOf(['Manuscript/A.md', 'Manuscript/D.md'], { title: 'My Novel, book two' }) },
+      { silent: true },
+    );
+    expect(valueOf(await store.mergeConflictCopy(COPY))).toMatchObject({
+      added: ['Manuscript/D.md'],
+      otherTitle: 'My Novel, book two',
+    });
+    expect(vault.frontmatterOf(indexPath)?.['title']).toBe('My Novel');
+    // And the index note's own title is the one on disk at that moment, too.
+    const second = await openSeeded(threeScenes, withCopy());
+    second.vault.holdMetadata();
+    second.vault.external.editFrontmatter(second.indexPath, (frontmatter) => {
+      frontmatter['title'] = 'Retitled here';
+    }, { silent: true });
+    expect(valueOf(await second.store.mergeConflictCopy(COPY)).otherTitle).toBe('My Novel');
+  });
+
   it('merges against the index as it is on disk at that moment', async () => {
     const { store, vault, indexPath } = await openSeeded(threeScenes, withCopy());
     // Another device has just filed D itself, and added E; this device has not heard yet.
@@ -225,7 +275,11 @@ describe('merging a conflicting copy', () => {
   it('says whether the copy\'s own text was different from the index note\'s, which is not merged', async () => {
     const other = 'Notes about the novel, as the other device left them.';
     const differing = await openSeeded(threeScenes, withCopy(undefined, other));
-    expect(valueOf(await differing.store.mergeConflictCopy(COPY))).toEqual({ added: ['Manuscript/D.md'], textDiffers: true });
+    expect(valueOf(await differing.store.mergeConflictCopy(COPY))).toEqual({
+      added: ['Manuscript/D.md'],
+      textDiffers: true,
+      otherTitle: null,
+    });
     // The index note keeps its own text; the copy, with the other text, is in the trash.
     expect(differing.vault.bodyOf(INDEX)).toBe(INDEX_BODY);
     expect(differing.vault.trashed).toEqual([COPY]);

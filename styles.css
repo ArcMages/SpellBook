@@ -67,6 +67,10 @@
 .spellbook-binder {
   /* The smallest height of something that is tapped with a finger. */
   --spellbook-touch-target: 44px;
+  /* On a phone, Obsidian's own bar floats over the bottom of the drawer the
+     binder sits in. This is the least room it is given under the last row;
+     more is taken when Obsidian says its bar is taller. */
+  --spellbook-phone-bar-room: 80px;
 
   display: flex;
   flex: 1 1 auto;
@@ -182,6 +186,18 @@
   /* Room under the last row, also past the rounded bottom edge of a phone. */
   padding-block: var(--size-4-2) calc(var(--size-4-8) + var(--safe-area-inset-bottom, 0px));
   padding-inline: var(--size-4-2);
+}
+
+/* On a phone the last rows would otherwise lie under Obsidian's floating bar,
+   where they can be neither read nor tapped. The list ends with enough empty
+   room to scroll its last row clear of the bar: the height Obsidian gives for
+   its bar (or the plugin's own figure when that is larger, or Obsidian gives
+   none), the rounded bottom edge of the screen, and a little air. */
+.spellbook-binder.spellbook-is-phone .spellbook-binder-scroll {
+  padding-block-end: calc(
+    max(var(--mobile-navbar-height, 0px), var(--spellbook-phone-bar-room)) + var(--safe-area-inset-bottom, 0px) +
+      var(--size-4-4)
+  );
 }
 
 /* A line of plain text in the list: an explanation, or "nothing here yet". */
@@ -444,8 +460,8 @@
   min-width: 0;
 }
 
-/* Title and word count. This element takes the direction of the title's own
-   text, so a Hebrew title sits at the right end with its count at the left. */
+/* Title and word count. This element keeps the direction of the app, so the
+   count is at the end of every row and all counts stand in one column. */
 .spellbook-binder .spellbook-row-body {
   display: flex;
   align-items: center;
@@ -453,6 +469,10 @@
   min-width: 0;
 }
 
+/* The title takes all the room up to the count. When it is the writer's own
+   text it has a direction of its own (dir="auto" on this element), and
+   "start" is then its own start side: a Hebrew title reads right to left and
+   sits against the count column, an English one sits at the other end. */
 .spellbook-binder .spellbook-title {
   flex: 1 1 auto;
   min-width: 0;

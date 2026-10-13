@@ -164,6 +164,25 @@ describe('Merge', () => {
     expect(s.vault.bodyOf(INDEX)).toBe(INDEX_BODY); // the index note's own text is never touched
   });
 
+  it('shows the notice for a copy with another title, and says the project keeps its own', async () => {
+    // One device changed the title while another added a scene: the copy is still a copy.
+    const vault = novel();
+    vault.seed(COPY, {
+      frontmatter: { spellbook: 'project', version: 1, title: 'My Novel, draft 2', binder: ['Manuscript/Loose.md'] },
+      body: INDEX_BODY,
+    });
+    const s = await stage(vault);
+    expect(banners(s.pane)).toHaveLength(1);
+    expect(heading(s.pane).withClass('spellbook-project-switch')).toHaveLength(0); // not a second project to switch to
+    tap(button(s.pane, 'Merge'));
+    await rest(s);
+    expect(notices()).toEqual([
+      'Merged the copy "Novel 2": 1 scene was added at the end of the manuscript. The copy was moved to the trash. ' +
+        'The copy was titled "My Novel, draft 2"; the project keeps its own title.',
+    ]);
+    expect(s.vault.frontmatterOf(INDEX)?.['title']).toBe('My Novel');
+  });
+
   it('merges every copy when there are several', async () => {
     const s = await stage(withCopy(withCopy(), 'Novel/Novel 3.md', ['Manuscript/Another.md', 'Manuscript/Loose.md']));
     tap(button(s.pane, 'Merge'));

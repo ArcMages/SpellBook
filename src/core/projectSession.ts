@@ -95,6 +95,10 @@ export class ProjectSession {
         this.announce();
       }
     } else {
+      // The open project was renamed or moved: what this device remembers as
+      // folded shut in it goes along to its new path.
+      const now = this.store.project?.indexPath;
+      if (change.movedFrom !== undefined && now !== undefined) this.prefs.moveCollapsed(change.movedFrom, now);
       this.followOpenProject();
     }
     this.ensure();

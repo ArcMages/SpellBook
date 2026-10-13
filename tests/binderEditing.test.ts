@@ -300,7 +300,7 @@ describe('New scene, from the toolbar', () => {
     await prompt(s).answer('רכבת לילה');
     expect(s.vault.has('Novel/Manuscript/רכבת לילה.md')).toBe(true);
     expect(last(manuscript(s.pane))).toBe('רכבת לילה 0 *');
-    expect(partOf(rowOf(s.pane, 'רכבת לילה'), 'spellbook-row-body')?.attrs['dir']).toBe('auto');
+    expect(partOf(rowOf(s.pane, 'רכבת לילה'), 'spellbook-title')?.attrs['dir']).toBe('auto');
     expect(notices()).toEqual([]);
   });
 
@@ -874,6 +874,22 @@ describe('Delete scene', () => {
     expect(picture(s.pane)).toContain('  Loose 2');
   });
 
+  it('does not say a note went to the trash when the note had left the project while the question was open', async () => {
+    const s = await stage(novel());
+    menuOf(s.pane, 'The Letter').item('Delete scene').click();
+    // While the window is up, another device moves the note out of the project.
+    s.vault.external.rename(LETTER, 'Archive/The Letter.md');
+    question().confirm.click();
+    await rest(s);
+
+    expect(s.vault.trashed).toEqual([]);
+    expect(s.vault.has('Archive/The Letter.md')).toBe(true);
+    expect(notices()).toEqual([
+      'Removed "The Letter" from the binder. Its note was no longer in the project, so nothing was moved to the trash.',
+    ]);
+    expect(picture(s.pane).some((line) => line.includes('The Letter'))).toBe(false);
+  });
+
   it('keeps the scene in the binder, and says so, when the note cannot be moved to the trash', async () => {
     const s = await stage(novel());
     s.vault.failNext('trash');
@@ -1287,6 +1303,41 @@ describe('changes made outside the binder show up without a reload', () => {
     expect(s.vault.has('My Novel/Manuscript/Night Train.md')).toBe(true);
     expect(last(manuscript(s.pane))).toBe('Night Train 0 *');
   });
+
+  for (const [what, from, to, movedIndex] of [
+    ['project folder', 'Novel', 'My Novel', 'My Novel/Novel.md'],
+    ['index note', INDEX, 'Novel/Book.md', 'Novel/Book.md'],
+  ] as const) {
+    it(`a renamed ${what} keeps what was folded shut, the selected row and the place in the list`, async () => {
+      const s = await stage(novel());
+      tap(rowOf(s.pane, 'Research')); // folds it shut
+      tap(rowOf(s.pane, 'Part one')); // folds it shut, and makes it the selected row
+      await rest(s);
+      const folded = foldedIn(s.storage)?.[INDEX];
+      expect(folded).toEqual(expect.arrayContaining(['folder:f-one', 'section:research']));
+      scroller(s.pane).scrollTop = 64;
+      const rowBefore = rowOf(s.pane, 'Part one');
+
+      s.vault.external.rename(from, to);
+      await rest(s);
+
+      expect(s.store.project?.indexPath).toBe(movedIndex);
+      // Everything is as it was: it is the same project.
+      expect(manuscript(s.pane).slice(0, 2)).toEqual(['Opening 3', '> Part one 8']);
+      expect(picture(s.pane)).toContain('> Research');
+      expect(selectedTitle(s.pane)).toBe('Part one');
+      expect(scroller(s.pane).scrollTop).toBe(64);
+      expect(rowOf(s.pane, 'Part one')).toBe(rowBefore); // the very same row, not a new list
+      // What this device remembers is kept under the new path, and nothing is left under the old one.
+      expect(foldedIn(s.storage)).toEqual({ [movedIndex]: folded });
+
+      // Folding goes on working, under the new path.
+      tap(rowOf(s.pane, 'Part one'));
+      expect(manuscript(s.pane)[1]).toBe('v Part one 8');
+      expect(foldedIn(s.storage)).toEqual({ [movedIndex]: ['section:research'] });
+      expect(s.vault.writes).toEqual([]);
+    });
+  }
 });
 
 // ----------------------------------------------------- never the wrong project

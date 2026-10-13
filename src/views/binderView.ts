@@ -28,11 +28,12 @@
 // unfold (and step out of and into a folder), Enter opens. Only one row at a
 // time is a stop for the Tab key, so a long binder is one stop, not hundreds.
 //
-// Text in any language: every row whose title is the writer's own text lets
-// that text choose its direction, so a Hebrew title sits at the right end of
-// its row with its word count at the left end, and an English one the other
-// way round. Indents, fold arrows and "more" buttons follow the direction of
-// Obsidian itself.
+// Text in any language: a title that is the writer's own text chooses its own
+// direction, and only the title does. A Hebrew title reads right to left and
+// sits against the word counts; the counts themselves stay in one column at
+// the end of every row, whatever the language of the title next to them.
+// Indents, fold arrows and "more" buttons follow the direction of Obsidian
+// itself.
 
 import { ItemView, Keymap, Menu, Notice, Platform } from 'obsidian';
 import type { PaneType, UserEvent, WorkspaceLeaf } from 'obsidian';
@@ -71,6 +72,7 @@ import {
   iconName,
   showIcon,
 } from '../ui/icons';
+import { ownTextTitle } from '../ui/ownText';
 import { safely } from '../ui/safely';
 import { MISSING_LABEL } from './binderActions';
 import type { BinderActions } from './binderActions';
@@ -142,8 +144,11 @@ interface Fold {
   readonly item: HTMLElement;
   readonly self: HTMLElement;
   readonly slot: HTMLElement;
-  /** The project and the name its state is remembered under. */
-  readonly indexPath: string;
+  /**
+   * The project and the name its state is remembered under. The project's
+   * path changes when its index note or its folder is renamed.
+   */
+  indexPath: string;
   readonly key: string;
 }
 
@@ -283,6 +288,8 @@ export class BinderView extends ItemView {
   private revealed = 0;
   /** True while the selected row still has to be scrolled to, because the panel could not be measured. */
   private scrollPending = false;
+  /** The same for the row of the note being worked on: it changed while the panel was hidden. */
+  private activeScrollPending = false;
 
   /** The rows of the last drawing, by their names, to be used again in the next. */
   private built = new Map<string, Row>();
@@ -331,6 +338,7 @@ export class BinderView extends ItemView {
     this.closed = false;
     this.narrow = false;
     this.scrollPending = false;
+    this.activeScrollPending = false;
     this.alertsFor = '';
     const pane = this.contentEl;
     pane.empty();
@@ -340,6 +348,9 @@ export class BinderView extends ItemView {
     // Touch needs taller rows. Platform.isMobile covers phones and tablets;
     // the stylesheet also covers touch screens on desktop.
     root.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    // On a phone, Obsidian's own bar floats over the bottom of the drawer:
+    // the stylesheet leaves room for it under the last row.
+    root.toggleClass('spellbook-is-phone', Platform.isPhone);
     const header = root.createDiv({ cls: 'spellbook-binder-header' });
     const heading = header.createDiv({ cls: 'spellbook-binder-heading' });
     // The toolbar is laid out by the plugin's own stylesheet alone. It does
@@ -439,7 +450,8 @@ export class BinderView extends ItemView {
     this.stops.push(
       // Both kinds of change matter: the open project is the tree, and the
       // list of projects decides whether the header offers a choice.
-      services.store.onChange(() => {
+      services.store.onChange((change) => {
+        if (change.type === 'project' && change.movedFrom !== undefined) this.projectMoved(change.movedFrom);
         this.scheduleRender();
       }),
       services.session.onProblem(() => {
@@ -486,8 +498,28 @@ export class BinderView extends ItemView {
       this.narrow = narrow;
       els.root.toggleClass('spellbook-is-narrow', narrow);
     }
-    // The panel may have been hidden when a row was to be scrolled to.
+    // The panel may have been hidden when a row was to be scrolled to: the
+    // row of the note being worked on first, then the selected row, which is
+    // the one that must end up in view when they are not the same.
+    if (this.activeScrollPending) this.revealActive();
     if (this.scrollPending) this.showSelection();
+  }
+
+  /**
+   * The project on show is at another path now: its index note or its folder
+   * was renamed or moved. It is still the same project, so the list keeps its
+   * place, what is folded shut and its selected row; they are only known
+   * under the new path from here on. (What this device remembers as folded
+   * is moved over by the project session.)
+   */
+  private projectMoved(from: string): void {
+    const to = this.services?.store.project?.indexPath ?? null;
+    if (to === null || this.shownProject !== from) return;
+    this.shownProject = to;
+    for (const shown of this.shown) {
+      if (shown.row.fold) shown.row.fold.indexPath = to;
+    }
+    this.services?.selection.moveProject(from, to);
   }
 
   // ------------------------------------------------------------------ drawing
@@ -648,7 +680,8 @@ export class BinderView extends ItemView {
     for (const project of projects) {
       menu.addItem((item) => {
         item
-          .setTitle(projectLabel(project, projects))
+          // A project's title and its folder are the writer's own text.
+          .setTitle(ownTextTitle(projectLabel(project, projects)))
           .setChecked(project.indexPath === open)
           .onClick(() => {
             void this.chooseProject(project.indexPath);
@@ -1182,17 +1215,18 @@ export class BinderView extends ItemView {
     const slot = self.createDiv({ cls: 'spellbook-row-slot' });
     const main = self.createDiv({ cls: 'spellbook-row-main' });
     const body = main.createDiv({ cls: 'spellbook-row-body' });
-    // The direction of the row follows the title's own text: see the top of this file.
-    if (options.ownText) body.setAttr('dir', 'auto');
     const title = body.createDiv({
       cls: `tree-item-inner spellbook-title ${options.titleCls}`,
       text: options.title,
     });
+    // Only the title takes the direction of its own text. The row around it
+    // keeps the direction of the app, so every count stays in one column at
+    // the end of the row: see the top of this file.
+    if (options.ownText) title.setAttr('dir', 'auto');
 
     let count: CountSpot | null = null;
     if (options.counted) {
-      // Numbers read left to right in every language; marking them so also
-      // keeps them out of the way when the row works out its direction.
+      // Numbers read left to right in every language.
       const outer = body.createDiv({ cls: 'tree-item-flair-outer spellbook-count-outer', attr: { dir: 'ltr' } });
       count = { el: outer.createSpan({ cls: 'tree-item-flair spellbook-count' }), shown: '' };
     }
@@ -1391,8 +1425,23 @@ export class BinderView extends ItemView {
         this.marked.push(folder.self);
       }
     }
-    const first = rows[0];
-    if (reveal && first) this.scrollTo(first.self);
+    if (reveal) this.revealActive();
+  }
+
+  /**
+   * Scroll to the row of the note being worked on. When the panel is hidden
+   * (its sidebar is closed, or another tab is in front of it) nothing can be
+   * measured: the scrolling is then done as soon as the panel can be.
+   */
+  private revealActive(): void {
+    const first = this.activePath === null ? undefined : this.noteRows.get(this.activePath)?.[0];
+    this.activeScrollPending = first !== undefined && !this.scrollTo(first.self) && this.listHidden();
+  }
+
+  /** True when the list has no height at all: the panel is not on the screen. */
+  private listHidden(): boolean {
+    const scroll = this.els?.scroll;
+    return !scroll || !(scroll.getBoundingClientRect().height > 0);
   }
 
   /**

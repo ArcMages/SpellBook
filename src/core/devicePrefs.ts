@@ -117,6 +117,24 @@ export class DevicePrefs {
     this.saveCollapsed(all);
   }
 
+  /**
+   * A project's index note is at another path now (the note or its folder
+   * was renamed or moved): what was folded shut in the project is remembered
+   * under the new path, and nothing is left behind under the old one.
+   * Folders are known by their ids, which a rename does not change.
+   */
+  moveCollapsed(from: string, to: string): void {
+    if (from === to) return;
+    const all = this.collapsedMap();
+    const items = all.get(from);
+    if (!items) return;
+    all.delete(from);
+    // Whatever was remembered under the new path was for a project that is no longer there.
+    all.delete(to);
+    all.set(to, items);
+    this.saveCollapsed(all);
+  }
+
   private saveCollapsed(all: Map<string, Set<string>>): void {
     // A bare object, so that no path can be mistaken for a built-in property name.
     const plain = Object.create(null) as Record<string, string[]>;

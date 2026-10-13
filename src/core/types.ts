@@ -148,4 +148,15 @@ export type IntentResult<T = undefined> =
 /** What a store listener is told. Listeners then read the store again. */
 export type StoreChange =
   | { readonly type: 'projects' } // the list of projects in the vault changed
-  | { readonly type: 'project' }; // the open project changed (or was opened or closed)
+  | {
+      // the open project changed (or was opened or closed)
+      readonly type: 'project';
+      /**
+       * Set when the open project is the one that was open before, at another
+       * path: its index note or its folder was renamed or moved. This is the
+       * index path it had until now. Whatever is remembered about a project
+       * by its index path (what was folded shut, which row was selected)
+       * belongs under the new path from here on.
+       */
+      readonly movedFrom?: string;
+    };

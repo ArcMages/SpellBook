@@ -290,6 +290,35 @@ describe('styles.css', () => {
     }
   });
 
+  it('leaves room under the last row of the binder for the bar that floats over the bottom of a phone', () => {
+    // Without it, the last rows lie under Obsidian's own bar and cannot be read or tapped.
+    const selector = '.spellbook-binder.spellbook-is-phone .spellbook-binder-scroll';
+    const rule = rules.find((candidate) => candidate.selectors.includes(selector));
+    expect(rule?.body).toMatch(/padding-block-end:/);
+    // Obsidian's own figures where it gives them, and the plugin's own as the least.
+    expect(rule?.body).toMatch(/var\(--mobile-navbar-height, 0px\)/);
+    expect(rule?.body).toMatch(/var\(--safe-area-inset-bottom, 0px\)/);
+    expect(rule?.body).toMatch(/max\([^;]*var\(--spellbook-phone-bar-room\)/);
+    expect(css).toMatch(/--spellbook-phone-bar-room:\s*80px/);
+    // Only on a phone: the rule asks for the class that is set from Obsidian's own platform check.
+    const padded = rules.filter((candidate) => /--spellbook-phone-bar-room\)/.test(candidate.body));
+    expect(padded.map((candidate) => candidate.selectors)).toEqual([[selector]]);
+  });
+
+  it('keeps every word count at the end of its row, whatever the language of the title', () => {
+    // The title has a direction of its own; the row around it must not get
+    // one from the stylesheet, or a Hebrew title would send its count to the
+    // other side.
+    for (const rule of rules) {
+      expect(/(^|[;\s])direction\s*:|unicode-bidi\s*:/.test(rule.body), rule.selectors.join(', ')).toBe(false);
+    }
+    const title = rules.find((candidate) => candidate.selectors.includes('.spellbook-binder .spellbook-title'));
+    expect(title?.body).toMatch(/text-align:\s*start/);
+    expect(title?.body).toMatch(/flex:\s*1 1 auto/);
+    const count = rules.find((candidate) => candidate.selectors.includes('.spellbook-binder .spellbook-count-outer'));
+    expect(count?.body).toMatch(/flex:\s*0 0 auto/);
+  });
+
   it('never hides or reveals anything on hover alone', () => {
     // Hover may tint a row. It may not be the only way to see or reach
     // something. One thing does come into view on hover: the "more" button of
