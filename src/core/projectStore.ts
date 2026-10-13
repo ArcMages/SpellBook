@@ -64,7 +64,14 @@ import {
   readTitle,
   writeBinder,
 } from './projectIndex';
-import { MANUSCRIPT_FOLDER, PROJECT_FOLDERS, RESEARCH_FOLDER, TODO_FILE } from './projectLayout';
+import {
+  MANUSCRIPT_FOLDER,
+  PROJECT_FOLDERS,
+  RESEARCH_FOLDER,
+  STATS_FOLDER,
+  TIMELINE_FOLDER,
+  TODO_FILE,
+} from './projectLayout';
 import { plantSeed } from './projectSeed';
 import type { PlantedSeed, ProjectSeed } from './projectSeed';
 import { DEFAULT_SCENE_NAME, newSceneFrontmatter } from './scene';
@@ -87,7 +94,7 @@ import { VaultFileMissingError } from './vaultPort';
 import type { MarkdownFileInfo, VaultEvent, VaultPort } from './vaultPort';
 import { stripFrontmatter } from './wordCount';
 
-export { MANUSCRIPT_FOLDER, PROJECT_FOLDERS, TODO_FILE } from './projectLayout';
+export { MANUSCRIPT_FOLDER, PROJECT_FOLDERS, STATS_FOLDER, TIMELINE_FOLDER, TODO_FILE } from './projectLayout';
 
 /** How long to wait after the last change before writing order keys into scene notes. */
 export const ORDER_DEBOUNCE_MS = 1500;
@@ -122,6 +129,28 @@ export interface MergedCopy {
    * project keeps its own.
    */
   readonly otherTitle: string | null;
+}
+
+/**
+ * The keys of the index note that are the store's own: the project marker,
+ * the layout version, the title and the binder. Everything else at the top
+ * level of the index is "project data" that the screens keep there (see
+ * projectData and updateProjectData).
+ */
+export const RESERVED_INDEX_KEYS: readonly string[] = ['spellbook', 'version', 'title', 'binder'];
+
+/** A note of the open project, with the properties the vault has indexed for it. */
+export interface ProjectNote {
+  /** Path relative to the project folder. */
+  readonly path: string;
+  /** The note's properties as last indexed; null when it has none or is not indexed yet. Read-only. */
+  readonly frontmatter: Readonly<Frontmatter> | null;
+}
+
+/** What writing one of the plugin's own data files came to. */
+export interface DataFileWrite {
+  /** True when the file did not exist before and was created. */
+  readonly created: boolean;
 }
 
 /** What deleting a scene came to. */
@@ -159,6 +188,8 @@ interface ActiveProject {
   readOnly: boolean;
   error: string | null;
   notes: readonly string[];
+  /** The index note's other top-level keys, as last read from disk. Frozen through and through. */
+  data: Readonly<Record<string, unknown>>;
 }
 
 interface ProjectFile {
@@ -196,6 +227,43 @@ function failed(message: string): { status: 'failed'; message: string } {
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+function isReservedKey(key: string): boolean {
+  const wanted = key.trim().toLowerCase();
+  return RESERVED_INDEX_KEYS.some((reserved) => reserved === wanted);
+}
+
+/** Freeze a value read from a note's properties, and everything inside it, so that nobody can change it by accident. */
+function frozen<T>(value: T): T {
+  if (typeof value === 'object' && value !== null && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const inner of Object.values(value)) frozen(inner);
+  }
+  return value;
+}
+
+/** A copy of plain data (what a note's properties can hold) that shares nothing with the original. */
+function copyOf(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(copyOf);
+  if (typeof value === 'object' && value !== null) {
+    const copy: Record<string, unknown> = {};
+    for (const [key, inner] of Object.entries(value)) copy[key] = copyOf(inner);
+    return copy;
+  }
+  return value;
+}
+
+/** The index note's own top-level keys, without the store's: the project data. */
+function projectDataOf(frontmatter: Readonly<Frontmatter>): Readonly<Record<string, unknown>> {
+  // A bare object, so that no key can be mistaken for a built-in property name.
+  const data = Object.create(null) as Record<string, unknown>;
+  for (const [key, value] of Object.entries(frontmatter)) {
+    if (!isReservedKey(key)) data[key] = frozen(copyOf(value));
+  }
+  return Object.freeze(data);
+}
+
+const NO_DATA: Readonly<Record<string, unknown>> = Object.freeze(Object.create(null) as Record<string, unknown>);
 
 function summaryOf(known: KnownProject): ProjectSummary {
   return {
@@ -342,6 +410,99 @@ export class ProjectStore {
     return this.snapshotFiles.get(pathKey(path))?.path ?? null;
   }
 
+  /**
+   * The value of one of the open project's own data keys: a top-level key of
+   * the index note other than the store's (see RESERVED_INDEX_KEYS), as it
+   * was last read from disk. Undefined when the key is absent, when it is one
+   * of the store's own, or when no project is open.
+   *
+   * The value is whatever the note holds (it may have been written by hand,
+   * or by a newer version of the plugin): check it before using it. It is
+   * frozen; to change it, use updateProjectData. A change to it, here or on
+   * another device, is announced as a change of the open project.
+   */
+  projectData(key: string): unknown {
+    const data = this.active?.data;
+    if (!data || isReservedKey(key)) return undefined;
+    return Object.prototype.hasOwnProperty.call(data, key) ? data[key] : undefined;
+  }
+
+  /**
+   * The notes of the open project, or only those inside one of its folders
+   * (`under`, relative to the project folder, for example "Manuscript"),
+   * each with the properties the vault has indexed for it, sorted by path.
+   * The index note itself and conflicting copies of it are left out. Empty
+   * when no project is open. Cheap; reads no files.
+   */
+  projectNotes(under?: string): ProjectNote[] {
+    const active = this.active;
+    if (!active) return [];
+    let folder = '';
+    if (under !== undefined && under !== '') {
+      const rel = normaliseRelativePath(under);
+      if (rel === null || !isSafeRelativePath(rel)) return [];
+      folder = rel;
+    }
+    const notes: ProjectNote[] = [];
+    for (const file of this.projectFiles(active).values()) {
+      if (folder !== '' && !isInside(folder, file.rel)) continue;
+      // Index notes are the store's own, not notes of the project.
+      if (file.path === active.indexPath || this.projects.has(file.path)) continue;
+      notes.push({ path: file.rel, frontmatter: file.frontmatter });
+    }
+    return notes.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  }
+
+  /** The notes in the open project's Timeline folder (one per event), with their properties. See projectNotes. */
+  timelineNotes(): ProjectNote[] {
+    return this.projectNotes(TIMELINE_FOLDER);
+  }
+
+  /**
+   * The files directly inside the open project's Stats folder (the word
+   * logs), as paths relative to the project folder, sorted. Each can be read
+   * with readDataFile and written with updateDataFile. Empty when no project
+   * is open or it has no such folder.
+   */
+  statsFiles(): string[] {
+    const active = this.active;
+    if (!active) return [];
+    return this.vault
+      .listFiles(joinPath(active.folder, STATS_FOLDER))
+      .map((path) => relativeTo(active.folder, path))
+      .filter((rel): rel is string => rel !== null)
+      .sort();
+  }
+
+  /**
+   * The day a note of the open project was created, on this device's
+   * calendar, as YYYY-MM-DD. Null when the project has no such note or the
+   * vault does not know. `path` is relative to the project folder.
+   */
+  noteCreatedDay(path: string): string | null {
+    const vaultPath = this.vaultPathOf(path);
+    return vaultPath === null ? null : this.vault.createdDay(vaultPath);
+  }
+
+  /**
+   * The whole text of one of the plugin's own data files in the open project:
+   * To-do.md, or a file directly inside Stats. `path` is relative to the
+   * project folder. The value is null when the file does not exist (yet).
+   * Refused for any other path: a scene's or a note's text is not read here.
+   */
+  async readDataFile(path: string): Promise<IntentResult<string | null>> {
+    const active = this.active;
+    if (!active) return refused('no-project', 'No project is open.');
+    const rel = this.dataFilePath(active, path);
+    if (typeof rel !== 'string') return rel;
+    try {
+      return done(await this.vault.readText(joinPath(active.folder, rel)));
+    } catch (error) {
+      if (error instanceof VaultFileMissingError) return done(null);
+      return failed(`"${rel}" could not be read: ${messageOf(error)}`);
+    }
+  }
+
   /** Open the project whose index note is at `indexPath` (read from the file itself). */
   openProject(indexPath: string): Promise<IntentResult<ProjectSnapshot>> {
     return this.enqueue(async (): Promise<IntentResult<ProjectSnapshot>> => {
@@ -369,6 +530,7 @@ export class ProjectStore {
         readOnly: false,
         error: null,
         notes: [],
+        data: NO_DATA,
       };
       this.active = active;
       this.needsReload = false;
@@ -978,6 +1140,173 @@ export class ProjectStore {
     }, inProject);
   }
 
+  // ------------------------------------------------------------ project data
+  //
+  // What the screens keep in the project besides the binder: a few keys of
+  // their own in the index note (statuses, labels, targets, marks,
+  // timelines), properties on the project's notes, and two kinds of file
+  // that belong to the plugin (To-do.md and the word logs in Stats). Each is
+  // changed here, in the same queue as the binder, by one read-modify-write
+  // against what is on disk at that moment.
+
+  /**
+   * Change one of the open project's own data keys in the index note, in one
+   * read-modify-write of the index as it is on disk at that moment.
+   *
+   * `change` is given the key's current value (a copy it may alter;
+   * undefined when the index has no such key) and returns the value to
+   * store. Returning undefined removes the key. It may be called more than
+   * once and must not depend on anything but its argument. Every other key
+   * of the index, and the note's text, are left exactly as they are.
+   *
+   * Refused for the store's own keys (spellbook, version, title, binder), for
+   * a read-only project, and when no project is open. Nothing is written
+   * when the value comes out the same.
+   *
+   * @param key a top-level key of the index note, for example "targets"
+   */
+  updateProjectData(
+    key: string,
+    change: (current: unknown) => unknown,
+    inProject?: string,
+  ): Promise<IntentResult> {
+    return this.run(async (): Promise<IntentResult> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      if (key.trim() === '' || key !== key.trim()) {
+        return refused('invalid-key', `"${key}" cannot be used as the name of a property.`);
+      }
+      if (isReservedKey(key)) {
+        return refused('invalid-key', `The "${key}" property of the project index is not changed this way.`);
+      }
+
+      const box: { outcome: IntentResult | null } = { outcome: null };
+      try {
+        await this.vault.updateFrontmatter(active.indexPath, (frontmatter) => {
+          box.outcome = null;
+          if (!isProjectIndex(frontmatter)) {
+            box.outcome = refused('not-a-project', 'The index note is no longer marked as a Spellbook project.');
+            return false;
+          }
+          if (!parseProjectIndex(frontmatter).ok) {
+            box.outcome = refused('read-only', READ_ONLY_MESSAGE);
+            return false;
+          }
+          const had = Object.prototype.hasOwnProperty.call(frontmatter, key);
+          const current: unknown = had ? frontmatter[key] : undefined;
+          const next = change(copyOf(current));
+          if (next === undefined ? !had : had && JSON.stringify(next) === JSON.stringify(current)) {
+            box.outcome = noop('unchanged', 'Nothing needed to change.');
+            return false;
+          }
+          if (next === undefined) delete frontmatter[key];
+          else frontmatter[key] = copyOf(next);
+          box.outcome = done(undefined);
+          return true;
+        });
+      } catch (error) {
+        this.needsReload = true;
+        return failed(`The project index could not be saved: ${messageOf(error)}`);
+      }
+      this.needsReload = true;
+      return box.outcome ?? failed('The project index could not be read.');
+    }, inProject);
+  }
+
+  /**
+   * Change the properties of one note of the open project (a scene, a
+   * timeline event) in one read-modify-write of that note. The note's text
+   * is never touched.
+   *
+   * `change` receives the note's properties as they are on disk at that
+   * moment ({} when it has none) and edits them in place. It returns true to
+   * save, or false to leave the note untouched. It may be called more than
+   * once.
+   *
+   * Refused for anything that is not a note inside the open project's
+   * folder, for the project index and its copies, for a read-only project,
+   * and when no project is open.
+   *
+   * @param path the note's path relative to the project folder, as the snapshot gives it
+   */
+  updateNoteProperties(
+    path: string,
+    change: (frontmatter: Frontmatter) => boolean,
+    inProject?: string,
+  ): Promise<IntentResult> {
+    return this.run(async (): Promise<IntentResult> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = this.checkedPath(active, path, true);
+      if (typeof rel !== 'string') return rel;
+      const file = this.projectFiles(active).get(pathKey(rel));
+      if (!file) {
+        return refused('missing-file', `"${rel}" has no note in this project (it may still be syncing).`);
+      }
+      if (this.projects.has(file.path)) {
+        return refused('invalid-path', `"${rel}" is a project index, not a note of this project.`);
+      }
+      let saved: boolean;
+      try {
+        saved = await this.vault.updateFrontmatter(file.path, change);
+      } catch (error) {
+        if (error instanceof VaultFileMissingError) {
+          return noop('not-found', 'That note is no longer in the project.');
+        }
+        return failed(`The properties of "${noteTitle(file.rel)}" could not be saved: ${messageOf(error)}`);
+      }
+      return saved ? done(undefined) : noop('unchanged', 'Nothing needed to change.');
+    }, inProject);
+  }
+
+  /**
+   * Change the whole text of one of the plugin's own data files in the open
+   * project, in one read-modify-write of the file as it is on disk at that
+   * moment. A file that does not exist yet is created (and the Stats folder
+   * with it, should that be missing).
+   *
+   * Only two kinds of file can be written this way, and every other path is
+   * refused: To-do.md at the top of the project folder, and files directly
+   * inside the Stats folder. Never a scene, never any other note: their text
+   * belongs to the writer and is not the plugin's to replace.
+   *
+   * `change` receives the current text, or null when there is no such file,
+   * and returns the new text, or null to leave everything as it is. It may
+   * be called more than once.
+   *
+   * @param path "To-do.md" or "Stats/<file name>", relative to the project folder
+   */
+  updateDataFile(
+    path: string,
+    change: (current: string | null) => string | null,
+    inProject?: string,
+  ): Promise<IntentResult<DataFileWrite>> {
+    return this.run(async (): Promise<IntentResult<DataFileWrite>> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = this.dataFilePath(active, path);
+      if (typeof rel !== 'string') return rel;
+
+      const target = joinPath(active.folder, rel);
+      let created = false;
+      try {
+        const folder = parentPath(target);
+        if (folder !== active.folder && !this.vault.exists(folder)) await this.vault.createFolder(folder);
+        const saved = await this.vault.updateText(target, (current) => {
+          created = current === null;
+          return change(current);
+        });
+        if (!saved) return noop('unchanged', 'Nothing needed to change.');
+      } catch (error) {
+        return failed(`"${rel}" could not be saved: ${messageOf(error)}`);
+      }
+      return done({ created });
+    }, inProject);
+  }
+
   /** Write any outstanding order keys now instead of waiting for the delay. */
   syncOrderKeysNow(): Promise<void> {
     return this.enqueue(() => this.flushOrderKeys());
@@ -1088,6 +1417,34 @@ export class ProjectStore {
     if (pathKey(joinPath(active.folder, rel)) === pathKey(active.indexPath)) {
       return refused('invalid-path', 'The project index note is not a scene.');
     }
+    return rel;
+  }
+
+  /**
+   * Check a path given for one of the plugin's own data files. Only two
+   * kinds pass: To-do.md at the top of the project folder, and a file
+   * directly inside the Stats folder (not in a folder inside it). Anything
+   * the binder lists as a scene is refused whatever its place, and so is
+   * every other path: this is what keeps the text of scenes and notes out of
+   * reach of updateDataFile. Returns the tidy relative path, or a refusal.
+   */
+  private dataFilePath(
+    active: ActiveProject,
+    path: string,
+  ): string | { status: 'refused'; reason: RefusalReason; message: string } {
+    const no = refused(
+      'invalid-path',
+      `"${path}" is not one of Spellbook's own files. Only ${TODO_FILE} and the files in the ${STATS_FOLDER} folder are.`,
+    );
+    const rel = normaliseRelativePath(path);
+    if (rel === null || !isSafeRelativePath(rel)) return no;
+    const isTodo = rel === TODO_FILE;
+    const isStats = parentPath(rel) === STATS_FOLDER && rel.length > STATS_FOLDER.length + 1;
+    if (!isTodo && !isStats) return no;
+    if (clashKey(joinPath(active.folder, rel)) === clashKey(active.indexPath)) return no;
+    // Capitals are not told apart, because phones and Macs do not tell them apart on disk either.
+    const wanted = clashKey(rel);
+    if (flattenScenes(this.effectiveBinder(active)).some((scene) => clashKey(scene) === wanted)) return no;
     return rel;
   }
 
@@ -1223,6 +1580,9 @@ export class ProjectStore {
   private applyIndex(active: ActiveProject, frontmatter: Readonly<Frontmatter>): void {
     const parsed = parseProjectIndex(frontmatter);
     active.explicitTitle = parsed.title;
+    // Read even when the binder cannot be understood: the screens that keep
+    // their data here can still show it (nothing is written meanwhile).
+    active.data = projectDataOf(frontmatter);
     if (parsed.ok) {
       const repaired = active.readOnly;
       active.binder = parsed.binder;
@@ -1331,7 +1691,9 @@ export class ProjectStore {
       research,
       conflicts,
     };
-    const signature = JSON.stringify(body);
+    // The project data is not part of the snapshot (it is read with
+    // projectData), but a change to it is a change to the open project.
+    const signature = JSON.stringify([body, active.data]);
     const before = this.snapshot;
     // The same opening of the same project, now at another path: it was
     // renamed or moved, and listeners are told where it was.

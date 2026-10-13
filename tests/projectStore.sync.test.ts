@@ -190,11 +190,23 @@ describe('the index changes on another device', () => {
     const { store, vault, indexPath, changes } = await openSeeded(threeScenes);
     vault.external.write(indexPath, { body: 'The writer typed some notes into the index.' });
     vault.external.editFrontmatter(indexPath, (fm) => {
-      fm['wordcount goal'] = 500; // a property the plugin does not know
+      fm['binder'] = ['Manuscript/A.md', 'Manuscript/B.md', 'Manuscript/C.md']; // written again, the same
     });
     await settle(store);
     expect(changes).toEqual([]);
     expect(picture(store)).toBe('A B C');
+  });
+
+  it('announces a change to any other property of the index: it is data of the project', async () => {
+    const { store, vault, indexPath, changes } = await openSeeded(threeScenes);
+    vault.external.editFrontmatter(indexPath, (fm) => {
+      fm['targets'] = { project: 80000 }; // set on another device
+    });
+    await settle(store);
+    expect(changes).toEqual([{ type: 'project' }]);
+    expect(store.projectData('targets')).toEqual({ project: 80000 });
+    expect(picture(store)).toBe('A B C');
+    expect(vault.writes).toEqual([]);
   });
 
   it('gives a new snapshot object with a higher revision each time something changes', async () => {

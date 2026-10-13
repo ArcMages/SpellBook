@@ -124,6 +124,23 @@ class FakeVault extends FakeEvents {
     return folder;
   }
 
+  /**
+   * Read, change and save a file's text in one step. As in Obsidian, nothing
+   * is written when the callback throws. Every call is counted, so a test
+   * can tell that a file was (or was not) written this way.
+   */
+  readonly processed: string[] = [];
+
+  async process(file: TFile, change: (data: string) => string): Promise<string> {
+    if (!this.entries.has(file.path)) throw new Error(`ENOENT: no such file, ${file.path}`);
+    const next = change(this.text.get(file.path) ?? '');
+    this.processed.push(file.path);
+    this.text.set(file.path, next);
+    this.trigger('modify', file);
+    this.owner.metadataCache.index(file);
+    return next;
+  }
+
   async delete(): Promise<void> {
     throw new Error('vault.delete must never be used: notes go to the trash');
   }

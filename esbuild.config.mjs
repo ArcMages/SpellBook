@@ -1,15 +1,18 @@
-// Bundles src/main.ts into main.js, the single file Obsidian loads.
+// Bundles src/main.ts into main.js, the single file Obsidian loads, and joins
+// the stylesheets in src/styles into styles.css (see scripts/styles.mjs).
 // Follows Obsidian's sample plugin: CommonJS output, ES2018 syntax, and
 // everything Obsidian already provides is left out of the bundle.
 //
 //   node esbuild.config.mjs              watch mode, with inline source maps
 //   node esbuild.config.mjs production   one minified build, then exit
 
+import { watch } from 'node:fs';
 import { builtinModules } from 'node:module';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import esbuild from 'esbuild';
+import { STYLES_DIR, STYLES_OUTPUT, writeStyles } from './scripts/styles.mjs';
 
 // Always build inside this repository, wherever the command is run from.
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -45,9 +48,21 @@ const context = await esbuild.context({
   outfile: 'main.js',
 });
 
+// The stylesheet is generated too: styles.css is written from src/styles.
+writeStyles(repoRoot);
+console.log(`  ${STYLES_OUTPUT}  joined from ${STYLES_DIR}`);
+
 if (production) {
   await context.rebuild();
   await context.dispose();
 } else {
   await context.watch();
+  // In watch mode, a change to any of the stylesheets writes styles.css again.
+  watch(path.join(repoRoot, STYLES_DIR), () => {
+    try {
+      writeStyles(repoRoot);
+    } catch (error) {
+      console.error('The stylesheet could not be written:', error);
+    }
+  });
 }

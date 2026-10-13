@@ -202,6 +202,92 @@ describe('ObsidianVault: writing', () => {
   });
 });
 
+describe("ObsidianVault: the plugin's own files", () => {
+  it('lists the files directly inside a folder, of any kind, and none for a folder that is not there', () => {
+    const { vault, fake } = started();
+    fake.addNote('Novel/Manuscript/Drafts/Deep.md', 'x');
+    expect(vault.listFiles('Novel/Manuscript').sort()).toEqual(['Novel/Manuscript/Opening.md', 'Novel/Manuscript/cover.png']);
+    expect(vault.listFiles('Novel/Stats')).toEqual([]);
+    expect(vault.listFiles('Novel/Novel.md')).toEqual([]); // a file is not a folder
+  });
+
+  it('changes a whole text in one step, against the file as it is at that moment', async () => {
+    const { vault, fake } = started();
+    fake.addNote('Novel/To-do.md', '- [ ] write\n');
+    const saved = await vault.updateText('Novel/To-do.md', (current) => `${current ?? ''}- [ ] edit\n`);
+    expect(saved).toBe(true);
+    expect(fake.textOf('Novel/To-do.md')).toBe('- [ ] write\n- [ ] edit\n');
+    expect(fake.vault.processed).toEqual(['Novel/To-do.md']); // read and written in one step
+  });
+
+  it('creates the file when it is not there yet', async () => {
+    const { vault, fake, events } = started();
+    fake.addFolder('Novel/Stats');
+    const seen: Array<string | null> = [];
+    const saved = await vault.updateText('Novel/Stats/2026-10 ab12.md', (current) => {
+      seen.push(current);
+      return 'first line\n';
+    });
+    expect(saved).toBe(true);
+    expect(seen).toEqual([null]);
+    expect(fake.textOf('Novel/Stats/2026-10 ab12.md')).toBe('first line\n');
+    expect(fake.vault.processed).toEqual([]); // created, not rewritten
+    expect(events.map((event) => event.type)).toContain('create');
+  });
+
+  it('writes nothing when the change gives null or the same text, and creates nothing either', async () => {
+    const { vault, fake, events } = started();
+    fake.addNote('Novel/To-do.md', '- [ ] write\n');
+    events.length = 0;
+    expect(await vault.updateText('Novel/To-do.md', () => null)).toBe(false);
+    expect(await vault.updateText('Novel/To-do.md', (current) => current)).toBe(false);
+    expect(await vault.updateText('Novel/Nothing.md', () => null)).toBe(false);
+    expect(fake.vault.getAbstractFileByPath('Novel/Nothing.md')).toBeNull();
+    expect(fake.textOf('Novel/To-do.md')).toBe('- [ ] write\n');
+    expect(fake.vault.processed).toEqual([]);
+    expect(events).toEqual([]);
+  });
+
+  it('never replaces a file that turned up while it was being created: it is changed as it is', async () => {
+    const { vault, fake } = started();
+    fake.addFolder('Novel/Stats');
+    const seen: Array<string | null> = [];
+    const saved = await vault.updateText('Novel/Stats/log.md', (current) => {
+      seen.push(current);
+      // Another device's version arrives just as this one is about to be made.
+      if (current === null) fake.addNote('Novel/Stats/log.md', 'theirs\n');
+      return `${current ?? ''}mine\n`;
+    });
+    expect(saved).toBe(true);
+    expect(seen).toEqual([null, 'theirs\n']);
+    expect(fake.textOf('Novel/Stats/log.md')).toBe('theirs\nmine\n');
+  });
+
+  it('passes on real errors, and writes nothing then', async () => {
+    const { vault, fake } = started();
+    fake.addNote('Novel/To-do.md', '- [ ] write\n');
+    await expect(
+      vault.updateText('Novel/To-do.md', () => {
+        throw new Error('bug in the callback');
+      }),
+    ).rejects.toThrow('bug in the callback');
+    expect(fake.textOf('Novel/To-do.md')).toBe('- [ ] write\n');
+    await expect(vault.updateText('No such folder/x.md', () => 'x')).rejects.toThrow();
+    await expect(vault.updateText('Novel/Manuscript', () => 'x')).rejects.toThrow(/folder/);
+  });
+
+  it('tells the day a file was created, on this device\'s calendar', () => {
+    const { vault, fake } = started();
+    const file = fake.vault.getFileByPath('Novel/Manuscript/Opening.md');
+    if (!file) throw new Error('the note is missing');
+    expect(vault.createdDay('Novel/Manuscript/Opening.md')).toBeNull(); // the vault does not know
+    file.stat.ctime = new Date(2026, 9, 13, 23, 30).getTime(); // late in the evening, local time
+    expect(vault.createdDay('Novel/Manuscript/Opening.md')).toBe('2026-10-13');
+    expect(vault.createdDay('Nowhere.md')).toBeNull();
+    expect(vault.createdDay('Novel/Manuscript')).toBeNull();
+  });
+});
+
 describe('ObsidianVault: events and start-up', () => {
   it('passes on vault and index events in the shape the store expects', async () => {
     const { vault, fake, events } = started();

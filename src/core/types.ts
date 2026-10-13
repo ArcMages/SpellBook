@@ -122,6 +122,7 @@ export type RefusalReason =
   | 'read-only'
   | 'invalid-name'
   | 'invalid-path'
+  | 'invalid-key'
   | 'invalid-move'
   | 'exists'
   | 'parent-missing'

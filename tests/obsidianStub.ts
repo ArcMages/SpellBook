@@ -18,6 +18,8 @@ export class TAbstractFile {
 export class TFile extends TAbstractFile {
   basename = '';
   extension = '';
+  /** When the file was created and last changed (milliseconds since 1970), and its size. */
+  stat = { ctime: 0, mtime: 0, size: 0 };
 }
 
 export class TFolder extends TAbstractFile {

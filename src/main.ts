@@ -3,6 +3,7 @@ import type { PaneType } from 'obsidian';
 import { owningProject, placeOfNote } from './core/binderModel';
 import { BinderSelection } from './core/binderSelection';
 import { sceneRef } from './core/binderTree';
+import { deviceIdOf } from './core/deviceId';
 import { DevicePrefs } from './core/devicePrefs';
 import { createSampleProject, createStarterProject } from './core/newProject';
 import type { NewProject } from './core/newProject';
@@ -12,10 +13,12 @@ import { ProjectSession } from './core/projectSession';
 import { ProjectStore } from './core/projectStore';
 import type { IntentResult, NodeRef, ProjectSnapshot } from './core/types';
 import { WordCountCache } from './core/wordCountCache';
+import { FEATURES, registerFeatures } from './features/registry';
+import type { RegisteredFeatures } from './features/registry';
 import { ObsidianDeviceStorage } from './obsidian/deviceStorage';
 import { ObsidianVault } from './obsidian/obsidianVault';
 import { openNote } from './obsidian/openNote';
-import { localToday, nextFrame, setTimer } from './obsidian/systemClock';
+import { localToday, nextFrame, nowMs, setTimer } from './obsidian/systemClock';
 import { SpellbookSettingTab } from './settings';
 import { CreateProjectModal } from './ui/createProjectModal';
 import { BINDER_ICON } from './ui/icons';
@@ -68,6 +71,13 @@ export default class SpellbookPlugin extends Plugin implements BinderHost, Actio
 
   /** What the binder's buttons, its menus and the commands below do. */
   readonly actions = new BinderActions(this);
+
+  /**
+   * The screens that plugged themselves in (src/features/registry.ts), with
+   * the settings sections they added. Null until Obsidian's layout is ready,
+   * and again after unloading.
+   */
+  features: RegisteredFeatures | null = null;
 
   private unloaded = false;
   /** True while a project is being created, so that a second request cannot overlap it. */
@@ -198,7 +208,8 @@ export default class SpellbookPlugin extends Plugin implements BinderHost, Actio
       setTimer,
       random: Math.random,
     });
-    const prefs = new DevicePrefs(new ObsidianDeviceStorage(this.app));
+    const storage = new ObsidianDeviceStorage(this.app);
+    const prefs = new DevicePrefs(storage);
     const session = new ProjectSession(store, prefs);
     const wordCounts = new WordCountCache({ vault, setTimer });
     const selection = new BinderSelection();
@@ -219,7 +230,29 @@ export default class SpellbookPlugin extends Plugin implements BinderHost, Actio
     });
     // Open the project this device last worked on. This only reads.
     session.start();
+
+    // The store is ready: the screens can plug themselves in. Each feature
+    // gets the same things to work with (see src/features/registry.ts).
+    // This device's id is only made (and saved on the device) when a feature
+    // first asks for it: loading the plugin leaves no trace anywhere.
+    let deviceId: string | null = null;
+    const features = registerFeatures(FEATURES, {
+      plugin: this,
+      app: this.app,
+      store,
+      vault,
+      storage,
+      deviceId: () => (deviceId ??= deviceIdOf(storage, Math.random)),
+      clock: { today: localToday, now: nowMs, setTimer, nextFrame },
+      wordCounts,
+      openNote: (path, where) => this.openNote(path, where),
+    });
+    this.features = features;
+
     this.register(() => {
+      // The features first: they may still want the store while they close.
+      features.release();
+      this.features = null;
       session.dispose();
       wordCounts.dispose();
       selection.dispose();

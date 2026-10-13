@@ -6,10 +6,11 @@ import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { STYLES_DIR, STYLES_OUTPUT, STYLE_FILES, joinStyles, readStyles } from '../scripts/styles.mjs';
 
 const thisFile = fileURLToPath(import.meta.url);
-const srcDir = path.resolve(path.dirname(thisFile), '..', 'src');
-const stylesFile = path.resolve(path.dirname(thisFile), '..', 'styles.css');
+const repoRoot = path.resolve(path.dirname(thisFile), '..');
+const srcDir = path.join(repoRoot, 'src');
 
 function listFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -32,6 +33,29 @@ const allFiles = listFiles(srcDir);
 const coreFiles = allFiles.filter((file) => relative(file).startsWith('core/'));
 const adapterFiles = allFiles.filter((file) => relative(file).startsWith('obsidian/'));
 const outsideAdapter = allFiles.filter((file) => !relative(file).startsWith('obsidian/'));
+const featureFiles = allFiles.filter((file) => /^features\/[^/]+\//.test(relative(file)));
+
+/**
+ * What a piece of code imports from other files of the plugin: for every
+ * import, export-from or dynamic import of a relative path, the file or
+ * folder it points at, as a path relative to src ("core/dates",
+ * "features/registry"). A path that leaves src starts with "../". Imports of
+ * packages ("obsidian") are not listed.
+ *
+ * @param from the importing file's own path relative to src
+ */
+function importsOf(code: string, from: string): string[] {
+  const specifiers = [
+    ...code.matchAll(/\b(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g),
+    ...code.matchAll(/\brequire\s*\(\s*['"]([^'"]+)['"]/g),
+  ].map((match) => match[1] ?? '');
+  return specifiers
+    .filter((specifier) => specifier.startsWith('.'))
+    .map((specifier) => path.posix.normalize(path.posix.join(path.posix.dirname(from), specifier)));
+}
+
+/** True when an import path (relative to src) is `area` itself or something inside it. */
+const within = (target: string, area: string): boolean => target === area || target.startsWith(`${area}/`);
 
 describe('source layout', () => {
   it('has the agreed files', () => {
@@ -70,6 +94,15 @@ describe('source layout', () => {
       'core/dropTarget.ts',
       'core/conflictCopies.ts',
       'ui/dragDrop.ts',
+      'ui/ownText.ts',
+      'core/projectLayout.ts',
+      'core/dates.ts',
+      'core/deviceId.ts',
+      'features/registry.ts',
+      'features/corkboard/index.ts',
+      'features/progress/index.ts',
+      'features/planner/index.ts',
+      'features/timeline/index.ts',
     ]) {
       expect(names, expected).toContain(expected);
     }
@@ -80,7 +113,6 @@ describe('source layout', () => {
 describe('src/core is pure', () => {
   const forbidden: Array<[string, RegExp]> = [
     ['an import from "obsidian"', /from\s+['"]obsidian['"]|require\(\s*['"]obsidian['"]\s*\)/],
-    ['an import from outside src/core', /from\s+['"]\.\.\//],
     ['Date.now()', /\bDate\s*\.\s*now\b/],
     ['new Date()', /\bnew\s+Date\b/],
     ['the DOM (document)', /\bdocument\s*\./],
@@ -96,13 +128,48 @@ describe('src/core is pure', () => {
       for (const [what, pattern] of forbidden) {
         expect(pattern.test(code), `${relative(file)} must not use ${what}`).toBe(false);
       }
+      // Whatever it imports is in src/core as well. A file in a sub-folder of
+      // src/core may reach the rest of src/core ("../dates"); the path is
+      // worked out, not judged by how it is spelled.
+      for (const target of importsOf(code, relative(file))) {
+        expect(within(target, 'core'), `${relative(file)} must not import "${target}", which is outside src/core`).toBe(true);
+      }
     });
   }
+
+  it('the rule about imports works out where a path leads, whatever folder it starts from', () => {
+    const leads = (from: string, specifier: string): string[] => importsOf(`import { x } from '${specifier}';`, from);
+    // From a sub-folder of src/core, the folder above is still src/core.
+    expect(leads('core/planner/todo.ts', '../dates')).toEqual(['core/dates']);
+    expect(leads('core/planner/todo.ts', './../dates')).toEqual(['core/dates']);
+    expect(leads('core/planner/todo.ts', './marks')).toEqual(['core/planner/marks']);
+    expect(leads('core/timeline/layout/rows.ts', '../../types')).toEqual(['core/types']);
+    // Out of src/core, however it is spelled.
+    for (const [from, specifier] of [
+      ['core/projectStore.ts', '../obsidian/obsidianVault'],
+      ['core/planner/todo.ts', '../../ui/icons'],
+      ['core/planner/todo.ts', './../../views/binderView'],
+      ['core/planner/todo.ts', '../../../scripts/deploy.mjs'],
+    ] as const) {
+      const [target] = leads(from, specifier);
+      expect(within(target ?? '', 'core'), `${from} -> ${specifier}`).toBe(false);
+    }
+    expect(within('corex/thing', 'core')).toBe(false); // a folder whose name merely starts the same
+    // Every way of importing is seen, and packages are not paths.
+    const code = [
+      "import type { A } from './a';",
+      "export { b } from '../b';",
+      "export * from './c';",
+      "const d = await import('./d');",
+      "import './e';",
+      "import { Plugin } from 'obsidian';",
+    ].join('\n');
+    expect(importsOf(code, 'core/sub/file.ts')).toEqual(['core/sub/a', 'core/b', 'core/sub/c', 'core/sub/d', 'core/sub/e']);
+  });
 
   it('the rule itself works: it would catch each forbidden thing', () => {
     const samples = [
       "import { TFile } from 'obsidian';",
-      "import { x } from '../obsidian/obsidianVault';",
       'const t = Date.now();',
       'const d = new Date();',
       "document.createElement('div');",
@@ -135,15 +202,80 @@ describe('the whole plugin', () => {
     // In src/obsidian, "vault" is Obsidian's Vault. Its destructive methods are
     // off limits: the FileManager ones (trashFile, renameFile, processFrontMatter) are used instead.
     expect(adapterFiles.length).toBeGreaterThan(0);
+    const destructive = /\bvault\s*\.\s*(delete|trash|modify|modifyBinary|append|appendBinary|rename|copy)\s*\(/;
     for (const file of adapterFiles) {
-      const code = codeOf(file);
-      expect(/\bvault\s*\.\s*(delete|trash|modify|modifyBinary|process|append|rename)\s*\(/.test(code), relative(file)).toBe(false);
+      expect(destructive.test(codeOf(file)), relative(file)).toBe(false);
     }
     for (const file of allFiles) {
       expect(/\badapter\s*\./.test(codeOf(file)), `${relative(file)} must not use the low-level adapter`).toBe(false);
     }
     // the pattern would catch a slip
-    expect(/\bvault\s*\.\s*(delete|trash|modify|modifyBinary|process|append|rename)\s*\(/.test('await this.app.vault.delete(file);')).toBe(true);
+    expect(destructive.test('await this.app.vault.delete(file);')).toBe(true);
+    expect(destructive.test('await this.app.vault.modify(file, text);')).toBe(true);
+  });
+
+  it('replaces a whole text in one place only, which only the store can reach, and only for the plugin\'s own files', () => {
+    // vault.process and vault.create are how the to-do list and the word logs
+    // are written. They appear in one method of one file (updateText in
+    // src/obsidian/obsidianVault.ts) and nowhere else in the plugin.
+    const wholeText = /\bvault\s*\.\s*process\s*\(/g;
+    for (const file of allFiles) {
+      const uses = (codeOf(file).match(wholeText) ?? []).length;
+      expect(uses, relative(file)).toBe(relative(file) === 'obsidian/obsidianVault.ts' ? 1 : 0);
+    }
+    // That method is only ever called by the project store, in the one place
+    // that first checks the path (dataFilePath): no screen and no feature can
+    // call it, even though features are handed the vault doorway to read with.
+    const callers = allFiles.filter((file) => /\.\s*updateText\s*\(/.test(codeOf(file))).map(relative);
+    expect(callers).toEqual(['core/projectStore.ts']);
+    const store = codeOf(path.join(srcDir, 'core', 'projectStore.ts'));
+    expect((store.match(/\.\s*updateText\s*\(/g) ?? []).length).toBe(1);
+    const method = /updateDataFile\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
+    expect(method).toMatch(/this\.dataFilePath\(active, path\)/);
+    expect(method.indexOf('dataFilePath')).toBeLessThan(method.indexOf('updateText'));
+  });
+
+  it('keeps every feature in its own folder, away from the other features', () => {
+    // Four screens are built at the same time by different hands. A feature
+    // may use the core, the vault doorway's folder, the shared pieces of
+    // screen and the registry; it may never reach into another feature.
+    const allowed = ['core', 'obsidian', 'ui', 'features/registry'];
+    const folders = new Set(featureFiles.map((file) => relative(file).split('/').slice(0, 2).join('/')));
+    expect([...folders].sort()).toEqual(['features/corkboard', 'features/planner', 'features/progress', 'features/timeline']);
+    for (const file of featureFiles) {
+      const own = relative(file).split('/').slice(0, 2).join('/');
+      for (const target of importsOf(codeOf(file), relative(file))) {
+        const ok = within(target, own) || allowed.some((area) => within(target, area));
+        expect(ok, `${relative(file)} must not import "${target}"`).toBe(true);
+      }
+    }
+    // Nothing else in the plugin reaches into a feature, except the registry, which lists them.
+    for (const file of allFiles) {
+      if (featureFiles.includes(file) || relative(file) === 'features/registry.ts') continue;
+      for (const target of importsOf(codeOf(file), relative(file))) {
+        expect(within(target, 'features') && target !== 'features/registry', `${relative(file)} must not import "${target}"`).toBe(false);
+      }
+    }
+    // The rule would catch a slip.
+    const slip = importsOf("import { board } from '../corkboard/board';", 'features/planner/index.ts');
+    expect(slip).toEqual(['features/corkboard/board']);
+    expect(within(slip[0] ?? '', 'features/planner') || allowed.some((area) => within(slip[0] ?? '', area))).toBe(false);
+    expect(allowed.some((area) => within('features/registry', area))).toBe(true);
+    expect(allowed.some((area) => within('views/binderView', area))).toBe(false);
+    expect(allowed.some((area) => within('main', area))).toBe(false);
+  });
+
+  it('lets a feature change the vault only through the store', () => {
+    // A feature is handed the vault doorway to list notes, read them and
+    // listen for changes. Everything that writes goes through the project
+    // store, which checks what may be written.
+    const writes = /\.\s*(updateFrontmatter|updateText|createFile|createFolder|rename|trash)\s*\(/;
+    for (const file of featureFiles) {
+      expect(writes.test(codeOf(file)), relative(file)).toBe(false);
+    }
+    expect(writes.test('await context.vault.updateFrontmatter(path, change);')).toBe(true);
+    expect(writes.test('await context.store.updateNoteProperties(path, change);')).toBe(false);
+    expect(writes.test('await context.store.updateDataFile(path, change);')).toBe(false);
   });
 
   it('uses no Node, Electron, network or eval', () => {
@@ -239,8 +371,56 @@ describe('the whole plugin', () => {
   });
 });
 
-describe('styles.css', () => {
-  const css = readFileSync(stylesFile, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+describe('the stylesheet is put together from one file per screen', () => {
+  const stylesDir = path.join(repoRoot, STYLES_DIR);
+
+  it('joins every file in src/styles, in a fixed order: what is shared first, then one file per screen', () => {
+    expect([...STYLE_FILES]).toEqual(['base.css', 'binder.css', 'corkboard.css', 'progress.css', 'planner.css', 'timeline.css']);
+    // No stylesheet is left out, and none is listed that is not there.
+    expect(readdirSync(stylesDir).filter((name) => name.endsWith('.css')).sort()).toEqual([...STYLE_FILES].sort());
+    const whole = readStyles(repoRoot);
+    let from = 0;
+    for (const name of STYLE_FILES) {
+      const text = readFileSync(path.join(stylesDir, name), 'utf8').trim();
+      const at = whole.indexOf(text, from);
+      expect(at, name).toBeGreaterThanOrEqual(from);
+      from = at + text.length;
+    }
+    expect(whole).toMatch(/generated by the build/);
+    expect(readStyles(repoRoot)).toBe(whole); // the same sources give the same stylesheet
+  });
+
+  it('joins the parts in the order given, each under a line that names its file', () => {
+    const joined = joinStyles([
+      { name: 'one.css', text: '.spellbook-a { color: var(--text-normal); }\n\n' },
+      { name: 'two.css', text: '\n.spellbook-b { color: var(--text-muted); }' },
+    ]);
+    const lines = joined.split('\n').filter((line) => line.includes('spellbook-') || line.includes('====='));
+    expect(lines).toEqual([
+      '/* ===== src/styles/one.css ===== */',
+      '.spellbook-a { color: var(--text-normal); }',
+      '/* ===== src/styles/two.css ===== */',
+      '.spellbook-b { color: var(--text-muted); }',
+    ]);
+    expect(joined.endsWith('}\n')).toBe(true);
+  });
+
+  it('keeps the generated stylesheet out of git', () => {
+    expect(STYLES_OUTPUT).toBe('styles.css');
+    const ignored = readFileSync(path.join(repoRoot, '.gitignore'), 'utf8').split('\n').map((line) => line.trim());
+    expect(ignored).toContain('/styles.css');
+  });
+
+  it('gives each screen a stylesheet of its own, so that screens built side by side never share a file', () => {
+    for (const feature of ['corkboard', 'progress', 'planner', 'timeline']) {
+      expect(STYLE_FILES, feature).toContain(`${feature}.css`);
+    }
+  });
+});
+
+describe('the styles', () => {
+  // Checked on the sources as the build joins them, so no build is needed first.
+  const css = readStyles(repoRoot).replace(/\/\*[\s\S]*?\*\//g, '');
   const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => ({
     selectors: (match[1] ?? '').split(',').map((selector) => selector.trim()),
     body: match[2] ?? '',

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, formatLocalDate, isDateText } from '../src/core/dates';
+import {
+  addDays,
+  civilFromDays,
+  dateOfDayNumber,
+  dayNumber,
+  daysBetween,
+  daysFromCivil,
+  formatLocalDate,
+  isDateText,
+} from '../src/core/dates';
 import { fixedRandom } from './storeHarness';
 
 /** The same sum done with JavaScript's own calendar, in UTC so no time zone is involved. */
@@ -80,5 +89,51 @@ describe('addDays', () => {
     expect(addDays('2026-10-13', Number.NaN)).toBe('2026-10-13');
     expect(addDays('2026-10-13', Number.POSITIVE_INFINITY)).toBe('2026-10-13');
     expect(addDays('9999-12-31', 1)).toBe('9999-12-31'); // would no longer fit YYYY-MM-DD
+  });
+});
+
+describe('day numbers', () => {
+  it('count the days from the first of January 1970', () => {
+    expect(dayNumber('1970-01-01')).toBe(0);
+    expect(dayNumber('1970-01-02')).toBe(1);
+    expect(dayNumber('1969-12-31')).toBe(-1);
+    expect(dayNumber('2000-03-01')).toBe(11017);
+    expect(dayNumber('2026-10-13')).toBe(Date.UTC(2026, 9, 13) / 86400000);
+    expect(daysFromCivil(2026, 10, 13)).toBe(dayNumber('2026-10-13'));
+    expect(civilFromDays(11017)).toEqual([2000, 3, 1]);
+  });
+
+  it('go there and back again for every day of a few thousand', () => {
+    const start = dayNumber('1890-01-01') as number;
+    for (let day = start; day < start + 60000; day += 7) {
+      const date = dateOfDayNumber(day) as string;
+      expect(isDateText(date), date).toBe(true);
+      expect(dayNumber(date), date).toBe(day);
+      expect(date).toBe(new Date(day * 86400000).toISOString().slice(0, 10));
+    }
+  });
+
+  it('are null for anything that is not a real date, or not a whole day', () => {
+    for (const text of ['', 'tomorrow', '2026-02-30', '2026-10-13 ', '13-10-2026']) {
+      expect(dayNumber(text), text).toBeNull();
+      expect(daysBetween(text, '2026-10-13'), text).toBeNull();
+      expect(daysBetween('2026-10-13', text), text).toBeNull();
+    }
+    expect(dateOfDayNumber(1.5)).toBeNull();
+    expect(dateOfDayNumber(Number.NaN)).toBeNull();
+    expect(dateOfDayNumber(Number.POSITIVE_INFINITY)).toBeNull();
+    expect(dateOfDayNumber((dayNumber('9999-12-31') as number) + 1)).toBeNull();
+    expect(dateOfDayNumber(dayNumber('9999-12-31') as number)).toBe('9999-12-31');
+  });
+
+  it('give the days from one date to another, over months, years and leap days', () => {
+    expect(daysBetween('2026-10-13', '2026-10-13')).toBe(0);
+    expect(daysBetween('2026-10-13', '2026-10-14')).toBe(1);
+    expect(daysBetween('2026-10-14', '2026-10-13')).toBe(-1);
+    expect(daysBetween('2024-02-28', '2024-03-01')).toBe(2); // a leap year
+    expect(daysBetween('2023-02-28', '2023-03-01')).toBe(1);
+    expect(daysBetween('2025-12-31', '2026-01-01')).toBe(1);
+    expect(daysBetween('2026-01-01', '2027-01-01')).toBe(365);
+    expect(addDays('2026-10-13', daysBetween('2026-10-13', '2031-05-02') as number)).toBe('2031-05-02');
   });
 });

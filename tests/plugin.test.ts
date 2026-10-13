@@ -4,9 +4,10 @@
 // how the real app behaves or looks.
 
 import { getFrontMatterInfo } from 'obsidian';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACTIVE_PROJECT_KEY } from '../src/core/devicePrefs';
 import { ProjectStore } from '../src/core/projectStore';
+import type { SettingsSection } from '../src/features/registry';
 import SpellbookPlugin from '../src/main';
 import { openNote } from '../src/obsidian/openNote';
 import { SpellbookSettingTab } from '../src/settings';
@@ -209,6 +210,23 @@ describe('loading and unloading', () => {
     expect(fake.vault.listenerCount()).toBe(0);
     expect(fake.metadataCache.listenerCount()).toBe(0);
     expect(plugin.store).toBeNull();
+  });
+
+  it('plugs the screens in once the store is ready, and lets go of them on unload', () => {
+    const { fake, plugin } = load(novelVault());
+    expect(plugin.features).toBeNull(); // not before Obsidian has finished starting
+
+    fake.finishStartup();
+    expect(plugin.features?.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline']);
+    expect(plugin.features?.settingsSections).toEqual([]);
+    // Plugging them in leaves no trace on the device: no id was made for it yet.
+    expect(fake.localStorage.size).toBe(0);
+
+    const features = plugin.features;
+    features?.services.provide('thing', 1);
+    plugin.unload();
+    expect(plugin.features).toBeNull();
+    expect(features?.services.get('thing')).toBeUndefined();
   });
 
   it('never starts if it was unloaded before Obsidian finished starting', () => {
@@ -1337,5 +1355,88 @@ describe('the settings page', () => {
     expect(rows()).toEqual([]); // closed: nothing is drawn behind the writer's back
     tab.display();
     expect(rows().slice(2).map((row) => row.name)).toEqual(['First', 'Second', 'Third']);
+  });
+
+  describe('with sections that features added', () => {
+    interface Drawn {
+      tab: SpellbookSettingTab;
+      element: FakeElement;
+      log: string[];
+    }
+
+    /** A settings page for a plugin whose features added these sections. */
+    function pageWith(sections: SettingsSection[]): Drawn {
+      const host = { manifest: MANIFEST, store: null, features: { settingsSections: sections } };
+      const tab = new SpellbookSettingTab(new FakeObsidian().app, host as never);
+      return { tab, element: tab.containerEl as unknown as FakeElement, log: [] };
+    }
+
+    const headings = (element: FakeElement): string[] =>
+      element.settings.filter((row) => row.settingEl.classes.has('setting-item-heading')).map((row) => row.nameEl.text);
+
+    it('shows each under a heading of its own, after the projects, in the order they were added', () => {
+      const log: string[] = [];
+      const section = (id: string, title: string): SettingsSection => ({
+        id,
+        title,
+        render: (place) => {
+          log.push(`draw ${id}`);
+          (place as unknown as FakeElement).createDiv({ cls: `spellbook-test-${id}`, text: `rows of ${id}` });
+        },
+      });
+      const { tab, element } = pageWith([section('progress', 'Writing progress'), section('planner', 'Planner')]);
+      tab.display();
+
+      expect(headings(element)).toEqual(['Projects in this vault', 'Writing progress', 'Planner']);
+      expect(log).toEqual(['draw progress', 'draw planner']);
+      // Each section draws into a place that is its own.
+      const places = element.withClass('spellbook-settings-section');
+      expect(places.map((place) => [...place.classes].sort())).toEqual([
+        ['spellbook-settings-progress', 'spellbook-settings-section'],
+        ['spellbook-settings-planner', 'spellbook-settings-section'],
+      ]);
+      expect(places.map((place) => place.children.map((child) => child.text))).toEqual([['rows of progress'], ['rows of planner']]);
+    });
+
+    it('tells a section when its rows are taken away: on closing, and before drawing again', () => {
+      const log: string[] = [];
+      const { tab } = pageWith([
+        {
+          id: 'progress',
+          title: 'Writing progress',
+          render: () => {
+            log.push('draw');
+            return () => log.push('gone');
+          },
+        },
+      ]);
+      tab.display();
+      expect(log).toEqual(['draw']);
+      tab.display(); // shown again: the old rows go first
+      expect(log).toEqual(['draw', 'gone', 'draw']);
+      tab.hide();
+      expect(log).toEqual(['draw', 'gone', 'draw', 'gone']);
+      tab.hide(); // closed already: nothing more to take away
+      expect(log).toEqual(['draw', 'gone', 'draw', 'gone']);
+    });
+
+    it('keeps the rest of the page when one section fails', () => {
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const { tab, element } = pageWith([
+        {
+          id: 'broken',
+          title: 'Broken',
+          render: () => {
+            throw new Error('bug in a section');
+          },
+        },
+        { id: 'fine', title: 'Fine', render: () => undefined },
+      ]);
+      tab.display();
+      expect(headings(element)).toEqual(['Projects in this vault', 'Broken', 'Fine']);
+      expect(element.withClass('spellbook-settings-broken')[0]?.settings[0]?.descEl.text).toMatch(/could not be shown/);
+      expect(logged).toHaveBeenCalledTimes(1);
+      logged.mockRestore();
+    });
   });
 });

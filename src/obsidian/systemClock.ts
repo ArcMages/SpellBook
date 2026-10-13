@@ -5,8 +5,18 @@ import { formatLocalDate } from '../core/scene';
 
 /** Today's date on this device, as YYYY-MM-DD in the local time zone. */
 export function localToday(): string {
-  const now = new Date();
-  return formatLocalDate(now.getFullYear(), now.getMonth() + 1, now.getDate());
+  return localDay(Date.now());
+}
+
+/** The date of a moment (milliseconds since 1970, as the clock gives them) on this device, as YYYY-MM-DD in the local time zone. */
+export function localDay(time: number): string {
+  const moment = new Date(time);
+  return formatLocalDate(moment.getFullYear(), moment.getMonth() + 1, moment.getDate());
+}
+
+/** This moment, in milliseconds since 1970. */
+export function nowMs(): number {
+  return Date.now();
 }
 
 /** Call `callback` once after `ms` milliseconds. Returns a function that cancels it. */
