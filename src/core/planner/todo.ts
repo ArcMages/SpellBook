@@ -182,22 +182,36 @@ function splitLines(text: string): { raws: string[]; endings: string[] } {
 const isRule = (raw: string): boolean => raw.trimEnd() === '---';
 
 /**
- * Which lines can never be to-dos, whatever they look like: the properties
- * block at the top of the note, and fenced code blocks. Obsidian shows no
- * checkbox there either. A properties block that is never closed is ordinary
- * text; a code block that is never closed runs to the end of the note.
+ * A run of lines that can never hold a to-do, whatever the lines look like:
+ * the properties block at the top of the note, or a fenced code block.
+ * For the planner's own files; not part of what the planner hands out.
  */
-function shieldedLines(raws: readonly string[]): boolean[] {
-  const shielded = raws.map(() => false);
+export interface ShieldedBlock {
+  /** The first line of the block: the opening "---", or the opening fence. */
+  readonly from: number;
+  /** The last line of the block: the closing "---" or fence, or the last line of the note. */
+  readonly to: number;
+  /** False for a code block that is never closed, and so runs to the end of the note. */
+  readonly closed: boolean;
+}
+
+/**
+ * The blocks of lines that can never be to-dos: the properties block at the
+ * top of the note, and fenced code blocks. Obsidian shows no checkbox there
+ * either. A properties block that is never closed is ordinary text; a code
+ * block that is never closed runs to the end of the note. In file order.
+ */
+export function shieldedBlocks(raws: readonly string[]): ShieldedBlock[] {
+  const blocks: ShieldedBlock[] = [];
   let next = 0;
   if (raws.length > 0 && isRule(raws[0] ?? '')) {
     const close = raws.findIndex((raw, position) => position > 0 && isRule(raw));
     if (close > 0) {
-      for (let i = 0; i <= close; i++) shielded[i] = true;
+      blocks.push({ from: 0, to: close, closed: true });
       next = close + 1;
     }
   }
-  let fence: { readonly mark: string; readonly length: number } | null = null;
+  let fence: { readonly mark: string; readonly length: number; readonly from: number } | null = null;
   for (let i = next; i < raws.length; i++) {
     const match = FENCE.exec(raws[i] ?? '');
     const run = match?.[1] ?? '';
@@ -205,15 +219,17 @@ function shieldedLines(raws: readonly string[]): boolean[] {
     if (fence === null) {
       // "```like this```" on one line is a piece of inline code, not a block.
       if (run !== '' && !(run.startsWith('`') && rest.includes('`'))) {
-        fence = { mark: run.charAt(0), length: run.length };
-        shielded[i] = true;
+        fence = { mark: run.charAt(0), length: run.length, from: i };
       }
       continue;
     }
-    shielded[i] = true;
-    if (run.startsWith(fence.mark) && run.length >= fence.length && rest.trim() === '') fence = null;
+    if (run.startsWith(fence.mark) && run.length >= fence.length && rest.trim() === '') {
+      blocks.push({ from: fence.from, to: i, closed: true });
+      fence = null;
+    }
   }
-  return shielded;
+  if (fence !== null) blocks.push({ from: fence.from, to: raws.length - 1, closed: false });
+  return blocks;
 }
 
 /**
@@ -226,7 +242,10 @@ function shieldedLines(raws: readonly string[]): boolean[] {
 export function parseTodo(text: string): TodoFile {
   const bom = text.charCodeAt(0) === 0xfeff ? text.slice(0, 1) : '';
   const { raws, endings } = splitLines(text.slice(bom.length));
-  const shielded = shieldedLines(raws);
+  const shielded = raws.map(() => false);
+  for (const block of shieldedBlocks(raws)) {
+    for (let line = block.from; line <= block.to; line++) shielded[line] = true;
+  }
   const lines: TodoLine[] = [];
   const tasks: TodoTask[] = [];
   raws.forEach((raw, line) => {

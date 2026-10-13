@@ -10,7 +10,9 @@
 // The index may have been edited by hand or written by a newer version of the
 // plugin on another device. Reading keeps what it understands and says what
 // it could not read. Writing changes the one day it was asked about and hands
-// everything else back exactly as it was found, understood or not.
+// everything else back exactly as it was found, understood or not. A day
+// whose stored value could not be read is never written over, not even when
+// that very day is the one asked about: the change is refused instead.
 
 import { isDateText } from './fromCore';
 
@@ -35,7 +37,11 @@ export interface DayMark {
 export interface ParsedMarks {
   /** The marks that were understood, by day (YYYY-MM-DD). */
   readonly marks: ReadonlyMap<string, DayMark>;
-  /** What could not be read, in plain English. Nothing listed here was thrown away: it stays in the index. */
+  /**
+   * What could not be read, in plain English. Nothing listed here was thrown
+   * away: it stays in the index, and setMark and removeMark refuse to write
+   * over a day whose stored value could not be read.
+   */
   readonly notes: readonly string[];
   /**
    * False when the whole "marks" value is something other than a group of
@@ -58,9 +64,12 @@ export interface MarkChange {
  *  - noop:    nothing to store: the mark already is as asked ("unchanged"),
  *             or there is no mark on that day to remove ("not-found").
  *  - refused: nothing to store: the day is not a real date ("invalid-date"),
- *             the colour is not one of MARK_COLORS ("invalid-color"), or the
- *             stored "marks" value is not a group of days and replacing it
- *             would throw away what is there ("unreadable").
+ *             the colour is not one of MARK_COLORS ("invalid-color"), or what
+ *             is stored could not be read and writing over it would throw it
+ *             away ("unreadable"). That is so when the whole "marks" value is
+ *             not a group of days, and when the value stored for that one day
+ *             is something other than a mark (a text, a number, a list). The
+ *             writer has to correct it by hand in the project note.
  * `message` says the same in plain English.
  */
 export type MarksEdit =
@@ -95,15 +104,42 @@ function readLabel(value: unknown): string {
   return '';
 }
 
+/**
+ * What a value is, in a few words, for a message. Never throws, whatever the
+ * value: nothing here turns a value into text in a way that can fail.
+ */
 function describe(value: unknown): string {
   if (value === null || value === undefined) return 'empty';
   if (Array.isArray(value)) return 'a list';
-  if (typeof value === 'object') return 'a group of properties';
-  return `the ${typeof value} ${JSON.stringify(value)}`;
+  switch (typeof value) {
+    case 'object':
+      return 'a group of properties';
+    case 'string':
+      return `the text ${JSON.stringify(value)}`;
+    case 'number':
+    case 'bigint':
+      return `the number ${String(value)}`;
+    case 'boolean':
+      return `the value ${String(value)}`;
+    default:
+      return `a ${typeof value}`;
+  }
 }
 
 const notAGroupOfDays = (value: unknown): string =>
   `The "${MARKS_KEY}" property should be a group of days, but it is ${describe(value)}. It was left as it is.`;
+
+const notAMark = (day: string, value: unknown): string =>
+  `The mark for ${day} could not be read: it is ${describe(value)}. It was left as it is.`;
+
+/**
+ * True when what is stored for a day holds something, but not a mark: a text,
+ * a number, a list. Such a value is never written over. Nothing stored, or an
+ * empty value, holds nothing that could be lost.
+ */
+function holdsSomethingElse(value: unknown): boolean {
+  return value !== undefined && value !== null && !isRecord(value);
+}
 
 /**
  * The stored value as a group of days, or null when it is something else that
@@ -134,7 +170,7 @@ export function parseMarks(raw: unknown): ParsedMarks {
       continue;
     }
     if (!isRecord(value)) {
-      notes.push(`The mark for ${day} could not be read: it is ${describe(value)}. It was left as it is.`);
+      notes.push(notAMark(day, value));
       continue;
     }
     const color = readColor(value['color']);
@@ -159,6 +195,12 @@ const unreadable = (raw: unknown): MarksEdit => ({
   message: notAGroupOfDays(raw),
 });
 
+const unreadableDay = (date: string, stored: unknown): MarksEdit => ({
+  status: 'refused',
+  reason: 'unreadable',
+  message: `${notAMark(date, stored)} Correct or remove it in the project note's properties to mark this day.`,
+});
+
 /**
  * Put a mark on a day, or change the one that is there.
  *
@@ -170,6 +212,12 @@ const unreadable = (raw: unknown): MarksEdit => ({
  * changed is kept exactly as stored, including a colour this version does not
  * know and any properties it has never heard of. When nothing at all is left
  * (no colour, no label, nothing else) the day's entry is removed.
+ *
+ * Refused ("unreadable"), whatever the change, when the value stored for that
+ * day is something other than a mark (a text, a number, a list): parseMarks
+ * shows such a day as unmarked, and a mark set over it would throw away what
+ * another device or the writer's own hand put there. A day stored with
+ * nothing at all can be marked.
  */
 export function setMark(raw: unknown, date: string, change: MarkChange): MarksEdit {
   if (!isDateText(date)) return invalidDate(date);
@@ -185,6 +233,7 @@ export function setMark(raw: unknown, date: string, change: MarkChange): MarksEd
   if (days === null) return unreadable(raw);
 
   const stored = Object.prototype.hasOwnProperty.call(days, date) ? days[date] : undefined;
+  if (holdsSomethingElse(stored)) return unreadableDay(date, stored);
   const entry: Record<string, unknown> = isRecord(stored) ? { ...stored } : {};
   if (color === null) delete entry['color'];
   else if (color !== undefined) entry['color'] = color;
@@ -200,7 +249,7 @@ export function setMark(raw: unknown, date: string, change: MarkChange): MarksEd
     stored['color'] === entry['color'] &&
     stored['label'] === entry['label'];
   const nothingLeft = Object.keys(entry).length === 0;
-  // An empty change never removes something that could not be read.
+  // Nothing stored for the day and nothing to set: there is nothing to write.
   if (same || (nothingLeft && !isRecord(stored))) {
     return { status: 'noop', reason: 'unchanged', message: `The mark for ${date} is already like that.` };
   }
@@ -218,6 +267,10 @@ export function setMark(raw: unknown, date: string, change: MarkChange): MarksEd
  * @param date the day, as YYYY-MM-DD
  *
  * Only that day's entry goes; every other entry is handed back as it was.
+ *
+ * Refused ("unreadable") when the value stored for that day is something
+ * other than a mark (a text, a number, a list): it is not a mark this version
+ * put there or can show, so it is not this version's to remove.
  */
 export function removeMark(raw: unknown, date: string): MarksEdit {
   if (!isDateText(date)) return invalidDate(date);
@@ -226,6 +279,7 @@ export function removeMark(raw: unknown, date: string): MarksEdit {
   if (!Object.prototype.hasOwnProperty.call(days, date)) {
     return { status: 'noop', reason: 'not-found', message: `There is no mark on ${date}.` };
   }
+  if (holdsSomethingElse(days[date])) return unreadableDay(date, days[date]);
   const marks: Record<string, unknown> = { ...days };
   delete marks[date];
   return { status: 'done', marks };

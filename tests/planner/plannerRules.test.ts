@@ -51,11 +51,17 @@ describe('the planner folder', () => {
   });
 
   it('reaches the rest of the core through one file only', () => {
+    // Judged by where an import leads, not by how its path is spelled, so that
+    // fromCore.ts can be written "../dates" the day the general source rule
+    // (tests/sourceRules.test.ts) checks the same way. See the note in fromCore.ts.
+    const leadsTo = (target: string): string => path.relative(coreDir, path.resolve(plannerDir, target)).split(path.sep).join('/');
     for (const name of files) {
       const outside = importsOf(name).filter((target) => path.dirname(path.resolve(plannerDir, target)) !== plannerDir);
-      if (name === 'fromCore.ts') expect(outside).toEqual(['./../dates']);
+      if (name === 'fromCore.ts') expect(outside.map(leadsTo)).toEqual(['dates']);
       else expect(outside, name).toEqual([]);
     }
+    expect(leadsTo('./../dates')).toBe('dates');
+    expect(leadsTo('../dates')).toBe('dates');
   });
 
   it('uses no clock, no Obsidian, no screen and no lookbehind', () => {

@@ -173,6 +173,36 @@ describe('addTask', () => {
     const ticked = done(toggleTask(added.text, added.task as TaskRef));
     expect(task(ticked.text, 'Call the printer').done).toBe(true);
   });
+
+  it('never adds inside a code block, where the line would be code and no to-do', () => {
+    const cases: Array<[string, string, string]> = [
+      // [what, the file, the file after "First" was added]
+      ['no to-dos, and a block that is never closed: above it', '```\nnotes\n', '- [ ] First\n```\nnotes\n'],
+      ['the same under a heading', '# To-do\n\n~~~\nnotes', '# To-do\n\n- [ ] First\n~~~\nnotes'],
+      ['the same under the properties', '---\ntags: x\n---\n```js\ncode', '---\ntags: x\n---\n- [ ] First\n```js\ncode'],
+      ['no to-dos, and a block that is closed: at the end', '```\nnotes\n```\n', '```\nnotes\n```\n- [ ] First\n'],
+      ['a block among the last to-do\'s notes: after the whole block', '- [ ] a\n  ```\ncode\n  ```\n', '- [ ] a\n  ```\ncode\n  ```\n- [ ] First\n'],
+      ['with more of the note after the block', '- [ ] a\n  ~~~\n\n- [ ] sample\n  ~~~\n  and more\ntext\n', '- [ ] a\n  ~~~\n\n- [ ] sample\n  ~~~\n  and more\n- [ ] First\ntext\n'],
+      ['a block under the last to-do that is no note of it: above the block', '- [ ] a\n```\ncode\n```\n', '- [ ] a\n- [ ] First\n```\ncode\n```\n'],
+      ['a note of the last to-do that is a block never closed: above it', '- [ ] a\n  a note\n  ```\n  code\n', '- [ ] a\n  a note\n- [ ] First\n  ```\n  code\n'],
+      ['a block never closed, further down: the usual place', '- [ ] a\n\n```\nopen', '- [ ] a\n- [ ] First\n\n```\nopen'],
+      ['windows line breaks', '- [ ] a\r\n  ```\r\ncode\r\n  ```\r\n', '- [ ] a\r\n  ```\r\ncode\r\n  ```\r\n- [ ] First\r\n'],
+    ];
+    for (const [what, text, expected] of cases) {
+      const before = parseTodo(text).tasks.length;
+      const edit = done(addTask(text, { title: 'First' }));
+      expect(edit.text, what).toBe(expected);
+      // the new line really is a to-do, and the name handed back finds it
+      const after = parseTodo(edit.text);
+      expect(after.tasks.length, what).toBe(before + 1);
+      expect(findTask(after, edit.task as TaskRef)?.title, what).toBe('First');
+      expect(lastTask(edit.text)?.title, what).toBe('First');
+      expect(task(done(toggleTask(edit.text, edit.task as TaskRef)).text, 'First').done, what).toBe(true);
+    }
+    const hebrew = done(addTask('```\nnotes\n', { title: SEND_CHAPTER, due: '2026-10-20' }));
+    expect(hebrew.text).toBe(`- [ ] ${SEND_CHAPTER} ${DUE_MARK} 2026-10-20\n\`\`\`\nnotes\n`);
+    expect(task(hebrew.text, SEND_CHAPTER).due).toBe('2026-10-20');
+  });
 });
 
 describe('setTaskDone and toggleTask', () => {
@@ -465,9 +495,76 @@ describe('moveTask', () => {
     expect(outcome(moveTask(LIST, task(LIST, 'one'), task(LIST, 'two'), 'before'))).toBe('noop:unchanged');
     expect(outcome(moveTask(LIST, task(LIST, 'two'), task(LIST, 'one'), 'after'))).toBe('noop:unchanged');
     expect(outcome(moveTask(LIST, task(LIST, 'two'), task(LIST, 'two'), 'after'))).toBe('noop:unchanged');
-    // already next to each other in the list, with other lines in between
-    expect(outcome(moveTask(FILE, task(FILE, 'Buy ink'), task(FILE, SEND_CHAPTER), 'after'))).toBe('noop:unchanged');
-    expect(outcome(moveTask(FILE, task(FILE, SEND_CHAPTER), task(FILE, 'Buy ink'), 'before'))).toBe('noop:unchanged');
+    expect(outcome(moveTask(LIST, task(LIST, 'two'), task(LIST, 'two'), 'before'))).toBe('noop:unchanged');
+  });
+
+  it('counts two to-dos as next to each other when only blank lines and the upper one\'s notes lie between', () => {
+    const text = ['- [ ] alpha', '  a note of alpha', '', '    more of that note', '', `- [ ] ${BUY_INK}`, '', '- [ ] gamma', ''].join('\n');
+    const [alpha, beta, gamma] = [task(text, 'alpha'), task(text, BUY_INK), task(text, 'gamma')];
+    // moving alpha "before" the next to-do must not pull it out from above its own notes
+    expect(outcome(moveTask(text, alpha, beta, 'before'))).toBe('noop:unchanged');
+    expect(outcome(moveTask(text, beta, alpha, 'after'))).toBe('noop:unchanged');
+    expect(outcome(moveTask(text, beta, gamma, 'before'))).toBe('noop:unchanged');
+    expect(outcome(moveTask(text, gamma, beta, 'after'))).toBe('noop:unchanged');
+    // a code block among the notes is a note like any other
+    const fenced = ['- [ ] alpha', '  ```', 'code at the margin', '  ```', '- [ ] beta', ''].join('\n');
+    expect(outcome(moveTask(fenced, task(fenced, 'alpha'), task(fenced, 'beta'), 'before'))).toBe('noop:unchanged');
+    expect(outcome(moveTask(fenced, task(fenced, 'beta'), task(fenced, 'alpha'), 'after'))).toBe('noop:unchanged');
+    // the other way round is a real move
+    expect(order(done(moveTask(text, beta, alpha, 'before')).text)).toEqual([BUY_INK, 'alpha', 'gamma']);
+    expect(order(done(moveTask(text, alpha, beta, 'after')).text)).toEqual([BUY_INK, 'alpha', 'gamma']);
+  });
+
+  it('moves a to-do next to its neighbour across a heading or other text that lies between them', () => {
+    const text = ['## Today', '- [ ] A', `- [ ] ${BUY_INK}`, '', '## Later', '- [ ] C', ''].join('\n');
+    const [b, c] = [task(text, BUY_INK), task(text, 'C')];
+
+    // to the top of the next section
+    const down = done(moveTask(text, b, c, 'before'));
+    expect(down.text).toBe(['## Today', '- [ ] A', '', '## Later', `- [ ] ${BUY_INK}`, '- [ ] C', ''].join('\n'));
+    expect(down.task).toEqual({ line: 4, raw: `- [ ] ${BUY_INK}` });
+
+    // to the end of the previous section
+    const up = done(moveTask(text, c, b, 'after'));
+    expect(up.text).toBe(['## Today', '- [ ] A', `- [ ] ${BUY_INK}`, '- [ ] C', '', '## Later', ''].join('\n'));
+    expect(up.task).toEqual({ line: 3, raw: '- [ ] C' });
+
+    // and once it is there, asking again changes nothing
+    expect(outcome(moveTask(down.text, down.task as TaskRef, task(down.text, 'C'), 'before'))).toBe('noop:unchanged');
+    expect(outcome(moveTask(up.text, up.task as TaskRef, task(up.text, BUY_INK), 'after'))).toBe('noop:unchanged');
+
+    // a line of plain text between them counts like a heading
+    const plain = ['- [ ] A', 'Not a note: it starts at the margin.', '- [ ] C', ''].join('\n');
+    expect(done(moveTask(plain, task(plain, 'A'), task(plain, 'C'), 'before')).text).toBe(
+      ['Not a note: it starts at the margin.', '- [ ] A', '- [ ] C', ''].join('\n'),
+    );
+    expect(done(moveTask(plain, task(plain, 'C'), task(plain, 'A'), 'after')).text).toBe(
+      ['- [ ] A', '- [ ] C', 'Not a note: it starts at the margin.', ''].join('\n'),
+    );
+
+    // the sample file: out from under "## Later", and in under it
+    const out = done(moveTask(FILE, task(FILE, 'Buy ink'), task(FILE, SEND_CHAPTER), 'after'));
+    expect(out.task).toEqual({ line: 5, raw: '- [ ] Buy ink' });
+    expect(linesOf(out.text).slice(4, 8)).toEqual([`* [ ] ${SEND_CHAPTER} ${DUE_MARK} 2026-10-22\n`, '- [ ] Buy ink\n', '\n', '## Later\n']);
+    const under = done(moveTask(FILE, task(FILE, SEND_CHAPTER), task(FILE, 'Buy ink'), 'before'));
+    expect(under.task).toEqual({ line: 7, raw: `* [ ] ${SEND_CHAPTER} ${DUE_MARK} 2026-10-22` });
+    expect(linesOf(under.text).slice(4, 9)).toEqual(['\n', '## Later\n', '\n', `* [ ] ${SEND_CHAPTER} ${DUE_MARK} 2026-10-22\n`, '- [ ] Buy ink\n']);
+  });
+
+  it('never puts a moved to-do inside a code block', () => {
+    // "after" a to-do whose notes hold a code block: after the whole block
+    const closed = ['- [ ] a', '  ```', 'code', '  ```', '- [ ] b', '- [ ] c', ''].join('\n');
+    const afterBlock = done(moveTask(closed, task(closed, 'c'), task(closed, 'a'), 'after'));
+    expect(afterBlock.text).toBe(['- [ ] a', '  ```', 'code', '  ```', '- [ ] c', '- [ ] b', ''].join('\n'));
+    expect(order(afterBlock.text)).toEqual(['a', 'c', 'b']);
+    expect(findTask(parseTodo(afterBlock.text), afterBlock.task as TaskRef)?.title).toBe('c');
+
+    // "after" the last to-do, whose note is a code block that is never closed: above that block
+    const open = ['- [ ] a', '- [ ] b', '  ```', '  code to the end'].join('\n');
+    const aboveBlock = done(moveTask(open, task(open, 'a'), task(open, 'b'), 'after'));
+    expect(aboveBlock.text).toBe(['- [ ] b', '- [ ] a', '  ```', '  code to the end'].join('\n'));
+    expect(order(aboveBlock.text)).toEqual(['b', 'a']);
+    expect(findTask(parseTodo(aboveBlock.text), aboveBlock.task as TaskRef)?.title).toBe('a');
   });
 
   it('reports a to-do or a target that is no longer there', () => {
@@ -498,8 +595,18 @@ describe('moveTask', () => {
       const edit = moveTask(text, moving, target, where);
       if (edit.status !== 'done') {
         expect(outcome(edit)).toBe('noop:unchanged');
+        if (moving === target) continue;
+        // Nothing moved only because the to-do was there already: the upper of the two,
+        // then nothing but blank lines and notes indented further than it, then the lower.
+        const [upper, lower] = where === 'before' ? [moving, target] : [target, moving];
+        expect(upper.line).toBeLessThan(lower.line);
+        const ownIndent = upper.indent === '\t' ? 4 : upper.indent.length;
+        for (const between of lines.slice(upper.line + 1, lower.line)) {
+          expect(between === '' || (between.startsWith('    note') && ownIndent < 4), `"${between}" lies between`).toBe(true);
+        }
         continue;
       }
+      expect(edit.text).not.toBe(text);
       const result = parseTodo(edit.text);
       // The same lines, minus and plus the moved one, in the same order. Lines are
       // counted as an editor shows them: a text that ends with a line break has an
@@ -665,5 +772,53 @@ describe('every change, on a thousand random files', () => {
       expect(lastTask(added.text)?.title).toBe(BUY_INK);
       expect(todoText(parseTodo(added.text))).toBe(added.text);
     }
+  });
+});
+
+describe('adding and moving, on five hundred random files with code blocks in them', () => {
+  it('leaves one more to-do after adding and the same to-dos after moving: none is ever put inside a block', () => {
+    const random = fixedRandom(41);
+    const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)] as T;
+    let fenced = 0;
+    for (let round = 0; round < 500; round++) {
+      const lines: string[] = [];
+      const count = 1 + Math.floor(random() * 12);
+      for (let i = 0; i < count; i++) {
+        const kind = random();
+        if (kind < 0.45) lines.push(`${pick(['', '', '  '])}- [${pick([' ', 'x'])}] task ${i}`);
+        else if (kind < 0.7) lines.push(pick(['```', '  ```', '    ```', '~~~', '  ~~~~', '```js']));
+        else if (kind < 0.8) lines.push('');
+        else if (kind < 0.9) lines.push(`    note ${i}`);
+        else lines.push(pick(['code at the margin', '## heading']));
+      }
+      const text = lines.join('\n') + pick(['', '\n']);
+      const todo = parseTodo(text);
+      const raws = todo.tasks.map((item) => item.raw);
+      if (lines.some((line) => line.includes('```') || line.includes('~~~'))) fenced++;
+
+      const added = done(addTask(text, { title: BUY_INK }));
+      const addedAt = (added.task as TaskRef).line;
+      const after = parseTodo(added.text);
+      expect(after.lines[addedAt]?.kind, text).toBe('task');
+      expect(after.tasks.map((item) => item.raw), text).toEqual([...raws, (added.task as TaskRef).raw]);
+      expect(after.lines.filter((_, position) => position !== addedAt).map((line) => line.raw)).toEqual(todo.lines.map((line) => line.raw));
+
+      if (todo.tasks.length < 2) continue;
+      const moving = pick(todo.tasks);
+      const target = pick(todo.tasks);
+      const where = pick(['before', 'after'] as const);
+      const edit = moveTask(text, moving, target, where);
+      if (edit.status !== 'done') {
+        expect(outcome(edit)).toBe('noop:unchanged');
+        continue;
+      }
+      const result = parseTodo(edit.text);
+      expect(result.lines[(edit.task as TaskRef).line], text).toMatchObject({ kind: 'task', raw: moving.raw });
+      const others = todo.tasks.filter((item) => item !== moving);
+      const expected = others.map((item) => item.raw);
+      expected.splice(where === 'before' ? others.indexOf(target) : others.indexOf(target) + 1, 0, moving.raw);
+      expect(result.tasks.map((item) => item.raw), text).toEqual(expected);
+    }
+    expect(fenced).toBeGreaterThan(300);
   });
 });

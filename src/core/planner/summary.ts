@@ -57,12 +57,19 @@ const countOf = (value: number | undefined): number =>
  *
  * Exactly: the days with more than zero words are sorted, and the one nine
  * tenths of the way up the list is taken, rounding down to a day on the list.
- * So with two or more writing days the single biggest day never sets the
- * scale. Returns 0 when no day has words.
+ * So from three writing days on, the single biggest day never sets the scale
+ * (up to eleven writing days, the second biggest does).
+ *
+ * With only one or two writing days the biggest one is the scale. Two days
+ * cannot show which of them is the unusual one, and rounding down would pick
+ * the smaller: a ten-word day would then be drawn as strongly as a
+ * five-thousand-word day beside it.
+ *
+ * Returns 0 when no day has words.
  */
 export function tintScale(words: Iterable<number>): number {
   const written = [...words].filter((count) => Number.isFinite(count) && count > 0).sort((a, b) => a - b);
-  if (written.length === 0) return 0;
+  if (written.length <= 2) return written[written.length - 1] ?? 0;
   // In whole numbers: nine tenths of the way from the first place to the last, rounded down.
   const place = Math.floor(((written.length - 1) * 9) / 10);
   return written[place] ?? 0;

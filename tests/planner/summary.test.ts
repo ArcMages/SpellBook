@@ -47,8 +47,22 @@ describe('tintScale', () => {
     expect(tintScale([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 0, 0, -1, Number.NaN, Number.POSITIVE_INFINITY])).toBe(90);
   });
 
-  it('is never set by the single biggest day, once there are two writing days', () => {
-    expect(tintScale([300, 20000])).toBe(300);
+  it('is the bigger day when only one or two days have words: two days cannot show which is the unusual one', () => {
+    expect(tintScale([700])).toBe(700);
+    expect(tintScale([10, 5000])).toBe(5000);
+    expect(tintScale([5000, 10])).toBe(5000);
+    expect(tintScale([300, 20000])).toBe(20000);
+    expect(tintScale([640, 640])).toBe(640);
+    // days without words do not count as writing days
+    expect(tintScale([0, 10, 0, -40, 5000, 0, Number.NaN])).toBe(5000);
+    // so a ten-word day beside a five-thousand-word day is drawn faint, not at full strength
+    expect([tintLevel(10, tintScale([10, 5000])), tintLevel(5000, tintScale([10, 5000]))]).toEqual([1, 4]);
+    expect([tintLevel(3000, tintScale([3000, 5000])), tintLevel(5000, tintScale([3000, 5000]))]).toEqual([3, 4]);
+  });
+
+  it('is never set by the single biggest day, once there are three writing days', () => {
+    expect(tintScale([300, 320, 20000])).toBe(320);
+    expect(tintScale([50, 800, 1200])).toBe(800);
     expect(tintScale([480, 490, 500, 510, 520, 20000])).toBe(520);
     const month = [400, 450, 500, 520, 480, 510, 530, 470, 490, 505, 495, 515, 485, 20000];
     expect(tintScale(month)).toBe(520);
@@ -199,6 +213,20 @@ describe('summariseDays', () => {
     expect(days.get('2026-10-20')?.tint).toBe(4);
     expect(tints.slice(0, 20).every((tint) => tint >= 3)).toBe(true);
     expect(tints.slice(20, 24)).toEqual([0, 0, 0, 0]);
+  });
+
+  it('does not draw a tiny day like a big one when only two days have words', () => {
+    // The first days of a month: ten words on one day, five thousand on the next.
+    const start = words({ '2026-10-01': [10, 10], '2026-10-02': [5000, 5200] });
+    const month = summariseMonth(2026, 10, start, NO_TODO, NO_MARKS);
+    expect([month.get('2026-10-01')?.tint, month.get('2026-10-02')?.tint, month.get('2026-10-03')?.tint]).toEqual([1, 4, 0]);
+    const grid = monthGrid(2026, 10, 0);
+    const cells = summariseDays(grid.from, grid.to, start, NO_TODO, NO_MARKS);
+    expect([cells.get('2026-10-01')?.tint, cells.get('2026-10-02')?.tint]).toEqual([1, 4]);
+    // a third writing day brings the usual rule in: the biggest day no longer sets the scale
+    const third = words({ '2026-10-01': [10, 10], '2026-10-02': [5000, 5200], '2026-10-03': [600, 600] });
+    const later = summariseMonth(2026, 10, third, NO_TODO, NO_MARKS);
+    expect([later.get('2026-10-01')?.tint, later.get('2026-10-02')?.tint, later.get('2026-10-03')?.tint]).toEqual([1, 4, 4]);
   });
 
   it('nor a week of it', () => {

@@ -16,7 +16,9 @@
 //               ...for each cell of grid.weeks: days.get(cell.date)...
 //
 //   Day marks   const result = setMark(index.marks, '2026-10-20', { color: 'red', label: 'Deadline' });
-//               if (result.status === 'done') store result.marks under MARKS_KEY.
+//               if (result.status === 'done') store result.marks under MARKS_KEY;
+//               else store nothing and show result.message (a day whose stored
+//               value cannot be read is refused, never written over).
 //
 // Dates are always text written as YYYY-MM-DD. Nothing here reads the clock,
 // the vault or the screen.
@@ -70,7 +72,7 @@ export type {
 // the file as it was.
 
 export {
-  /** Add a to-do after the last one (or at the end of a file that has none). */
+  /** Add a to-do after the last one (or at the end of a file that has none); never inside a code block. */
   addTask,
   /** Tick (true) or untick (false) a to-do. Only the box changes. */
   setTaskDone,
@@ -82,7 +84,10 @@ export {
   setTaskDue,
   /** Remove a to-do's line. */
   removeTask,
-  /** Move a to-do straight before or after another to-do; no other line moves. */
+  /**
+   * Move a to-do straight before or after another to-do, across a heading or
+   * other text between them if need be; no other line moves.
+   */
   moveTask,
 } from './todoEdit';
 
@@ -142,9 +147,16 @@ export {
   isMarkColor,
   /** Read the value stored under the index's "marks" key. Never throws; what it cannot read stays in the index. */
   parseMarks,
-  /** Put a mark on a day or change the one there; returns the new value to store. */
+  /**
+   * Put a mark on a day or change the one there; returns the new value to
+   * store. Refused ("unreadable") when what is stored for that day is not a
+   * mark it can read: it is never written over.
+   */
   setMark,
-  /** Take the mark off a day; returns the new value to store. */
+  /**
+   * Take the mark off a day; returns the new value to store. Refused
+   * ("unreadable") when what is stored for that day is not a mark it can read.
+   */
   removeMark,
 } from './marks';
 
@@ -168,7 +180,11 @@ export {
   summariseDays,
   /** One summary for every day of a month, by date. */
   summariseMonth,
-  /** The number of words that counts as a full-strength day: the 90th percentile of the days with any words. */
+  /**
+   * The number of words that counts as a full-strength day: the 90th
+   * percentile of the days with any words (with only one or two such days,
+   * the bigger of them).
+   */
   tintScale,
   /** The tint, 0 to 4, of a day's words against a scale from tintScale. */
   tintLevel,

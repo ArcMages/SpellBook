@@ -16,8 +16,8 @@
 //     and the result says so.
 
 import { isDateText } from './fromCore';
-import { DUE_MARK, dueMarks, findTask, joinTaskLine, parseTodo, splitTaskLine, withoutDue } from './todo';
-import type { TaskParts, TaskRef, TodoFile, TodoTask } from './todo';
+import { DUE_MARK, dueMarks, findTask, joinTaskLine, parseTodo, shieldedBlocks, splitTaskLine, withoutDue } from './todo';
+import type { ShieldedBlock, TaskParts, TaskRef, TodoFile, TodoTask } from './todo';
 
 /**
  * What a change to To-do.md came to.
@@ -164,13 +164,24 @@ function rewrite(todo: TodoFile, task: TodoTask, parts: TaskParts): TodoEdit {
   return { status: 'done', text: textOf(draft), task: { line: task.line, raw } };
 }
 
+/** The code blocks (and the properties block) of a file: where no line may be put, because it would not be a to-do there. */
+function blocksOf(todo: TodoFile): ShieldedBlock[] {
+  return shieldedBlocks(todo.lines.map((line) => line.raw));
+}
+
 /**
  * The last line that belongs to a to-do: the line itself, or the last of the
  * notes written under it. A note belongs to it when it is indented further
  * than the to-do; blank lines between such notes belong too. Another to-do
  * never does, however far it is indented.
+ *
+ * A code block among the notes belongs as a whole, down to its closing
+ * fence, whatever the indent of the lines inside it: a line put after this
+ * one must never land inside a block, where it would be code and no to-do.
+ * A code block that is never closed does not belong: it runs to the end of
+ * the note, so the only place left for a line is above it.
  */
-function lastLineOf(todo: TodoFile, task: TodoTask): number {
+function lastLineOf(todo: TodoFile, task: TodoTask, blocks: readonly ShieldedBlock[]): number {
   const own = indentWidth(task.raw);
   let last = task.line;
   for (let i = task.line + 1; i < todo.lines.length; i++) {
@@ -178,9 +189,40 @@ function lastLineOf(todo: TodoFile, task: TodoTask): number {
     if (line === undefined || line.kind === 'task') break;
     if (line.raw.trim() === '') continue;
     if (indentWidth(line.raw) <= own) break;
+    const block = blocks.find((candidate) => candidate.from === i);
+    if (block !== undefined) {
+      if (!block.closed) break;
+      i = block.to;
+    }
     last = i;
   }
   return last;
+}
+
+/**
+ * True when nothing lies between two to-dos, the first above the second, but
+ * the first one's own notes and blank lines. A heading, a line of text that
+ * is no note of the first, or another to-do between them makes it false.
+ */
+function nothingElseBetween(
+  todo: TodoFile,
+  first: TodoTask,
+  second: TodoTask,
+  blocks: readonly ShieldedBlock[],
+): boolean {
+  for (let i = lastLineOf(todo, first, blocks) + 1; i < second.line; i++) {
+    if ((todo.lines[i]?.raw ?? '').trim() !== '') return false;
+  }
+  return true;
+}
+
+/**
+ * Where a line goes in a file that has no to-dos: at the end, or, when the
+ * file ends inside a code block that is never closed, just above that block.
+ */
+function endOf(todo: TodoFile, blocks: readonly ShieldedBlock[]): number {
+  const open = blocks.find((block) => !block.closed);
+  return open === undefined ? todo.lines.length : open.from;
 }
 
 /**
@@ -205,6 +247,11 @@ function styleOfLastRun(todo: TodoFile): { readonly indent: string; readonly bul
  * it), or at the end of the file when it has none. Refused when the title is
  * empty or the date is not a real one.
  *
+ * The new line never lands inside a code block, where it would be code and
+ * no to-do: a block among the last to-do's notes is stepped over whole, and
+ * a block that is never closed (it runs to the end of the note) gets the new
+ * to-do just above it.
+ *
  * A date typed into the title in the Tasks format counts as the due date when
  * `due` is left out; when both are given, `due` wins.
  */
@@ -225,7 +272,8 @@ export function addTask(text: string, task: NewTask): TodoEdit {
     sep: ' ',
     text: due === null ? title : withDue(title, due),
   });
-  const index = last === undefined ? todo.lines.length : lastLineOf(todo, last) + 1;
+  const blocks = blocksOf(todo);
+  const index = last === undefined ? endOf(todo, blocks) : lastLineOf(todo, last, blocks) + 1;
   const draft = draftOf(todo);
   insertLine(draft, index, raw);
   return { status: 'done', text: textOf(draft), task: { line: index, raw } };
@@ -307,13 +355,20 @@ export function removeTask(text: string, ref: TaskRef): TodoEdit {
 }
 
 /**
- * Move a to-do so that it comes straight before, or straight after, another
- * to-do in the list.
+ * Move a to-do so that its line comes straight before, or straight after,
+ * another to-do's line.
  *
  * Exactly one line moves: the to-do's own. Every other line (headings, notes,
  * blank lines, other to-dos) keeps its text and its order. "After" means
  * after the other to-do and the notes written under it, so those notes are
  * not cut off from it.
+ *
+ * The to-do goes to the other one wherever that is: moved before the first
+ * to-do under the next heading, it ends up under that heading. "unchanged"
+ * means it already is next to the other one on the side asked for, with
+ * nothing between the two but blank lines and the upper one's own notes. Two
+ * to-dos that are neighbours in the list but have a heading or other text
+ * between them are not next to each other: the move is made, across that text.
  */
 export function moveTask(text: string, ref: TaskRef, target: TaskRef, where: 'before' | 'after'): TodoEdit {
   const todo = parseTodo(text);
@@ -321,15 +376,18 @@ export function moveTask(text: string, ref: TaskRef, target: TaskRef, where: 'be
   if (task === null) return NOT_FOUND;
   const anchor = findTask(todo, target);
   if (anchor === null) return TARGET_MISSING;
+  if (task === anchor) return unchanged('A to-do cannot be moved next to itself.');
 
   const before = where === 'before';
-  const from = todo.tasks.indexOf(task);
-  const next = todo.tasks.indexOf(anchor);
-  if (from === next) return unchanged('A to-do cannot be moved next to itself.');
-  if (from === (before ? next - 1 : next + 1)) return unchanged('That to-do is already there.');
+  const blocks = blocksOf(todo);
+  const upper = before ? task : anchor;
+  const lower = before ? anchor : task;
+  if (upper.line < lower.line && nothingElseBetween(todo, upper, lower, blocks)) {
+    return unchanged('That to-do is already there.');
+  }
 
   // Counted in the lines as they are now: the moved line goes in front of this one.
-  const slot = before ? anchor.line : lastLineOf(todo, anchor) + 1;
+  const slot = before ? anchor.line : lastLineOf(todo, anchor, blocks) + 1;
   const line = slot > task.line ? slot - 1 : slot;
   const draft = draftOf(todo);
   draft.raws.splice(task.line, 1);

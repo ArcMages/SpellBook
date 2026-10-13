@@ -127,13 +127,38 @@ describe('parseMarks', () => {
   });
 
   it('reads a value that is not a group of days as unreadable, and never throws', () => {
-    for (const raw of ['oops', 42, true, ['2026-10-20'], [{ color: 'red' }], Symbol('x'), () => 1, Number.NaN]) {
+    for (const raw of ['oops', 42, true, ['2026-10-20'], [{ color: 'red' }], Symbol('x'), () => 1, Number.NaN, BigInt(10)]) {
       const parsed = parseMarks(raw);
       expect(parsed.marks.size).toBe(0);
       expect(parsed.writable).toBe(false);
       expect(parsed.notes).toHaveLength(1);
       expect(parsed.notes[0]).toContain('marks');
     }
+  });
+
+  it('never throws on a value that cannot be written out as text, wherever it sits', () => {
+    // A reader of the index set up to keep very large whole numbers exact hands them over as bigint.
+    const huge = BigInt('90071992547409930000');
+    const odd: unknown[] = [huge, Symbol('x'), () => 1, Number.NaN, Number.POSITIVE_INFINITY, '\u{D800}'];
+    for (const value of odd) {
+      const asDay = parseMarks({ '2026-10-20': value, '2026-10-21': { color: 'red', label: DEADLINE } });
+      expect([...asDay.marks.keys()]).toEqual(['2026-10-21']);
+      expect(asDay.notes).toHaveLength(1);
+      expect(asDay.notes[0]).toContain('2026-10-20');
+
+      const asColor = parseMarks({ '2026-10-20': { color: value, label: DEADLINE } });
+      expect(asColor.marks.get('2026-10-20')).toEqual({ color: null, label: DEADLINE });
+      expect(asColor.notes).toHaveLength(1);
+
+      expect(outcome(setMark(value, '2026-10-20', { color: 'red' }))).toBe('refused:unreadable');
+      expect(outcome(removeMark(value, '2026-10-20'))).toBe('refused:unreadable');
+      expect(outcome(setMark({ '2026-10-20': value }, '2026-10-20', { color: 'red' }))).toBe('refused:unreadable');
+      expect(outcome(removeMark({ '2026-10-20': value }, '2026-10-20'))).toBe('refused:unreadable');
+      expect(outcome(setMark({}, '2026-10-20', { color: value as MarkColor }))).toBe('refused:invalid-color');
+    }
+    // the number is named in the note, digit for digit
+    expect(parseMarks({ '2026-10-20': huge }).notes[0]).toContain('90071992547409930000');
+    expect(parseMarks(huge).notes[0]).toContain('90071992547409930000');
   });
 
   it('ignores properties of a mark it has never heard of', () => {
@@ -239,16 +264,53 @@ describe('setMark', () => {
     expect(stored(setMark({}, '2026-10-20', { label: 'one\r\ntwo\n\nthree' }))).toEqual({ '2026-10-20': { label: 'one two three' } });
   });
 
-  it('replaces an entry it could not read when a real mark is set on that day', () => {
-    const raw = frozen({ '2026-10-20': 'Deadline', '2026-10-21': 'kept' });
-    expect(stored(setMark(raw, '2026-10-20', { color: 'red', label: 'Deadline' }))).toEqual({
-      '2026-10-20': { color: 'red', label: 'Deadline' },
+  it('refuses to write over a day whose stored value it could not read', () => {
+    // Several marks on one day, as a newer version on another device might store them.
+    const several = [{ color: 'red', label: 'A' }, { color: 'blue', label: DEADLINE }];
+    const cases: unknown[] = [several, 'Deadline', DEADLINE, 12, 0, true, false, '', ['red', 'Deadline']];
+    for (const value of cases) {
+      const raw = frozen({ '2026-10-20': value, '2026-10-21': 'kept' });
+      // the reader shows the day as unmarked and says why...
+      const parsed = parseMarks(raw);
+      expect(parsed.marks.has('2026-10-20'), JSON.stringify(value)).toBe(false);
+      expect(parsed.notes.some((note) => note.includes('2026-10-20'))).toBe(true);
+      // ...and no change to that day gets through, whatever it sets
+      const changes = [{ label: 'Deadline' }, { color: 'red' as const }, { color: 'red' as const, label: BIRTHDAY }, {}, { label: '' }, { color: null }, { color: null, label: '' }];
+      for (const change of changes) {
+        const edit = setMark(raw, '2026-10-20', change);
+        expect(outcome(edit), `${JSON.stringify(value)} ${JSON.stringify(change)}`).toBe('refused:unreadable');
+        expect(edit.status === 'refused' && edit.message.includes('2026-10-20')).toBe(true);
+      }
+      const removal = removeMark(raw, '2026-10-20');
+      expect(outcome(removal), JSON.stringify(value)).toBe('refused:unreadable');
+      expect(removal.status === 'refused' && removal.message.includes('2026-10-20')).toBe(true);
+      // every other day can still be marked, and the unread value rides along untouched
+      const next = stored(setMark(raw, '2026-10-22', { color: 'green' }));
+      expect(next['2026-10-20']).toBe(value);
+      expect(next).toEqual({ '2026-10-20': value, '2026-10-21': 'kept', '2026-10-22': { color: 'green' } });
+    }
+  });
+
+  it('marks a day that is stored with nothing in it: there is nothing there to lose', () => {
+    const raw = frozen({ '2026-10-20': null, '2026-10-21': 'kept' });
+    expect(stored(setMark(raw, '2026-10-20', { color: 'red', label: DEADLINE }))).toEqual({
+      '2026-10-20': { color: 'red', label: DEADLINE },
       '2026-10-21': 'kept',
     });
-    // but a change that sets nothing leaves it alone
+    // a change that sets nothing writes nothing
     expect(outcome(setMark(raw, '2026-10-20', {}))).toBe('noop:unchanged');
     expect(outcome(setMark(raw, '2026-10-20', { label: '' }))).toBe('noop:unchanged');
     expect(outcome(setMark(raw, '2026-10-20', { color: null }))).toBe('noop:unchanged');
+    expect(stored(removeMark(raw, '2026-10-20'))).toEqual({ '2026-10-21': 'kept' });
+  });
+
+  it('says which day it would not write over, and what is stored there', () => {
+    const edit = setMark({ '2026-10-20': ['red', 'Deadline'] }, '2026-10-20', { label: 'Deadline' });
+    expect(edit.status === 'refused' ? edit.message : '').toBe(
+      "The mark for 2026-10-20 could not be read: it is a list. It was left as it is. Correct or remove it in the project note's properties to mark this day.",
+    );
+    const text = removeMark({ '2026-10-20': DEADLINE }, '2026-10-20');
+    expect(text.status === 'refused' ? text.message : '').toContain(`the text "${DEADLINE}"`);
   });
 
   it('reports a mark that is already like that', () => {
@@ -295,8 +357,13 @@ describe('removeMark', () => {
     expect(stored(removeMark({ '2026-10-20': { color: 'red' } }, '2026-10-20'))).toEqual({});
   });
 
-  it('removes whatever is stored for that day, readable or not', () => {
-    expect(stored(removeMark({ '2026-10-20': 'Deadline', '2026-10-21': {} }, '2026-10-20'))).toEqual({ '2026-10-21': {} });
+  it('removes a mark however little of it could be shown, but not a value that is no mark at all', () => {
+    // an empty mark, a mark with a colour this version does not know, a mark with properties it never heard of
+    const raw = frozen({ '2026-10-20': {}, '2026-10-21': { color: 'teal' }, '2026-10-22': { icon: 'star' }, '2026-10-23': 'Deadline' });
+    expect(Object.keys(stored(removeMark(raw, '2026-10-20')))).toEqual(['2026-10-21', '2026-10-22', '2026-10-23']);
+    expect(Object.keys(stored(removeMark(raw, '2026-10-21')))).toEqual(['2026-10-20', '2026-10-22', '2026-10-23']);
+    expect(Object.keys(stored(removeMark(raw, '2026-10-22')))).toEqual(['2026-10-20', '2026-10-21', '2026-10-23']);
+    expect(outcome(removeMark(raw, '2026-10-23'))).toBe('refused:unreadable');
   });
 
   it('reports a day that has no mark, and refuses a day that is not a date', () => {
