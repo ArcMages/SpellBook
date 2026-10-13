@@ -75,6 +75,31 @@ export function tidyDisplayName(name: string): string {
   return name.replace(/\s+/g, ' ').trim();
 }
 
+/** What became of a name the writer typed: the tidy name, or why it cannot be used. */
+export type NameCheck =
+  | { readonly ok: true; readonly name: string }
+  | { readonly ok: false; readonly message: string };
+
+/**
+ * Check a title typed for a scene. The title becomes the name of the scene's
+ * note, so characters that file names cannot hold are taken out; a title of
+ * which nothing is left is turned down, with the reason.
+ */
+export function checkSceneName(raw: string): NameCheck {
+  if (tidyDisplayName(raw) === '') return { ok: false, message: 'Give the scene a name.' };
+  const name = sanitiseFileName(raw, '');
+  if (name === '') {
+    return { ok: false, message: 'That name has no characters that can be used in a file name.' };
+  }
+  return { ok: true, name };
+}
+
+/** Check a name typed for a binder folder. Any text will do, as long as there is some. */
+export function checkFolderName(raw: string): NameCheck {
+  const name = tidyDisplayName(raw.replace(INVISIBLE, ''));
+  return name === '' ? { ok: false, message: 'Give the folder a name.' } : { ok: true, name };
+}
+
 /**
  * Make a name unique by adding " 2", " 3" and so on.
  *

@@ -3,177 +3,24 @@
 // them (tests/obsidianStub.ts). These tests check what the panel shows and
 // does; how it looks can only be checked in Obsidian.
 
-import { TFile } from 'obsidian';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NARROW_BELOW, WIDE_FROM } from '../src/core/binderModel';
-import { ACTIVE_PROJECT_KEY, DevicePrefs } from '../src/core/devicePrefs';
+import { ACTIVE_PROJECT_KEY } from '../src/core/devicePrefs';
 import { createSampleProject } from '../src/core/newProject';
-import { ProjectSession } from '../src/core/projectSession';
-import { ProjectStore } from '../src/core/projectStore';
-import { WORD_COUNT_DEBOUNCE_MS, WordCountCache } from '../src/core/wordCountCache';
-import { BINDER_VIEW_TYPE, BinderView, MISSING_LABEL } from '../src/views/binderView';
-import type { BinderHost, BinderServices } from '../src/views/binderView';
-import { countOf, heading, one, partOf, picture, rowOf, scroller, tap } from './binderScreen';
-import { FakeObsidian } from './fakeObsidianApp';
-import type { FakeLeaf } from './fakeObsidianApp';
-import { ManualTimers, MemoryVault } from './memoryVault';
-import {
-  Menu as StubMenu,
-  Notice as StubNotice,
-  Platform as StubPlatform,
-  resetPlatform,
-} from './obsidianStub';
-import type { FakeElement, ItemView as StubItemView } from './obsidianStub';
-import { MemoryDeviceStorage, TODAY, fixedRandom, foldedIn, quiet, seedProject, tick } from './storeHarness';
+import { WORD_COUNT_DEBOUNCE_MS } from '../src/core/wordCountCache';
+import { BINDER_VIEW_TYPE, MISSING_LABEL } from '../src/views/binderView';
+import { countOf, heading, one, partOf, picture, rowOf, scroller, tap, toolbarLabels } from './binderScreen';
+import { HEBREW, LETTER, OPENING, clearScreen, fileAt, notices, novel, rest, stage } from './binderStage';
+import { MemoryVault } from './memoryVault';
+import { Menu as StubMenu, Platform as StubPlatform, resetPlatform } from './obsidianStub';
+import type { FakeElement } from './obsidianStub';
+import { TODAY, foldedIn, quiet, seedProject, tick } from './storeHarness';
 
-// ------------------------------------------------------------------ the stage
-
-/** The plugin, as far as the binder knows it. */
-class Host implements BinderHost {
-  services: BinderServices | null = null;
-  /** How often the "Create project" window was asked for. */
-  asked = 0;
-  /** Every note the binder asked to have shown. */
-  readonly opened: Array<{ path: string; where: unknown }> = [];
-  /** Set to false to make opening a note fail. */
-  canOpen = true;
-  private waiting: Array<() => void> = [];
-
-  constructor(private readonly fake: FakeObsidian) {}
-
-  whenStarted(callback: () => void): void {
-    if (this.services) callback();
-    else this.waiting.push(callback);
-  }
-
-  /** Obsidian has finished starting up: the services exist from now on. */
-  start(services: BinderServices): void {
-    this.services = services;
-    for (const callback of this.waiting.splice(0)) callback();
-  }
-
-  askForNewProject(): void {
-    this.asked++;
-  }
-
-  async openNote(path: string, where: unknown): Promise<boolean> {
-    this.opened.push({ path, where });
-    if (!this.canOpen) return false;
-    this.fake.workspace.setActiveFile(fileAt(path));
-    return true;
-  }
-}
-
-function fileAt(path: string): TFile {
-  const file = new TFile();
-  file.path = path;
-  return file;
-}
-
-interface Stage {
-  vault: MemoryVault;
-  timers: ManualTimers;
-  storage: MemoryDeviceStorage;
-  services: BinderServices;
-  store: ProjectStore;
-  fake: FakeObsidian;
-  host: Host;
-  leaf: FakeLeaf;
-  view: BinderView;
-  /** The view, seen as the stand-in it is built on (open, close). */
-  shell: StubItemView;
-  /** Obsidian's pane element, which the binder fills. */
-  pane: FakeElement;
-}
-
-interface StageOptions {
-  storage?: MemoryDeviceStorage;
-  /** Where the binder's pane is. Default: the left sidebar. */
-  split?: 'left' | 'right' | 'root';
-  /** False: Obsidian is still starting, the services do not exist yet. */
-  started?: boolean;
-  /** False: nothing opens a project by itself. */
-  session?: boolean;
-}
-
-async function stage(vault: MemoryVault = new MemoryVault(), options: StageOptions = {}): Promise<Stage> {
-  const timers = new ManualTimers();
-  const storage = options.storage ?? new MemoryDeviceStorage();
-  const store = new ProjectStore({ vault, today: () => TODAY, setTimer: timers.set, random: fixedRandom() });
-  const prefs = new DevicePrefs(storage);
-  const session = new ProjectSession(store, prefs);
-  const wordCounts = new WordCountCache({ vault, setTimer: timers.set });
-  const services: BinderServices = { store, session, wordCounts, prefs };
-
-  const fake = new FakeObsidian();
-  const host = new Host(fake);
-  const split = { left: fake.workspace.leftSplit, right: fake.workspace.rightSplit, root: fake.workspace.rootSplit }[
-    options.split ?? 'left'
-  ];
-  const leaf = fake.workspace.addLeaf(split);
-  const view = new BinderView(leaf as never, host);
-  const shell = view as unknown as StubItemView;
-  const pane = view.contentEl as unknown as FakeElement;
-  const made: Stage = { vault, timers, storage, services, store, fake, host, leaf, view, shell, pane };
-
-  store.start();
-  wordCounts.start();
-  if (options.session !== false) session.start();
-  if (options.started !== false) host.start(services);
-  await shell.open();
-  await rest(made);
-  return made;
-}
-
-/** Let everything come to rest: the store, the drawing, and the counting of words. */
-async function rest({ store, services, timers }: Pick<Stage, 'store' | 'services' | 'timers'>): Promise<void> {
-  await quiet(store);
-  let counted = false;
-  void services.wordCounts.idle().then(() => {
-    counted = true;
-  });
-  for (let turn = 0; turn < 5000 && !counted; turn++) {
-    await tick();
-    timers.advance(0); // lets the counting go on after each of its pauses
-  }
-  if (!counted) throw new Error('the word counts never finished');
-  await tick();
-}
-
-/** A small novel: a scene, a folder with a folder in it, a missing entry, a loose note and some research. */
-function novel(vault: MemoryVault = new MemoryVault()): MemoryVault {
-  seedProject(vault, {
-    binder: [
-      'Manuscript/Opening.md',
-      {
-        folder: 'Part one',
-        id: 'f-one',
-        children: [
-          'Manuscript/The Letter.md',
-          { folder: 'חלק פנימי', id: 'f-inner', children: ['Manuscript/מכתב לאחותי.md'] },
-        ],
-      },
-      'Manuscript/Ghost.md',
-    ],
-  });
-  vault.seed('Novel/Manuscript/Opening.md', { frontmatter: { order: 1024 }, body: 'One two three.' });
-  vault.seed('Novel/Manuscript/The Letter.md', { frontmatter: { order: 2048 }, body: 'Dear sister, I write.' });
-  vault.seed('Novel/Manuscript/מכתב לאחותי.md', { frontmatter: { order: 3072 }, body: 'אחותי היקרה, אני כותבת.' });
-  vault.seed('Novel/Manuscript/Loose.md', { body: 'Two words' });
-  vault.seed('Novel/Research/Trains.md', { body: 'Timetables of the night trains.' });
-  vault.seed('Novel/Research/Maps/City.md');
-  return vault;
-}
-
-const OPENING = 'Novel/Manuscript/Opening.md';
-const LETTER = 'Novel/Manuscript/The Letter.md';
-const HEBREW = 'Novel/Manuscript/מכתב לאחותי.md';
-
-const notices = (): string[] => StubNotice.shown.map((notice) => notice.message);
+// The stage these tests play on (a vault in memory, a stand-in for the
+// plugin, the panel itself) is in tests/binderStage.ts.
 
 beforeEach(() => {
-  StubNotice.shown.length = 0;
-  StubMenu.shown.length = 0;
+  clearScreen();
 });
 
 afterEach(() => {
@@ -319,7 +166,8 @@ describe('the tree', () => {
     expect([...inside.classes]).toEqual(expect.arrayContaining(['tree-item-children', 'spellbook-children']));
 
     // Every class the plugin made up carries its prefix.
-    const known = /^(spellbook-|tree-item|nav-f|nav-buttons-container$|is-|mod-|collapse-icon$|svg-icon$|view-content$)/;
+    const known =
+      /^(spellbook-|tree-item|nav-f|clickable-icon$|is-|mod-|collapse-icon$|svg-icon$|view-content$)/;
     const classes = new Set(s.pane.all().flatMap((element) => [...element.classes]));
     for (const cls of classes) expect(cls).toMatch(known);
   });
@@ -500,25 +348,7 @@ describe('word counts', () => {
     const scenes: Record<string, number> = {};
     for (let n = 1; n <= 500; n++) scenes[`Scene ${n}`] = n * 1024;
     seedProject(vault, { scenes });
-    const timers = new ManualTimers();
-    const store = new ProjectStore({ vault, today: () => TODAY, setTimer: timers.set, random: fixedRandom() });
-    const prefs = new DevicePrefs(new MemoryDeviceStorage());
-    const services: BinderServices = {
-      store,
-      prefs,
-      session: new ProjectSession(store, prefs),
-      wordCounts: new WordCountCache({ vault, setTimer: timers.set }),
-    };
-    const fake = new FakeObsidian();
-    const host = new Host(fake);
-    const view = new BinderView(fake.workspace.addLeaf(fake.workspace.leftSplit) as never, host);
-    const pane = view.contentEl as unknown as FakeElement;
-    store.start();
-    services.wordCounts.start();
-    services.session.start();
-    host.start(services);
-    await (view as unknown as StubItemView).open();
-    await quiet(store);
+    const { pane, store, services, timers } = await stage(vault, { counted: false });
 
     // All five hundred rows are there; the counting has only just begun.
     expect(pane.withClass('spellbook-note')).toHaveLength(500);
@@ -726,27 +556,8 @@ describe('the active note', () => {
   });
 
   it('is highlighted from the start when a note is already open', async () => {
-    const vault = novel();
-    const timers = new ManualTimers();
-    const store = new ProjectStore({ vault, today: () => TODAY, setTimer: timers.set, random: fixedRandom() });
-    const prefs = new DevicePrefs(new MemoryDeviceStorage());
-    const services: BinderServices = {
-      store,
-      prefs,
-      session: new ProjectSession(store, prefs),
-      wordCounts: new WordCountCache({ vault, setTimer: timers.set }),
-    };
-    const fake = new FakeObsidian();
-    fake.workspace.setActiveFile(fileAt(LETTER));
-    const host = new Host(fake);
-    const view = new BinderView(fake.workspace.addLeaf(fake.workspace.leftSplit) as never, host);
-    store.start();
-    services.wordCounts.start();
-    services.session.start();
-    host.start(services);
-    await (view as unknown as StubItemView).open();
-    await rest({ store, services, timers });
-    expect(picture(view.contentEl as unknown as FakeElement)).toContain('    The Letter 4 *');
+    const s = await stage(novel(), { active: LETTER });
+    expect(picture(s.pane)).toContain('    The Letter 4 *');
   });
 
   it('highlights research and unfiled notes as well', async () => {
@@ -890,7 +701,8 @@ describe('the header', () => {
     const s = await stage(novel());
     expect(heading(s.pane).fullText).toBe('My Novel');
     expect(s.pane.withClass('spellbook-project-switch')).toHaveLength(0);
-    expect(one(s.pane, 'spellbook-binder-toolbar').children).toEqual([]); // room for buttons, none yet
+    // Next to the name: the toolbar (tests/binderEditing.test.ts looks at what it does).
+    expect(toolbarLabels(s.pane)).toEqual(['New scene', 'New folder', 'More options']);
   });
 
   it('follows a change of the project\'s title', async () => {

@@ -36,7 +36,9 @@ import {
   resolvePlacement,
   sceneRef,
   scenesIn,
+  stepPlacement,
 } from './binderTree';
+import type { StepDirection } from './binderTree';
 import { newFolderId, sanitiseFileName, tidyDisplayName, uniqueName } from './names';
 import { ORDER_STEP, planLocalOrderKeys, readOrder } from './orderKeys';
 import type { OrderedScene } from './orderKeys';
@@ -92,6 +94,8 @@ export const RENAME_SETTLE_MS = 250;
 
 const READ_ONLY_MESSAGE =
   'This project is read-only because its index could not be understood. Nothing was changed.';
+const OTHER_PROJECT_MESSAGE =
+  'Another project was opened in the meantime, so nothing was changed. Try again in the project you meant.';
 
 /** Choices for createProject(). */
 export interface NewProjectOptions {
@@ -337,6 +341,14 @@ export class ProjectStore {
   }
 
   // ------------------------------------------------------------------ intents
+  //
+  // The intents that change the open project take an optional last argument,
+  // `inProject`: the index path of the project the change was decided for.
+  // A menu or a confirmation window is made while looking at one project;
+  // by the time the writer answers, another one may have been opened (a
+  // project chosen on this device can arrive late from another device). With
+  // `inProject` given, the intent is refused unless that project is still the
+  // open one when its turn comes, so it can never land in the wrong project.
 
   /**
    * Create a new project: a folder named after it, inside `parentFolder`
@@ -460,7 +472,11 @@ export class ProjectStore {
   }
 
   /** Create a scene note in Manuscript/ and put it in the binder. */
-  addScene(title: string, placement: Placement = END_OF_BINDER): Promise<IntentResult<{ path: string }>> {
+  addScene(
+    title: string,
+    placement: Placement = END_OF_BINDER,
+    inProject?: string,
+  ): Promise<IntentResult<{ path: string }>> {
     return this.run(async (): Promise<IntentResult<{ path: string }>> => {
       const active = this.active;
       const blocked = this.whyNotWritable(active);
@@ -519,11 +535,15 @@ export class ProjectStore {
         `The note "${rel}" was created, but it could not be added to the binder: ${result.message} ` +
           'You can find it under Unfiled.',
       );
-    });
+    }, inProject);
   }
 
   /** Add an empty binder folder. Binder folders are not folders on disk. */
-  addFolder(name: string, placement: Placement = END_OF_BINDER): Promise<IntentResult<{ id: string }>> {
+  addFolder(
+    name: string,
+    placement: Placement = END_OF_BINDER,
+    inProject?: string,
+  ): Promise<IntentResult<{ id: string }>> {
     return this.run(async (): Promise<IntentResult<{ id: string }>> => {
       const tidy = tidyDisplayName(name);
       if (tidy === '') return refused('invalid-name', 'Give the folder a name.');
@@ -543,14 +563,14 @@ export class ProjectStore {
             : 'The place you chose is no longer in the binder, so the folder was added at the end.',
         };
       });
-    });
+    }, inProject);
   }
 
   /**
    * Rename a scene: its note is renamed (links to it are updated by the
    * vault) and its binder entry follows. `path` is relative to the project.
    */
-  renameScene(path: string, title: string): Promise<IntentResult<{ path: string }>> {
+  renameScene(path: string, title: string, inProject?: string): Promise<IntentResult<{ path: string }>> {
     return this.run(async (): Promise<IntentResult<{ path: string }>> => {
       const active = this.active;
       const blocked = this.whyNotWritable(active);
@@ -597,11 +617,11 @@ export class ProjectStore {
         );
       }
       return done({ path: newRel });
-    });
+    }, inProject);
   }
 
   /** Change a binder folder's name. */
-  renameFolder(id: string, name: string): Promise<IntentResult> {
+  renameFolder(id: string, name: string, inProject?: string): Promise<IntentResult> {
     return this.run(async (): Promise<IntentResult> => {
       const tidy = tidyDisplayName(name);
       if (tidy === '') return refused('invalid-name', 'Give the folder a name.');
@@ -613,14 +633,14 @@ export class ProjectStore {
         if (!next) return noop('not-found', 'That folder is no longer in the binder.');
         return { status: 'done', binder: next, value: undefined };
       });
-    });
+    }, inProject);
   }
 
   /**
    * Move a scene or a folder (with everything in it) within the binder.
    * Only the binder changes; no file is moved on disk.
    */
-  moveNode(ref: NodeRef, placement: Placement): Promise<IntentResult> {
+  moveNode(ref: NodeRef, placement: Placement, inProject?: string): Promise<IntentResult> {
     return this.run(async (): Promise<IntentResult> => {
       let moved: string[] = [];
       const result = await this.mutateBinder<undefined>((onDisk) => {
@@ -643,22 +663,50 @@ export class ProjectStore {
       });
       if (result.status === 'done') this.scheduleOrderSync(moved);
       return result;
-    });
+    }, inProject);
+  }
+
+  /**
+   * Move a scene or a folder (with everything in it) one step up or down:
+   * past the sibling next to it or, at the edge of its folder, out to the
+   * level above, straight before or after the folder. The step is worked out
+   * against the binder as it is on disk. Something that is already first (or
+   * last) at the top level stays where it is.
+   */
+  stepNode(ref: NodeRef, direction: StepDirection, inProject?: string): Promise<IntentResult> {
+    return this.run(async (): Promise<IntentResult> => {
+      let moved: string[] = [];
+      const result = await this.mutateBinder<undefined>((onDisk) => {
+        const from = locate(onDisk, ref);
+        if (!from) return noop('not-found', 'That item is no longer in the binder.');
+        const placement = stepPlacement(onDisk, ref, direction);
+        const outcome = placement ? moveInTree(onDisk, ref, placement) : null;
+        if (!outcome?.ok) {
+          return noop('unchanged', direction === 'up' ? 'It is already at the top.' : 'It is already at the end.');
+        }
+        moved = scenesIn(from.node);
+        return { status: 'done', binder: outcome.binder, value: undefined };
+      });
+      if (result.status === 'done') this.scheduleOrderSync(moved);
+      return result;
+    }, inProject);
   }
 
   /** Remove a binder folder but keep its contents: they move up to where the folder was. */
-  removeFolder(id: string): Promise<IntentResult> {
-    return this.run(async (): Promise<IntentResult> =>
-      this.mutateBinder<undefined>((onDisk) => {
-        const next = removeFolderKeepChildren(onDisk, id);
-        if (!next) return noop('not-found', 'That folder is no longer in the binder.');
-        return { status: 'done', binder: next, value: undefined };
-      }),
+  removeFolder(id: string, inProject?: string): Promise<IntentResult> {
+    return this.run(
+      async (): Promise<IntentResult> =>
+        this.mutateBinder<undefined>((onDisk) => {
+          const next = removeFolderKeepChildren(onDisk, id);
+          if (!next) return noop('not-found', 'That folder is no longer in the binder.');
+          return { status: 'done', binder: next, value: undefined };
+        }),
+      inProject,
     );
   }
 
   /** Take a scene out of the binder and move its note to the trash. */
-  deleteScene(path: string): Promise<IntentResult> {
+  deleteScene(path: string, inProject?: string): Promise<IntentResult> {
     return this.run(async (): Promise<IntentResult> => {
       const active = this.active;
       const blocked = this.whyNotWritable(active);
@@ -709,14 +757,14 @@ export class ProjectStore {
       }
       this.knownOrders.delete(file.path);
       return done(undefined);
-    });
+    }, inProject);
   }
 
   /**
    * Remove a binder entry whose note does not exist. If the note has turned
    * up in the meantime (a late sync), the entry is kept.
    */
-  removeMissingEntry(path: string): Promise<IntentResult> {
+  removeMissingEntry(path: string, inProject?: string): Promise<IntentResult> {
     return this.run(async (): Promise<IntentResult> => {
       const active = this.active;
       const blocked = this.whyNotWritable(active);
@@ -732,11 +780,15 @@ export class ProjectStore {
         if (!removed) return noop('not-found', 'That entry is no longer in the binder.');
         return { status: 'done', binder: removed.binder, value: undefined };
       });
-    });
+    }, inProject);
   }
 
   /** Put a note that is not in the binder (an Unfiled one) into it. */
-  addUnfiledToBinder(path: string, placement: Placement = END_OF_BINDER): Promise<IntentResult<{ path: string }>> {
+  addUnfiledToBinder(
+    path: string,
+    placement: Placement = END_OF_BINDER,
+    inProject?: string,
+  ): Promise<IntentResult<{ path: string }>> {
     return this.run(async (): Promise<IntentResult<{ path: string }>> => {
       const active = this.active;
       const blocked = this.whyNotWritable(active);
@@ -767,7 +819,7 @@ export class ProjectStore {
       });
       if (result.status === 'done') this.scheduleOrderSync([file.rel]);
       return result;
-    });
+    }, inProject);
   }
 
   /** Write any outstanding order keys now instead of waiting for the delay. */
@@ -786,9 +838,19 @@ export class ProjectStore {
     return result;
   }
 
-  /** Run an intent in the queue, then bring the snapshot up to date and tell listeners once. */
-  private run<T>(job: () => Promise<IntentResult<T>>): Promise<IntentResult<T>> {
+  /**
+   * Run an intent in the queue, then bring the snapshot up to date and tell
+   * listeners once.
+   *
+   * @param inProject when given, the index path of the project the intent was
+   *   decided for: the intent is refused, and nothing is written, unless that
+   *   project is the open one when the intent's turn comes
+   */
+  private run<T>(job: () => Promise<IntentResult<T>>, inProject?: string): Promise<IntentResult<T>> {
     return this.enqueue(async (): Promise<IntentResult<T>> => {
+      if (inProject !== undefined && this.active?.indexPath !== inProject) {
+        return refused('other-project', OTHER_PROJECT_MESSAGE);
+      }
       let result: IntentResult<T>;
       try {
         result = await job();

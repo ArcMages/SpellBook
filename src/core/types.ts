@@ -113,6 +113,7 @@ export type NoopReason =
 /** Why an intent was refused before anything was written. */
 export type RefusalReason =
   | 'no-project'
+  | 'other-project'
   | 'read-only'
   | 'invalid-name'
   | 'invalid-path'

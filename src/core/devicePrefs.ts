@@ -92,6 +92,32 @@ export class DevicePrefs {
       if (!items?.delete(item)) return;
       if (items.size === 0) all.delete(indexPath);
     }
+    this.saveCollapsed(all);
+  }
+
+  /**
+   * Say in one go everything that is folded shut in a project ("Collapse
+   * all", "Expand all"): what was remembered for it before is replaced, and
+   * the storage is written once.
+   */
+  setCollapsedItems(indexPath: string, items: Iterable<string>): void {
+    const all = this.collapsedMap();
+    const wanted = new Set([...items].slice(-MAX_ITEMS));
+    const before = all.get(indexPath) ?? new Set<string>();
+    if (wanted.size === before.size && [...wanted].every((item) => before.has(item))) return;
+    // Taken out and put back, so that this project counts as the newest.
+    all.delete(indexPath);
+    if (wanted.size > 0) {
+      all.set(indexPath, wanted);
+      for (const oldest of all.keys()) {
+        if (all.size <= MAX_PROJECTS) break;
+        if (oldest !== indexPath) all.delete(oldest);
+      }
+    }
+    this.saveCollapsed(all);
+  }
+
+  private saveCollapsed(all: Map<string, Set<string>>): void {
     // A bare object, so that no path can be mistaken for a built-in property name.
     const plain = Object.create(null) as Record<string, string[]>;
     for (const [path, set] of all) plain[path] = [...set];

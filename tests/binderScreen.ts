@@ -60,10 +60,53 @@ export function countOf(pane: FakeElement, title: string): string {
   return partOf(rowOf(pane, title), 'spellbook-count')?.text ?? '';
 }
 
+/** The last thing in a list, if it has any. */
+export function last<T>(items: readonly T[]): T | undefined {
+  return items[items.length - 1];
+}
+
+/** What every event can be asked to do; the stand-in elements do not pass events on, so these do nothing. */
+const INERT = { stopPropagation: (): void => {}, preventDefault: (): void => {} };
+
 /** As if the writer tapped (or clicked) an element. */
 export function tap(element: FakeElement, event: Record<string, unknown> = {}): void {
-  element.dispatch('click', { button: 0, ...event });
+  element.dispatch('click', { button: 0, ...INERT, ...event });
+}
+
+/** As if the writer pressed a key while the element had the keyboard's focus. */
+export function press(element: FakeElement, key: string, event: Record<string, unknown> = {}): void {
+  element.dispatch('keydown', { key, ...INERT, ...event });
+}
+
+/** As if the writer clicked an element with the right mouse button. */
+export function rightClick(element: FakeElement, event: Record<string, unknown> = {}): void {
+  element.dispatch('contextmenu', { button: 2, ...INERT, ...event });
 }
 
 export const heading = (pane: FakeElement): FakeElement => one(pane, 'spellbook-binder-heading');
 export const scroller = (pane: FakeElement): FakeElement => one(pane, 'spellbook-binder-scroll');
+export const toolbar = (pane: FakeElement): FakeElement => one(pane, 'spellbook-binder-toolbar');
+
+/** The names of the toolbar's buttons, in order. */
+export function toolbarLabels(pane: FakeElement): string[] {
+  return toolbar(pane).children.map((button) => String(button.attrs['aria-label'] ?? ''));
+}
+
+/** The toolbar button with this name. */
+export function toolbarButton(pane: FakeElement, label: string): FakeElement {
+  const found = toolbar(pane).children.filter((button) => button.attrs['aria-label'] === label);
+  if (found.length !== 1) throw new Error(`expected one toolbar button "${label}", found ${found.length}`);
+  return found[0] as FakeElement;
+}
+
+/** The "more" button of the row with this title, if the row has one. */
+export function moreOf(pane: FakeElement, title: string): FakeElement | undefined {
+  return partOf(rowOf(pane, title), 'spellbook-row-more');
+}
+
+/** The title of the selected row, or null when no row is selected. */
+export function selectedTitle(pane: FakeElement): string | null {
+  const found = pane.withClass('spellbook-row-self', 'spellbook-is-selected');
+  if (found.length > 1) throw new Error(`expected at most one selected row, found ${found.length}`);
+  return found[0] ? (partOf(found[0], 'spellbook-title')?.text ?? '') : null;
+}

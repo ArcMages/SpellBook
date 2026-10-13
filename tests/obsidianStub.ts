@@ -103,6 +103,8 @@ export class FakeElement {
   value = '';
   disabled = false;
   focused = false;
+  /** True once select() was called on it (a text field whose text was selected). */
+  selected = false;
   parent: FakeElement | null = null;
   /** The icon put into this element with setIcon(), if any. */
   icon: string | null = null;
@@ -201,6 +203,11 @@ export class FakeElement {
     this.focused = true;
   }
 
+  /** As on a text field: all of its text becomes the selection. */
+  select(): void {
+    this.selected = true;
+  }
+
   getBoundingClientRect(): FakeRect {
     return { ...this.rect };
   }
@@ -240,6 +247,8 @@ export interface StubCommand {
   id: string;
   name: string;
   callback?: () => unknown;
+  /** As in Obsidian: asked with true whether the command can run now, and with false to run it. */
+  checkCallback?: (checking: boolean) => boolean | void;
 }
 
 /** A button on the ribbon, as added with addRibbonIcon(). */
@@ -441,11 +450,19 @@ export function setIcon(parent: FakeElement, iconId: string): void {
 
 export class MenuItem {
   title = '';
+  icon: string | null = null;
   checked: boolean | null = null;
+  disabled = false;
+  warning = false;
   private clicked: ((event: unknown) => unknown) | null = null;
 
   setTitle(title: string): this {
     this.title = title;
+    return this;
+  }
+
+  setIcon(icon: string | null): this {
+    this.icon = icon;
     return this;
   }
 
@@ -454,14 +471,24 @@ export class MenuItem {
     return this;
   }
 
+  setDisabled(disabled: boolean): this {
+    this.disabled = disabled;
+    return this;
+  }
+
+  setWarning(warning: boolean): this {
+    this.warning = warning;
+    return this;
+  }
+
   onClick(callback: (event: unknown) => unknown): this {
     this.clicked = callback;
     return this;
   }
 
-  /** As if the writer picked this item. */
+  /** As if the writer picked this item. A disabled item does nothing. */
   click(): void {
-    this.clicked?.({});
+    if (!this.disabled) this.clicked?.({});
   }
 }
 
@@ -471,11 +498,21 @@ export class Menu {
 
   readonly items: MenuItem[] = [];
   position: { x: number; y: number; width?: number } | null = null;
+  /** The event handed to showAtMouseEvent(), when the menu was shown that way. */
+  mouseEvent: unknown = null;
+  /** The items and the lines between them, top to bottom; null stands for a line. */
+  private readonly layout: Array<MenuItem | null> = [];
 
   addItem(callback: (item: MenuItem) => unknown): this {
     const item = new MenuItem();
     this.items.push(item);
+    this.layout.push(item);
     callback(item);
+    return this;
+  }
+
+  addSeparator(): this {
+    this.layout.push(null);
     return this;
   }
 
@@ -485,9 +522,27 @@ export class Menu {
     return this;
   }
 
-  showAtMouseEvent(_event: unknown): this {
+  showAtMouseEvent(event: unknown): this {
+    this.mouseEvent = event;
     Menu.shown.push(this);
     return this;
+  }
+
+  // --- helpers for the tests
+
+  /**
+   * The menu as a reader sees it, top to bottom: each item's title, "---"
+   * for a line between items, and "(off)" after an item that cannot be picked.
+   */
+  get outline(): string[] {
+    return this.layout.map((entry) => (entry === null ? '---' : `${entry.title}${entry.disabled ? ' (off)' : ''}`));
+  }
+
+  /** The item with this title, or a failed test. */
+  item(title: string): MenuItem {
+    const found = this.items.filter((item) => item.title === title);
+    if (found.length !== 1) throw new Error(`expected one menu item "${title}", found ${found.length}`);
+    return found[0] as MenuItem;
   }
 }
 
@@ -559,6 +614,67 @@ export class Modal {
   onClose(): void {}
 }
 
+/** What a fuzzy list hands to renderSuggestion and onChooseSuggestion. */
+export interface FuzzyMatch<T> {
+  item: T;
+  match: { score: number; matches: Array<[number, number]> };
+}
+
+/**
+ * A list to pick from, as Obsidian's quick switcher is. Nothing is shown:
+ * `shownFor()` gives the list a query would leave, and `pick()` chooses.
+ * (Obsidian matches loosely, letter by letter; the stand-in simply looks for
+ * the query inside the text, ignoring capitals.)
+ */
+export abstract class FuzzySuggestModal<T> extends Modal {
+  readonly inputEl = new FakeElement('input');
+  readonly resultContainerEl = new FakeElement();
+  emptyStateText = 'No results found.';
+  limit = 100;
+
+  setPlaceholder(placeholder: string): void {
+    this.inputEl.setAttr('placeholder', placeholder);
+  }
+
+  abstract getItems(): T[];
+  abstract getItemText(item: T): string;
+  abstract onChooseItem(item: T, event: unknown): void;
+
+  getSuggestions(query: string): Array<FuzzyMatch<T>> {
+    const wanted = query.trim().toLowerCase();
+    return this.getItems()
+      .filter((item) => this.getItemText(item).toLowerCase().includes(wanted))
+      .map((item) => ({ item, match: { score: 0, matches: [] } }));
+  }
+
+  renderSuggestion(match: FuzzyMatch<T>, el: FakeElement): void {
+    el.setText(this.getItemText(match.item));
+  }
+
+  onChooseSuggestion(match: FuzzyMatch<T>, event: unknown): void {
+    this.onChooseItem(match.item, event);
+  }
+
+  // --- helpers for the tests
+
+  /** The rows the list shows for what was typed, as drawn by renderSuggestion. */
+  shownFor(query = ''): FakeElement[] {
+    return this.getSuggestions(query).map((match) => {
+      const row = this.resultContainerEl.createDiv({ cls: 'suggestion-item' });
+      this.renderSuggestion(match, row);
+      return row;
+    });
+  }
+
+  /** As if the writer picked the row with this text: the window closes, then the choice is handed on. */
+  pick(text: string): void {
+    const match = this.getSuggestions('').find((candidate) => this.getItemText(candidate.item) === text);
+    if (!match) throw new Error(`the list has no "${text}"`);
+    this.close();
+    this.onChooseSuggestion(match, {});
+  }
+}
+
 export class TextComponent {
   readonly inputEl = new FakeElement('input');
   private changed: ((value: string) => unknown) | null = null;
@@ -626,6 +742,11 @@ export class ButtonComponent {
 
   setCta(): this {
     this.buttonEl.addClass('mod-cta');
+    return this;
+  }
+
+  setWarning(): this {
+    this.buttonEl.addClass('mod-warning');
     return this;
   }
 

@@ -1,19 +1,26 @@
 // The binder: the open project as a tree in the sidebar.
 //
 //   header   the project's name (a button that lists the projects when the
-//            vault has more than one), and room for toolbar buttons
+//            vault has more than one), and the toolbar: New scene, New folder
+//            and a "more" menu
 //   tree     Manuscript (the binder's scenes and folders), then Unfiled
 //            (manuscript notes the binder does not list), then Research
 //
-// This panel only shows things and opens notes: it changes nothing in the
-// vault. Everything it shows comes from the project store; it draws itself
-// again whenever the store says something changed, keeping the scroll
-// position and what was folded shut.
+// Everything it shows comes from the project store; it draws itself again
+// whenever the store says something changed, keeping the scroll position and
+// what was folded shut. The panel itself changes nothing in the vault: its
+// buttons and menus hand over to the binder's actions
+// (src/views/binderActions.ts), which go through the store.
+//
+// Every row that stands for something has a "more" button that opens its
+// menu; a right-click opens the same menu. One row is the selected row: the
+// one last tapped, opened or acted on (src/core/binderSelection.ts).
 //
 // Text in any language: every row whose title is the writer's own text lets
 // that text choose its direction, so a Hebrew title sits at the right end of
 // its row with its word count at the left end, and an English one the other
-// way round. Indents and fold arrows follow the direction of Obsidian itself.
+// way round. Indents, fold arrows and "more" buttons follow the direction of
+// Obsidian itself.
 
 import { ItemView, Keymap, Menu, Notice, Platform } from 'obsidian';
 import type { PaneType, WorkspaceLeaf } from 'obsidian';
@@ -21,25 +28,46 @@ import {
   binderTotals,
   describeCount,
   foldKey,
+  folderFoldKeys,
   formatCount,
   isNarrowPane,
   researchTree,
+  rowKey,
   scenesWithNotes,
 } from '../core/binderModel';
 import type { ResearchNode } from '../core/binderModel';
+import type { BinderSelection } from '../core/binderSelection';
+import { folderRef, sceneRef } from '../core/binderTree';
 import type { DevicePrefs } from '../core/devicePrefs';
-import { noteTitle } from '../core/paths';
+import { noteTitle, relativeTo } from '../core/paths';
 import type { ProjectSession } from '../core/projectSession';
 import type { ProjectStore } from '../core/projectStore';
-import type { ProjectSnapshot, ProjectSummary, TreeNode } from '../core/types';
+import type { NodeRef, ProjectSnapshot, ProjectSummary, TreeNode } from '../core/types';
 import type { WordCountCache } from '../core/wordCountCache';
-import { BINDER_ICON, FOLD_ICON, SWITCH_ICON, WARNING_ICON, showIcon } from '../ui/icons';
+import {
+  ACTION_ICONS,
+  BINDER_ICON,
+  FOLD_ICON,
+  ROW_MORE_ICON,
+  SWITCH_ICON,
+  TOOLBAR_MORE_ICON,
+  WARNING_ICON,
+  iconName,
+  showIcon,
+} from '../ui/icons';
+import { safely } from '../ui/safely';
+import { MISSING_LABEL } from './binderActions';
+import type { BinderActions } from './binderActions';
+import { folderMenu, missingMenu, researchMenu, sceneMenu, unfiledMenu } from './binderMenus';
+import type { MenuContext } from './binderMenus';
+
+export { MISSING_LABEL } from './binderActions';
 
 export const BINDER_VIEW_TYPE = 'spellbook-binder';
 export const BINDER_VIEW_NAME = 'Binder';
 
-/** Shown on a binder entry whose note is not in the vault. */
-export const MISSING_LABEL = 'File not found (it may still be syncing)';
+/** What the "more" button of a row, and of the toolbar, is called (read out, and shown as a tooltip). */
+export const MORE_LABEL = 'More options';
 
 /** How long a notice about something that went wrong stays up, in milliseconds. */
 const PROBLEM_NOTICE_MS = 10000;
@@ -50,22 +78,21 @@ export interface BinderServices {
   readonly session: ProjectSession;
   readonly wordCounts: WordCountCache;
   readonly prefs: DevicePrefs;
+  readonly selection: BinderSelection;
 }
 
 /** What the binder needs from the plugin. */
 export interface BinderHost {
   /** Null until Obsidian has finished starting up, and again after the plugin is switched off. */
   readonly services: BinderServices | null;
+  /** What the binder's buttons and menus do. */
+  readonly actions: BinderActions;
   /** Call `callback` once the services exist (straight away when they already do). */
   whenStarted(callback: () => void): void;
   /** Show the window that asks for a new project's name. */
   askForNewProject(): void;
-  /**
-   * Show the note at a vault path. `where` says where: false for the tab the
-   * writer was last working in, 'tab' for a new one, and so on.
-   * Resolves with false when the note could not be shown.
-   */
-  openNote(path: string, where: PaneType | boolean): Promise<boolean>;
+  /** Create the sample novel and open it. Resolves with whether it was created. */
+  createSampleProject(): Promise<boolean>;
 }
 
 interface Elements {
@@ -82,12 +109,28 @@ interface CountSpot {
   shown: string;
 }
 
+/** Something that can be folded shut: a section or a folder. */
+interface Fold {
+  readonly item: HTMLElement;
+  readonly self: HTMLElement;
+  readonly slot: HTMLElement;
+  /** The project and the name its state is remembered under. */
+  readonly indexPath: string;
+  readonly key: string;
+}
+
 /** A row that stands for a note. */
 interface NoteRow {
   readonly self: HTMLElement;
   readonly count: CountSpot | null;
-  /** The rows of the folders this one sits in. */
-  readonly trail: readonly HTMLElement[];
+  /** What the row sits in, from the outside in: its section, then the folders. */
+  readonly around: readonly Fold[];
+}
+
+/** A row that can be the selected row. */
+interface Selectable {
+  readonly self: HTMLElement;
+  readonly around: readonly Fold[];
 }
 
 interface RowOptions {
@@ -104,6 +147,10 @@ interface RowOptions {
   readonly counted: boolean;
   /** Set for a row that can be folded shut: the name its state is remembered under. */
   readonly fold?: { readonly indexPath: string; readonly key: string };
+  /** Set for a row that can be the selected row: what it stands for. */
+  readonly select?: NodeRef;
+  /** Set for a row with a "more" button: makes its menu, for the project as it is at that moment. */
+  readonly menu?: (context: MenuContext) => Menu;
 }
 
 interface Row {
@@ -119,6 +166,8 @@ interface Row {
   readonly count: CountSpot | null;
   /** Where nested rows go; null for a row that cannot be folded. */
   readonly children: HTMLElement | null;
+  /** How the row is folded and unfolded; null for a row that cannot be. */
+  readonly fold: Fold | null;
 }
 
 export class BinderView extends ItemView {
@@ -138,10 +187,18 @@ export class BinderView extends ItemView {
   private activePath: string | null = null;
   /** The rows that stand for notes, by the note's vault path. */
   private noteRows = new Map<string, NoteRow[]>();
+  /** The rows that can be selected, by what they stand for (see rowKey). */
+  private rows = new Map<string, Selectable>();
   private folderCounts = new Map<string, CountSpot>();
   private manuscriptCount: CountSpot | null = null;
   /** The elements that carry a mark for the active note at the moment. */
   private marked: HTMLElement[] = [];
+  /** The row that carries the mark of the selected row at the moment. */
+  private selectedRow: HTMLElement | null = null;
+  /** The last request to bring the selected row into view that was dealt with. */
+  private revealed = 0;
+  /** True while the selected row still has to be scrolled to, because the panel could not be measured. */
+  private scrollPending = false;
 
   constructor(leaf: WorkspaceLeaf, host: BinderHost) {
     super(leaf);
@@ -166,6 +223,7 @@ export class BinderView extends ItemView {
   protected override async onOpen(): Promise<void> {
     this.closed = false;
     this.narrow = false;
+    this.scrollPending = false;
     const pane = this.contentEl;
     pane.empty();
     pane.addClass('spellbook-binder-pane');
@@ -176,8 +234,10 @@ export class BinderView extends ItemView {
     root.toggleClass('spellbook-is-mobile', Platform.isMobile);
     const header = root.createDiv({ cls: 'spellbook-binder-header' });
     const heading = header.createDiv({ cls: 'spellbook-binder-heading' });
-    // Empty for now: the buttons for adding scenes and folders go here.
-    const toolbar = header.createDiv({ cls: 'spellbook-binder-toolbar nav-buttons-container' });
+    // The toolbar is laid out by the plugin's own stylesheet alone. It does
+    // not borrow the class of Obsidian's own rows of buttons, so that no rule
+    // Obsidian has for those rows (on phones, say) can move or hide this one.
+    const toolbar = header.createDiv({ cls: 'spellbook-binder-toolbar' });
     const scroll = root.createDiv({ cls: 'spellbook-binder-scroll' });
     const body = scroll.createDiv({ cls: 'spellbook-binder-body' });
     this.els = { root, heading, toolbar, scroll, body };
@@ -226,6 +286,8 @@ export class BinderView extends ItemView {
     const services = this.host.services;
     if (this.closed || this.services || !services) return;
     this.services = services;
+    // Only what is asked for from now on is scrolled to.
+    this.revealed = services.selection.revealCount;
     this.stops.push(
       // Both kinds of change matter: the open project is the tree, and the
       // list of projects decides whether the header offers a choice.
@@ -237,6 +299,12 @@ export class BinderView extends ItemView {
       }),
       services.wordCounts.onChange((paths) => {
         this.onCounts(paths);
+      }),
+      services.selection.onChange(() => {
+        this.onSelection();
+      }),
+      this.host.actions.onNoteOpened(() => {
+        this.hideDrawerOnPhone();
       }),
     );
     this.registerEvent(
@@ -266,9 +334,12 @@ export class BinderView extends ItemView {
     const els = this.els;
     if (!els) return;
     const narrow = isNarrowPane(this.contentEl.clientWidth, this.narrow);
-    if (narrow === this.narrow) return;
-    this.narrow = narrow;
-    els.root.toggleClass('spellbook-is-narrow', narrow);
+    if (narrow !== this.narrow) {
+      this.narrow = narrow;
+      els.root.toggleClass('spellbook-is-narrow', narrow);
+    }
+    // The panel may have been hidden when a row was to be scrolled to.
+    if (this.scrollPending) this.showSelection();
   }
 
   // ------------------------------------------------------------------ drawing
@@ -284,6 +355,7 @@ export class BinderView extends ItemView {
     this.shownProject = project?.indexPath ?? null;
 
     this.renderHeader(els.heading, services, project);
+    this.renderToolbar(els.toolbar, services, project);
 
     els.body.empty();
     this.forgetRows();
@@ -298,18 +370,59 @@ export class BinderView extends ItemView {
 
     this.activePath = this.app.workspace.getActiveFile()?.path ?? null;
     this.markActive(!sameProject);
+    this.showSelection();
     this.trackCounts(services, project);
   }
 
   private forgetRows(): void {
     this.noteRows = new Map();
+    this.rows = new Map();
     this.folderCounts = new Map();
     this.manuscriptCount = null;
     this.marked = [];
+    this.selectedRow = null;
   }
 
   private say(parent: HTMLElement, text: string, cls = 'spellbook-binder-message'): HTMLElement {
     return parent.createDiv({ cls, text });
+  }
+
+  /**
+   * A small button that shows an icon. It is built the way Obsidian builds
+   * its own (so that themes style it), and can be reached and pressed from
+   * the keyboard as well.
+   */
+  private addButton(
+    parent: HTMLElement,
+    cls: string,
+    label: string,
+    icons: readonly string[],
+    press: () => unknown,
+  ): HTMLElement {
+    const button = parent.createDiv({
+      cls: `clickable-icon ${cls}`,
+      // The label is read out by screen readers, and shown by Obsidian as a tooltip.
+      attr: { role: 'button', tabindex: 0, 'aria-label': label },
+    });
+    showIcon(button, ...icons);
+    button.addEventListener('click', (event) => {
+      // A button inside a row: the row must not take the tap for itself.
+      event.stopPropagation();
+      safely(label, press);
+    });
+    button.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      event.stopPropagation();
+      safely(label, press);
+    });
+    return button;
+  }
+
+  /** Show a menu under the button (or other element) it belongs to. */
+  private showMenuAt(menu: Menu, anchor: HTMLElement): void {
+    const box = anchor.getBoundingClientRect();
+    menu.showAtPosition({ x: box.left, y: box.bottom, width: box.width });
   }
 
   // ------------------------------------------------------------------- header
@@ -366,8 +479,7 @@ export class BinderView extends ItemView {
           });
       });
     }
-    const box = anchor.getBoundingClientRect();
-    menu.showAtPosition({ x: box.left, y: box.bottom, width: box.width });
+    this.showMenuAt(menu, anchor);
   }
 
   private async chooseProject(indexPath: string): Promise<void> {
@@ -375,6 +487,94 @@ export class BinderView extends ItemView {
     if (!services || services.store.project?.indexPath === indexPath) return;
     const result = await services.session.choose(indexPath);
     if (result.status !== 'done') new Notice(result.message, PROBLEM_NOTICE_MS);
+  }
+
+  // ------------------------------------------------------------------ toolbar
+
+  /**
+   * The buttons next to the project's name: New scene and New folder while a
+   * project is open that can be changed, and a menu with the rest.
+   */
+  private renderToolbar(toolbar: HTMLElement, services: BinderServices | null, project: ProjectSnapshot | null): void {
+    toolbar.empty();
+    if (!services) return;
+    if (project && !project.readOnly) {
+      this.addButton(toolbar, 'spellbook-toolbar-button', 'New scene', ACTION_ICONS.newScene, () => {
+        this.newFromToolbar('scene');
+      });
+      this.addButton(toolbar, 'spellbook-toolbar-button', 'New folder', ACTION_ICONS.newFolder, () => {
+        this.newFromToolbar('folder');
+      });
+    }
+    const more = this.addButton(toolbar, 'spellbook-toolbar-button', MORE_LABEL, TOOLBAR_MORE_ICON, () => {
+      this.showToolbarMenu(more);
+    });
+    more.setAttr('aria-haspopup', 'menu');
+  }
+
+  /**
+   * "New scene" or "New folder" from the toolbar. A new scene goes below the
+   * selected row, or inside it when that is a folder; a new folder goes below
+   * the selected row. With nothing selected, the note being worked on stands
+   * in; failing that, the new thing goes to the end of the binder.
+   */
+  private newFromToolbar(kind: 'scene' | 'folder'): void {
+    const services = this.services;
+    const project = services?.store.project;
+    if (!services || !project) return;
+    const chosen = services.selection.currentIn(project.indexPath) ?? this.activeRef(project);
+    if (kind === 'scene') this.host.actions.newSceneNear(project.indexPath, chosen);
+    else this.host.actions.newFolderNear(project.indexPath, chosen);
+  }
+
+  private showToolbarMenu(anchor: HTMLElement): void {
+    const project = this.services?.store.project ?? null;
+    const menu = new Menu();
+    const add = (title: string, icons: readonly string[], run: () => unknown): void => {
+      menu.addItem((item) => {
+        item
+          .setTitle(title)
+          .setIcon(iconName(...icons))
+          .onClick(() => {
+            safely(title, run);
+          });
+      });
+    };
+    if (project) {
+      add('Collapse all', ACTION_ICONS.collapseAll, () => {
+        this.foldAll(true);
+      });
+      add('Expand all', ACTION_ICONS.expandAll, () => {
+        this.foldAll(false);
+      });
+      menu.addSeparator();
+    }
+    add('Create project', ACTION_ICONS.createProject, () => {
+      this.host.askForNewProject();
+    });
+    add('Create sample project', ACTION_ICONS.sampleProject, () => this.host.createSampleProject());
+    this.showMenuAt(menu, anchor);
+  }
+
+  /**
+   * "Collapse all" folds every folder shut (the binder's and Research's) and
+   * leaves the three sections as they are; "Expand all" opens everything.
+   * Remembered on this device like any other folding.
+   */
+  private foldAll(collapsed: boolean): void {
+    const services = this.services;
+    const project = services?.store.project;
+    if (!services || !project) return;
+    const at = project.indexPath;
+    const sections = [foldKey.section('manuscript'), foldKey.section('unfiled'), foldKey.section('research')];
+    const folded = collapsed
+      ? [
+          ...sections.filter((key) => services.prefs.isCollapsed(at, key)),
+          ...folderFoldKeys(project.tree, project.research),
+        ]
+      : [];
+    services.prefs.setCollapsedItems(at, folded);
+    this.render();
   }
 
   // --------------------------------------------------------------- no project
@@ -407,7 +607,8 @@ export class BinderView extends ItemView {
     });
     this.say(
       empty,
-      'To try things on a ready-made novel instead, run "Spellbook: Create sample project" from the command palette.',
+      'To try things on a ready-made novel instead, choose "Create sample project" from the menu at the top ' +
+        'of this panel, or run "Spellbook: Create sample project" from the command palette.',
       'spellbook-binder-message spellbook-binder-hint',
     );
   }
@@ -437,7 +638,7 @@ export class BinderView extends ItemView {
       if (project.tree.length === 0) {
         this.say(manuscript.children ?? body, 'No scenes yet.', 'spellbook-binder-message spellbook-binder-hint');
       }
-      this.addBinderNodes(manuscript.children ?? body, project.tree, [], services, indexPath);
+      this.addBinderNodes(manuscript.children ?? body, project.tree, foldsOf(manuscript), services, indexPath);
     }
 
     if (project.unfiled.length > 0) {
@@ -451,7 +652,9 @@ export class BinderView extends ItemView {
         fold: { indexPath, key: foldKey.section('unfiled') },
       });
       for (const path of project.unfiled) {
-        this.addNoteRow(unfiled.children ?? body, path, noteTitle(path), true, [], services);
+        this.addNoteRow(unfiled.children ?? body, path, noteTitle(path), true, foldsOf(unfiled), services, (context) =>
+          unfiledMenu(context, path),
+        );
       }
     }
 
@@ -467,7 +670,13 @@ export class BinderView extends ItemView {
     if (project.research.length === 0) {
       this.say(research.children ?? body, 'No research notes yet.', 'spellbook-binder-message spellbook-binder-hint');
     }
-    this.addResearchNodes(research.children ?? body, researchTree(project.research), [], services, indexPath);
+    this.addResearchNodes(
+      research.children ?? body,
+      researchTree(project.research),
+      foldsOf(research),
+      services,
+      indexPath,
+    );
 
     const totals = binderTotals(project.tree, (path) => {
       const vaultPath = store.vaultPathOf(path);
@@ -495,52 +704,68 @@ export class BinderView extends ItemView {
   private addBinderNodes(
     parent: HTMLElement,
     nodes: readonly TreeNode[],
-    trail: readonly HTMLElement[],
+    around: readonly Fold[],
     services: BinderServices,
     indexPath: string,
   ): void {
     for (const node of nodes) {
       if (node.kind === 'scene') {
-        if (node.missing) this.addMissingRow(parent, node.title);
-        else this.addNoteRow(parent, node.path, node.title, true, trail, services);
+        const path = node.path;
+        if (node.missing) {
+          this.addMissingRow(parent, path, node.title, around);
+        } else {
+          this.addNoteRow(parent, path, node.title, true, around, services, (context) => sceneMenu(context, path));
+        }
         continue;
       }
-      const row = this.addRow(parent, {
-        itemCls: 'nav-folder spellbook-folder',
-        selfCls: 'nav-folder-title',
-        titleCls: 'nav-folder-title-content',
-        title: node.name,
-        ownText: true,
-        counted: true,
-        fold: { indexPath, key: foldKey.folder(node.id) },
-      });
-      if (row.count) this.folderCounts.set(node.id, row.count);
-      this.addBinderNodes(row.children ?? parent, node.children, [...trail, row.self], services, indexPath);
+      const id = node.id;
+      const row = this.addRow(
+        parent,
+        {
+          itemCls: 'nav-folder spellbook-folder',
+          selfCls: 'nav-folder-title',
+          titleCls: 'nav-folder-title-content',
+          title: node.name,
+          ownText: true,
+          counted: true,
+          fold: { indexPath, key: foldKey.folder(id) },
+          select: folderRef(id),
+          menu: (context) => folderMenu(context, id),
+        },
+        around,
+      );
+      if (row.count) this.folderCounts.set(id, row.count);
+      this.addBinderNodes(row.children ?? parent, node.children, [...around, ...foldsOf(row)], services, indexPath);
     }
   }
 
   private addResearchNodes(
     parent: HTMLElement,
     nodes: readonly ResearchNode[],
-    trail: readonly HTMLElement[],
+    around: readonly Fold[],
     services: BinderServices,
     indexPath: string,
   ): void {
     for (const node of nodes) {
       if (node.kind === 'note') {
-        this.addNoteRow(parent, node.path, node.title, false, trail, services);
+        const path = node.path;
+        this.addNoteRow(parent, path, node.title, false, around, services, (context) => researchMenu(context, path));
         continue;
       }
-      const row = this.addRow(parent, {
-        itemCls: 'nav-folder spellbook-folder',
-        selfCls: 'nav-folder-title',
-        titleCls: 'nav-folder-title-content',
-        title: node.name,
-        ownText: true,
-        counted: false,
-        fold: { indexPath, key: foldKey.research(node.path) },
-      });
-      this.addResearchNodes(row.children ?? parent, node.children, [...trail, row.self], services, indexPath);
+      const row = this.addRow(
+        parent,
+        {
+          itemCls: 'nav-folder spellbook-folder',
+          selfCls: 'nav-folder-title',
+          titleCls: 'nav-folder-title-content',
+          title: node.name,
+          ownText: true,
+          counted: false,
+          fold: { indexPath, key: foldKey.research(node.path) },
+        },
+        around,
+      );
+      this.addResearchNodes(row.children ?? parent, node.children, [...around, ...foldsOf(row)], services, indexPath);
     }
   }
 
@@ -550,45 +775,61 @@ export class BinderView extends ItemView {
     path: string,
     title: string,
     counted: boolean,
-    trail: readonly HTMLElement[],
+    around: readonly Fold[],
     services: BinderServices,
+    menu: (context: MenuContext) => Menu,
   ): void {
-    const row = this.addRow(parent, {
-      itemCls: 'nav-file spellbook-note',
-      selfCls: 'nav-file-title is-clickable',
-      titleCls: 'nav-file-title-content',
-      title,
-      ownText: true,
-      counted,
-    });
+    const ref = sceneRef(path);
+    const row = this.addRow(
+      parent,
+      {
+        itemCls: 'nav-file spellbook-note',
+        selfCls: 'nav-file-title is-clickable',
+        titleCls: 'nav-file-title-content',
+        title,
+        ownText: true,
+        counted,
+        select: ref,
+        menu,
+      },
+      around,
+    );
     row.self.addEventListener('click', (event) => {
-      void this.openNote(path, Keymap.isModEvent(event));
+      this.select(ref);
+      this.openNote(path, Keymap.isModEvent(event));
     });
     // A click with the middle button (the wheel) opens a new tab, as elsewhere in Obsidian.
     row.self.addEventListener('auxclick', (event) => {
       if (event.button !== 1) return;
       event.preventDefault();
-      void this.openNote(path, 'tab');
+      this.openNote(path, 'tab');
     });
 
     const vaultPath = services.store.vaultPathOf(path);
     if (vaultPath === null) return;
     if (row.count) this.showCount(row.count, services.wordCounts.get(vaultPath));
     const rows = this.noteRows.get(vaultPath) ?? [];
-    rows.push({ self: row.self, count: row.count, trail });
+    rows.push({ self: row.self, count: row.count, around });
     this.noteRows.set(vaultPath, rows);
   }
 
   /** A row for a binder entry whose note is not in the vault: greyed, with a warning. */
-  private addMissingRow(parent: HTMLElement, title: string): void {
-    const row = this.addRow(parent, {
-      itemCls: 'nav-file spellbook-note spellbook-is-missing',
-      selfCls: 'nav-file-title',
-      titleCls: 'nav-file-title-content',
-      title,
-      ownText: true,
-      counted: false,
-    });
+  private addMissingRow(parent: HTMLElement, path: string, title: string, around: readonly Fold[]): void {
+    const ref = sceneRef(path);
+    const row = this.addRow(
+      parent,
+      {
+        itemCls: 'nav-file spellbook-note spellbook-is-missing',
+        selfCls: 'nav-file-title',
+        titleCls: 'nav-file-title-content',
+        title,
+        ownText: true,
+        counted: false,
+        select: ref,
+        menu: (context) => missingMenu(context, path),
+      },
+      around,
+    );
     row.self.setAttr('aria-disabled', 'true');
     row.slot.addClass('spellbook-missing-icon');
     row.slot.setAttr('aria-label', MISSING_LABEL);
@@ -596,6 +837,7 @@ export class BinderView extends ItemView {
     row.main.createDiv({ cls: 'spellbook-row-note', text: MISSING_LABEL });
     // There is nothing to open, but a tap should not go unanswered.
     row.self.addEventListener('click', () => {
+      this.select(ref);
       new Notice(`"${title}": ${MISSING_LABEL}.`);
     });
   }
@@ -603,8 +845,10 @@ export class BinderView extends ItemView {
   /**
    * Build one row with Obsidian's own tree classes (so that themes apply)
    * next to the plugin's (which the stylesheet lays the row out with).
+   *
+   * @param around what the row sits in, from the outside in: its section, then the folders
    */
-  private addRow(parent: HTMLElement, options: RowOptions): Row {
+  private addRow(parent: HTMLElement, options: RowOptions, around: readonly Fold[] = []): Row {
     const item = parent.createDiv({ cls: `tree-item spellbook-row ${options.itemCls}` });
     const self = item.createDiv({ cls: `tree-item-self spellbook-row-self ${options.selfCls}` });
     const slot = self.createDiv({ cls: 'spellbook-row-slot' });
@@ -625,30 +869,71 @@ export class BinderView extends ItemView {
       count = { el: outer.createSpan({ cls: 'tree-item-flair spellbook-count' }), shown: '' };
     }
 
+    const select = options.select;
+    // Should a note have two rows (a research note that the binder also
+    // lists), the first one drawn, the binder's, is the one that is selected.
+    if (select && !this.rows.has(rowKey(select))) this.rows.set(rowKey(select), { self, around });
+
     let children: HTMLElement | null = null;
-    const fold = options.fold;
-    if (fold) {
+    let fold: Fold | null = null;
+    if (options.fold) {
+      const made: Fold = { item, self, slot, indexPath: options.fold.indexPath, key: options.fold.key };
+      fold = made;
       self.addClass('mod-collapsible', 'is-clickable');
       slot.addClass('tree-item-icon', 'collapse-icon', 'spellbook-fold-icon');
       showIcon(slot, ...FOLD_ICON);
       children = item.createDiv({ cls: 'tree-item-children spellbook-children' });
-      const collapsed = this.services?.prefs.isCollapsed(fold.indexPath, fold.key) === true;
-      this.showFold(item, self, slot, collapsed);
+      this.showFold(made, this.services?.prefs.isCollapsed(made.indexPath, made.key) === true);
       self.addEventListener('click', () => {
         const prefs = this.services?.prefs;
         if (!prefs) return;
-        const next = !prefs.isCollapsed(fold.indexPath, fold.key);
-        prefs.setCollapsed(fold.indexPath, fold.key, next);
-        this.showFold(item, self, slot, next);
+        const next = !prefs.isCollapsed(made.indexPath, made.key);
+        prefs.setCollapsed(made.indexPath, made.key, next);
+        this.showFold(made, next);
+        if (select) this.select(select);
       });
     }
-    return { item, self, slot, body, main, title, count, children };
+
+    const menu = options.menu;
+    if (menu) {
+      // The "more" button comes last in the row, so it sits at the far end
+      // from the fold arrow, whichever way Obsidian itself reads.
+      const more = this.addButton(self, 'spellbook-row-more', MORE_LABEL, ROW_MORE_ICON, () => {
+        const made = this.menuFor(menu, select);
+        if (made) this.showMenuAt(made, more);
+      });
+      more.setAttr('aria-haspopup', 'menu');
+      // A right-click (or, where the device sends one, a long press) opens the same menu.
+      self.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        safely(MORE_LABEL, () => {
+          this.menuFor(menu, select)?.showAtMouseEvent(event);
+        });
+      });
+    } else if (count) {
+      // A row with a count but no button (the Manuscript section) leaves the
+      // button's room empty, so that its count lines up with those below it.
+      self.createDiv({ cls: 'spellbook-row-more-space' });
+    }
+    return { item, self, slot, body, main, title, count, children, fold };
   }
 
-  private showFold(item: HTMLElement, self: HTMLElement, slot: HTMLElement, collapsed: boolean): void {
-    item.toggleClass('is-collapsed', collapsed);
-    slot.toggleClass('is-collapsed', collapsed);
-    self.setAttr('aria-expanded', collapsed ? 'false' : 'true');
+  /**
+   * Make a row's menu for the project as it is right now, and select the row
+   * it belongs to. Null when the project the row was drawn for is no longer
+   * the open one.
+   */
+  private menuFor(menu: (context: MenuContext) => Menu, select: NodeRef | undefined): Menu | null {
+    const project = this.services?.store.project;
+    if (!project || project.indexPath !== this.shownProject) return null;
+    if (select) this.select(select);
+    return menu({ actions: this.host.actions, project });
+  }
+
+  private showFold(fold: Fold, collapsed: boolean): void {
+    fold.item.toggleClass('is-collapsed', collapsed);
+    fold.slot.toggleClass('is-collapsed', collapsed);
+    fold.self.setAttr('aria-expanded', collapsed ? 'false' : 'true');
   }
 
   // --------------------------------------------------------------- word counts
@@ -705,6 +990,17 @@ export class BinderView extends ItemView {
     if (this.closed || path === this.activePath) return;
     this.activePath = path;
     this.markActive(true);
+    // The note the writer moved to is the row they are working with now.
+    const project = this.services?.store.project;
+    const ref = project ? this.activeRef(project) : null;
+    if (ref && this.rows.has(rowKey(ref))) this.select(ref);
+  }
+
+  /** The note being worked on, as a row of `project`; null when it is not one of the project's notes. */
+  private activeRef(project: ProjectSnapshot): NodeRef | null {
+    if (this.activePath === null) return null;
+    const path = relativeTo(project.folder, this.activePath);
+    return path === null ? null : sceneRef(path);
   }
 
   /**
@@ -720,53 +1016,87 @@ export class BinderView extends ItemView {
     for (const row of rows) {
       row.self.addClass('is-active');
       this.marked.push(row.self);
-      for (const folder of row.trail) {
-        folder.addClass('spellbook-has-active');
-        this.marked.push(folder);
+      // The first thing around a row is its section, which is not marked.
+      for (const folder of row.around.slice(1)) {
+        folder.self.addClass('spellbook-has-active');
+        this.marked.push(folder.self);
       }
     }
     const first = rows[0];
-    if (reveal && first) this.reveal(first.self);
+    if (reveal && first) this.scrollTo(first.self);
   }
 
   /**
    * Scroll the list, and only the list, so that a row can be seen. (The
    * browser's own "scroll into view" may also shift whatever the list sits
    * in, such as a phone's side drawer.)
+   *
+   * @returns false when it could not be done, because the row or the list
+   *   has no height: the row is inside something folded shut, or the panel
+   *   is hidden
    */
-  private reveal(row: HTMLElement): void {
+  private scrollTo(row: HTMLElement): boolean {
     const scroll = this.els?.scroll;
-    if (!scroll) return;
+    if (!scroll) return false;
     const box = scroll.getBoundingClientRect();
     const at = row.getBoundingClientRect();
-    // No height: the row is inside something folded shut, or the pane is hidden.
-    if (!(at.height > 0) || !(box.height > 0)) return;
+    if (!(at.height > 0) || !(box.height > 0)) return false;
     if (at.top < box.top) scroll.scrollTop -= box.top - at.top;
     else if (at.bottom > box.bottom) scroll.scrollTop += at.bottom - box.bottom;
+    return true;
+  }
+
+  // ------------------------------------------------------------- selected row
+
+  /** Make a row of the project on show the selected one. */
+  private select(ref: NodeRef): void {
+    if (this.shownProject !== null) this.services?.selection.select(this.shownProject, ref);
+  }
+
+  private onSelection(): void {
+    if (this.closed) return;
+    // A drawing that is about to happen shows the selection itself, with
+    // every row in its new place.
+    if (this.renderTimer !== null) return;
+    this.showSelection();
+  }
+
+  /**
+   * Mark the selected row. When it was asked to be brought into view, unfold
+   * what it sits in and scroll to it. A row that is not drawn yet is dealt
+   * with by the next drawing; a list that cannot be measured yet (the panel
+   * is hidden) is scrolled when it can be.
+   */
+  private showSelection(): void {
+    const services = this.services;
+    this.selectedRow?.removeClass('spellbook-is-selected');
+    this.selectedRow = null;
+    if (!services || this.shownProject === null) return;
+    const ref = services.selection.currentIn(this.shownProject);
+    const row = ref === null ? undefined : this.rows.get(rowKey(ref));
+    if (!row) return;
+    row.self.addClass('spellbook-is-selected');
+    this.selectedRow = row.self;
+
+    const wanted = services.selection.revealCount;
+    if (wanted !== this.revealed) {
+      this.revealed = wanted;
+      for (const fold of row.around) {
+        if (!services.prefs.isCollapsed(fold.indexPath, fold.key)) continue;
+        services.prefs.setCollapsed(fold.indexPath, fold.key, false);
+        this.showFold(fold, false);
+      }
+      this.scrollPending = !this.scrollTo(row.self);
+    } else if (this.scrollPending) {
+      this.scrollPending = !this.scrollTo(row.self);
+    }
   }
 
   // ------------------------------------------------------------- opening notes
 
-  private async openNote(path: string, where: PaneType | boolean): Promise<void> {
-    const services = this.services;
-    if (!services) return;
-    const title = noteTitle(path);
-    const vaultPath = services.store.vaultPathOf(path);
-    if (vaultPath === null) {
-      new Notice(`"${title}": ${MISSING_LABEL}.`);
-      return;
-    }
-    let shown = false;
-    try {
-      shown = await this.host.openNote(vaultPath, where);
-    } catch {
-      shown = false;
-    }
-    if (!shown) {
-      new Notice(`"${title}" could not be opened.`);
-      return;
-    }
-    this.hideDrawerOnPhone();
+  private openNote(path: string, where: PaneType | boolean): void {
+    if (this.shownProject === null) return;
+    void this.host.actions.openNote(this.shownProject, path, where);
   }
 
   /**
@@ -781,6 +1111,11 @@ export class BinderView extends ItemView {
     if (home === workspace.rightSplit || this.leaf.parent === workspace.rightSplit) workspace.rightSplit.collapse();
     else if (home !== workspace.rootSplit) workspace.leftSplit.collapse();
   }
+}
+
+/** A row's own fold as a list: what to add to "around" for the rows nested in it. */
+function foldsOf(row: Row): Fold[] {
+  return row.fold ? [row.fold] : [];
 }
 
 /** A project's name in the list of projects; two with the same title also show their folders. */

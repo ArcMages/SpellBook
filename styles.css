@@ -17,6 +17,40 @@
   max-width: 100%;
 }
 
+/* The small windows that ask for a name: the field takes the full width, and
+   a message can appear under it. */
+.spellbook-prompt .spellbook-prompt-field {
+  margin-block-end: var(--size-4-4);
+}
+
+.spellbook-prompt .spellbook-prompt-field .spellbook-prompt-input {
+  width: 100%;
+  text-align: start;
+}
+
+.spellbook-prompt .spellbook-prompt-field .spellbook-prompt-input.spellbook-is-invalid {
+  border-color: var(--text-error);
+}
+
+.spellbook-prompt .spellbook-prompt-message {
+  margin-block-start: var(--size-2-3);
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+  text-align: start;
+}
+
+.spellbook-prompt .spellbook-prompt-message:empty {
+  display: none;
+}
+
+/* The window that asks before a scene is deleted. */
+.spellbook-confirm .spellbook-confirm-message {
+  margin-block: 0 var(--size-4-4);
+  color: var(--text-muted);
+  text-align: start;
+}
+
 /* ------------------------------------------------------------------ Binder */
 
 /* Obsidian's pane around the binder: the binder brings its own margins and
@@ -56,14 +90,40 @@
   min-width: 0;
 }
 
-/* Room for the binder's buttons; takes no space while it is empty. */
+/* The binder's buttons: New scene, New folder and a menu. Takes no space
+   while it is empty. */
 .spellbook-binder-toolbar {
+  display: flex;
   flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--size-2-1);
+  margin: 0;
   padding: 0;
 }
 
 .spellbook-binder-toolbar:empty {
   display: none;
+}
+
+.spellbook-binder .spellbook-toolbar-button {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  cursor: var(--cursor);
+}
+
+.spellbook-binder .spellbook-toolbar-button svg {
+  width: var(--icon-s);
+  height: var(--icon-s);
+}
+
+/* A button that was reached with the keyboard shows where the keyboard is. */
+.spellbook-binder .spellbook-toolbar-button:focus-visible,
+.spellbook-binder .spellbook-row-more:focus-visible {
+  outline: var(--size-2-1) solid var(--background-modifier-border-focus);
+  outline-offset: calc(-1 * var(--size-2-1));
 }
 
 .spellbook-project-name {
@@ -220,6 +280,15 @@
   cursor: var(--cursor);
 }
 
+/* The selected row: the one last tapped, opened or acted on. A thin ring
+   sets it apart in every theme. (This rule comes before the one for the
+   active note, so that the active note keeps its own background.) */
+.spellbook-binder .spellbook-row > .spellbook-row-self.spellbook-is-selected {
+  background-color: var(--nav-item-background-selected, var(--background-modifier-hover));
+  outline: var(--border-width) solid var(--background-modifier-border-focus);
+  outline-offset: calc(-1 * var(--border-width));
+}
+
 .spellbook-binder .spellbook-row > .spellbook-row-self.is-active {
   background-color: var(--nav-item-background-active);
   color: var(--nav-item-color-active);
@@ -295,6 +364,37 @@
   white-space: nowrap;
 }
 
+/* The "more" button of a row. It comes last, so it sits at the far end from
+   the fold arrow whichever way Obsidian reads, and it takes up the full
+   height of the row (the margins make up for the row's own padding). */
+.spellbook-binder .spellbook-row-self > .spellbook-row-more {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  align-self: stretch;
+  justify-content: center;
+  margin-block: calc(-1 * var(--size-2-2));
+  margin-inline: 0 calc(-1 * var(--size-4-2));
+  padding-block: 0;
+  padding-inline: var(--size-2-3);
+  border-radius: var(--radius-s);
+  cursor: var(--cursor);
+}
+
+.spellbook-binder .spellbook-row-more svg {
+  width: var(--icon-s);
+  height: var(--icon-s);
+}
+
+/* The room of a "more" button, left empty in a row that shows a count but has
+   no button, so that the counts of all rows stand in one column. As wide as
+   the button: its icon and its padding on both sides. */
+.spellbook-binder .spellbook-row-self > .spellbook-row-more-space {
+  flex: 0 0 auto;
+  width: calc(var(--icon-s) + 2 * var(--size-2-3));
+  margin-inline: 0 calc(-1 * var(--size-4-2));
+}
+
 /* A second line under the title, for something the writer should know. */
 .spellbook-binder .spellbook-row-note {
   color: var(--text-faint);
@@ -364,11 +464,44 @@
   min-height: var(--spellbook-touch-target);
 }
 
+/* The same for the buttons, which are as wide as they are tall. */
+.spellbook-binder.spellbook-is-mobile .spellbook-toolbar-button,
+.spellbook-binder.spellbook-is-mobile .spellbook-row-self > .spellbook-row-more {
+  min-width: var(--spellbook-touch-target);
+  min-height: var(--spellbook-touch-target);
+}
+
+.spellbook-binder.spellbook-is-mobile .spellbook-row-self > .spellbook-row-more-space {
+  min-width: var(--spellbook-touch-target);
+}
+
 @media (pointer: coarse) {
   .spellbook-binder .spellbook-row-self,
   .spellbook-binder .spellbook-binder-heading .spellbook-project-switch,
   .spellbook-binder .spellbook-binder-create {
     min-height: var(--spellbook-touch-target);
+  }
+
+  .spellbook-binder .spellbook-toolbar-button,
+  .spellbook-binder .spellbook-row-self > .spellbook-row-more {
+    min-width: var(--spellbook-touch-target);
+    min-height: var(--spellbook-touch-target);
+  }
+
+  .spellbook-binder .spellbook-row-self > .spellbook-row-more-space {
+    min-width: var(--spellbook-touch-target);
+  }
+}
+
+/* With a mouse, the "more" button of a row stays out of sight until the row
+   is pointed at, holds the keyboard's focus, or is the selected or the active
+   row, so that a long list is not a column of dots. It is never the only way
+   in: a right-click opens the same menu, and the commands do the same things.
+   On phones and tablets, and on any screen without a mouse, the button is
+   always there. */
+@media (hover: hover) and (pointer: fine) {
+  .spellbook-binder:not(.spellbook-is-mobile) .spellbook-row-self:not(:hover):not(:focus-within):not(.is-active):not(.spellbook-is-selected) > .spellbook-row-more {
+    opacity: 0;
   }
 }
 
@@ -391,6 +524,7 @@
 /* A narrow pane (decided by measuring the pane, not by the kind of device):
    titles get all the room; the counts and second lines go. */
 .spellbook-binder.spellbook-is-narrow .spellbook-count-outer,
-.spellbook-binder.spellbook-is-narrow .spellbook-row-note {
+.spellbook-binder.spellbook-is-narrow .spellbook-row-note,
+.spellbook-binder.spellbook-is-narrow .spellbook-row-self > .spellbook-row-more-space {
   display: none;
 }

@@ -60,6 +60,13 @@ describe('source layout', () => {
       'ui/createProjectModal.ts',
       'ui/icons.ts',
       'views/binderView.ts',
+      'core/binderSelection.ts',
+      'ui/textPromptModal.ts',
+      'ui/confirmModal.ts',
+      'ui/folderPickerModal.ts',
+      'ui/safely.ts',
+      'views/binderActions.ts',
+      'views/binderMenus.ts',
     ]) {
       expect(names, expected).toContain(expected);
     }
@@ -186,6 +193,20 @@ describe('the whole plugin', () => {
     }
   });
 
+  it('lets the views and windows change a project only through the store, never through the vault doorway', () => {
+    // A button or a menu asks the project store for an intent (add, rename,
+    // move, remove). It never reads or writes a note itself.
+    const screenFiles = allFiles.filter((file) => /^(views|ui)\//.test(relative(file)));
+    expect(screenFiles.length).toBeGreaterThanOrEqual(8);
+    const doorway = /\bVaultPort\b|\b[vV]ault\s*\.\s*\w+\s*\(|\.\s*(updateFrontmatter|createFile|createFolder|readText|readFrontmatter)\s*\(/;
+    for (const file of screenFiles) {
+      expect(doorway.test(codeOf(file)), relative(file)).toBe(false);
+    }
+    expect(doorway.test('await this.vault.trash(path);')).toBe(true);
+    expect(doorway.test("await port.updateFrontmatter(path, () => true);")).toBe(true);
+    expect(doorway.test('const path = store.vaultPathOf(rel);')).toBe(false); // asking the store where a note is, is fine
+  });
+
   it('only the views and windows touch the screen, never the core or the vault doorway', () => {
     for (const file of [...coreFiles, ...adapterFiles]) {
       const code = codeOf(file);
@@ -267,11 +288,42 @@ describe('styles.css', () => {
   });
 
   it('never hides or reveals anything on hover alone', () => {
-    // Hover may tint a row. It may not be the only way to see or reach something.
+    // Hover may tint a row. It may not be the only way to see or reach
+    // something. One thing does come into view on hover: the "more" button of
+    // a row, with a mouse. That is allowed on three conditions, checked here:
+    //   - the rule only applies where there is a mouse, and never on phones
+    //     and tablets: on a touch screen the button is always there;
+    //   - holding the keyboard's focus shows the button just as pointing does;
+    //   - the button is only made see-through, so it can still be focused
+    //     and pressed.
+    const mouseOnly = [...css.matchAll(/@media\s*\(hover:\s*hover\)\s*and\s*\(pointer:\s*fine\)\s*\{([\s\S]*?\})\s*\}/g)]
+      .map((match) => match[1] ?? '')
+      .join('\n');
+    const changesWhatIsSeen = /\b(display|visibility|opacity|pointer-events)\s*:/;
+    let exceptions = 0;
     for (const rule of rules) {
       if (!rule.selectors.some((selector) => selector.includes(':hover'))) continue;
-      expect(/\b(display|visibility|opacity|pointer-events)\s*:/.test(rule.body), rule.selectors.join(', ')).toBe(false);
+      if (!changesWhatIsSeen.test(rule.body)) continue;
+      exceptions++;
+      const where = rule.selectors.join(', ');
+      expect(rule.body.trim(), where).toBe('opacity: 0;');
+      expect(mouseOnly.includes(rule.body), where).toBe(true);
+      for (const selector of rule.selectors) {
+        expect(selector, where).toContain(':not(.spellbook-is-mobile)');
+        expect(selector, where).toContain(':not(:hover)');
+        expect(selector, where).toContain(':not(:focus-within)');
+        expect(selector.endsWith('> .spellbook-row-more'), where).toBe(true);
+      }
     }
+    expect(exceptions).toBe(1);
+    // Nothing is made invisible anywhere else.
+    const invisible = /\b(opacity:\s*0|visibility:\s*hidden)\b/;
+    for (const rule of rules) {
+      if (invisible.test(rule.body)) expect(mouseOnly.includes(rule.body), rule.selectors.join(', ')).toBe(true);
+    }
+    expect(changesWhatIsSeen.test('opacity: 0;')).toBe(true);
+    expect(invisible.test('opacity: 0;')).toBe(true);
+    expect(invisible.test('visibility: hidden;')).toBe(true);
   });
 
   it('the checks themselves work', () => {
