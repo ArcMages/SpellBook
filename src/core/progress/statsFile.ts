@@ -382,8 +382,18 @@ function splitRow(line: string): string[] | null {
   return cells;
 }
 
+/**
+ * True for the heading of the log's own table: the five headings this version
+ * writes, whatever columns follow them. Any other row that begins with "Date"
+ * (the heading of a table of the writer's own, or a heading the writer
+ * retitled) is not the log's: it is kept as a row that could not be read.
+ */
 const isHeaderRow = (cells: readonly string[]): boolean =>
-  cells.length >= KNOWN_CELLS && (cells[0] ?? '').trim().toLowerCase() === 'date';
+  cells.length >= KNOWN_CELLS &&
+  HEADER_CELLS.every((name, index) => (cells[index] ?? '').trim().toLowerCase() === name.toLowerCase());
+
+const sameCells = (a: readonly string[], b: readonly string[]): boolean =>
+  a.length === b.length && a.every((cell, index) => cell.trim() === (b[index] ?? '').trim());
 
 const isSeparatorRow = (cells: readonly string[]): boolean =>
   cells.length > 0 && cells.every((cell) => /^:?-+:?$/.test(cell.trim()));
@@ -450,13 +460,13 @@ const EMPTY_KEPT: StatsKept = Object.freeze({
  */
 export function parseStatsFile(text: string, fileName?: string): StatsFile {
   const source = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-  // The first line break tells which kind the file uses.
+  // The first line break tells which kind the file is written back with.
   const firstBreak = source.indexOf('\n');
   const lineEnd = firstBreak > 0 && source[firstBreak - 1] === '\r' ? '\r\n' : '\n';
-  const lines =
-    lineEnd === '\n'
-      ? source.split('\n')
-      : source.split('\n').map((line) => (line.endsWith('\r') ? line.slice(0, -1) : line));
+  // A file may mix both kinds (a sync, or an editor on another system). A
+  // carriage return at the end of a line belongs to the line break, never to
+  // the line: left there, it would hide the properties from the reader.
+  const lines = source.split('\n').map((line) => line.replace(/\r+$/, ''));
   // Text that ends with a line break has one empty piece after it: not a line.
   if (lines[lines.length - 1] === '') lines.pop();
 
@@ -541,10 +551,19 @@ export function parseStatsFile(text: string, fileName?: string): StatsFile {
     }
     sawTable = true;
     if (isHeaderRow(cells)) {
-      if (!sawHeader) headerExtra = cells.slice(KNOWN_CELLS);
-      sawHeader = true;
-      lastRowKept = false;
-      continue;
+      const extra = cells.slice(KNOWN_CELLS);
+      if (!sawHeader) {
+        headerExtra = extra;
+        sawHeader = true;
+        lastRowKept = false;
+        continue;
+      }
+      // The same heading once more says nothing new; it is written once anyway.
+      if (sameCells(extra, headerExtra)) {
+        lastRowKept = false;
+        continue;
+      }
+      // A second heading with other columns: kept below, like any row that could not be read.
     }
     if (isSeparatorRow(cells)) {
       // The rule under a heading row that was not understood stays with it.

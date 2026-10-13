@@ -15,12 +15,24 @@
 //
 // 2. Saving. Each device has an id of its own (newDeviceId, kept in the
 //    device's own storage, never in synced data). When plan() says "write",
-//    take tracker.unwritten(). For each entry, the file is
+//    take the entries with tracker.beginSave(). For each entry, the file is
 //    statsFilePath(entry.project, entry.date, deviceId). Read that file's
-//    text as it is now (or null when there is none), pass it through
-//    updateStatsText together with the entries for that file, save the text
-//    it returns, then call tracker.markWritten with those entries. If a save
-//    fails, call tracker.writeFailed() instead.
+//    text as it is now (or null when there is none) and pass it through
+//    updateStatsText together with the entries for that file:
+//      - "write": save the text it returns. Once saved, those entries are done.
+//      - "unchanged": save nothing. Those entries are done as well.
+//      - "refused": save nothing and show the writer the reason. Those
+//        entries are not done; neither are the entries of a file whose
+//        save threw.
+//    Then end the save with exactly one call, also when something throws:
+//    tracker.markWritten(entries) when every entry is done, otherwise
+//    tracker.writeFailed(the entries that are done). What is not done stays
+//    counted and is offered again after a short wait. Then ask plan() again.
+//
+//    Only one save runs at a time: from beginSave() until that one call,
+//    plan() never says "write" and beginSave() gives an empty list, so two
+//    saves can never put the same words in a file twice. When the plugin
+//    unloads, let a save that is under way end before asking plan(true).
 //
 // 3. Reading. Read every file in <Project>/Stats with parseStatsFile (pass
 //    the file's path too), add them up with sumDeviceLogs, and add this
@@ -139,7 +151,7 @@ export type {
 // -------------------------------------------------------------- word accounting
 
 export {
-  /** Counts the words typed on this device: edit, measure, plan, unwritten, markWritten, writeFailed, session, renamed, removed, projectMoved. */
+  /** Counts the words typed on this device: edit, measure, plan, beginSave, markWritten, writeFailed, unwritten, session, renamed, removed, projectMoved. */
   WordTracker,
   /** Decide where a note's words count: "manuscript" of the project whose Manuscript folder holds it, else "other" of the open project, else null. */
   classifyNote,
@@ -205,7 +217,7 @@ export {
   parseTargets,
   /** Check a targets form: either the targets, or a message for each field that is wrong. */
   validateTargets,
-  /** The value to store under "targets" after a change; untouched and unknown parts are kept; undefined means remove the key. */
+  /** The value to store under "targets" after a change; untouched, unknown and unreadable parts are kept; undefined means remove the key. */
   updateTargets,
   /** Percent reached, words remaining and whether a word target is met; null without a target. */
   targetProgress,

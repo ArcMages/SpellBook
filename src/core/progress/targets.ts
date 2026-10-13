@@ -57,7 +57,10 @@ export type TargetsValidation =
       readonly errors: { readonly project?: string; readonly daily?: string; readonly deadline?: string };
     };
 
-/** A change to the targets: a new value, null to remove a target, or left out to keep it. */
+/**
+ * A change to the targets: a new value, null to remove a target, or left out
+ * to keep it. Null never removes a stored value that could not be read.
+ */
 export interface TargetsChange {
   readonly project?: number | null;
   readonly daily?: number | null;
@@ -194,26 +197,47 @@ export function validateTargets(input: TargetsInput): TargetsValidation {
  *
  * Only the parts named in the change are touched: a number or date sets a
  * target, null removes it. Every other part stays exactly as it was stored,
- * including parts this version does not know and parts it could not read. A
- * new value that is not valid is ignored (check with validateTargets first).
+ * including parts this version does not know. A new value that is not valid
+ * is ignored (check with validateTargets first).
+ *
+ * What was stored and could not be read is never dropped for a null: it is
+ * not a target, so "no target" leaves it alone, and only a new value takes
+ * its place. That makes it safe to pass the whole result of validateTargets,
+ * where every field left empty is null. The same holds when the stored value
+ * is not a group of properties at all (a bare number typed by hand, a list):
+ * it comes back as it was unless a target is really set.
  *
  * Returns undefined when nothing is left: the key should then be removed.
  *
  * @param raw the value stored now, as read from the index (anything at all)
  */
-export function updateTargets(raw: unknown, change: TargetsChange): Record<string, unknown> | undefined {
+export function updateTargets(
+  raw: Readonly<Record<string, unknown>> | null | undefined,
+  change: TargetsChange,
+): Record<string, unknown> | undefined;
+export function updateTargets(raw: unknown, change: TargetsChange): unknown;
+export function updateTargets(raw: unknown, change: TargetsChange): unknown {
   const next: Record<string, unknown> = isRecord(raw) ? { ...raw } : {};
+  let set = false;
   for (const key of ['project', 'daily'] as const) {
     const value = change[key];
     if (value === undefined) continue;
-    if (value === null) delete next[key];
-    else if (typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_TARGET_WORDS) {
+    if (value === null) {
+      if (isBlank(next[key]) || readWordTarget(next[key]) !== null) delete next[key];
+    } else if (typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_TARGET_WORDS) {
       next[key] = value;
+      set = true;
     }
   }
   const deadline = change.deadline;
-  if (deadline === null) delete next['deadline'];
-  else if (typeof deadline === 'string' && isDateText(deadline)) next['deadline'] = deadline;
+  if (deadline === null) {
+    if (isBlank(next['deadline']) || readDateProperty(next['deadline']) !== null) delete next['deadline'];
+  } else if (typeof deadline === 'string' && isDateText(deadline)) {
+    next['deadline'] = deadline;
+    set = true;
+  }
+  // Something that is not a group of properties was not understood either.
+  if (!set && raw !== undefined && raw !== null && !isRecord(raw)) return raw;
   return Object.keys(next).length === 0 ? undefined : next;
 }
 

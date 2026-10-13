@@ -105,8 +105,11 @@ export interface EditEvent {
    * How many characters the edit put in and took out. Optional, and cheap to
    * give for paste, drop, cut and undo: it lets the tracker recognise the undo
    * of a paste by its size. With neither `of` nor `chars` the tracker goes by
-   * the word counts alone, which is right as long as notes are measured at
-   * pauses in typing and not in the middle of one step of the editor's undo.
+   * the word counts alone: an undo is taken for the undo of the last paste
+   * only when it changes as many words and no typing is left standing on top
+   * of that paste. One case is beyond word counts: typing on top of a paste
+   * that came to no change in words over more than two steps of the editor's
+   * undo, one of them the size of the paste. Give `of` or `chars` to rule it out.
    */
   readonly chars?: { readonly inserted: number; readonly removed: number };
 }
@@ -184,6 +187,12 @@ interface TypedEntry {
   target: NoteTarget | null;
   added: number;
   deleted: number;
+  /**
+   * True when typing was measured here that changed no word count (two words
+   * deleted and two typed): steps of the editor's undo stand here that the
+   * numbers do not show. It holds until an undo first reaches this typing.
+   */
+  hidden: boolean;
 }
 
 /** A paste, drop or cut (or an outside change) that was not counted. */
@@ -207,9 +216,18 @@ interface Piece {
 /** What an undo did, so that the redo can do exactly the opposite. */
 type Undone =
   | { readonly kind: 'moved'; readonly entry: MovedEntry | null }
-  | { readonly kind: 'typed'; readonly net: number; readonly taken: Piece[]; readonly given: Piece[] };
+  | {
+      readonly kind: 'typed';
+      readonly net: number;
+      readonly taken: Piece[];
+      readonly given: Piece[];
+      /** The typing whose `hidden` mark this undo cleared; null when it cleared none. */
+      readonly hid: { readonly date: string; target: NoteTarget | null } | null;
+    };
 
 interface NoteState {
+  /** The note's vault path, as it was last handed in. */
+  path: string;
   /** The word count at the last look; null when the next look only sets it. */
   baseline: number | null;
   /** The date typing began since the last measurement; null when not typed in. */
@@ -265,23 +283,30 @@ function usableChars(chars: EditEvent['chars']): { inserted: number; removed: nu
  * Counts the words the writer types on this device.
  *
  * The editor side reports edits with `edit` and word counts with `measure`;
- * `plan` says when to measure and when to save; `unwritten` and `markWritten`
- * hand the counted words over to the daily log.
+ * `plan` says when to measure and when to save; `beginSave`, `markWritten`
+ * and `writeFailed` hand the counted words over to the daily log, one save
+ * at a time; `unwritten` lists them for showing on screen.
  */
 export class WordTracker {
   private readonly clock: () => Instant;
   private readonly projects: () => ProjectsNow;
   private readonly countPasted: () => boolean;
 
+  /** What is known about each note, by its path in one Unicode form (see pathKey). */
   private readonly notes = new Map<string, NoteState>();
   /** Words counted and not yet saved, by project folder and then by date. */
   private readonly pending = new Map<string, Map<string, MutableCounts>>();
   /** Words counted since the tracker was made, by project folder. */
   private readonly sessions = new Map<string, MutableCounts>();
 
+  /** When the oldest unsaved words were typed: the first keystroke of their stretch of typing. */
   private unwrittenSince: number | null = null;
   private lastChangeAt: number | null = null;
   private notBefore: number | null = null;
+  /** True from `beginSave` until `markWritten` or `writeFailed`. */
+  private saving = false;
+  /** Like `unwrittenSince`, for the words counted since the save under way began. */
+  private sinceInSave: number | null = null;
 
   constructor(deps: TrackerDeps) {
     this.clock = deps.clock;
@@ -382,15 +407,19 @@ export class WordTracker {
 
   /** A note was renamed or moved: what is known about it follows it to its new path. */
   renamed(from: string, to: string): void {
-    const state = this.notes.get(from);
-    if (!state || from === to) return;
-    this.notes.delete(from);
-    this.notes.set(to, state);
+    const fromKey = pathKey(from);
+    const toKey = pathKey(to);
+    const state = this.notes.get(fromKey);
+    if (!state) return;
+    state.path = to;
+    if (fromKey === toKey) return;
+    this.notes.delete(fromKey);
+    this.notes.set(toKey, state);
   }
 
   /** A note was deleted. The words it contributed stay counted: deleting a note does not unwrite them. */
   removed(path: string): void {
-    this.notes.delete(path);
+    this.notes.delete(pathKey(path));
   }
 
   /** A project folder was renamed or moved: its counted words follow it. */
@@ -424,6 +453,7 @@ export class WordTracker {
         if (undone.kind !== 'typed') continue;
         undone.taken.forEach(retarget);
         undone.given.forEach(retarget);
+        if (undone.hid !== null) retarget(undone.hid);
       }
     }
   }
@@ -434,23 +464,26 @@ export class WordTracker {
    * What is due now: which notes to measure, whether to save the log, and how
    * long to wait before asking again. See planWrites for the rules.
    *
+   * `write` is never true while a save is under way (see `beginSave`), not
+   * even when unloading: let that save end, then ask again.
+   *
    * @param unloading true when the plugin is unloading: everything is due at once
    */
   plan(unloading = false): WritePlan {
     const now = this.clock();
     const typing: TypingNote[] = [];
-    for (const [path, note] of this.notes) {
+    for (const note of this.notes.values()) {
       if (note.typedDate === null) continue;
-      typing.push({ path, date: note.typedDate, firstTypedAt: note.firstTypedAt, lastTypedAt: note.lastTypedAt });
+      typing.push({ path: note.path, date: note.typedDate, firstTypedAt: note.firstTypedAt, lastTypedAt: note.lastTypedAt });
     }
     const entries = this.unwritten();
     if (entries.length === 0) this.unwrittenSince = null;
-    return planWrites({
+    const plan = planWrites({
       now: now.time,
       today: now.date,
       typing,
       unwritten:
-        entries.length === 0
+        entries.length === 0 || this.saving
           ? null
           : {
               since: this.unwrittenSince ?? now.time,
@@ -460,13 +493,32 @@ export class WordTracker {
       unloading,
       notBefore: this.notBefore,
     });
+    return this.saving ? { ...plan, write: false } : plan;
+  }
+
+  /**
+   * Start a save, when `plan` says "write": the counted words to put in the
+   * log files now, exactly as `unwritten` lists them.
+   *
+   * Only one save runs at a time. Until it ends, `plan` does not ask for
+   * another and a second `beginSave` gives an empty list, so that no word is
+   * ever put in a file twice. End every save with exactly one call, also when
+   * something throws: `markWritten` when all of it went in, `writeFailed`
+   * otherwise. An empty list means there is nothing to do and nothing to end.
+   */
+  beginSave(): LogEntry[] {
+    if (this.saving) return [];
+    const entries = this.unwritten();
+    if (entries.length === 0) return [];
+    this.saving = true;
+    this.sinceInSave = null;
+    return entries;
   }
 
   /**
    * The counted words that are not in the log file yet, one entry per project
-   * and day, in order of project and date. Save each to that project's log
-   * for that day (see updateStatsText), then call `markWritten` with the
-   * entries that were saved.
+   * and day, in order of project and date. For showing on screen (see
+   * addToTotals); to save them, take them with `beginSave` instead.
    */
   unwritten(): LogEntry[] {
     const entries: LogEntry[] = [];
@@ -480,8 +532,38 @@ export class WordTracker {
     );
   }
 
-  /** These entries are in the log file now. Words counted while the save was under way stay waiting. */
+  /**
+   * The save ended well: these entries are dealt with. That means in their
+   * log file now, or, where updateStatsText answered "unchanged", needing no
+   * place there (an undo took words back from a day the file no longer
+   * holds). Words counted while the save was under way stay waiting.
+   */
   markWritten(entries: readonly LogEntry[]): void {
+    this.settleEntries(entries);
+    this.notBefore = null;
+    this.unwrittenSince = this.unwritten().length === 0 ? null : (this.sinceInSave ?? this.lastChangeAt);
+    this.saving = false;
+    this.sinceInSave = null;
+  }
+
+  /**
+   * The save ended with something left over: a file could not be written, or
+   * updateStatsText refused one (tell the writer its reason). Nothing is
+   * lost: what is left stays counted, shows in `unwritten`, and `plan` asks
+   * for it again after a short wait, so a file the writer has put right is
+   * picked up.
+   *
+   * @param written the entries of this save that are dealt with all the same (see `markWritten`); leave out when none are
+   */
+  writeFailed(written: readonly LogEntry[] = []): void {
+    this.settleEntries(written);
+    this.notBefore = this.clock().time + WRITE_RETRY_MS;
+    this.saving = false;
+    this.sinceInSave = null;
+  }
+
+  /** Take entries that are dealt with off the words still waiting. */
+  private settleEntries(entries: readonly LogEntry[]): void {
     for (const entry of entries) {
       const days = this.pending.get(entry.project);
       const row = days?.get(entry.date);
@@ -493,13 +575,6 @@ export class WordTracker {
       if (isZero(row)) days.delete(entry.date);
       if (days.size === 0) this.pending.delete(entry.project);
     }
-    this.notBefore = null;
-    this.unwrittenSince = this.unwritten().length === 0 ? null : this.lastChangeAt;
-  }
-
-  /** A save failed. Nothing is lost; `plan` asks for it again after a short wait. */
-  writeFailed(): void {
-    this.notBefore = this.clock().time + WRITE_RETRY_MS;
   }
 
   /**
@@ -526,12 +601,15 @@ export class WordTracker {
 
   // ------------------------------------------------------------------ counting
 
+  /** What is known about a note. The same path in another Unicode form is the same note. */
   private note(path: string): NoteState {
-    let state = this.notes.get(path);
+    const key = pathKey(path);
+    let state = this.notes.get(key);
     if (!state) {
-      state = { baseline: null, typedDate: null, firstTypedAt: 0, lastTypedAt: 0, typedHere: false, undo: [], redo: [] };
-      this.notes.set(path, state);
+      state = { path, baseline: null, typedDate: null, firstTypedAt: 0, lastTypedAt: 0, typedHere: false, undo: [], redo: [] };
+      this.notes.set(key, state);
     }
+    state.path = path;
     return state;
   }
 
@@ -550,21 +628,43 @@ export class WordTracker {
     if (date === null) return;
     note.typedDate = null;
     note.typedHere = true;
-    if (delta !== 0) this.count(note, path, date, delta, now);
+    if (delta !== 0) {
+      // These words have been waiting since the first keystroke of the stretch, not since now.
+      this.count(note, path, date, delta, now, note.firstTypedAt);
+    } else {
+      // Typing that changed no word count still stands in the editor's undo history.
+      const target = classifyNote(path, this.projects());
+      this.pushTyped(note, { kind: 'typed', date, target, added: 0, deleted: 0, hidden: true });
+    }
   }
 
-  /** Count a net change made by typing, and remember it so that an undo can take it back. */
-  private count(note: NoteState, path: string, date: string, delta: number, now: Instant): void {
+  /**
+   * Count a net change made by typing, and remember it so that an undo can take it back.
+   *
+   * @param since when these words were typed, if that was before now
+   */
+  private count(note: NoteState, path: string, date: string, delta: number, now: Instant, since = now.time): void {
     const target = classifyNote(path, this.projects());
     const added = delta > 0 ? delta : 0;
     const deleted = delta < 0 ? -delta : 0;
-    this.credit(target, date, 'added', added, now);
-    this.credit(target, date, 'deleted', deleted, now);
-    this.pushTyped(note, { kind: 'typed', date, target, added, deleted });
+    this.credit(target, date, 'added', added, now, since);
+    this.credit(target, date, 'deleted', deleted, now, since);
+    this.pushTyped(note, { kind: 'typed', date, target, added, deleted, hidden: false });
   }
 
-  /** Add words (or, with a negative amount, take them back) for one day, project and side. */
-  private credit(target: NoteTarget | null, date: string, side: Side, amount: number, now: Instant): void {
+  /**
+   * Add words (or, with a negative amount, take them back) for one day, project and side.
+   *
+   * @param since when they were typed; the two-minute limit on unsaved words runs from there
+   */
+  private credit(
+    target: NoteTarget | null,
+    date: string,
+    side: Side,
+    amount: number,
+    now: Instant,
+    since = now.time,
+  ): void {
     if (target === null || amount === 0 || !isDateText(date)) return;
     const key = countKey(target.bucket, side);
 
@@ -588,7 +688,8 @@ export class WordTracker {
     session[key] += amount;
 
     this.lastChangeAt = now.time;
-    if (this.unwrittenSince === null) this.unwrittenSince = now.time;
+    this.unwrittenSince = this.unwrittenSince === null ? since : Math.min(this.unwrittenSince, since);
+    if (this.saving) this.sinceInSave = this.sinceInSave === null ? since : Math.min(this.sinceInSave, since);
   }
 
   // ------------------------------------------------------------ undo and redo
@@ -604,6 +705,7 @@ export class WordTracker {
     if (top && top.kind === 'typed' && top.date === entry.date && sameTarget(top.target, entry.target)) {
       top.added += entry.added;
       top.deleted += entry.deleted;
+      top.hidden = top.hidden || entry.hidden;
     } else {
       this.pushEntry(note, entry);
     }
@@ -640,7 +742,7 @@ export class WordTracker {
   private static dropSpent(note: NoteState, floor: number): void {
     for (let i = note.undo.length - 1; i >= floor; i--) {
       const entry = note.undo[i] as Entry;
-      if (entry.kind === 'typed' && entry.added === 0 && entry.deleted === 0) note.undo.splice(i, 1);
+      if (entry.kind === 'typed' && entry.added === 0 && entry.deleted === 0 && !entry.hidden) note.undo.splice(i, 1);
     }
   }
 
@@ -662,11 +764,13 @@ export class WordTracker {
     if (moved !== null && moved.net === -net && event.of !== 'typing') {
       let standingNet = 0;
       let standingWords = 0;
+      let hidden = false;
       for (let i = floor; i < note.undo.length; i++) {
         const entry = note.undo[i] as Entry;
         if (entry.kind !== 'typed') continue;
         standingNet += entry.added - entry.deleted;
         standingWords += entry.added + entry.deleted;
+        hidden = hidden || entry.hidden;
       }
       const chars = usableChars(event.chars);
       if (event.of === 'move') {
@@ -679,9 +783,10 @@ export class WordTracker {
         // to change the same number of words.
         isMove = standingNet === 0 && chars.removed === moved.inserted && chars.inserted === moved.removed;
       } else {
-        // Nothing else to go by: any typing still counted above the move
-        // has to be undone before the move can be.
-        isMove = standingWords === 0;
+        // Nothing else to go by: any typing still standing above the move
+        // has to be undone before the move can be. That includes typing that
+        // changed no word count: its steps are in the editor's history too.
+        isMove = standingWords === 0 && !hidden;
       }
     }
 
@@ -711,18 +816,32 @@ export class WordTracker {
       if (missing > 0) {
         // The undone step was hidden inside one measurement (typing 8 words
         // and deleting 3 was counted as 5 added). Its other half now shows.
+        //
+        // Word counts cannot tell this from an undo that reaches typing from
+        // before the tracker first looked at the note, once typing was
+        // counted in it: both leave nothing standing. Steps hidden in a
+        // measurement are the everyday case, so that is what is assumed.
         let top = note.undo[note.undo.length - 1];
         if (!top || top.kind !== 'typed') {
-          top = { kind: 'typed', date: now.date, target: classifyNote(event.path, this.projects()), added: 0, deleted: 0 };
+          const target = classifyNote(event.path, this.projects());
+          top = { kind: 'typed', date: now.date, target, added: 0, deleted: 0, hidden: false };
           this.pushEntry(note, top);
         }
         top[other] += missing;
         this.credit(top.target, top.date, other, missing, now);
         given.push({ date: top.date, target: top.target, side: other, amount: missing });
       }
-      WordTracker.dropSpent(note, floor);
     }
-    WordTracker.pushUndone(note, { kind: 'typed', net, taken, given });
+    // An undo has reached this typing: from here on its numbers are all there is to go by.
+    let hid: { date: string; target: NoteTarget | null } | null = null;
+    for (let i = floor; i < note.undo.length; i++) {
+      const entry = note.undo[i] as Entry;
+      if (entry.kind !== 'typed' || !entry.hidden) continue;
+      entry.hidden = false;
+      hid = { date: entry.date, target: entry.target };
+    }
+    WordTracker.dropSpent(note, floor);
+    WordTracker.pushUndone(note, { kind: 'typed', net, taken, given, hid });
   }
 
   /** Remember what an undo did. One is kept for every undo, so that redos pair up with them one to one. */
@@ -761,7 +880,12 @@ export class WordTracker {
           target: piece.target,
           added: piece.side === 'added' ? piece.amount : 0,
           deleted: piece.side === 'deleted' ? piece.amount : 0,
+          hidden: false,
         });
+      }
+      // The typing whose mark the undo cleared stands untouched again.
+      if (undone.hid !== null) {
+        this.pushTyped(note, { kind: 'typed', date: undone.hid.date, target: undone.hid.target, added: 0, deleted: 0, hidden: true });
       }
       return;
     }

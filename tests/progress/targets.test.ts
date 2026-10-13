@@ -336,3 +336,32 @@ describe('writingProgress', () => {
     });
   });
 });
+
+describe('updateTargets never drops what it could not read', () => {
+  it('gives back a value that is not a group of properties, unless a target is really set', () => {
+    expect(updateTargets('80000', {})).toBe('80000');
+    const list = [80000];
+    expect(updateTargets(list, { project: 0 })).toBe(list);
+    expect(updateTargets(80000, { project: null, daily: null, deadline: null })).toBe(80000);
+    expect(updateTargets('80000', { daily: 500 })).toEqual({ daily: 500 });
+  });
+
+  it('keeps unreadable parts when the whole checked form is passed in, empty fields and all', () => {
+    const raw = { project: 'eighty thousand', deadline: 'new year', daily: 250 };
+    // The form showed project and deadline as empty; the writer filled in only the daily target.
+    const form = validateTargets({ daily: '500' });
+    expect(form.ok).toBe(true);
+    if (!form.ok) return;
+    expect(updateTargets(raw, form.targets)).toEqual({ project: 'eighty thousand', deadline: 'new year', daily: 500 });
+
+    // A field emptied on purpose still removes a target that could be read.
+    const cleared = validateTargets({});
+    expect(cleared.ok).toBe(true);
+    if (!cleared.ok) return;
+    expect(updateTargets({ project: '80,000', daily: 500, deadline: '2026-12-31', session: 250 }, cleared.targets)).toEqual({ session: 250 });
+    expect(updateTargets({ project: '', daily: null }, cleared.targets)).toBeUndefined();
+
+    // A new value typed over an unreadable one takes its place.
+    expect(updateTargets(raw, { project: 90000, deadline: '2026-12-31' })).toEqual({ project: 90000, deadline: '2026-12-31', daily: 250 });
+  });
+});

@@ -677,3 +677,77 @@ describe('updateStatsText', () => {
     expect(update.status === 'write' && update.text).toBe(tidy(PHONE, ['| 2026-10-13 | 6 | 0 | 0 | 0 |']));
   });
 });
+
+describe('headings that are not the log\'s own', () => {
+  it('keeps a wide table of the writer\'s own through a save: its heading is not taken for the log\'s', () => {
+    const own = ['| Date | Mood | Weather | Place | Notes |', '| --- | --- | --- | --- | --- |', '| 2026-10-13 | טוב | rain | home | tired |'];
+    const text = tidy(PHONE, ['| 2026-10-13 | 5 | 0 | 0 | 0 |', '', ...own]);
+    const file = parseStatsFile(text);
+    expect(file.days).toEqual([day('2026-10-13', 5)]);
+    expect(file.kept.rows).toEqual(own);
+    expect(file.problems.map((problem) => [problem.kind, problem.text])).toEqual([
+      ['unreadable-row', own[0]],
+      ['unreadable-row', own[2]],
+    ]);
+
+    const update = updateStatsText(text, PHONE, [{ date: '2026-10-14', counts: { manuscriptAdded: 1 } }]);
+    const lines = update.status === 'write' ? update.text.split('\n') : [];
+    for (const line of own) expect(lines).toContain(line);
+    expect(lines.filter((line) => line === HEADER)).toHaveLength(1);
+    expect(lines).toContain('| 2026-10-14 | 1 | 0 | 0 | 0 |');
+  });
+
+  it('keeps a heading the writer retitled, and reports it', () => {
+    const retitled = '| Date | נכתבו | נמחקו | אחר נוסף | אחר נמחק |';
+    const text = tidy(PHONE, ['| 2026-10-13 | 5 | 0 | 0 | 0 |']).replace(HEADER, retitled);
+    const file = parseStatsFile(text);
+    expect(file.days).toEqual([day('2026-10-13', 5)]);
+    expect(file.problems.map((problem) => [problem.kind, problem.text])).toEqual([['unreadable-row', retitled]]);
+    const written = serialiseStatsFile(file);
+    expect(written.split('\n')).toContain(retitled);
+    expect(serialiseStatsFile(parseStatsFile(written))).toBe(written);
+  });
+
+  it('keeps a second heading that names other columns, and drops only a plain repeat', () => {
+    const second = `${HEADER} Mood |`;
+    const text = tidy(PHONE, [
+      '| 2026-10-12 | 1 | 0 | 0 | 0 |',
+      HEADER,
+      RULE,
+      '| 2026-10-13 | 2 | 0 | 0 | 0 |',
+      second,
+      `${RULE} --- |`,
+      '| 2026-10-14 | 3 | 0 | 0 | 0 | טוב |',
+    ]);
+    const file = parseStatsFile(text);
+    expect(file.days.map((entry) => entry.date)).toEqual(['2026-10-12', '2026-10-13', '2026-10-14']);
+    expect(file.kept.rows).toEqual([second, `${RULE} --- |`]);
+    expect(file.problems.map((problem) => [problem.kind, problem.text])).toEqual([['unreadable-row', second]]);
+    expect(serialiseStatsFile(file).split('\n').filter((line) => line === HEADER)).toHaveLength(1);
+  });
+});
+
+describe('a file whose line breaks are mixed', () => {
+  const mixed = (device: string): string =>
+    `---\nspellbook: stats\r\ndevice: "${device}"\r\nmonth: "2026-10"\r\n---\r\n| 2026-10-13 | 5 | 0 | 0 | 0 |\r\n`;
+  const oneWord = [{ date: '2026-10-13', counts: { manuscriptAdded: 1 } }];
+
+  it('still says which device and month it belongs to', () => {
+    const file = parseStatsFile(mixed('otherdev'));
+    expect([file.device, file.month]).toEqual(['otherdev', '2026-10']);
+    expect(file.problems).toEqual([]);
+    expect(file.days).toEqual([day('2026-10-13', 5)]);
+  });
+
+  it('is still refused when it is another device\'s, and gets no second set of properties when it is ours', () => {
+    expect(updateStatsText(mixed('otherdev'), PHONE, oneWord).status).toBe('refused');
+
+    const update = updateStatsText(mixed(PHONE.device), PHONE, oneWord);
+    const lines = update.status === 'write' ? update.text.split('\n') : [];
+    expect(lines.filter((line) => line.startsWith('spellbook:'))).toEqual(['spellbook: stats']);
+    expect(lines.filter((line) => line.startsWith('device:'))).toEqual([`device: "${PHONE.device}"`]);
+    expect(lines.filter((line) => line.startsWith('month:'))).toEqual(['month: "2026-10"']);
+    expect(lines).toContain('| 2026-10-13 | 6 | 0 | 0 | 0 |');
+    expect(update.status === 'write' ? update.text : '').not.toContain('\r');
+  });
+});

@@ -69,6 +69,23 @@ export function emptySceneDates(): SceneDatesState {
   return { waiting: new Map(), written: new Map() };
 }
 
+/**
+ * The path a scene is remembered under. The same name may arrive in two
+ * Unicode forms (letter plus accent, or one accented letter): that is one
+ * scene, known by the form it was first seen in. A scene not seen before
+ * keeps the path as given.
+ */
+function knownPath(state: SceneDatesState, path: string): string {
+  if (state.waiting.has(path) || state.written.has(path)) return path;
+  const key = pathKey(path);
+  for (const map of [state.waiting, state.written]) {
+    for (const known of map.keys()) {
+      if (pathKey(known) === key) return known;
+    }
+  }
+  return path;
+}
+
 /** Write out the waiting scenes that `leaves` picks, and remember that they were written. */
 function flush(state: SceneDatesState, leaves: (path: string) => boolean): SceneDatesStep {
   const writes: SceneDateWrite[] = [];
@@ -96,12 +113,13 @@ export function sceneDatesStep(state: SceneDatesState, event: SceneDatesEvent): 
   switch (event.type) {
     case 'typed': {
       if (!isDateText(event.date)) return { state, writes: [] };
+      const path = knownPath(state, event.path);
       // Already written for this day: once a day is enough.
-      if (state.written.get(event.path) === event.date) return { state, writes: [] };
-      const known = state.waiting.get(event.path);
+      if (state.written.get(path) === event.date) return { state, writes: [] };
+      const known = state.waiting.get(path);
       if (known !== undefined && known >= event.date) return { state, writes: [] };
       const waiting = new Map(state.waiting);
-      waiting.set(event.path, event.date);
+      waiting.set(path, event.date);
       // Days gone by need not be remembered.
       const written = new Map([...state.written].filter(([, date]) => date >= event.date));
       return { state: { waiting, written }, writes: [] };
@@ -118,33 +136,36 @@ export function sceneDatesStep(state: SceneDatesState, event: SceneDatesEvent): 
     case 'unload':
       return flush(state, () => true);
     case 'renamed': {
-      if (event.from === event.to || (!state.waiting.has(event.from) && !state.written.has(event.from))) {
+      const from = knownPath(state, event.from);
+      if (from === event.to || (!state.waiting.has(from) && !state.written.has(from))) {
         return { state, writes: [] };
       }
       const move = (map: ReadonlyMap<string, string>): Map<string, string> => {
         const next = new Map(map);
-        const date = next.get(event.from);
-        next.delete(event.from);
+        const date = next.get(from);
+        next.delete(from);
         if (date !== undefined) next.set(event.to, date);
         return next;
       };
       return { state: { waiting: move(state.waiting), written: move(state.written) }, writes: [] };
     }
     case 'deleted': {
-      if (!state.waiting.has(event.path) && !state.written.has(event.path)) return { state, writes: [] };
+      const path = knownPath(state, event.path);
+      if (!state.waiting.has(path) && !state.written.has(path)) return { state, writes: [] };
       const waiting = new Map(state.waiting);
       const written = new Map(state.written);
-      waiting.delete(event.path);
-      written.delete(event.path);
+      waiting.delete(path);
+      written.delete(path);
       return { state: { waiting, written }, writes: [] };
     }
     case 'failed': {
       if (!isDateText(event.edited)) return { state, writes: [] };
+      const path = knownPath(state, event.path);
       const waiting = new Map(state.waiting);
       const written = new Map(state.written);
-      if (written.get(event.path) === event.edited) written.delete(event.path);
-      const known = waiting.get(event.path);
-      if (known === undefined || known < event.edited) waiting.set(event.path, event.edited);
+      if (written.get(path) === event.edited) written.delete(path);
+      const known = waiting.get(path);
+      if (known === undefined || known < event.edited) waiting.set(path, event.edited);
       return { state: { waiting, written }, writes: [] };
     }
     default:

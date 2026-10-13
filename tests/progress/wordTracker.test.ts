@@ -1304,3 +1304,170 @@ describe('a long random session of typing, deleting, pasting, cutting, undo, red
     for (let seed = 801; seed <= 810; seed++) simulate(seed, 'silent', { lazy: false, countPasted: true, steps: 400 });
   });
 });
+
+describe('one save at a time, and every save ended', () => {
+  const DESK: StatsIdentity = { device: 'desk', deviceName: 'Desk', month: '2026-10' };
+
+  it('counts the two minutes from the first keystroke, also across a short pause in typing', () => {
+    const { tracker, world } = setup();
+    const page = new Page(tracker, SCENE, '');
+    const start = world.time;
+    let savedAfter: number | null = null;
+    // A key every second, but for one pause of two seconds after a hundred seconds: never eight seconds of quiet.
+    for (let second = 0; second <= 240 && savedAfter === null; second++) {
+      if (second !== 101 && second !== 102) page.type(' word');
+      const plan = tracker.plan();
+      for (const path of plan.measure) if (path === SCENE) page.pause();
+      if (plan.write) savedAfter = world.time - start;
+      world.time += 1000;
+    }
+    // Not two minutes after the words were counted (that would be 222 seconds).
+    expect(savedAfter).toBe(120000);
+  });
+
+  it('never starts a second save while one is under way, so no word reaches the log twice', () => {
+    const { tracker, world } = setup();
+    const page = new Page(tracker, SCENE, '');
+    page.type('one two three four five');
+    page.pause();
+    world.time += 120000; // past the two-minute limit: without a save under way, every plan says "write"
+    expect(tracker.plan().write).toBe(true);
+    const first = tracker.beginSave();
+    expect(first).toEqual([{ project: 'Novel', date: TODAY, counts: counts(5) }]);
+
+    // Reading and writing the file takes a moment, and the writer types on.
+    page.type(' six');
+    expect(tracker.plan().write).toBe(false);
+    expect(tracker.beginSave()).toEqual([]);
+    // Not even unloading starts another: that save has to end first.
+    expect(tracker.plan(true)).toEqual({ measure: [SCENE], write: false, wait: null });
+
+    const saved = updateStatsText(null, DESK, first);
+    tracker.markWritten(first);
+    expect(saved.status === 'write' ? saved.text : '').toContain(`| ${TODAY} | 5 | 0 | 0 | 0 |`);
+
+    // The next save carries only what is new.
+    page.pause();
+    world.time += 8000;
+    expect(tracker.plan().write).toBe(true);
+    const second = tracker.beginSave();
+    expect(second).toEqual([{ project: 'Novel', date: TODAY, counts: counts(1) }]);
+    const again = updateStatsText(saved.status === 'write' ? saved.text : null, DESK, second);
+    tracker.markWritten(second);
+    expect(again.status === 'write' ? again.text : '').toContain(`| ${TODAY} | 6 | 0 | 0 | 0 |`);
+    expect(tracker.plan()).toEqual({ measure: [], write: false, wait: null });
+  });
+
+  it('is done with words the file has no place for: "unchanged" ends the save like a write', () => {
+    const { tracker } = setup();
+    const page = new Page(tracker, SCENE, 'one two three');
+    page.type(' four five six seven');
+    page.pause();
+    const first = tracker.beginSave();
+    expect(updateStatsText(null, DESK, first).status).toBe('write');
+    tracker.markWritten(first);
+
+    // The log file is deleted by hand, and then the typing is undone: four words to take back from a file that holds none.
+    page.undo();
+    const entries = tracker.beginSave();
+    expect(entries).toEqual([{ project: 'Novel', date: TODAY, counts: counts(-4) }]);
+    expect(updateStatsText(null, DESK, entries)).toEqual({ status: 'unchanged' });
+    tracker.markWritten(entries);
+    expect(tracker.unwritten()).toEqual([]);
+    expect(tracker.plan()).toEqual({ measure: [], write: false, wait: null });
+  });
+
+  it('keeps the words of a file that was refused, and asks again after a wait, not in a loop', () => {
+    const { tracker, world } = setup();
+    const page = new Page(tracker, SCENE, '');
+    page.type('one two three');
+    page.pause();
+    world.time += 8000;
+    expect(tracker.plan().write).toBe(true);
+    const entries = tracker.beginSave();
+    // The file at that path says it belongs to another device.
+    const theirs = updateStatsText(null, { ...DESK, device: 'otherdev' }, [{ date: TODAY, counts: counts(9) }]);
+    const refused = updateStatsText(theirs.status === 'write' ? theirs.text : null, DESK, entries);
+    expect(refused.status).toBe('refused');
+    tracker.writeFailed();
+
+    expect(tracker.unwritten()).toEqual(entries);
+    expect(tracker.plan()).toEqual({ measure: [], write: false, wait: 8000 });
+    world.time += 8000;
+    expect(tracker.plan().write).toBe(true);
+    expect(tracker.beginSave()).toEqual(entries);
+  });
+
+  it('ends a save that went in only in part: what went in is done, the rest waits', () => {
+    const { tracker } = setup({ folders: ['Novel', 'Another'], active: 'Novel' });
+    const a = new Page(tracker, 'Novel/Manuscript/A.md', '');
+    const b = new Page(tracker, 'Another/Manuscript/B.md', '');
+    a.type('one');
+    b.type('one two');
+    a.pause();
+    b.pause();
+    const entries = tracker.beginSave();
+    expect(entries.map((entry) => entry.project)).toEqual(['Another', 'Novel']);
+    // Another's file was saved; Novel's could not be.
+    tracker.writeFailed(entries.filter((entry) => entry.project === 'Another'));
+    expect(tracker.unwritten()).toEqual([{ project: 'Novel', date: TODAY, counts: counts(1) }]);
+    expect(tracker.plan()).toEqual({ measure: [], write: false, wait: 8000 });
+  });
+});
+
+describe('typing that changed no word count, on top of a paste', () => {
+  it('is not taken for the paste when it is undone, told only word counts', () => {
+    const { tracker, day } = setup();
+    const page = new Page(tracker, SCENE, 'one two three four five six seven eight nine ten');
+    page.paste(' pasted words'); // two words, not counted
+    page.erase(2); // the writer backspaces two words...
+    page.type(' typed instead'); // ...and types two others, in one burst
+    page.pause();
+    expect(tracker.unwritten()).toEqual([]);
+
+    page.undo(); // the two typed words go: the two deleted before them now show
+    expect(day()).toEqual(counts(0, 2));
+    page.undo(); // the deletion is undone as well: typing changed nothing
+    expect(tracker.unwritten()).toEqual([]);
+    page.undo(); // and only now the paste
+    expect(tracker.unwritten()).toEqual([]);
+    expect(page.words).toBe(10);
+
+    page.redo();
+    page.redo();
+    expect(day()).toEqual(counts(0, 2));
+    page.redo();
+    expect(tracker.unwritten()).toEqual([]);
+    // Back where it started, the same undo is read the same way again.
+    page.undo();
+    expect(day()).toEqual(counts(0, 2));
+    expect(tracker.session().net).toBe(-2);
+  });
+});
+
+describe('one note, two ways of storing its name', () => {
+  const one = 'Novel/Manuscript/Café.md'.normalize('NFC');
+  const other = one.normalize('NFD');
+
+  it('counts typing reported under one form and measured under the other', () => {
+    expect(other).not.toBe(one);
+    const { tracker, day } = setup();
+    tracker.measure(one, 10);
+    tracker.edit({ path: other, kind: 'typed' });
+    tracker.measure(one, 13);
+    expect(day()).toEqual(counts(3));
+  });
+
+  it('follows a rename and a delete given in the other form', () => {
+    const { tracker } = setup();
+    tracker.measure(one, 10);
+    tracker.edit({ path: one, kind: 'typed' });
+    tracker.renamed(other, 'Novel/Manuscript/Bar.md');
+    expect(tracker.plan(true).measure).toEqual(['Novel/Manuscript/Bar.md']);
+
+    tracker.measure(one, 10);
+    tracker.edit({ path: one, kind: 'typed' });
+    tracker.removed(other);
+    expect(tracker.plan(true).measure).toEqual(['Novel/Manuscript/Bar.md']);
+  });
+});

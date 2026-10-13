@@ -211,6 +211,35 @@ describe('sceneDatesStep: when "edited" is written', () => {
     expect([...state.written]).toEqual([]);
     expect([...state.waiting]).toEqual([[HEBREW, TOMORROW]]);
   });
+
+  it('takes one scene in two Unicode forms for one scene, in every event', () => {
+    const one = 'Novel/Manuscript/Café.md'.normalize('NFC');
+    const other = one.normalize('NFD');
+    const bar = 'Novel/Manuscript/Bar.md';
+    expect(other).not.toBe(one);
+
+    // Typed in under both forms: one scene, one write.
+    expect(run([typed(one), typed(other), { type: 'background' }]).writes.flat()).toEqual([{ path: one, edited: TODAY }]);
+    // Written today under one form, typed in again under the other: once a day is enough.
+    expect(run([typed(one), { type: 'background' }, typed(other), { type: 'background' }]).writes.flat()).toEqual([
+      { path: one, edited: TODAY },
+    ]);
+    // A rename or a delete given in the other form is followed.
+    expect(run([typed(one), { type: 'renamed', from: other, to: bar }, { type: 'background' }]).writes.flat()).toEqual([
+      { path: bar, edited: TODAY },
+    ]);
+    expect(run([typed(one), { type: 'deleted', path: other }, { type: 'background' }]).writes.flat()).toEqual([]);
+    // A failed write reported in the other form is asked for once more, not for ever.
+    const failed = run([
+      typed(one),
+      { type: 'background' },
+      { type: 'failed', path: other, edited: TODAY },
+      { type: 'background' },
+      { type: 'background' },
+    ]);
+    expect(failed.writes.map((list) => list.length)).toEqual([0, 1, 0, 1, 0]);
+    expect(failed.writes[3]).toEqual([{ path: one, edited: TODAY }]);
+  });
 });
 
 describe('sceneDatePatch: what to set in the properties', () => {

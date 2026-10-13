@@ -36,7 +36,12 @@ export interface TypingNote {
 
 /** Counted words that are not in the log file yet. */
 export interface UnwrittenWords {
-  /** When the oldest of them was counted, in milliseconds. */
+  /**
+   * When the oldest of them was typed, in milliseconds: the first keystroke
+   * of the stretch of typing they came from, not the moment they were
+   * counted. The two-minute limit runs from here, so that it is one limit
+   * from keystroke to file and not a second one on top of the wait to be counted.
+   */
   readonly since: number;
   /** When the newest of them was counted, in milliseconds. */
   readonly lastChangeAt: number;
