@@ -15,6 +15,7 @@ import { columnClass } from '../../../src/features/outliner/cells';
 import { OutlinerPane, outlinerFeature } from '../../../src/features/outliner/index';
 import { OUTLINER_VIEW_TYPE, OutlinerView } from '../../../src/features/outliner/outlinerView';
 import { colorClass } from '../../../src/features/outliner/parts';
+import { WORD_COUNT_ASKER } from '../../../src/features/outliner/wordCounts';
 import { FEATURES } from '../../../src/features/registry';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -122,8 +123,8 @@ describe('the source of the outliner', () => {
   });
 
   it('reaches the shared word counter through one small file, and nowhere else', () => {
-    // The cache is being changed elsewhere: when it has changed, wordCounts.ts
-    // is the one file of the outliner that has to follow.
+    // When the cache changes, wordCounts.ts is the one file of the outliner
+    // that has to follow.
     for (const name of files) {
       const code = codeOf(name);
       const touches = /wordCountCache|\bWordCountCache\b/.test(code);
@@ -136,9 +137,12 @@ describe('the source of the outliner', () => {
     expect(codeOf('host.ts')).toMatch(/outlinerWordCounts\(context\.wordCounts\)/);
     const doorway = readFileSync(path.join(featureDir, 'wordCounts.ts'), 'utf8');
     expect(doorway.split('\n').length).toBeLessThan(60);
-    // What it uses of the cache, as the cache stands today.
+    // What it uses of the cache: it asks and lets go under a name of its own.
     const calls = [...codeOf('wordCounts.ts').matchAll(/\bcache\s*\.\s*(\w+)\s*\(/g)].map((match) => match[1] ?? '');
-    expect([...new Set(calls)].sort()).toEqual(['get', 'onChange', 'track']);
+    expect([...new Set(calls)].sort()).toEqual(['get', 'onChange', 'release', 'track']);
+    expect(WORD_COUNT_ASKER).toBe('outliner');
+    expect(codeOf('wordCounts.ts')).toMatch(/cache\.track\(WORD_COUNT_ASKER,/);
+    expect(codeOf('wordCounts.ts')).toMatch(/cache\.release\(WORD_COUNT_ASKER\)/);
     for (const file of readdirSync(coreDir)) {
       expect(/wordCountCache/.test(strip(readFileSync(path.join(coreDir, file), 'utf8'))), file).toBe(false);
     }
@@ -476,11 +480,11 @@ describe('outliner.css', () => {
   });
 
   it('passes the checks of the whole stylesheet once it is joined to it', () => {
-    // The stylesheet as the build will put it together once "outliner.css" is
-    // in the list of scripts/styles.mjs: the other files, then this one.
-    const others = STYLE_FILES.filter((name) => name !== 'outliner.css');
+    // The stylesheet as the build puts it together: "outliner.css" is in the
+    // list of scripts/styles.mjs, after what the screens share.
+    expect(STYLE_FILES).toContain('outliner.css');
     const whole = joinStyles(
-      [...others, 'outliner.css'].map((name) => ({ name, text: readFileSync(path.join(root, STYLES_DIR, name), 'utf8') })),
+      STYLE_FILES.map((name) => ({ name, text: readFileSync(path.join(root, STYLES_DIR, name), 'utf8') })),
     ).replace(/\/\*[\s\S]*?\*\//g, '');
     const all = rulesOf(whole);
     expect(all.length).toBeGreaterThan(rules.length);

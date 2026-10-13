@@ -526,6 +526,37 @@ export const SAMPLE_SCENE_DATES: Readonly<Record<string, string>> = {
   'הלילה שלפני הסערה': '1923-12-02',
 };
 
+/**
+ * The scenes that have a word target, by title: about a third of them, so
+ * that the outliner's Target column has every kind of row to show. A number
+ * is the target in words; 'reached' gives the scene exactly as many words to
+ * aim for as it has, so that it stands at 100 per cent whatever its text.
+ *
+ * The numbers are round and well away from the scenes' lengths: four scenes
+ * have more words than their target, and ten have fewer (some nearly there,
+ * some about half way, some barely begun).
+ */
+export const SAMPLE_SCENE_TARGETS: Readonly<Record<string, number | 'reached'>> = {
+  Prologue: 300,
+  'The Last Ferry': 1000,
+  'What the Harbour Master Wants': 'reached',
+  'First Soundings': 1200,
+  'Lamp in the Empty House': 'reached',
+  'Low Water': 1400,
+  'מכתב לאחותי': 'reached',
+  'The Village on the Old Map': 900,
+  'An Argument About North': 1000,
+  Triangles: 800,
+  'The Drowned Lane': 'reached',
+  'Mending Nets': 900,
+  'The Missing Boat': 800,
+  'הלילה שלפני הסערה': 250,
+  'What the Keeper Wrote': 1300,
+  Adrift: 900,
+  'Starting Over': 600,
+  'The Honest Chart': 1000,
+};
+
 /** The two marks on the calendar. A number is how many days from today the day is. */
 export const SAMPLE_MARKS: ReadonlyArray<{ readonly inDays: number; readonly color: SampleColor; readonly label: string }> = [
   { inDays: 2, color: 'blue', label: 'Writing group' },

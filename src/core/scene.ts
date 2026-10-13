@@ -18,22 +18,30 @@ export interface SceneDetails {
   readonly synopsis?: string;
   readonly status?: string;
   readonly label?: string;
+  /** How many words the scene should come to. Default: no target, and no "target" property. */
+  readonly target?: number;
 }
 
 /**
- * The properties written into a new scene, in this order.
+ * The properties written into a new scene, in this order. A scene has a
+ * "target" property (after its label) only when it starts with a target.
  *
  * @param order   the scene's sort key (see orderKeys.ts)
  * @param created the local date it was created, as YYYY-MM-DD
- * @param details synopsis, status and label, for a scene that starts with them
+ * @param details synopsis, status, label and word target, for a scene that starts with them
  */
 export function newSceneFrontmatter(order: number, created: string, details: SceneDetails = {}): Frontmatter {
-  return {
+  const frontmatter: Frontmatter = {
     synopsis: details.synopsis ?? '',
     status: details.status ?? DEFAULT_STATUS,
     label: details.label ?? '',
-    compile: true,
-    order,
-    created,
   };
+  // Only a whole number of words above nothing is a target.
+  if (details.target !== undefined && Number.isInteger(details.target) && details.target > 0) {
+    frontmatter['target'] = details.target;
+  }
+  frontmatter['compile'] = true;
+  frontmatter['order'] = order;
+  frontmatter['created'] = created;
+  return frontmatter;
 }

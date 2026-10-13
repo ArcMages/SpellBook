@@ -300,6 +300,38 @@ describe('createProject with a seed', () => {
     expect(vault.frontmatterOf('Novel/Novel.md')?.['timelines']).toHaveLength(1);
   });
 
+  it('gives a scene its word target, after its label, and no such property to a scene without one', async () => {
+    const { store, vault } = makeStore();
+    valueOf(
+      await store.createProject('Novel', '', {
+        seed: {
+          binder: [
+            { title: 'Opening', target: 1200, date: '1923-10-12' },
+            { title: 'Ending' },
+            { title: 'Nothing', target: 0 },
+            { title: 'Half a word', target: 12.5 },
+          ],
+        },
+      }),
+    );
+    const standard = ['synopsis', 'status', 'label', 'compile', 'order', 'created'];
+    expect(Object.keys(vault.frontmatterOf('Novel/Manuscript/Opening.md') ?? {})).toEqual([
+      'synopsis',
+      'status',
+      'label',
+      'target',
+      'compile',
+      'order',
+      'created',
+      'date',
+    ]);
+    expect(vault.frontmatterOf('Novel/Manuscript/Opening.md')?.['target']).toBe(1200);
+    // No target, or one that is not a whole number of words above nothing: no such property at all.
+    for (const scene of ['Ending', 'Nothing', 'Half a word']) {
+      expect(Object.keys(vault.frontmatterOf(`Novel/Manuscript/${scene}.md`) ?? {}), scene).toEqual(standard);
+    }
+  });
+
   it('never lets a seed set the index\'s own properties, and writes the data of a seed that has no scenes', async () => {
     const { store, vault } = makeStore();
     valueOf(

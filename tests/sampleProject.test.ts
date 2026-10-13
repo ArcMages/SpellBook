@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { TAG_INDEX_KEYS, readTagLists } from '../src/core/cards';
 import { createSampleProject } from '../src/core/newProject';
+import { TARGET_BANDS, formatPercent, targetCell } from '../src/core/outliner';
 import { MARKS_KEY, parseMarks } from '../src/core/planner';
 import { TARGETS_KEY, parseTargets } from '../src/core/progress';
 import { isFolderSeed } from '../src/core/projectSeed';
@@ -22,6 +23,7 @@ import {
   REFLECTION_SENTENCES,
   SAMPLE_CHARACTERS,
   SAMPLE_EVENTS,
+  SAMPLE_SCENE_TARGETS,
   SETTING_SENTENCES,
   SHARED_SENTENCES,
 } from '../src/core/sampleText';
@@ -434,6 +436,53 @@ describe('the sample project, for the screens besides the binder', () => {
     expect(Math.max(...all) - Math.min(...all)).toBeLessThan(550);
   });
 
+  it('gives eighteen scenes a word target, so the Target column has every kind of row to show', () => {
+    const targeted = allScenes.filter((scene) => scene.target !== undefined);
+    // Each with its target, the words it has (as the plugin counts them), and what the outliner makes of the two.
+    const shown = targeted.map((scene) => {
+      const cell = targetCell(wordsOf(scene), scene.target);
+      return [scene.title, scene.target, wordsOf(scene), formatPercent(cell), cell?.band];
+    });
+    expect(shown).toEqual([
+      ['Prologue', 300, 347, '115%', 'done'],
+      ['The Last Ferry', 1000, 1188, '118%', 'done'],
+      ['What the Harbour Master Wants', 878, 878, '100%', 'done'],
+      ['First Soundings', 1200, 1051, '87%', 'near'],
+      ['Lamp in the Empty House', 554, 554, '100%', 'done'],
+      ['Low Water', 1400, 1210, '86%', 'near'],
+      ['מכתב לאחותי', 159, 159, '100%', 'done'],
+      ['The Village on the Old Map', 900, 995, '110%', 'done'],
+      ['An Argument About North', 1000, 577, '57%', 'mid'],
+      ['Triangles', 800, 303, '37%', 'low'],
+      ['The Drowned Lane', 1109, 1109, '100%', 'done'],
+      ['Mending Nets', 900, 530, '58%', 'mid'],
+      ['The Missing Boat', 800, 957, '119%', 'done'],
+      ['הלילה שלפני הסערה', 250, 143, '57%', 'mid'],
+      ['What the Keeper Wrote', 1300, 1160, '89%', 'near'],
+      ['Adrift', 900, 193, '21%', 'low'],
+      ['Starting Over', 600, 509, '84%', 'near'],
+      ['The Honest Chart', 1000, 224, '22%', 'low'],
+    ]);
+    // About a third of the scenes, and every name in the list of targets is a scene.
+    expect(allScenes).toHaveLength(52);
+    expect(targeted).toHaveLength(18);
+    expect(Object.keys(SAMPLE_SCENE_TARGETS).sort()).toEqual(targeted.map((scene) => scene.title).sort());
+    // Four have more words than their target, four exactly as many, ten fewer.
+    const aimOf = (scene: SceneSeed): number => scene.target ?? 0;
+    expect(targeted.filter((scene) => wordsOf(scene) > aimOf(scene))).toHaveLength(4);
+    expect(targeted.filter((scene) => wordsOf(scene) === aimOf(scene)).map((scene) => scene.title)).toEqual(
+      Object.keys(SAMPLE_SCENE_TARGETS).filter((title) => SAMPLE_SCENE_TARGETS[title] === 'reached'),
+    );
+    expect(targeted.filter((scene) => wordsOf(scene) === aimOf(scene))).toHaveLength(4);
+    expect(targeted.filter((scene) => wordsOf(scene) < aimOf(scene))).toHaveLength(10);
+    // Every band of the Target column is on show, and both languages.
+    expect(new Set(shown.map((row) => row[4]))).toEqual(new Set(TARGET_BANDS));
+    expect(targeted.filter((scene) => HEBREW_LETTER.test(scene.title))).toHaveLength(2);
+    // A target is a whole number of words; a scene without one has no such entry at all.
+    for (const scene of targeted) expect(Number.isInteger(scene.target) && aimOf(scene) > 0, scene.title).toBe(true);
+    for (const scene of allScenes) expect('target' in scene, scene.title).toBe(scene.target !== undefined);
+  });
+
   it('marks two days on the calendar, a few days after the day it is made', () => {
     expect(data['marks']).toEqual({
       '2026-10-15': { color: 'blue', label: 'Writing group' },
@@ -642,9 +691,14 @@ describe('the sample project, created in a vault', () => {
       const path = `Sample Novel/${relative}`;
       const frontmatter = vault.frontmatterOf(path) ?? {};
       const described = allScenes[index] as SceneSeed;
-      // The standard six; a scene that has a date in the story has that as well, and no other scene does.
-      const standard = ['synopsis', 'status', 'label', 'compile', 'order', 'created'];
+      // The standard six; a scene that has a word target has that after its label, and one that has a
+      // date in the story has that at the end. No other scene has either.
+      const standard =
+        described.target === undefined
+          ? ['synopsis', 'status', 'label', 'compile', 'order', 'created']
+          : ['synopsis', 'status', 'label', 'target', 'compile', 'order', 'created'];
       expect(Object.keys(frontmatter), path).toEqual(described.date === undefined ? standard : [...standard, 'date']);
+      expect(frontmatter['target'], path).toBe(described.target);
       expect(frontmatter['date'], path).toBe(described.date);
       expect(frontmatter['order'], path).toBe(1024 * (index + 1));
       expect(frontmatter['compile'], path).toBe(true);

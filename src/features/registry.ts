@@ -1,7 +1,7 @@
 // The feature registry: how the screens of Spellbook plug into the plugin.
 //
 // Each screen (the corkboard and inspector, the writing progress, the
-// planner, the timeline) is a "feature" that lives in a folder of its own
+// planner, the timeline, the outliner) is a "feature" that lives in a folder of its own
 // under src/features. The plugin knows nothing about what a feature does: once
 // the project store is ready it hands every feature in FEATURES the same
 // FeatureContext, and the feature registers its views, commands and settings
@@ -25,6 +25,7 @@ import type { ProjectStore } from '../core/projectStore';
 import type { VaultPort } from '../core/vaultPort';
 import type { WordCountCache } from '../core/wordCountCache';
 import { corkboardFeature } from './corkboard/index';
+import { outlinerFeature } from './outliner/index';
 import { plannerFeature } from './planner/index';
 import { progressFeature } from './progress/index';
 import { timelineFeature } from './timeline/index';
@@ -134,7 +135,13 @@ export interface Feature {
  * The features of the plugin, in the order they are registered. (The order
  * must not matter to a feature: see FeatureServices.)
  */
-export const FEATURES: readonly Feature[] = [corkboardFeature, progressFeature, plannerFeature, timelineFeature];
+export const FEATURES: readonly Feature[] = [
+  corkboardFeature,
+  progressFeature,
+  plannerFeature,
+  timelineFeature,
+  outlinerFeature,
+];
 
 /** What registerFeatures needs: a FeatureContext without the parts the registry makes itself. */
 export type FeatureHost = Omit<FeatureContext, 'services' | 'addSettingsSection' | 'onUnload' | 'deviceId'> & {

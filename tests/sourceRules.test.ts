@@ -103,6 +103,7 @@ describe('source layout', () => {
       'features/progress/index.ts',
       'features/planner/index.ts',
       'features/timeline/index.ts',
+      'features/outliner/index.ts',
     ]) {
       expect(names, expected).toContain(expected);
     }
@@ -281,12 +282,18 @@ describe('the whole plugin', () => {
   });
 
   it('keeps every feature in its own folder, away from the other features', () => {
-    // Four screens are built at the same time by different hands. A feature
+    // The screens are built at the same time by different hands. A feature
     // may use the core, the vault doorway's folder, the shared pieces of
     // screen and the registry; it may never reach into another feature.
     const allowed = ['core', 'obsidian', 'ui', 'features/registry'];
     const folders = new Set(featureFiles.map((file) => relative(file).split('/').slice(0, 2).join('/')));
-    expect([...folders].sort()).toEqual(['features/corkboard', 'features/planner', 'features/progress', 'features/timeline']);
+    expect([...folders].sort()).toEqual([
+      'features/corkboard',
+      'features/outliner',
+      'features/planner',
+      'features/progress',
+      'features/timeline',
+    ]);
     for (const file of featureFiles) {
       const own = relative(file).split('/').slice(0, 2).join('/');
       for (const target of importsOf(codeOf(file), relative(file))) {
@@ -420,7 +427,15 @@ describe('the stylesheet is put together from one file per screen', () => {
   const stylesDir = path.join(repoRoot, STYLES_DIR);
 
   it('joins every file in src/styles, in a fixed order: what is shared first, then one file per screen', () => {
-    expect([...STYLE_FILES]).toEqual(['base.css', 'binder.css', 'corkboard.css', 'progress.css', 'planner.css', 'timeline.css']);
+    expect([...STYLE_FILES]).toEqual([
+      'base.css',
+      'binder.css',
+      'corkboard.css',
+      'progress.css',
+      'planner.css',
+      'timeline.css',
+      'outliner.css',
+    ]);
     // No stylesheet is left out, and none is listed that is not there.
     expect(readdirSync(stylesDir).filter((name) => name.endsWith('.css')).sort()).toEqual([...STYLE_FILES].sort());
     const whole = readStyles(repoRoot);
@@ -457,7 +472,7 @@ describe('the stylesheet is put together from one file per screen', () => {
   });
 
   it('gives each screen a stylesheet of its own, so that screens built side by side never share a file', () => {
-    for (const feature of ['corkboard', 'progress', 'planner', 'timeline']) {
+    for (const feature of ['corkboard', 'progress', 'planner', 'timeline', 'outliner']) {
       expect(STYLE_FILES, feature).toContain(`${feature}.css`);
     }
   });

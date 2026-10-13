@@ -22,6 +22,8 @@ export interface SceneSeed {
   readonly synopsis?: string;
   readonly status?: string;
   readonly label?: string;
+  /** How many words the scene should come to: a whole number above nothing. Default: no target. */
+  readonly target?: number;
   /**
    * When the scene happens in the story, as YYYY-MM-DD (or YYYY-MM, or YYYY).
    * A scene with a date shows on the timeline. Default: none.

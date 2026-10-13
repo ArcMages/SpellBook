@@ -1136,12 +1136,14 @@ describe('the to-do lines', () => {
     const s = await stage(novelVault(), { storage });
     const { pane } = await openOutliner(s);
     expect(headersOf(pane)).not.toContain('Tasks');
-    // Each note was read once, for its words: the four scenes and the note that is not in the binder.
-    expect(s.vault.reads.readText).toBe(5);
+    // Each scene was read once, for its words: the four whose notes exist. The note that is
+    // not in the binder has no row in the table, and the outliner does not ask for its count.
+    expect(s.vault.reads.readText).toBe(4);
+    expect(s.wordCounts.get(inNovel(LOOSE))).toBeUndefined();
 
     barMenu(pane, 'Columns').item('Tasks').click();
     await calm(s);
-    expect(s.vault.reads.readText).toBe(9);
+    expect(s.vault.reads.readText).toBe(8);
     expect(textOf(pane, 'Opening', 'tasks')).toBe('1/2');
     expect(textOf(pane, 'Total', 'tasks')).toBe('2/3');
 
@@ -1151,13 +1153,14 @@ describe('the to-do lines', () => {
     s.vault.external.write(inNovel(OPENING), { body: `${OPENING_BODY}- [ ] one more\n` });
     s.timers.advance(TASKS_SETTLE_MS);
     await calm(s);
-    expect(s.vault.reads.readText).toBe(10);
+    expect(s.vault.reads.readText).toBe(9);
   });
 
   it('follow a scene whose text changes, a moment after it was saved', async () => {
     const s = await stage();
     const { pane } = await openOutliner(s);
-    expect(s.vault.reads.readText).toBe(9);
+    // The four scenes, each read once for its words and once for its to-do lines.
+    expect(s.vault.reads.readText).toBe(8);
     s.vault.external.write(inNovel(OPENING), { body: `${OPENING_BODY}- [x] one more\n- [ ] and another\n` });
     await calm(s);
     expect(textOf(pane, 'Opening', 'tasks')).toBe('1/2');
@@ -1166,7 +1169,7 @@ describe('the to-do lines', () => {
     expect(textOf(pane, 'Opening', 'tasks')).toBe('2/4');
     expect(textOf(pane, 'Total', 'tasks')).toBe('3/5');
     // Read once more for its words and once more for its to-do lines.
-    expect(s.vault.reads.readText).toBe(11);
+    expect(s.vault.reads.readText).toBe(10);
   });
 
   it('are read a slice of scenes at a time, with a pause in between', async () => {
@@ -1460,8 +1463,10 @@ describe('following the project', () => {
     await calm(s);
     expect(headersOf(second)).not.toContain('Tags');
     expect(textOf(second, 'Opening', 'status')).toBe('Done');
-    // Notes are still read once each for their to-do lines, however many panes show them.
-    expect(s.vault.reads.readText).toBe(9);
+    // Notes are still read once each for their words and once for their to-do lines,
+    // however many panes show them, and the two panes ask for the counts as one.
+    expect(s.vault.reads.readText).toBe(8);
+    expect(s.wordCounts.askers()).toEqual(['outliner']);
   });
 });
 
@@ -1469,10 +1474,16 @@ describe('letting go', () => {
   it('stops reading the scenes when the pane is closed', async () => {
     const s = await stage();
     const { leaf, pane } = await openOutliner(s);
+    // While the pane is open, the outliner asks for its scenes' counts under its own name.
+    expect(s.wordCounts.askers()).toEqual(['outliner']);
+    expect(s.wordCounts.get(inNovel(CLOSING))).toBe(WORDS.closing);
     leaf.detach();
     await calm(s);
     expect(pane.children).toEqual([]);
     expect(pane.hasClass('spellbook-outliner-pane')).toBe(false);
+    // It has let go: nobody else asked, so the shared word counter keeps nothing.
+    expect(s.wordCounts.askers()).toEqual([]);
+    expect(s.wordCounts.get(inNovel(CLOSING))).toBeUndefined();
     const reads = s.vault.reads.readText;
     s.vault.external.write(inNovel(CLOSING), { body: `${CLOSING_BODY}- [ ] after the pane was closed\n` });
     s.vault.external.editFrontmatter(inNovel(LETTER), (frontmatter) => {
@@ -1480,14 +1491,17 @@ describe('letting go', () => {
     });
     s.timers.advance(10_000);
     await calm(s);
-    // The shared word counter still follows the two notes that were saved (one read each);
-    // the outliner reads nothing. (With the pane open, each would have been read twice.)
-    expect(s.vault.reads.readText).toBe(reads + 2);
-    // The pane comes back as it should.
+    // Nothing is read: not by the outliner, and not by the shared word counter on its behalf.
+    // (With the pane open, each of the two notes that were saved would have been read twice.)
+    expect(s.vault.reads.readText).toBe(reads);
+    // The pane comes back as it should, and asks again.
     const again = await openOutliner(s);
     expect(namesOf(again.pane)).toEqual(TREE_NAMES);
     expect(textOf(again.pane, 'The Letter', 'status')).toBe('Done');
     expect(textOf(again.pane, 'Closing', 'tasks')).toBe('0/1');
+    expect(s.wordCounts.askers()).toEqual(['outliner']);
+    // The note was saved while nobody counted it: it is counted afresh, as it is now.
+    expect(textOf(again.pane, 'Closing', 'words')).toBe(String(countWords(`${CLOSING_BODY}- [ ] after the pane was closed\n`)));
   });
 
   it('lets go of everything when the plugin is switched off', async () => {

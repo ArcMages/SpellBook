@@ -25,6 +25,7 @@ import {
   SAMPLE_PARTS,
   SAMPLE_RESEARCH,
   SAMPLE_SCENE_DATES,
+  SAMPLE_SCENE_TARGETS,
   SAMPLE_STATUS_COLORS,
   SAMPLE_TARGETS,
   SAMPLE_TIMELINES,
@@ -36,6 +37,7 @@ import {
 import type { SampleEvent, SampleScene } from './sampleText';
 import { SCENE_STATUSES } from './scene';
 import { EVENT_MARKER_KEY, EVENT_MARKER_VALUE } from './timeline';
+import { countWords } from './wordCount';
 
 /** The name of the sample project; a second one becomes "Sample Novel 2". */
 export const SAMPLE_PROJECT_NAME = 'Sample Novel';
@@ -178,9 +180,17 @@ function sceneSeed(scene: SampleScene, position: number): SceneSeed {
     status,
     label: SAMPLE_CHARACTERS[scene.who] as string,
   };
+  // About a third of the scenes have a word target, so that the outliner's Target column has something to show.
+  const wanted = Object.prototype.hasOwnProperty.call(SAMPLE_SCENE_TARGETS, scene.title) ? SAMPLE_SCENE_TARGETS[scene.title] : undefined;
+  // A target that is "reached" is the scene's own length, counted the way the plugin counts a note.
+  const target = wanted === 'reached' ? countWords(body) : wanted;
   // A few scenes have a date in the story, so that the timeline's Manuscript lane has something to show.
   const date = Object.prototype.hasOwnProperty.call(SAMPLE_SCENE_DATES, scene.title) ? SAMPLE_SCENE_DATES[scene.title] : undefined;
-  return date === undefined ? seed : { ...seed, date };
+  return {
+    ...seed,
+    ...(target === undefined ? {} : { target }),
+    ...(date === undefined ? {} : { date }),
+  };
 }
 
 /** The key of the project index that lists the timelines (the lanes of the timeline screen). */
@@ -235,8 +245,9 @@ function todoText(today: string): string {
  * epilogue) around five binder folders of scenes, a note left out of the
  * binder on purpose, two research notes and three to-dos; and, so that every
  * screen has something to show, statuses and labels with colours, three
- * timelines with ten events, four scenes with a date in the story, two marks
- * on the calendar and the writing targets.
+ * timelines with ten events, four scenes with a date in the story, eighteen
+ * scenes with a word target (some short of it, some exactly at it, some past
+ * it), two marks on the calendar and the writing targets.
  *
  * It has no writing history: no word log is made up.
  *

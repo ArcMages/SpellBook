@@ -217,7 +217,20 @@ describe('loading and unloading', () => {
     expect(plugin.features).toBeNull(); // not before Obsidian has finished starting
 
     fake.finishStartup();
-    expect(plugin.features?.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline']);
+    expect(plugin.features?.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner']);
+    // Every screen's kind of pane is known to Obsidian, after the binder's own.
+    expect(stub.viewTypes).toEqual([
+      'spellbook-binder',
+      'spellbook-corkboard',
+      'spellbook-inspector',
+      'spellbook-planner',
+      'spellbook-timeline',
+      'spellbook-outliner',
+    ]);
+    // The outliner, the screen added last, has its command and its ribbon button.
+    expect(stub.commands.map((command) => [command.id, command.name])).toContainEqual(['open-outliner', 'Open outliner']);
+    expect(stub.ribbonIcons.map((icon) => [icon.icon, icon.title, icon.shown])).toContainEqual(['table', 'Open Spellbook outliner', true]);
+    expect(new Set(stub.commands.map((command) => command.id)).size).toBe(stub.commands.length); // no two share an id
     // The writing progress is the one screen with settings of its own.
     expect(plugin.features?.settingsSections.map((section) => [section.id, section.title])).toEqual([
       ['progress', 'Writing progress'],

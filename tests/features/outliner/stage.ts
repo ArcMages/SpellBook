@@ -1,10 +1,11 @@
 // A stage for testing the outliner as it is plugged into the plugin: the real
 // feature, registered through the registry, on a project store that sits on
-// the tests' memory vault, with the stand-in plugin and the stand-in
-// workspace, and timers under the test's control. Nothing here is faked on
+// the tests' memory vault, with the shared stand-in plugin and the shared
+// stand-in app and workspace (tests/obsidianStub.ts, tests/fakeObsidianApp.ts)
+// as they are, and timers under the test's control. Nothing here is faked on
 // the feature's own side: the host is the real one (host.ts).
 
-import type { App, Plugin as ObsidianPlugin, TFile } from 'obsidian';
+import type { Plugin as ObsidianPlugin, TFile } from 'obsidian';
 import type { ProjectStore } from '../../../src/core/projectStore';
 import { countWords } from '../../../src/core/wordCount';
 import { WordCountCache } from '../../../src/core/wordCountCache';
@@ -13,7 +14,8 @@ import { OUTLINER_VIEW_TYPE } from '../../../src/features/outliner/outlinerView'
 import type { OutlinerView } from '../../../src/features/outliner/outlinerView';
 import { registerFeatures } from '../../../src/features/registry';
 import type { RegisteredFeatures } from '../../../src/features/registry';
-import { FakeLeaf, FakeWorkspace } from '../../fakeObsidianApp';
+import { FakeObsidian } from '../../fakeObsidianApp';
+import type { FakeLeaf, FakeWorkspace } from '../../fakeObsidianApp';
 import { ManualTimers, MemoryVault } from '../../memoryVault';
 import { Menu as StubMenu, Plugin as StubPlugin, TFile as StubFile } from '../../obsidianStub';
 import type { FakeElement, StubCommand } from '../../obsidianStub';
@@ -141,25 +143,6 @@ export function novelVault(): MemoryVault {
   return vault;
 }
 
-// ---------------------------------------------------------------- the workspace
-
-/**
- * The stand-in workspace knows the left sidebar and how to open a note. The
- * outliner needs a new tab in the main area that can hold one of the plugin's
- * views: that is added here, for these tests only.
- */
-function makeRoom(workspace: FakeWorkspace): void {
-  const opener = workspace.getLeaf.bind(workspace);
-  const roomy = workspace as unknown as { getLeaf(where?: unknown): unknown };
-  roomy.getLeaf = (where?: unknown) => {
-    const plain = opener(where);
-    // The tab the writer is in (or a split, or a window): only ever used to show a note.
-    if (where !== 'tab' && where !== true) return plain;
-    const leaf = workspace.addLeaf(workspace.rootSplit);
-    return Object.assign(leaf, { openFile: plain.openFile });
-  };
-}
-
 // ----------------------------------------------------------------- the stage
 
 export interface Wired {
@@ -199,11 +182,11 @@ export async function wire(vault: MemoryVault = novelVault(), options: WireOptio
   vault.reads.readFrontmatter = 0;
   vault.reads.readText = 0;
 
-  const app = {} as { workspace: FakeWorkspace };
-  const workspace = new FakeWorkspace(app);
-  app.workspace = workspace;
-  makeRoom(workspace);
-  const plugin = new StubPlugin(app, { id: 'spellbook-novel-writer' });
+  // The shared stand-in app: its workspace hands out a pane of the main area
+  // for a new tab, which is where the outliner opens.
+  const fake = new FakeObsidian();
+  const workspace = fake.workspace;
+  const plugin = new StubPlugin(fake.app, { id: 'spellbook-novel-writer' });
   const storage = options.storage ?? new MemoryDeviceStorage();
   const wordCounts = new WordCountCache({ vault, setTimer: timers.set });
   wordCounts.start();
@@ -220,10 +203,11 @@ export async function wire(vault: MemoryVault = novelVault(), options: WireOptio
   };
 
   const opened: Wired['opened'] = [];
-  // The outliner is not in the plugin's own list yet: it is registered directly.
+  // The outliner alone, so that what these tests count (notes read, commands,
+  // buttons) is its own; the whole list is registered in tests/features.test.ts.
   const features = registerFeatures([outlinerFeature], {
     plugin: plugin as unknown as ObsidianPlugin,
-    app: app as unknown as App,
+    app: fake.app,
     store,
     vault,
     storage,

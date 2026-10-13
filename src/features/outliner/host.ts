@@ -100,8 +100,6 @@ interface Model {
   readonly vaultPaths: ReadonlyMap<string, string>;
   /** The other way round: the scene a note in the vault is. */
   readonly byVaultPath: ReadonlyMap<string, string>;
-  /** The other notes the binder shows a count for, as vault paths. */
-  readonly others: readonly string[];
 }
 
 /** What a finished request says to the screen: null when done, or why it was not. */
@@ -338,12 +336,7 @@ export class OutlinerHost {
       }
     };
     walk(snapshot.tree);
-    const others: string[] = [];
-    for (const path of snapshot.unfiled) {
-      const vaultPath = store.vaultPathOf(path);
-      if (vaultPath !== null) others.push(vaultPath);
-    }
-    this.model = { project, treeKey, scenes, vaultPaths, byVaultPath, others };
+    this.model = { project, treeKey, scenes, vaultPaths, byVaultPath };
 
     // The binder and the disk may spell the same name in two ways: notes are matched by key.
     const indexed = new Map<string, Readonly<Frontmatter> | null>();
@@ -439,13 +432,14 @@ export class OutlinerHost {
   // ------------------------------------------------------------ word counts
 
   /**
-   * Ask for the words of the project's notes to be counted, while a table is
-   * open. Asked again whenever something changes (see wordCounts.ts for why).
+   * Ask for the words of the scenes to be counted, while a table is open.
+   * Asked again whenever something changes, since each request replaces the
+   * outliner's last one (see wordCounts.ts).
    */
   private keepCounting(): void {
     const model = this.model;
     if (!model || this.listening.size === 0) return;
-    this.counts.want([...model.vaultPaths.values()], model.others);
+    this.counts.want([...model.vaultPaths.values()]);
   }
 
   private onCounts(vaultPaths: readonly string[]): void {
