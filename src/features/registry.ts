@@ -34,6 +34,7 @@ import { schemesFeature } from './schemes/index';
 import { reportFeature } from './report/index';
 import { proseFeature } from './prose/index';
 import { timelineFeature } from './timeline/index';
+import { scriveningsFeature } from './scrivenings/index';
 
 /** The device's clock and timers. Features never read the clock themselves. */
 export interface FeatureClock {
@@ -151,6 +152,7 @@ export const FEATURES: readonly Feature[] = [
   reportFeature,
   exportFeature,
   proseFeature,
+  scriveningsFeature,
 ];
 
 /** What registerFeatures needs: a FeatureContext without the parts the registry makes itself. */

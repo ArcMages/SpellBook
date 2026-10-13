@@ -1,0 +1,271 @@
+/*
+ * Spellbook: scrivenings, the scenes of the manuscript shown one after
+ * another as one continuous text.
+ *
+ * The rules of styles.css hold here too:
+ *   - every class starts with "spellbook-", every variable with "--spellbook-";
+ *   - colours and spacing come only from Obsidian's CSS variables, so the
+ *     plugin follows the user's theme in light and dark mode;
+ *   - sides are named "start" and "end", never by their physical names, so
+ *     that everything mirrors when Obsidian itself runs the other way;
+ *   - nothing may depend on hover alone, and every layout must work at phone width.
+ *
+ * One thing is set from the plugin's code and not here, because it is worked
+ * out: the height of a scene whose text is not on the page (it is far from
+ * what the writer sees), so that the scroll bar keeps its meaning.
+ *
+ * The text of a scene is drawn by Obsidian and carries Obsidian's own class
+ * for formatted text, so it looks as it does in the reading view of the
+ * theme in use. Nothing here moves or fades: there are no transitions.
+ */
+
+/* --------------------------------------------------------------------- Pane */
+
+/* Obsidian's pane around the manuscript: it brings its own margins and does
+   its own scrolling. (The class is repeated to outweigh Obsidian's own rule
+   for pane contents.) */
+.spellbook-scrivenings-pane.spellbook-scrivenings-pane {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.spellbook-scrivenings {
+  --spellbook-scrivenings-touch: 44px;
+  --spellbook-scrivenings-bar-room: 80px;
+  --spellbook-scrivenings-line-width: 44rem;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  color: var(--text-normal);
+}
+
+/* ------------------------------------------------------------------- Header */
+
+/* The name of the pane, the scope button and how much is on show. */
+.spellbook-scrivenings-header {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2) var(--size-4-3);
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+  font-size: var(--font-ui-small);
+}
+
+.spellbook-scrivenings-heading {
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  text-align: start;
+}
+
+/* In a narrow pane the tab already says what the pane is: the room goes to the scope and the counts. */
+.spellbook-scrivenings.spellbook-is-narrow .spellbook-scrivenings-heading {
+  display: none;
+}
+
+.spellbook-scrivenings-bar {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--size-4-2) var(--size-4-3);
+  min-width: 0;
+}
+
+.spellbook-scrivenings.spellbook-is-narrow .spellbook-scrivenings-bar {
+  justify-content: space-between;
+}
+
+/* The scope button may carry the name of a folder: a long one is cut short. */
+.spellbook-scrivenings-scope {
+  max-width: 20em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-scrivenings-summary {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A folder inside another is set in, in the scope menu. */
+.spellbook-scrivenings-menu-depth-1 {
+  padding-inline-start: var(--size-4-3);
+}
+
+.spellbook-scrivenings-menu-depth-2 {
+  padding-inline-start: var(--size-4-6);
+}
+
+.spellbook-scrivenings-menu-depth-3 {
+  padding-inline-start: var(--size-4-9);
+}
+
+/* What the pane says when it has no scenes to show. */
+.spellbook-scrivenings-message {
+  display: none;
+  padding-block: var(--size-4-4);
+  padding-inline: var(--size-4-3);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+.spellbook-scrivenings.spellbook-scrivenings-is-empty .spellbook-scrivenings-message {
+  display: block;
+}
+
+.spellbook-scrivenings.spellbook-scrivenings-is-empty .spellbook-scrivenings-scroll {
+  display: none;
+}
+
+/* ------------------------------------------------------------------- Scenes */
+
+/* The one thing that scrolls. The pane keeps the writer's line in place
+   itself when a scene above it is drawn, so the browser must not do it too:
+   the two would add up. */
+.spellbook-scrivenings-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-anchor: none;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* The last lines end above the bar that floats over the bottom of a phone,
+   so that they can be read and tapped. Obsidian's own figures where it gives
+   them, and the plugin's own as the least. */
+.spellbook-scrivenings-list {
+  padding-block-end: var(--size-4-8);
+}
+
+.spellbook-scrivenings.spellbook-is-phone .spellbook-scrivenings-list {
+  padding-block-end: max(
+    var(--spellbook-scrivenings-bar-room),
+    calc(var(--mobile-navbar-height, 0px) + var(--safe-area-inset-bottom, 0px))
+  );
+}
+
+/* One scene: its divider, then its text. It has no margins of its own (its
+   spacing is inside it), so that its measured height is all the room it
+   takes. The browser may skip laying out what is off the screen. */
+.spellbook-scrivenings-scene {
+  display: flow-root;
+  box-sizing: border-box;
+  max-width: var(--spellbook-scrivenings-line-width);
+  margin-inline: auto;
+  padding-inline: var(--size-4-4);
+  contain: layout style;
+}
+
+.spellbook-scrivenings.spellbook-is-narrow .spellbook-scrivenings-scene {
+  padding-inline: var(--size-4-3);
+}
+
+/* A scene that is far from what the writer sees: empty room of its height. */
+.spellbook-scrivenings-scene.spellbook-scrivenings-is-room {
+  overflow: hidden;
+}
+
+/* The divider between two scenes: a line, the scene's title at the start,
+   its word count and Edit at the end. */
+.spellbook-scrivenings-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  margin-block-start: var(--size-4-4);
+  padding-block: var(--size-2-2);
+  border-block-start: var(--border-width) solid var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-family: var(--font-interface);
+}
+
+/* The title is a button that opens the scene's note. It takes the direction
+   of its own words; the row around it does not, so the count stays at the end. */
+.spellbook-scrivenings-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  height: auto;
+  padding-block: var(--size-2-2);
+  padding-inline: var(--size-2-3);
+  overflow: hidden;
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-weight: var(--font-semibold);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.spellbook-scrivenings-title:hover,
+.spellbook-scrivenings-title:focus-visible {
+  color: var(--text-normal);
+  text-decoration: underline;
+}
+
+.spellbook-scrivenings-count {
+  flex: 1 1 auto;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.spellbook-scrivenings-edit {
+  flex: 0 0 auto;
+}
+
+/* A scene without a note has nothing to edit. */
+.spellbook-scrivenings-edit.spellbook-scrivenings-is-off {
+  display: none;
+}
+
+/* On touch screens the buttons are tall enough for a finger. */
+.spellbook-scrivenings.spellbook-is-mobile .spellbook-scrivenings-scope,
+.spellbook-scrivenings.spellbook-is-mobile .spellbook-scrivenings-title,
+.spellbook-scrivenings.spellbook-is-mobile .spellbook-scrivenings-edit {
+  min-height: var(--spellbook-scrivenings-touch);
+}
+
+/* The text of a scene. A tap on it opens the scene in the editor, at the
+   paragraph that was tapped. */
+.spellbook-scrivenings-text {
+  min-height: var(--size-4-8);
+  padding-block: var(--size-4-2) var(--size-4-4);
+  overflow-wrap: break-word;
+  text-align: start;
+  cursor: text;
+}
+
+/* A text that is still being drawn is not on show yet: what was there stays until it is whole. */
+.spellbook-scrivenings-text.spellbook-scrivenings-pending {
+  display: none;
+}
+
+/* Plain paragraphs keep the line breaks the writer made. */
+.spellbook-scrivenings-plain {
+  white-space: pre-wrap;
+}
+
+/* A line of the plugin's own in place of a text: nothing written yet, the note is missing. */
+.spellbook-scrivenings-note {
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+  font-style: italic;
+  font-family: var(--font-interface);
+}
