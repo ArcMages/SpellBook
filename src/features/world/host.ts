@@ -229,7 +229,7 @@ export class WorldHost {
       entityVaultPath: (path) => store.vaultPathOf(path),
       scenes,
       events,
-      resolve: (target, from) => vault.resolveLink(target, from),
+      resolve: (target, from) => this.resolveEntityLink(target, from),
     });
     this.model = {
       project: { id: snapshot.indexPath, title: snapshot.title, readOnly: snapshot.readOnly },
@@ -359,11 +359,30 @@ export class WorldHost {
     return answerOf(result);
   }
 
+  /**
+   * The note an entry of an "entities" list leads to. A bare name is looked
+   * for among this project's own world-building notes first: a vault may hold
+   * two projects that each have a "Mara", and the vault alone would then lead
+   * a scene of one project to the character of the other. Anything else, and
+   * a name this project does not have exactly once, is left to the vault.
+   */
+  private resolveEntityLink(target: string, from: string): string | null {
+    const { store, vault } = this.context;
+    if (!target.includes('/')) {
+      const wanted = target.trim().toLowerCase();
+      const own = store.worldNotes().filter((note) => noteTitle(note.path).toLowerCase() === wanted);
+      const only = own.length === 1 ? own[0] : undefined;
+      const path = only ? store.vaultPathOf(only.path) : null;
+      if (path !== null) return path;
+    }
+    return vault.resolveLink(target, from);
+  }
+
   /** Whether an entry of a list, written in the note at `from`, leads to the note at `to`. */
   private leadsTo(entry: string, from: string, to: string): boolean {
     const written = parseLink(entry);
     if (written === null) return false;
-    const found = this.context.vault.resolveLink(written.target, from);
+    const found = this.resolveEntityLink(written.target, from);
     return found !== null && pathKey(found) === pathKey(to);
   }
 
