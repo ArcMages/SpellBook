@@ -2,7 +2,7 @@
 
 Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writing novels. It gives a vault the tools of a dedicated novel-writing app: a binder of scenes, a corkboard, word targets, a story timeline, notes on characters and places, saved versions of a scene and a manuscript export. It is for writers who want those tools and still want their book to stay a folder of plain notes that they own. It was built for writing in Hebrew and English, on a computer, a tablet and a phone.
 
-**Status:** version 0.1.0, pre-release. Every screen has been looked at on a Mac in a test copy of Obsidian, and most of them in Obsidian's phone layout at phone size. Nothing has been tried on a real iPhone or iPad yet. Spellbook is not in Obsidian's community plugin list. See [Known limits](docs/guide.md#known-limits).
+**Status:** version 0.9.0, pre-release. Every screen has been looked at on a Mac in a test copy of Obsidian, and most of them in Obsidian's phone layout at phone size. Nothing has been tried on a real iPhone or iPad yet. Spellbook is not in Obsidian's community plugin list. See [Known limits](docs/guide.md#known-limits).
 
 ## Learn
 
@@ -10,6 +10,7 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 - [Tutorial: your first novel in Spellbook](docs/tutorial.md). A walk-through from an empty vault to a Word file for a reader, in numbered steps.
 - [User guide](docs/guide.md). The reference: every screen, every command, how your writing is stored, and the known limits.
 - [Customising: making Spellbook your own](docs/customising.md). Colour schemes, keyboard shortcuts, the bottom bar, statuses and labels, and where each setting lives.
+- [AI helper](AI%20helper/README.md). A reference to hand to an AI assistant, so that it can help with a project without breaking it.
 
 ## Screens
 
@@ -41,7 +42,11 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 
 ![The World screen with cards for characters, places and items](docs/images/world.png)
 
-*A card for each character, place, faction and item of the story.*
+*A card for each character, place, faction, item, piece of lore, creature and culture of the story.*
+
+![The World screen as a list: one row per entity, with its type, kind and number of scenes](docs/images/world-list.png)
+
+*The same world as a list that sorts by name, type, kind or number of scenes.*
 
 ### Character and lore sheets
 
@@ -53,17 +58,25 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 
 *Lore has its own type: legends, tales, history and customs, linked to the scenes and events where they matter.*
 
+![The sheet of a saying written in Hebrew, reading right to left beside English cards](docs/images/lore-sheet-hebrew.png)
+
+*A piece of lore written in Hebrew: its name, fields and scenes read right to left, beside English cards that read left to right.*
+
 ### Story graph
 
 ![Obsidian's graph view of a novel: scenes, characters, places, items and events as linked dots](docs/images/graph-view.png)
 
-*Obsidian's graph view of the sample novel: scenes in grey, characters in blue, places in green, items in orange, lore in yellow, timeline events in purple. The links come from the entities listed on each scene and event.*
+*Obsidian's graph view of the sample novel: scenes in grey, characters in blue, places in green, factions in red, items in orange, lore in yellow, creatures in cyan, cultures in pink, timeline events in purple. The links come from the entities listed on each scene and event.*
 
 ### On a phone
 
 ![The World screen in phone layout, with one column of cards](docs/images/phone-world.png)
 
 *The World screen in Obsidian's phone layout: the same cards in one column.*
+
+![A character's sheet in phone layout, with a button that leads back to the list](docs/images/phone-entity-sheet.png)
+
+*A character's sheet in phone layout: it takes the place of the list, with a button that leads back.*
 
 ## Features
 
@@ -93,7 +106,7 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 - **Timelines.** Named, coloured lanes on one time axis. Events are notes; scenes that have a date appear too. Zoom, drag an event to change its date, and switch between date order and story order.
 - **Invented calendars.** Give a story its own months, week, eras and leap years, and the timeline counts in it.
 - **World.** Characters, places, factions, items, lore (legends, tales, history), creatures and cultures, plus types of your own. Each is a plain note with a sheet: a picture, fields you fill in place, relations to other entities, and the scenes and events it appears in. Browse them as cards or as a sortable list, link them to scenes and timeline events, and find scenes that mention one without listing it.
-- **Story graph.** Scenes and timeline events link to the characters, places and items listed on them with ordinary Obsidian links, so Obsidian's own graph view and backlinks show who appears where, with no setup. Give each kind of note its own colour with the graph's Groups setting.
+- **Story graph.** Scenes and timeline events link to the characters, places, lore and other entities listed on them with ordinary Obsidian links, so Obsidian's own graph view and backlinks show who appears where, with no setup. Give each kind of note its own colour with the graph's Groups setting.
 
 ### Keep and share
 
@@ -112,12 +125,23 @@ A project is an ordinary folder of Markdown notes in your vault. You can read, e
   Timeline/      one note per timeline event
   Research/      your research notes
   Stats/         daily word logs, one file per device per month
-  World/         one note per character, place, faction or item (made when you add the first)
+  World/         one note per character, place, faction, item, piece of lore, creature or culture (made when you add the first)
   Snapshots/     saved versions of scenes (made when you take the first)
   Exports/       exported manuscripts (made when you first export)
+  AI helper/     a reference for AI assistants (made when you ask for it)
 ```
 
 Spellbook only works inside project folders. It does not change notes elsewhere in the vault.
+
+## For AI assistants
+
+Because a project is plain notes, an AI assistant can read it and help: summarise a chapter, list the scenes a character is in, draft a synopsis, add a to-do or a character note. To do that without breaking anything, the assistant has to know what the files mean and what it must leave alone. The folder [AI helper](AI%20helper/README.md) holds a reference written for that reader: [Spellbook for AI assistants](AI%20helper/Spellbook%20for%20AI%20assistants.md).
+
+- Paste the file into a chat with your assistant, or
+- point an assistant that works with files at your vault and tell it to read the file first, or
+- run the command **Create AI helper note**, which puts a copy inside the open project, at `AI helper/Spellbook for AI assistants.md`.
+
+Spellbook itself contains no AI and sends nothing anywhere. The file is only text for an assistant of your choosing to read.
 
 ## Hebrew and English
 

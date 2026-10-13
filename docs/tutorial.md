@@ -21,7 +21,7 @@ Three things to know first:
 7. [Set targets and watch the bottom bar](#7-set-targets-and-watch-the-bottom-bar)
 8. [Plan your writing days](#8-plan-your-writing-days)
 9. [Put story events on the timeline](#9-put-story-events-on-the-timeline)
-10. [Add characters and places](#10-add-characters-and-places)
+10. [Build the world](#10-build-the-world)
 11. [Read the book through](#11-read-the-book-through)
 12. [Take a snapshot before a big revision](#12-take-a-snapshot-before-a-big-revision)
 13. [Check the prose](#13-check-the-prose)
@@ -178,23 +178,60 @@ Scenes can appear on the timeline too: a scene whose note has a `date` property 
 
 If your story is set in an invented world with its own months, see [An invented story calendar](customising.md#an-invented-story-calendar).
 
-## 10. Add characters and places
+## 10. Build the world
 
 ![The World screen with cards for characters, places and items](images/world.png)
 
-*The World screen: a card for each character, place, faction and item of the story.*
+*The World screen: a card for each character, place, faction, item, piece of lore, creature and culture of the story.*
 
-1. Run the command **New character**. Type a name and confirm. A note for the character opens, with a few starting properties (role, age, appearance, goal) and a summary. Fill in what you know.
+The world is everything the story is about that is not a scene: its people, its places, its legends. Each is an **entity**, a plain note in the project's World folder.
+
+**Make a character**
+
+1. Run the command **New character**. Type a name and confirm. A note for the character opens, with empty properties (role, age, occupation, appearance, personality, voice, goal, arc and a summary) and three headings to write under: Appearance, Background and Notes.
 2. Run **New place** and add a place the same way.
-3. Run **Open world**. You should see a card for each of them. Use the search box, or show one type at a time, when the list grows.
-4. Now say who is in a scene. Open "Arrival", and in the inspector find **In this scene**. Press **Add**, choose your character, then **Add** again and choose the place. Each shows as a chip.
-5. You can also make someone new from there: press **Add**, type a name that does not exist yet, and choose what it is.
-6. Go back to the World screen. The character's card now counts one scene. Tap that number to open the details: the summary and properties, the **Scenes** the character is in, and the **Timeline events** that list them.
-7. In the details, press **Find mentions**. Spellbook lists scenes whose text names the character without listing them, each with a **Link this scene** button.
+3. Run **Open world**. You should see a card for each of them. Use the search box, or show one type at a time, when the world grows. **Cards** and **List** switch between cards and a table that you can sort by name, type, kind or number of scenes.
 
-To tie a character to a timeline event, open the event's menu on the timeline and choose **Entities**. The timeline's **Only events with** button then narrows the timeline to the events that involve the people and places you choose.
+![The World screen as a list: one row per entity, with its type, kind and number of scenes](images/world-list.png)
 
-Besides characters and places there are factions and items, and you can add types of your own. See [Entity types of your own](customising.md#entity-types-of-your-own).
+*The same world as a list.*
+
+**Fill in the sheet**
+
+![The World screen with a character's sheet open: fields, related entities and scenes](images/entity-sheet.png)
+
+*A character's sheet: the picture, the summary, the fields, then the people and places she is related to and the scenes she is in.*
+
+4. On the character's card, press **Sheet**. The sheet opens beside the cards.
+5. Type a line in **Summary**, then fill in the fields you know: tap a field, type, and press Enter or tap elsewhere. Each is saved as you leave it. Leave empty what you do not know yet.
+6. If you have a picture of the character in your vault, press **Choose picture** and tap it. If not, skip this: the sheet shows the type's icon.
+7. Press **Open note** when you want to write at length. The note's text is yours; the sheet only changes its properties.
+
+**Relate two entities**
+
+8. On the character's sheet, find **Related** and press **Add**. In the window, type how the two have to do with each other, for example "lives in", then tap your place. It now stands under **Related**, in the group "Places", with its label.
+9. Open the place's sheet. It shows the character under **Mentioned by**, without you writing anything there. A relation is written once, on the side it reads from.
+
+**Say who is in a scene**
+
+10. Open "Arrival", and in the inspector find **In this scene**. Press **Add**, choose your character, then **Add** again and choose the place. Each shows as a chip.
+11. You can also make someone new from there: press **Add**, type a name that does not exist yet, and choose what it is.
+12. Go back to the character's sheet. Under **Scenes** it now lists "Arrival" with its synopsis.
+13. Press **Find mentions**. Spellbook lists scenes whose text names the character without listing them, each with a **Link this scene** button.
+
+**Add a legend**
+
+![The sheet of a legend, with who tells it and the scenes and events it touches](images/lore-sheet.png)
+
+*A legend has a sheet like any other entity: what kind of tale it is, when it is from, who tells it.*
+
+14. Run **New lore** and give the legend a name, for example "The Bell in the Fog". Lore is for legends, tales, myths, history, religion and customs.
+15. Open its sheet and fill in **kind** ("Fishermen's tale"), **period** ("Told to this day") and **told-by** (who in the story tells it). Write the tale itself in the note, under the heading "The tale"; the other two headings are "Who tells it" and "What is true".
+16. Relate the legend to the place it is about, and add it to the scene where someone tells it, the same way as for the character.
+
+To tie an entity to a timeline event, open the event's menu on the timeline and choose **Entities**. The timeline's **Only events with** button then narrows the timeline to the events that involve the people, places and tales you choose.
+
+Besides characters, places and lore there are factions, items, creatures and cultures, each with its own command (**New faction**, **New item**, **New creature**, **New culture**), and you can add types of your own. See [Entity types of your own](customising.md#entity-types-of-your-own).
 
 ## 11. Read the book through
 
@@ -331,7 +368,11 @@ A phone has no bottom bar, so the line of figures (scene words, session, today a
 
 *The World screen in phone layout: one column of cards.*
 
-A narrow pane shows one column of cards. Opening an entity's details takes the place of the list, with a button that leads back.
+A narrow pane shows one column of cards. Opening an entity's sheet takes the place of the list, with a button that leads back.
+
+![A character's sheet on a phone, with a button that leads back to the list](images/phone-entity-sheet.png)
+
+*A character's sheet in phone layout: the same fields in one column, with the arrow that leads back to the list.*
 
 ### Novel view
 

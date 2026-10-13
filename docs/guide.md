@@ -1,6 +1,6 @@
 # Spellbook user guide
 
-This guide explains every screen and tool of Spellbook, a plugin for Obsidian for planning and writing novels. It describes version 0.1.0.
+This guide explains every screen and tool of Spellbook, a plugin for Obsidian for planning and writing novels. It describes version 0.9.0.
 
 This is the reference: one section per screen. If you are new to Spellbook, start with the [tutorial](tutorial.md), which walks through a first novel step by step. To change colours, keys, bars and lists, see [Making Spellbook your own](customising.md).
 
@@ -39,6 +39,7 @@ In this guide:
 - [World](#world)
 - [Snapshots](#snapshots)
 - [Export](#export)
+- [For AI assistants](#for-ai-assistants)
 - [Settings](#settings)
 - [All commands](#all-commands)
 - [How your writing is stored](#how-your-writing-is-stored)
@@ -146,6 +147,10 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 
 ## Statuses and labels
 
+![The "Statuses and labels" window, with four coloured statuses and three coloured labels](images/statuses-and-labels.png)
+
+*The "Statuses and labels" window: each status and label has a colour, arrows to move it and a menu.*
+
 **What it is for.** A status says how far along a scene is. A label is a colour of your own choosing, for a point-of-view character, a plot line or anything else.
 
 **How to open it.** Command **Manage statuses and labels** (offered while a project is open), the **Statuses and labels** button in the inspector, or the corkboard's menu.
@@ -203,6 +208,10 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 ![A scene in letter box mode, with a lit band of lines and the rest of the page covered](images/letter-box.png)
 
 *Letter box mode: a band of lines stays lit, and the text above and below it is covered.*
+
+![A scene in Zen mode: only the text, with the sidebars, tabs and bars hidden](images/zen-mode.png)
+
+*Zen mode: the sidebars, the tabs and the bars are hidden, and only the text is left.*
 
 **What they are for.** Four switches that change how the editor behaves while you write. They work in any note, not only in scenes, and can be on together.
 
@@ -294,6 +303,10 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 **Limits.** A long bar takes at most 60% of the window's width and scrolls sideways. Link addresses and code blocks count as words. The layout of the bar is remembered on each device separately.
 
 ## Writing targets
+
+![The "Writing targets" window, with a project target, a daily target, a deadline and a target for the open scene](images/writing-targets.png)
+
+*The "Writing targets" window: how far the manuscript is, how many words a day the deadline takes, and the four targets.*
 
 **What it is for.** Setting how much you mean to write.
 
@@ -388,6 +401,10 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 
 ## Story calendar
 
+![The "Story calendar" window, with ten named months of 36 days and named days of the week](images/story-calendar.png)
+
+*The "Story calendar" window, started from the ten-month example: months with their lengths, then the days of the week.*
+
 **What it is for.** A story set in an invented world can have its own calendar, and the timeline then counts in it.
 
 **How to open it.** Command **Edit story calendar**, or the **Calendar** button on the timeline. The window is called "Story calendar".
@@ -400,29 +417,78 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 
 ![The World screen with cards for characters, places and items](images/world.png)
 
-*The World screen: a card for each character, place, faction and item.*
+*The World screen as cards: one for each entity, in a group for each type.*
 
-**What it is for.** Keeping track of the characters, places, factions and items of the story, and which scenes they are in.
+**What it is for.** Keeping track of who and what is in the story's world, how they have to do with each other, and which scenes and events they are in.
+
+**What is in it.** Each thing in the world is an **entity**: a plain note in the project's World folder. Seven types are built in:
+
+| Type | For | Starts with these fields |
+| --- | --- | --- |
+| Character | The people of the story. | role, age, occupation, appearance, personality, voice, goal, arc, summary |
+| Place | Towns, houses, countries. | kind, region, atmosphere, landmarks, summary |
+| Faction | Groups, families, offices, armies. | kind, leader, summary |
+| Item | Things that matter to the plot. | kind, owner, summary |
+| Lore | Legends, tales, myths, history, religion, customs. | kind, period, told-by, summary |
+| Creature | Animals and beings. | kind, habitat, summary |
+| Culture | Peoples and their languages. | kind, region, summary |
+
+You can change these and add types of your own: see [Entity types of your own](customising.md#entity-types-of-your-own).
 
 **In Obsidian's graph.** The entities of a scene are ordinary Obsidian links, so Obsidian's graph view and backlinks show who appears where. [Customising: the story graph](customising.md#the-story-graph) shows how to colour it by kind of note.
 
 **How to open it.** Command **Open world**, or the ribbon button "Open Spellbook world". It opens as a tab in the main area.
 
-**Adding to the world.** Commands **New character**, **New place**, **New faction**, **New item**, and **New entity** (which asks what it is). The **New** button in the World screen does the same. Each one becomes a plain note in the project's World folder, in a folder for its type, with a few starting properties and a summary. Add or remove properties as you like.
+**Adding to the world.** Commands **New character**, **New place**, **New faction**, **New item**, **New lore**, **New creature**, **New culture**, and **New entity** (which asks what it is). The **New** button in the World screen does the same. Each one becomes a plain note in the World folder, in a folder for its type, with the type's fields empty and a few headings to write under.
 
-**What you can do in the World screen.**
+### Cards and list
 
-- Search names and summaries, and show **All types** or one type.
-- Tap a card to open the note. The number of scenes on a card opens the details.
-- Each card has a menu: **Open**, **Open in new tab**, **Show scenes and details**, **Rename**, **Delete** (to the trash).
-- The details show the summary and properties, the **Scenes** the entity is in, the **Timeline events** that list it, and **Find mentions**: scenes whose text names it without listing it, each with a **Link this scene** button.
-- **Entity types** opens a window to **Add a type** of your own (for example "Creature") and to **Rename**, **Change folder**, **Change properties** or **Remove** a type. Changing a type never changes a note.
+![The World screen as a list: one row per entity, with its type, kind and number of scenes](images/world-list.png)
+
+*The World screen as a list: tap a column's heading to sort by it.*
+
+At the top of the screen:
+
+- A search box, which looks in names, other names and summaries.
+- **All types**, to show one type only.
+- **Cards** and **List**, under "Show as". Cards show each entity's picture or icon, its name, one or two key facts and its summary, in a group for each type. The list is one table of them all with the columns **Name**, **Type**, **Kind** and **Scenes**; tap a heading to sort by it, and again to turn the order round.
+- **New**, and the button for **Entity types**.
+
+On a card, tap the card to open the entity's note. **Sheet**, or the number of scenes, opens its sheet. In the list, tap a row to open its sheet. Each card has a menu: **Open**, **Open in new tab**, **Open sheet**, **Rename**, **Delete** (to the trash).
+
+### The entity sheet
+
+![The World screen with a character's sheet open: fields, related entities and scenes](images/entity-sheet.png)
+
+*A character's sheet beside the cards: the picture, the summary, the fields, then Related and Scenes.*
+
+The sheet is one entity laid out to read and to fill in. It opens beside the list in a wide pane. The command **Open entity sheet** opens the sheet of the entity whose note is open in the editor.
+
+- **Picture.** **Choose picture** lists the image files in your vault; tap one. **Remove picture** takes it off again. The picture file itself is never moved or changed. An entity without a picture shows its type's icon.
+- **Summary and fields.** Type in a field and press Enter, or tap elsewhere, to save it. Each field is one property of the note; the note's text is never touched. A property that holds a list is shown but is changed in the note itself.
+- **Open note** opens the note, where you write as much as you like under its headings.
+- **Related.** Press **Add**, type how the two have to do with each other ("sister", "keeps", "born there"; you may leave it empty), and tap the other entity. Relations are grouped by type. Each has a button to change its label and one to remove it. A relation is written in one note only; the other entity's sheet shows it by itself under **Mentioned by**.
+- **Scenes.** The scenes the entity is in, in the order of the book, each with its synopsis and a button to take the entity out of that scene.
+- **Events.** The timeline events that list it, each with its date in the story.
+- **Find mentions.** Lists scenes whose text names the entity, or one of its other names, without listing it, each with a **Link this scene** button.
+
+![The sheet of a legend, with who tells it and the scenes and events it touches](images/lore-sheet.png)
+
+*The sheet of a legend: its kind, its period, who tells it, and the scenes and events it touches.*
+
+![The sheet of a saying written in Hebrew, reading right to left](images/lore-sheet-hebrew.png)
+
+*A piece of lore written in Hebrew: the name, the fields and the Hebrew scene titles read right to left.*
+
+**Other names.** An entity's other names are Obsidian's own `aliases` property. Add them in the note's properties; "Find mentions" looks for them too.
 
 **Linking to scenes and events.** In the [inspector](#inspector), under **In this scene**, press **Add**. On the timeline, use **Entities** in an event's menu.
 
-**On a phone.** A narrow pane shows one column of cards, and the details take the place of the list, with a button that leads back.
+**Entity types.** The **Entity types** window lets you **Add a type** of your own (for example "Spell") and **Rename**, **Change folder** or **Change properties** of any type, or **Remove** one of your own. Changing a type never changes a note.
 
-**Limits.** If two projects in one vault have an entity with the same name, Spellbook's own screens lead to the right project's note, but a click on the link in Obsidian's Properties panel may still open the other one. Rename, delete, "Find mentions" and types of your own have not been tried on screen.
+**On a phone.** A narrow pane shows one column of cards, and the sheet takes the place of the list, with a button that leads back.
+
+**Limits.** Cards or list is remembered on each device separately. A picture must already be a file in the vault. If two projects in one vault have an entity with the same name, Spellbook's own screens lead to the right project's note, but a click on the link in Obsidian's Properties panel may still open the other one. Rename, delete, "Find mentions" and types of your own have not been tried on screen.
 
 ## Snapshots
 
@@ -476,6 +542,21 @@ Press **Export**. The file is saved as a new file in the project's Exports folde
 **On a phone.** "Print / save as PDF" is not offered on a phone or tablet. Export the web page instead, open it in the browser or the Files app, and print it from the share menu, which offers to save it as a PDF.
 
 **Limits.** There is no direct PDF file. The Word file was checked by converting it with macOS tools, not by opening it in Word, Pages or Google Docs. Word and web-page files only show in Obsidian's file list when Obsidian's "Detect all file extensions" setting is on. The button that shows the file in its folder is on computers only.
+
+## For AI assistants
+
+**What it is for.** A project is plain notes, so an AI assistant can read it and help with it. The AI helper is a reference written for that assistant: what each folder and property means, how to read the manuscript in order, which changes are safe to make and how, and what it must never touch (the word logs, the snapshots, the order numbers of scenes). Spellbook itself contains no AI and sends nothing anywhere; the reference is only text for an assistant of your choosing.
+
+**How to get it.** Command **Create AI helper note**. It writes the reference into the open project as `AI helper/Spellbook for AI assistants.md`, making the folder if it is not there, and then offers to open the note.
+
+- If the project already has the note and it is up to date, nothing is written.
+- If the note there says something else, because you changed it or because it was made by another version, Spellbook asks before replacing it. **Cancel** keeps your note.
+
+**How to use it.** Paste the note into a chat before you ask your question, or tell an assistant that works with the files of your vault to read it first. The same file is in the plugin's repository, in the folder `AI helper`, with a page of example requests.
+
+**What the assistant is told.** To read a file again before changing it; to change properties and never the text of a scene unless you ask for that scene; to ask you before anything that cannot be undone; and to leave moving, renaming and deleting scenes to you, in the binder.
+
+**Limits.** The note is not a scene: it has no place in the binder, is not exported, and its words are not manuscript words. Words an assistant adds to your notes from outside Obsidian do not show in the daily word counts or the streak, which count typing in Obsidian only; the project total does include them. The command has been checked by automated tests and has not been tried on screen.
 
 ## Settings
 
@@ -531,10 +612,15 @@ Obsidian shows each of these with "Spellbook:" in front.
 | New place | Makes a place note. |
 | New faction | Makes a faction note. |
 | New item | Makes an item note. |
+| New lore | Makes a note for a legend, a tale or a piece of history. |
+| New creature | Makes a creature note. |
+| New culture | Makes a note for a people or a language. |
 | New entity | Asks for a type, then makes a note of it. |
+| Open entity sheet | Shows the sheet of the entity whose note is open. |
 | Take snapshot | Saves the open scene as it is now. |
 | Snapshots of this scene | Shows the saved versions of the open scene. |
 | Export manuscript | Opens the export window. |
+| Create AI helper note | Writes the reference for AI assistants into the open project. |
 
 Ribbon buttons: "Open Spellbook binder", "Open Spellbook corkboard", "Open Spellbook planner", "Open Spellbook timeline", "Open Spellbook outliner", "Open Spellbook writing report", "Open Spellbook novel view" and "Open Spellbook world".
 
@@ -552,12 +638,13 @@ A project is an ordinary folder of Markdown notes. You can read and edit all of 
   Timeline/      one note per timeline event
   Research/      your research notes
   Stats/         daily word logs, one file per device per month
-  World/         one note per character, place, faction or item, in a folder per type
+  World/         one note per character, place, piece of lore and so on, in a folder per type
   Snapshots/     saved versions of scenes, one folder per scene
   Exports/       exported manuscripts
+  AI helper/     the reference for AI assistants
 ```
 
-The first six are made with the project. World, Snapshots and Exports are made the first time you use them.
+The first six are made with the project. World, Snapshots, Exports and AI helper are made the first time you use them.
 
 The **project index** is the note named after the project. Its properties hold the order of the binder, the lists of statuses and labels, the targets, the timeline lanes, the story calendar, the day marks, the entity types and the author's name for exports.
 
@@ -580,14 +667,14 @@ A scene is a note in the Manuscript folder. Spellbook reads and writes these pro
 
 Spellbook also reads `date` (a scene with a date shows in the timeline's Manuscript lane) and `tags` (shown in the outliner). Any other property is yours, and is left alone.
 
-Timeline events carry `date`, an optional `end`, `timelines` (their lanes), `scenes`, `entities` and `tags`. World notes carry `type`, `summary`, `aliases` and whatever properties you give them.
+Timeline events carry `date`, an optional `end`, `timelines` (their lanes), `scenes`, `entities` and `tags`. World notes carry `type`, the fields of their type (a character's `role`, a place's `kind` and so on), `summary`, `aliases` (other names) and whatever properties you give them. Two more are only there once you use them: `image`, a link to the entity's picture, and `related`, a list of links to other entities in which each link's display text is the label, for example `[[Tamar|sister]]`.
 
 ### What Spellbook changes, and what it never does
 
 - **The text of a scene is yours.** Spellbook changes a scene's properties, and never its text, with one exception: when you press **Restore** on a snapshot and confirm, the scene's text is replaced by the snapshot's, after the current text has been saved as a "Before restore" snapshot.
 - **The same goes for your event, world and research notes**: Spellbook changes their properties only.
 - **`To-do.md` is the one note whose lines Spellbook edits**, and only the line you acted on: ticking, adding, re-dating, moving or removing a to-do in the planner. Every other line is kept exactly as it was.
-- **The word logs, the snapshots and the exports** are files Spellbook writes for itself. An export is always a new file.
+- **The word logs, the snapshots, the exports and the AI helper note** are files Spellbook writes for itself. An export is always a new file. The AI helper note is only written when you run its command, and a copy you changed is not replaced without asking.
 - **Nothing is deleted outright.** Scenes, world notes and snapshots you delete go to the trash (Obsidian's or the system's, as your Obsidian settings say).
 - **Notes outside a project folder are never changed.**
 
@@ -597,7 +684,7 @@ Spellbook saves nothing outside your vault except small per-device choices, so i
 
 ### What syncs
 
-Everything inside the project folder, because it is all notes: scenes and their properties, the binder order, statuses and labels, targets, to-dos, day marks, timeline lanes and events, the story calendar, the world, snapshots and exports.
+Everything inside the project folder, because it is all notes: scenes and their properties, the binder order, statuses and labels, targets, to-dos, day marks, timeline lanes and events, the story calendar, the world with its pictures' links and relations, snapshots, exports and the AI helper note.
 
 The **word logs** sync too. Each device writes its own file for each month (in the Stats folder, named with the month and a short id of the device), so two devices never write the same file. The calendar adds all the devices' logs together.
 
@@ -612,6 +699,7 @@ These are remembered separately on every device and do not sync:
 - the layout of the bottom bar, and "Count pasted text";
 - the snapshot settings (automatic snapshots, and how many to keep);
 - the corkboard's card size, and the outliner's columns, sorting and filters;
+- whether the World screen shows cards or a list;
 - which timeline lanes are hidden;
 - the place you were reading in the novel view;
 - the last choices in the export window, and "Words on a page" in the writing report;
@@ -632,7 +720,7 @@ Let iCloud finish syncing before you start writing on another device, especially
 
 ## Known limits
 
-Spellbook is at version 0.1.0 and has not been used for real writing yet. This list is taken from the project's status notes of 14 October 2026.
+Spellbook is at version 0.9.0 and has not been used for real writing yet. This list is taken from the project's status notes of 14 October 2026.
 
 **How far it has been checked**
 
@@ -655,7 +743,14 @@ Spellbook is at version 0.1.0 and has not been used for real writing yet. This l
 **World**
 
 - With two projects in one vault that share an entity name, Obsidian's own Properties panel may open the other project's note when the link is clicked. Spellbook's own screens go to the right one.
+- A picture must already be a file in the vault; Spellbook does not import pictures.
+- A relation is written in one note. The other side shows it as "Mentioned by" and cannot change its label there.
 - Not tried on screen: rename, delete, "Find mentions", types of your own.
+
+**AI helper**
+
+- The command was checked by automated tests only, not on screen.
+- The reference describes this version's files. After an update, run the command again and let it replace the note.
 
 **Timeline and story calendar**
 
