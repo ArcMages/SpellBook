@@ -108,6 +108,7 @@ describe('source layout', () => {
       'features/report/index.ts',
       'features/export/index.ts',
       'features/prose/index.ts',
+      'features/world/index.ts',
     ]) {
       expect(names, expected).toContain(expected);
     }
@@ -329,6 +330,7 @@ describe('the whole plugin', () => {
       'features/report',
       'features/schemes',
       'features/timeline',
+      'features/world',
     ]);
     for (const file of featureFiles) {
       const own = relative(file).split('/').slice(0, 2).join('/');
@@ -476,6 +478,7 @@ describe('the stylesheet is put together from one file per screen', () => {
       'report.css',
       'export.css',
       'prose.css',
+      'world.css',
     ]);
     // No stylesheet is left out, and none is listed that is not there.
     expect(readdirSync(stylesDir).filter((name) => name.endsWith('.css')).sort()).toEqual([...STYLE_FILES].sort());
@@ -513,7 +516,7 @@ describe('the stylesheet is put together from one file per screen', () => {
   });
 
   it('gives each screen a stylesheet of its own, so that screens built side by side never share a file', () => {
-    for (const feature of ['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'report', 'export', 'prose']) {
+    for (const feature of ['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'report', 'export', 'prose', 'world']) {
       expect(STYLE_FILES, feature).toContain(`${feature}.css`);
     }
   });
