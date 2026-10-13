@@ -29,6 +29,7 @@ export const STYLE_FILES = Object.freeze([
   'planner.css',
   'timeline.css',
   'outliner.css',
+  'schemes.css',
 ]);
 
 const BANNER = `/*

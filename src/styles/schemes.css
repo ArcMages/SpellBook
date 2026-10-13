@@ -1,0 +1,122 @@
+/*
+ * Spellbook: the colour schemes.
+ *
+ * The rules of styles.css hold here too:
+ *   - every class starts with "spellbook-", every variable with "--spellbook-";
+ *   - colours and spacing come only from CSS variables, never from fixed values;
+ *   - sides are named "start" and "end", never by their physical names;
+ *   - nothing may depend on hover alone, and every layout must work at phone width.
+ *
+ * That is why no colour of any scheme is written in this file. A scheme is
+ * put on from the plugin's code (src/features/schemes/wearer.ts): it marks
+ * the page's body with "spellbook-scheme", "spellbook-scheme-light" or
+ * "spellbook-scheme-dark" and "spellbook-scheme-<name>", and sets the
+ * scheme's colours on the body as CSS variables: Obsidian's own
+ * ("--background-primary", "--text-normal" ...), which is what recolours the
+ * editor and every Spellbook screen, and "--spellbook-scheme-page",
+ * "-panel", "-raised", "-border", "-ink", "-muted", "-faint" and "-accent"
+ * for a snippet that wants a scheme's colour by name.
+ *
+ * What is left for this file: telling the browser whether the page is light
+ * or dark, and the small pictures of the schemes in the picker and the settings.
+ */
+
+/* ------------------------------------------------------------- A scheme on */
+
+/* The things the browser draws itself (scroll bars, the fields of a form,
+   the date picker) follow the scheme, not Obsidian's mode. */
+.spellbook-scheme-light {
+  color-scheme: light;
+}
+
+.spellbook-scheme-dark {
+  color-scheme: dark;
+}
+
+/* ------------------------------------------------------------------ Swatch */
+
+/* A small picture of a scheme: its page, with a strip of its panel at the
+   start, letters in its ink and a dot of its accent. The colours of a scheme
+   are set on the picture from the code; what is here is the picture of
+   "None", which takes the theme's own. */
+.spellbook-scheme-swatch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--size-2-3);
+  box-sizing: border-box;
+  width: calc(var(--size-4-16) + var(--size-4-2));
+  height: var(--size-4-8);
+  padding-inline-end: var(--size-4-2);
+  overflow: hidden;
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background-color: var(--background-primary);
+}
+
+.spellbook-scheme-swatch-strip {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: var(--size-4-3);
+  background-color: var(--background-secondary);
+}
+
+.spellbook-scheme-swatch-letters {
+  flex: 1 1 auto;
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.spellbook-scheme-swatch-dot {
+  flex: 0 0 auto;
+  width: var(--size-4-2);
+  height: var(--size-4-2);
+  border-radius: 50%;
+  background-color: var(--interactive-accent);
+}
+
+/* "None" is drawn with a dashed edge: there is no scheme there to show. */
+.spellbook-scheme-swatch-none {
+  border-style: dashed;
+}
+
+/* ------------------------------------------------------------------ Picker */
+
+.spellbook-scheme-option {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-3);
+}
+
+.spellbook-scheme-option-words {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.spellbook-scheme-option-name {
+  font-weight: var(--font-medium);
+}
+
+.spellbook-scheme-option-note {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-scheme-option-mark {
+  flex: 0 0 auto;
+  color: var(--text-accent);
+  font-size: var(--font-ui-smaller);
+}
+
+/* ---------------------------------------------------------------- Settings */
+
+.spellbook-scheme-row-current .setting-item-name {
+  color: var(--text-accent);
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-scheme-row .setting-item-control {
+  gap: var(--size-4-3);
+}
