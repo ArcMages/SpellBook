@@ -6,10 +6,11 @@
 // How the pieces fit, for a screen:
 //
 //   const lanes = readLanes(index.timelines).lanes;
-//   const { dated, undated } = readTimeline(eventNotes, sceneNotes);
+//   const calendar = readCalendar(index.calendar).calendar;   // null: the real-world calendar
+//   const { dated, undated } = readTimeline(eventNotes, sceneNotes, calendar);
 //   const scale = fitAll(timelineExtent(dated), viewportWidth);
 //   const layout = layoutTimeline(dated, lanes, { scale, measure, hidden });
-//   const axis = ticksFor(scale, viewportWidth);
+//   const axis = ticksFor(scale, viewportWidth, MIN_LABEL_GAP, calendar);
 //
 // and to change a note, at the moment of writing and on its fresh properties:
 //

@@ -1,7 +1,9 @@
 // The timeline: the project's events on a time axis, lane by lane.
 //
 //   header    the dates in view, and the buttons: By date / By story order,
-//             zoom out, zoom in, Fit, New event, Lanes
+//             zoom out, zoom in, Fit, New event, Lanes, Calendar, Entities
+//   filter    only while the timeline is narrowed to some entities: which
+//             ones, and the button that shows every event again
 //   switcher  on a narrow pane only: the lanes, one of which is shown
 //   undated   a strip that folds open: the events without a date
 //   main      wide: the lanes' names at the start side, the axis along the
@@ -40,6 +42,7 @@ import {
 import type { DragOutcome, LaneColor, TimeScale, TimelineEvent } from '../../core/timeline';
 import { iconName, showIcon } from '../../ui/icons';
 import { safely } from '../../ui/safely';
+import { EntityPickerModal } from './entityPicker';
 import { LanesModal } from './lanesModal';
 import { TimelineActions } from './timelineActions';
 import { TimelineGestures } from './timelineGestures';
@@ -73,6 +76,12 @@ export const NO_PROJECT_MESSAGE = 'No Spellbook project is open.';
 export const NO_EVENTS_HINT = 'No events yet. Tap a lane to add one.';
 export const UNDATED_LABEL = 'Undated';
 export const SET_DATE_LABEL = 'Set date';
+export const CALENDAR_LABEL = 'Calendar';
+export const FILTER_LABEL = 'Only events with';
+export const SHOW_ALL_LABEL = 'Show all events';
+export const NO_MATCHING_EVENTS = 'No event names any of these entities.';
+/** A card shows this many entities at most; the rest are counted. */
+export const CARD_ENTITIES = 3;
 
 /** How much one press of a zoom button changes the size of a day. */
 const ZOOM_STEP = 1.5;
@@ -110,6 +119,8 @@ interface Elements {
   readonly byDate: HTMLElement;
   readonly byStory: HTMLElement;
   readonly alerts: HTMLElement;
+  readonly filter: HTMLElement;
+  readonly filterButton: HTMLElement;
   readonly switcher: HTMLElement;
   readonly undated: HTMLElement;
   readonly main: HTMLElement;
@@ -164,6 +175,8 @@ export class TimelineView extends ItemView {
   private lastData: TimelineData | null = null;
   private content: TimelineContent | null = null;
   private projectId: string | null = null;
+  /** The calendar the view was last fitted in, as it is stored: another one counts its days from another place. */
+  private calendarShown = 'null';
   private scene: Scene | null = null;
   private mode: TimeMode = 'date';
   /** True for the phone layout: time runs down and one lane shows. */
@@ -182,6 +195,10 @@ export class TimelineView extends ItemView {
   private seekLane = false;
   private undatedOpen = false;
   private undatedDrawn = '';
+  /** The entities the timeline is narrowed to, by key; empty when every event shows. Kept while the view is open. */
+  private filter: readonly string[] = [];
+  private filterDrawn = '';
+  private filterTaps = new Map<HTMLElement, Tap>();
 
   private cards = new Map<string, Card>();
   private cardOf = new Map<HTMLElement, Card>();
@@ -272,8 +289,15 @@ export class TimelineView extends ItemView {
         },
       }).open();
     });
+    this.button(toolbar, CALENDAR_LABEL, TIMELINE_ICONS.calendar, () => {
+      this.actions.askCalendar();
+    });
+    const filterButton = this.button(toolbar, FILTER_LABEL, TIMELINE_ICONS.filter, () => {
+      this.askFilter();
+    });
 
     const alerts = root.createDiv({ cls: ['spellbook-timeline-alerts', HIDDEN] });
+    const filter = root.createDiv({ cls: ['spellbook-timeline-filter', HIDDEN], attr: { role: 'status' } });
     const switcher = root.createDiv({ cls: ['spellbook-timeline-switcher', HIDDEN], attr: { role: 'group', 'aria-label': 'Lane' } });
     const undated = root.createDiv({ cls: ['spellbook-timeline-undated', HIDDEN] });
     const main = root.createDiv({ cls: 'spellbook-timeline-main' });
@@ -286,10 +310,11 @@ export class TimelineView extends ItemView {
     const cards = viewport.createDiv({ cls: 'spellbook-timeline-cards' });
     const carried = viewport.createDiv({ cls: ['spellbook-timeline-carried', HIDDEN] });
     const empty = root.createDiv({ cls: ['spellbook-timeline-empty', HIDDEN] });
-    this.els = { root, range, byDate, byStory, alerts, switcher, undated, main, axis, names, viewport, grid, bands, cards, carried, empty };
+    this.els = { root, range, byDate, byStory, alerts, filter, filterButton, switcher, undated, main, axis, names, viewport, grid, bands, cards, carried, empty };
 
     this.delegate(switcher, this.switcherTaps);
     this.delegate(undated, this.undatedTaps);
+    this.delegate(filter, this.filterTaps);
     this.listen(viewport, 'keydown', (event) => {
       this.onKey(event);
     });
@@ -371,6 +396,8 @@ export class TimelineView extends ItemView {
     this.lineEls = [];
     this.switcherTaps.clear();
     this.undatedTaps.clear();
+    this.filterTaps.clear();
+    this.filterDrawn = '';
     this.dropBand = null;
     this.watchers.clear();
     this.content = null;
@@ -477,10 +504,22 @@ export class TimelineView extends ItemView {
     if (this.closed) return;
     const data = this.host.getData();
     const hadDates = (this.content?.model.dated.length ?? 0) > 0;
-    if (data !== this.lastData || (data === null) !== (this.content === null)) {
+    // Another project: what the timeline was narrowed to belongs to the last one.
+    if ((data?.projectId ?? null) !== this.projectId) this.filter = [];
+    const filtered = this.content !== null && this.content.filter.join('\n') !== this.filter.join('\n');
+    if (data !== this.lastData || (data === null) !== (this.content === null) || filtered) {
       this.lastData = data;
-      this.content = data === null ? null : readContent(data);
+      this.content = data === null ? null : readContent(data, this.filter);
+      // An entity that is gone no longer narrows anything.
+      this.filter = this.content?.filter ?? [];
     }
+    // Another calendar counts its days from another place: where the view stood means nothing in it.
+    const calendarNow = JSON.stringify(this.content?.data.calendar ?? null);
+    if (calendarNow !== this.calendarShown) {
+      this.calendarShown = calendarNow;
+      this.scales.date = null;
+    }
+    this.els?.root.toggleClass('spellbook-has-calendar', (this.content?.calendar ?? null) !== null);
     // The first dated event: the view was centred on today, now it shows the event.
     if (!hadDates && (this.content?.model.dated.length ?? 0) > 0) this.scales.date = null;
     const projectId = this.content?.data.projectId ?? null;
@@ -508,8 +547,9 @@ export class TimelineView extends ItemView {
     const content = this.content;
     els.root.toggleClass('spellbook-is-empty', content === null);
     els.empty.toggleClass(HIDDEN, content !== null && content.events.size > 0);
-    els.empty.setText(content === null ? NO_PROJECT_MESSAGE : NO_EVENTS_HINT);
+    els.empty.setText(content === null ? NO_PROJECT_MESSAGE : content.filteredOut > 0 ? NO_MATCHING_EVENTS : NO_EVENTS_HINT);
     this.drawAlerts();
+    this.drawFilter();
     this.drawUndated();
     for (const [mode, button] of [['date', els.byDate], ['story', els.byStory]] as const) {
       button.toggleClass('is-active', this.mode === mode);
@@ -523,6 +563,8 @@ export class TimelineView extends ItemView {
       els.range.setText('');
       return;
     }
+    // The names of an invented calendar's months and eras are the writer's own text.
+    els.range.setAttr('dir', content.calendar === null ? null : 'auto');
     this.rtl = els.root.ownerDocument.defaultView?.getComputedStyle(els.root).direction === 'rtl';
     // The lane that was on show is gone (hidden, or removed): the one shown instead may have its events elsewhere.
     if (this.vertical && this.laneKey !== null && laneOnShow(content, this.mode, this.laneKey)?.key !== this.laneKey) {
@@ -573,7 +615,7 @@ export class TimelineView extends ItemView {
       : `translate3d(${px(side * shift)}, ${px(cross)}, 0)`;
     els.bands.style.transform = this.vertical ? `translate3d(${px(side * cross)}, 0, 0)` : `translate3d(0, ${px(cross)}, 0)`;
     els.names.style.transform = `translate3d(0, ${px(this.vertical ? 0 : cross)}, 0)`;
-    els.range.setText(rangeText(this.mode, scale, this.alongLength));
+    els.range.setText(rangeText(this.mode, scale, this.alongLength, this.content?.calendar ?? null));
     this.drawAxis(scale);
     this.fill(shift);
     // The title of a long bar stays in view while its start is out of it.
@@ -595,12 +637,61 @@ export class TimelineView extends ItemView {
   private drawAlerts(): void {
     const els = this.els;
     if (!els) return;
-    const problems = this.content?.laneList.problems ?? [];
+    const calendarProblem = this.content?.calendarProblem ?? null;
+    const problems = [...(this.content?.laneList.problems ?? []), ...(calendarProblem === null ? [] : [calendarProblem])];
     els.alerts.empty();
     els.alerts.toggleClass(HIDDEN, problems.length === 0);
     for (const problem of problems) {
       els.alerts.createDiv({ cls: 'spellbook-timeline-alert', text: problem, attr: { dir: 'auto', role: 'status' } });
     }
+  }
+
+  /** The strip that says which entities the timeline is narrowed to. Drawn again only when that changed. */
+  private drawFilter(): void {
+    const els = this.els;
+    if (!els) return;
+    const content = this.content;
+    const chosen = content === null ? [] : content.allEntities.filter((entity) => content.filter.includes(entity.key));
+    const drawn = chosen.map((entity) => `${entity.key}\n${entity.name}`).join('|');
+    els.filterButton.toggleClass('is-active', chosen.length > 0);
+    els.filterButton.setAttr('aria-pressed', chosen.length > 0 ? 'true' : 'false');
+    if (drawn === this.filterDrawn) return;
+    this.filterDrawn = drawn;
+    els.filter.empty();
+    this.filterTaps.clear();
+    els.filter.toggleClass(HIDDEN, chosen.length === 0);
+    if (chosen.length === 0) return;
+    els.filter.createSpan({ cls: 'spellbook-timeline-filter-label', text: `${FILTER_LABEL}:` });
+    for (const entity of chosen) {
+      // The name is the writer's own text: it takes the direction of what it says.
+      els.filter.createSpan({ cls: 'spellbook-timeline-entity-chip', text: entity.name, attr: { dir: 'auto' } });
+    }
+    const all = els.filter.createEl('button', { cls: 'spellbook-timeline-filter-clear', text: SHOW_ALL_LABEL });
+    this.filterTaps.set(all, () => {
+      this.setFilter([]);
+    });
+  }
+
+  /** Narrow the timeline to the events that name at least one of these entities; none shows every event. */
+  private setFilter(keys: readonly string[]): void {
+    this.filter = [...keys];
+    this.refresh();
+  }
+
+  /** The "Only events with" button: the list of entities, with the ones the timeline is narrowed to ticked. */
+  private askFilter(): void {
+    const content = this.content;
+    if (content === null) return;
+    new EntityPickerModal(this.app, {
+      heading: FILTER_LABEL,
+      confirm: 'Show',
+      all: content.allEntities,
+      chosen: content.filter,
+      submit: (keys) => {
+        this.setFilter(keys);
+        return null;
+      },
+    }).open();
   }
 
   /** The lanes' bands and names (wide), and the lane switcher (narrow). */
@@ -779,10 +870,11 @@ export class TimelineView extends ItemView {
     const color = lane.lane.color;
     const dates = event?.start ? formatStoryDateRange(event.start, event.end) : '';
     const meta = event !== null && (scene.vertical || box.size >= META_FROM_WIDTH);
+    const entities = event === null ? '' : (this.content?.entities.get(event.path) ?? []).map((entity) => entity.name).join('\n');
     const drawn =
       event === null
         ? `cluster|${box.members.length}|${color ?? ''}`
-        : [event.title, dates, event.tags.join(' '), color, box.isSpan, event.source, meta, event.problems.join(' ')].join('|');
+        : [event.title, dates, event.tags.join(' '), color, box.isSpan, event.source, meta, event.problems.join(' '), entities].join('|');
     if (drawn !== card.drawn) {
       card.drawn = drawn;
       this.fillCard(card, dates, meta);
@@ -833,10 +925,25 @@ export class TimelineView extends ItemView {
     text.createDiv({ cls: 'spellbook-timeline-card-title', text: event.title, attr: { dir: 'auto' } });
     if (meta) {
       const line = text.createDiv({ cls: 'spellbook-timeline-card-meta' });
-      if (dates !== '') line.createSpan({ cls: 'spellbook-timeline-card-date', text: dates });
+      if (dates !== '') {
+        const date = line.createSpan({ cls: 'spellbook-timeline-card-date', text: dates });
+        // The names of an invented calendar's months and eras are the writer's own text.
+        if (event.start?.calendar !== undefined) date.setAttr('dir', 'auto');
+      }
       if (event.tags.length > 0) {
         const tags = event.tags.map((tag) => `#${tag}`).join(' ');
         line.createSpan({ cls: 'spellbook-timeline-card-tags', text: tags, attr: { dir: 'auto' } });
+      }
+      const entities = this.content?.entities.get(event.path) ?? [];
+      if (entities.length > 0) {
+        const chips = line.createSpan({ cls: 'spellbook-timeline-card-entities' });
+        for (const entity of entities.slice(0, CARD_ENTITIES)) {
+          const chip = chips.createSpan({ cls: 'spellbook-timeline-entity-chip', text: entity.name, attr: { dir: 'auto' } });
+          chip.toggleClass('spellbook-is-missing', entity.path === null);
+        }
+        if (entities.length > CARD_ENTITIES) {
+          chips.createSpan({ cls: 'spellbook-timeline-entity-more', text: `+${entities.length - CARD_ENTITIES}` });
+        }
       }
     }
     card.text = text;
@@ -882,7 +989,8 @@ export class TimelineView extends ItemView {
       const main = row.createDiv({ cls: 'spellbook-timeline-undated-main' });
       const title = main.createEl('button', { cls: 'spellbook-timeline-undated-title', text: event.title, attr: { dir: 'auto' } });
       if (event.problems.length > 0) {
-        const problems = event.problems.map(describeEventProblem).join(' ');
+        const calendar = this.content?.calendar ?? null;
+        const problems = event.problems.map((problem) => describeEventProblem(problem, calendar)).join(' ');
         main.createDiv({ cls: 'spellbook-timeline-undated-problem', text: problems });
       }
       const set = row.createEl('button', { cls: 'spellbook-timeline-set-date', text: SET_DATE_LABEL });
@@ -1012,7 +1120,8 @@ export class TimelineView extends ItemView {
     const scale = this.scales[this.mode];
     if (!scene || !scale) return;
     const at = this.local(point);
-    const date = this.mode === 'story' ? null : dateAtPosition(scale, at.along, precisionForScale(scale));
+    const calendar = this.content?.calendar ?? null;
+    const date = this.mode === 'story' ? null : dateAtPosition(scale, at.along, precisionForScale(scale, calendar), calendar);
     const lane = scene.vertical ? (scene.lanes[0]?.lane.key ?? null) : laneAt(scene.bands, at.cross + this.crossScroll);
     this.actions.askNewEvent(date, lane);
   }
@@ -1025,7 +1134,9 @@ export class TimelineView extends ItemView {
       this.actions.askNewEvent(null, null);
       return;
     }
-    const date = this.mode === 'story' ? null : dateAtPosition(scale, this.alongLength / 2, precisionForScale(scale));
+    const calendar = this.content?.calendar ?? null;
+    const date =
+      this.mode === 'story' ? null : dateAtPosition(scale, this.alongLength / 2, precisionForScale(scale, calendar), calendar);
     const lane = scene.vertical ? scene.lanes[0]?.lane : scene.shown.find((candidate) => candidate.kind === 'lane');
     this.actions.askNewEvent(date, lane?.key ?? null);
   }
@@ -1046,7 +1157,8 @@ export class TimelineView extends ItemView {
       menu.addSeparator();
       menu.addItem((item) => {
         item.setTitle('What is wrong with this event?').onClick(() => {
-          new Notice(event.problems.map(describeEventProblem).join('\n'), 12000);
+          const calendar = this.content?.calendar ?? null;
+          new Notice(event.problems.map((problem) => describeEventProblem(problem, calendar)).join('\n'), 12000);
         });
       });
     }
@@ -1114,7 +1226,11 @@ export class TimelineView extends ItemView {
     els.carried.toggleClass(HIDDEN, outcome.kind !== 'drag');
     if (outcome.kind !== 'drag') return;
     if (this.mode === 'date') {
-      els.carried.createSpan({ cls: 'spellbook-timeline-carried-date', text: formatStoryDateRange(outcome.start, outcome.end) });
+      const date = els.carried.createSpan({
+        cls: 'spellbook-timeline-carried-date',
+        text: formatStoryDateRange(outcome.start, outcome.end),
+      });
+      if (outcome.start.calendar !== undefined) date.setAttr('dir', 'auto');
     }
     if (outcome.laneChanged && this.content) {
       const name = laneNameFor(outcome.lane, this.content.lanes);

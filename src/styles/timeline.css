@@ -1,5 +1,5 @@
 /*
- * Spellbook: the timeline screen, and the two small windows it opens.
+ * Spellbook: the timeline screen, and the small windows it opens.
  *
  * The rules of styles.css hold here too:
  *   - every class starts with "spellbook-", every variable with "--spellbook-";
@@ -408,6 +408,14 @@
   text-overflow: ellipsis;
 }
 
+/* Down a narrow pane, a date of an invented calendar goes on to a second and
+   third line in its column: the names of its months may be long. */
+.spellbook-timeline.spellbook-is-vertical.spellbook-has-calendar .spellbook-timeline-tick {
+  line-height: var(--line-height-tight);
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .spellbook-timeline-grid,
 .spellbook-timeline-bands,
 .spellbook-timeline-cards,
@@ -621,10 +629,304 @@
   white-space: nowrap;
 }
 
-/* --------------------------------------------------------- the two windows */
+/* ---------------------------------------------------------------- entities */
 
-.spellbook-timeline-lanes-window {
+/* The name of an entity, as a small chip: on a card, in the strip that says
+   what the timeline is narrowed to, and in the event window. */
+.spellbook-timeline-entity-chip {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--size-2-1);
+  min-width: 0;
+  max-width: 100%;
+  padding-inline: var(--size-2-3);
+  overflow: hidden;
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-l);
+  background-color: var(--background-secondary);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: var(--line-height-tight);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* An entity whose note is not in the World folder (yet). */
+.spellbook-timeline-entity-chip.spellbook-is-missing {
+  border-style: dashed;
+  color: var(--text-faint);
+}
+
+.spellbook-timeline-card-entities {
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--size-2-1);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.spellbook-timeline-entity-more {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+
+/* The strip under the header while the timeline is narrowed to some entities. */
+.spellbook-timeline-filter {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-2-3);
+  padding-block: var(--size-2-3);
+  padding-inline: var(--size-4-3);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+  font-size: var(--font-ui-small);
+}
+
+.spellbook-timeline-filter-label {
+  color: var(--text-muted);
+}
+
+.spellbook-timeline-filter-clear {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+}
+
+.spellbook-timeline-button.is-active {
+  color: var(--text-accent);
+}
+
+/* -------------------------------------------------------------- the windows */
+
+.spellbook-timeline-lanes-window,
+.spellbook-timeline-event-window,
+.spellbook-timeline-entity-window,
+.spellbook-timeline-calendar-window {
   --spellbook-timeline-target: 44px;
+}
+
+/* A date that is picked: the era, the year, the month and the day side by
+   side, going on to a second line where the window is narrow. */
+.spellbook-timeline-date-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-2-3);
+}
+
+.spellbook-timeline-date-row .spellbook-timeline-era-select,
+.spellbook-timeline-date-row .spellbook-timeline-month-select {
+  flex: 1 1 8em;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.spellbook-timeline-date-row .spellbook-timeline-year-input {
+  flex: 0 1 6em;
+  min-width: 4em;
+  font-variant-numeric: tabular-nums;
+}
+
+.spellbook-timeline-date-row .spellbook-timeline-day-select {
+  flex: 0 1 7em;
+  min-width: 0;
+}
+
+.spellbook-timeline-date-reading {
+  min-block-size: var(--line-height-tight);
+  margin-block-start: var(--size-2-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+.spellbook-timeline-entity-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-2-3);
+  margin-block-end: var(--size-2-3);
+}
+
+.spellbook-timeline-entity-chips .spellbook-timeline-entity-chip {
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+.spellbook-timeline-entity-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spellbook-timeline-entity-remove {
+  flex: 0 0 auto;
+  padding: var(--size-2-1);
+}
+
+.spellbook-timeline-entity-none {
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+/* The list of entities to tick. */
+.spellbook-timeline-entity-list {
+  display: flex;
+  flex-direction: column;
+  max-block-size: 50vh;
+  margin-block: var(--size-4-2);
+  overflow-y: auto;
+}
+
+.spellbook-timeline-entity-row {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--size-4-2);
+  block-size: auto;
+  padding-block: var(--size-4-1);
+  padding-inline: var(--size-4-2);
+  border: none;
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+  border-radius: 0;
+  background-color: transparent;
+  box-shadow: none;
+  color: var(--text-normal);
+  text-align: start;
+}
+
+.spellbook-timeline-entity-row.is-active {
+  background-color: var(--background-modifier-hover);
+}
+
+.spellbook-timeline-entity-tick {
+  flex: 0 0 1.2em;
+  color: var(--text-accent);
+}
+
+.spellbook-timeline-entity-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-timeline-entity-missing {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+/* The Calendar window: sections of rows, each row a few fields and buttons
+   that go on to a second line where the window is narrow. */
+.spellbook-timeline-calendar-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-2-3);
+  margin-block-end: var(--size-4-3);
+}
+
+.spellbook-timeline-calendar-preset.is-active {
+  border-color: var(--interactive-accent);
+  color: var(--text-accent);
+}
+
+.spellbook-timeline-calendar-section {
+  margin-block: var(--size-4-3);
+}
+
+.spellbook-timeline-calendar-hint,
+.spellbook-timeline-calendar-note {
+  margin-block: 0 var(--size-2-3);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-align: start;
+}
+
+.spellbook-timeline-calendar-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-2-3);
+  margin-block-end: var(--size-2-3);
+}
+
+.spellbook-timeline-calendar-line .spellbook-prompt-input {
+  flex: 1 1 8em;
+  inline-size: auto;
+  min-width: 0;
+}
+
+.spellbook-timeline-calendar-line .spellbook-timeline-calendar-days,
+.spellbook-timeline-calendar-line .spellbook-timeline-calendar-era-short,
+.spellbook-timeline-calendar-line .spellbook-timeline-calendar-era-start,
+.spellbook-timeline-calendar-line .spellbook-timeline-calendar-before-short,
+.spellbook-timeline-calendar-line .spellbook-timeline-calendar-leap-days,
+.spellbook-timeline-calendar-line .spellbook-timeline-calendar-leap-every {
+  flex: 0 1 5em;
+  min-width: 3.5em;
+}
+
+.spellbook-timeline-calendar-line .spellbook-timeline-calendar-leap-month {
+  flex: 1 1 8em;
+  min-width: 0;
+}
+
+.spellbook-timeline-calendar-row-button {
+  flex: 0 0 auto;
+}
+
+.spellbook-timeline-calendar-preview {
+  margin-block: var(--size-4-3);
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+  border-radius: var(--radius-s);
+  background-color: var(--background-secondary);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+.spellbook-timeline-calendar-preview:empty {
+  display: none;
+}
+
+.spellbook-timeline-calendar-misfit-heading {
+  color: var(--text-warning, var(--text-error));
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+.spellbook-timeline-calendar-misfit-list {
+  max-block-size: 30vh;
+  margin-block: var(--size-2-3);
+  overflow-y: auto;
+}
+
+.spellbook-timeline-calendar-misfit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+  padding-block: var(--size-2-1);
+  font-size: var(--font-ui-small);
+}
+
+.spellbook-timeline-calendar-misfit-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+}
+
+.spellbook-timeline-calendar-misfit-value {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .spellbook-timeline-lane-list {
@@ -690,7 +992,8 @@
 .spellbook-timeline.spellbook-is-mobile .spellbook-timeline-lane-tab,
 .spellbook-timeline.spellbook-is-mobile .spellbook-timeline-undated-toggle,
 .spellbook-timeline.spellbook-is-mobile .spellbook-timeline-undated-title,
-.spellbook-timeline.spellbook-is-mobile .spellbook-timeline-set-date {
+.spellbook-timeline.spellbook-is-mobile .spellbook-timeline-set-date,
+.spellbook-timeline.spellbook-is-mobile .spellbook-timeline-filter-clear {
   min-block-size: var(--spellbook-timeline-target);
 }
 
@@ -707,14 +1010,24 @@
   .spellbook-timeline .spellbook-timeline-set-date,
   .spellbook-timeline-lanes-window .spellbook-timeline-lane-toggle,
   .spellbook-timeline-lanes-window .spellbook-timeline-lane-more,
-  .spellbook-timeline-lanes-window .spellbook-timeline-lane-add {
+  .spellbook-timeline-lanes-window .spellbook-timeline-lane-add,
+  .spellbook-timeline .spellbook-timeline-filter-clear,
+  .spellbook-timeline-event-window .spellbook-timeline-entity-choose,
+  .spellbook-timeline-event-window .spellbook-timeline-entity-remove,
+  .spellbook-timeline-event-window .spellbook-timeline-date-row .dropdown,
+  .spellbook-timeline-entity-window .spellbook-timeline-entity-row,
+  .spellbook-timeline-calendar-window .spellbook-timeline-calendar-preset,
+  .spellbook-timeline-calendar-window .spellbook-timeline-calendar-add,
+  .spellbook-timeline-calendar-window .spellbook-timeline-calendar-row-button {
     min-block-size: var(--spellbook-timeline-target);
   }
 
   .spellbook-timeline .spellbook-timeline-button,
   .spellbook-timeline .spellbook-timeline-card-more,
   .spellbook-timeline-lanes-window .spellbook-timeline-lane-toggle,
-  .spellbook-timeline-lanes-window .spellbook-timeline-lane-more {
+  .spellbook-timeline-lanes-window .spellbook-timeline-lane-more,
+  .spellbook-timeline-event-window .spellbook-timeline-entity-remove,
+  .spellbook-timeline-calendar-window .spellbook-timeline-calendar-row-button {
     min-inline-size: var(--spellbook-timeline-target);
   }
 }

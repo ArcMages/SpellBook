@@ -24,7 +24,7 @@ import { sanitiseFileName, tidyDisplayName } from '../../core/names';
 import { isInside, joinPath, pathKey, relativeTo } from '../../core/paths';
 import { TIMELINE_FOLDER } from '../../core/projectLayout';
 import type { ProjectStore } from '../../core/projectStore';
-import { applyFrontmatterPatch, isEmptyPatch, laneKey, readLanes } from '../../core/timeline';
+import { CALENDAR_KEY, WORLD_FOLDER, applyFrontmatterPatch, isEmptyPatch, laneKey, readLanes } from '../../core/timeline';
 import type { Lane, LaneChange, TimelineNote } from '../../core/timeline';
 import type { Frontmatter, StoreChange, TreeNode } from '../../core/types';
 import type { VaultEvent } from '../../core/vaultPort';
@@ -188,6 +188,8 @@ export class TimelineWiring implements TimelineHost {
         next.projectId,
         next.projectName,
         next.timelines ?? null,
+        next.calendar ?? null,
+        next.world ?? null,
         next.events,
         next.scenes,
         next.sceneOrder,
@@ -241,6 +243,9 @@ export class TimelineWiring implements TimelineHost {
       projectId: project.indexPath,
       projectName: project.title,
       timelines: this.store.projectData(TIMELINES_KEY),
+      calendar: this.store.projectData(CALENDAR_KEY),
+      // The entities are the notes of the World folder; only where they are is needed here.
+      world: this.store.projectNotes(WORLD_FOLDER).map((note) => note.path),
       events,
       scenes,
       sceneOrder,
@@ -432,6 +437,24 @@ export class TimelineWiring implements TimelineHost {
         throw new Error(`The lanes were saved, but ${count} could not be changed to match. ${first}`);
       }
       return result;
+    } finally {
+      this.busy--;
+      this.changed();
+    }
+  }
+
+  async saveCalendar(value: Readonly<Record<string, unknown>> | null): Promise<void> {
+    const project = this.released ? null : this.store.project;
+    if (!project) throw new Error(NO_PROJECT_OPEN);
+    this.busy++;
+    try {
+      // Only the index is written. No note is touched: every date stays as it is written.
+      const saved = await this.store.updateProjectData(
+        CALENDAR_KEY,
+        () => (value === null ? undefined : (JSON.parse(JSON.stringify(value)) as unknown)),
+        project.indexPath,
+      );
+      if (saved.status === 'refused' || saved.status === 'failed') throw new Error(saved.message);
     } finally {
       this.busy--;
       this.changed();

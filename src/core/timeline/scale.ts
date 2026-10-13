@@ -216,11 +216,40 @@ function ladderOf(calendar: StoryCalendar | null | undefined): readonly Rung[] {
   return ladder;
 }
 
-/** The finest step whose labels are at least `minGap` pixels apart at this zoom. */
-function rungFor(scale: TimeScale, minGap: number, calendar?: StoryCalendar | null): Rung {
+/**
+ * How many characters the longest label of a step can have in an invented
+ * calendar: "1203 AE", "Seedfall 1203 AE" or "17 Seedfall 1203 AE".
+ */
+function longestLabel(calendar: StoryCalendar, base: Rung['base']): number {
+  let era = calendar.before?.short.length ?? 0;
+  for (const entry of calendar.eras) era = Math.max(era, entry.short.length);
+  const year = 5 + era;
+  if (base === 'year') return year;
+  let month = 0;
+  for (const entry of calendar.months) month = Math.max(month, entry.name.length);
+  return (base === 'day' ? 3 : 0) + month + 1 + year;
+}
+
+/**
+ * The least distance between the labels of a step. With an invented calendar
+ * and a letter width, it is at least the room the step's longest label takes:
+ * the names of months are the writer's, and may be long.
+ */
+function gapFor(rung: Rung, minGap: number, calendar: StoryCalendar | null | undefined, letterWidth: number): number {
   const gap = Number.isFinite(minGap) && minGap > 0 ? minGap : MIN_LABEL_GAP;
+  if (calendar === undefined || calendar === null || !(letterWidth > 0)) return gap;
+  // Never more than the closest zoom can give a day, or the days of a calendar with long names could not be reached at all.
+  const room = Math.min(MAX_PX_PER_DAY * 0.9, Math.ceil(longestLabel(calendar, rung.base) * letterWidth) + 16);
+  return Math.max(gap, room);
+}
+
+/** The finest step whose labels are at least their gap apart at this zoom. */
+function rungFor(scale: TimeScale, minGap: number, calendar?: StoryCalendar | null, letterWidth = 0): Rung {
   const ladder = ladderOf(calendar);
-  return ladder.find((rung) => rung.shortest * scale.pxPerDay >= gap) ?? (ladder[ladder.length - 1] as Rung);
+  return (
+    ladder.find((rung) => rung.shortest * scale.pxPerDay >= gapFor(rung, minGap, calendar, letterWidth)) ??
+    (ladder[ladder.length - 1] as Rung)
+  );
 }
 
 /**
@@ -275,14 +304,17 @@ function roundYears(calendar: StoryCalendar, from: number, to: number, step: num
  * @param viewportLength the length of the visible area along the time axis, in pixels
  * @param minGap         the least distance between two labels; default 80
  * @param calendar       the project's invented calendar, when it has one
+ * @param letterWidth    with an invented calendar: the width of a letter of a label, in pixels. When given, a
+ *   step is only used where its longest label ("17 Seedfall 1203 AE") has room; 0 (the default) goes by `minGap` alone
  */
 export function ticksFor(
   scale: TimeScale,
   viewportLength: number,
   minGap: number = MIN_LABEL_GAP,
   calendar?: StoryCalendar | null,
+  letterWidth = 0,
 ): TickPlan {
-  const rung = rungFor(scale, minGap, calendar);
+  const rung = rungFor(scale, minGap, calendar, letterWidth);
   const ticks: Tick[] = [];
   const length = pixels(viewportLength, 0);
   const limits = calendar === undefined || calendar === null ? { first: MIN_DAY_NUMBER, last: MAX_DAY_NUMBER } : dayNumberLimits(calendar);
@@ -296,7 +328,7 @@ export function ticksFor(
   };
 
   if (rung.base === 'year' && calendar !== undefined && calendar !== null) {
-    const gap = (Number.isFinite(minGap) && minGap > 0 ? minGap : MIN_LABEL_GAP) * 0.75;
+    const gap = gapFor(rung, minGap, calendar, letterWidth) * 0.75;
     const firstYear = dayNumberToStoryDate(from, 'year', calendar).year - rung.years;
     const lastYear = dayNumberToStoryDate(to, 'year', calendar).year;
     const eraStarts = new Set(calendar.eras.map((era) => era.start));

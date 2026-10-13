@@ -34,6 +34,9 @@ const importsOf = (name: string): string[] => [...read(name).matchAll(/from\s+['
 describe('the timeline screen source', () => {
   it('has its files: the screen, and the three that plug it into the plugin', () => {
     expect([...files].sort()).toEqual([
+      'calendarModal.ts',
+      'dateFields.ts',
+      'entityPicker.ts',
       'eventModal.ts',
       'hiddenLanes.ts',
       'index.ts',
@@ -46,7 +49,7 @@ describe('the timeline screen source', () => {
       'timelineView.ts',
       'timelineWiring.ts',
     ]);
-    expect(screenFiles).toHaveLength(8);
+    expect(screenFiles).toHaveLength(11);
   });
 
   it('reaches the project only through its host: no store, no vault, no session', () => {
@@ -125,7 +128,7 @@ describe('the timeline screen source', () => {
   });
 
   it('gives every class it puts on the page the plugin\'s prefix, or one of Obsidian\'s own', () => {
-    const obsidianOwn = new Set(['is-active', 'is-collapsed', 'clickable-icon', 'mod-cta']);
+    const obsidianOwn = new Set(['is-active', 'is-collapsed', 'clickable-icon', 'mod-cta', 'dropdown']);
     let seen = 0;
     for (const name of files) {
       for (const match of codeOf(name).matchAll(/(?:cls:\s*|Class\()\s*(\[[^\]]*\]|'[^']*')/g)) {
