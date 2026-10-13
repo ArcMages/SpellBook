@@ -1,6 +1,6 @@
-// An entity of the world: a character, a place, a faction, an item, or
-// something of a type the writer made. It is a plain note in the project's
-// World folder:
+// An entity of the world: a character, a place, a faction, an item, a piece
+// of lore, a creature, a culture, or something of a type the writer made. It
+// is a plain note in the project's World folder:
 //
 //   World/Characters/Mara.md
 //   ---
@@ -11,17 +11,22 @@
 //   goal:
 //   summary: Keeps the light, and a secret.
 //   aliases: []
+//   image: "[[mara.png]]"
+//   related:
+//     - "[[Saltwick|lives in]]"
 //   ---
-//   ## Description
+//   ## Appearance
 //
 // Its name is the note's name. Its type is what the "type" property says or,
-// for a note without one, the type whose folder it lies in. Every other
-// property is the writer's: they can add and remove whatever they like.
+// for a note without one, the type whose folder it lies in. Its picture
+// (image.ts) and the entities it has to do with (relations.ts) are optional:
+// a new note has neither. Every other property is the writer's: they can add
+// and remove whatever they like.
 
 import { clashKey, isInside, isMarkdownPath, noteTitle } from '../paths';
 import { WORLD_FOLDER } from '../projectLayout';
 import type { Frontmatter } from '../types';
-import { ALIASES_KEY, SUMMARY_KEY, TYPE_KEY, findType, typeKey } from './types';
+import { ALIASES_KEY, ENTITIES_KEY, IMAGE_KEY, RELATED_KEY, SUMMARY_KEY, TYPE_KEY, findType, typeKey } from './types';
 import type { EntityType } from './types';
 
 /** A note of the project, as the store lists it. */
@@ -47,10 +52,13 @@ export interface Entity {
 
 /** The headings a new note of a built-in type starts with. */
 const HEADINGS: Readonly<Record<string, readonly string[]>> = {
-  character: ['Description', 'Background', 'Notes'],
+  character: ['Appearance', 'Background', 'Notes'],
   place: ['Description', 'History', 'Notes'],
   faction: ['Description', 'Members', 'Notes'],
   item: ['Description', 'History', 'Notes'],
+  lore: ['The tale', 'Who tells it', 'What is true'],
+  creature: ['Description', 'Habits', 'What people say'],
+  culture: ['Description', 'Customs', 'Language'],
 };
 const OTHER_HEADINGS: readonly string[] = ['Description', 'Notes'];
 
@@ -138,12 +146,12 @@ export interface EntityField {
 /**
  * The properties of an entity that have something in them, for its details:
  * the fields of its type first, in the type's order, then whatever else the
- * writer added. The type, the other names and the summary are shown
- * elsewhere and left out.
+ * writer added. The type, the other names, the summary, the picture and
+ * the related entities are shown elsewhere and left out.
  */
 export function entityFields(entity: Entity, type: EntityType | null): EntityField[] {
   const frontmatter = entity.frontmatter ?? {};
-  const skip = new Set([TYPE_KEY, ALIASES_KEY, SUMMARY_KEY]);
+  const skip = new Set([TYPE_KEY, ALIASES_KEY, SUMMARY_KEY, IMAGE_KEY, RELATED_KEY]);
   const names = [...(type?.fields ?? []), ...Object.keys(frontmatter)];
   const fields: EntityField[] = [];
   const seen = new Set<string>();
@@ -154,4 +162,71 @@ export function entityFields(entity: Entity, type: EntityType | null): EntityFie
     if (value !== '') fields.push({ name, value });
   }
   return fields;
+}
+
+// ------------------------------------------------------------------ the sheet
+
+/** The properties shown elsewhere on an entity's sheet, or not a text at all: never among its fields. */
+const NOT_FIELDS: ReadonlySet<string> = new Set([TYPE_KEY, ALIASES_KEY, SUMMARY_KEY, ENTITIES_KEY, IMAGE_KEY, RELATED_KEY]);
+
+/** One line of an entity's sheet: a property, what it holds, and whether it can be changed there. */
+export interface SheetField {
+  readonly name: string;
+  /** What it holds, on one line; "" for nothing. */
+  readonly value: string;
+  /** False for what is not one text or one number (a list, say): that is changed in the note itself. */
+  readonly editable: boolean;
+}
+
+/** Whether a property's value is one the sheet can change: nothing, a text or a number. */
+function isPlain(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value));
+}
+
+/**
+ * The lines of an entity's sheet: every field of its type, in the type's
+ * order and also when it is empty (so that it can be filled in), then
+ * whatever else the writer added to the note that holds something. The
+ * type, the other names, the summary, the picture and the links have places
+ * of their own and are left out.
+ */
+export function sheetFields(entity: Entity, type: EntityType | null): SheetField[] {
+  const frontmatter = entity.frontmatter ?? {};
+  const fields: SheetField[] = [];
+  const seen = new Set<string>();
+  for (const name of type?.fields ?? []) {
+    if (NOT_FIELDS.has(name) || seen.has(name)) continue;
+    seen.add(name);
+    fields.push({ name, value: fieldText(frontmatter[name]), editable: isPlain(frontmatter[name]) });
+  }
+  for (const name of Object.keys(frontmatter)) {
+    if (NOT_FIELDS.has(name) || seen.has(name)) continue;
+    seen.add(name);
+    const value = fieldText(frontmatter[name]);
+    if (value !== '') fields.push({ name, value, editable: isPlain(frontmatter[name]) });
+  }
+  return fields;
+}
+
+/** What changing one property of a note came to. */
+export type FieldChange = 'changed' | 'unchanged' | 'unreadable';
+
+/**
+ * Set one property of an entity note, in place, to what was typed on its
+ * sheet. No other property is touched. Nothing changes when the property
+ * already says that; a property that holds a list or anything else that is
+ * not one text or number is left as it is ("unreadable"). What was a number
+ * stays a number when what is typed is one.
+ *
+ * @param name  the property: a field of the type, the summary, or one the writer added
+ * @param typed the new text; spaces around it are dropped, and "" empties the property
+ */
+export function setEntityField(frontmatter: Frontmatter, name: string, typed: string): FieldChange {
+  if (name === TYPE_KEY || name === ALIASES_KEY || name === ENTITIES_KEY || name === IMAGE_KEY || name === RELATED_KEY) return 'unreadable';
+  const current: unknown = frontmatter[name];
+  if (!isPlain(current)) return 'unreadable';
+  const text = typed.replace(/\s+/g, ' ').trim();
+  if (fieldText(current) === text) return 'unchanged';
+  frontmatter[name] = typeof current === 'number' && /^-?\d+(\.\d+)?$/.test(text) ? Number(text) : text;
+  return 'changed';
 }
