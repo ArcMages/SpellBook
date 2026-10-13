@@ -12,11 +12,16 @@ import { Notice, Platform } from 'obsidian';
 import type { App, Tasks } from 'obsidian';
 import { binderTotals, placeOfNote, scenesWithNotes } from '../../core/binderModel';
 import { isDateText } from '../../core/dates';
-import { isInside, isMarkdownPath, noteTitle, parentPath, relativeTo } from '../../core/paths';
+import { findTag, parseTagList, readSceneFields, TAG_INDEX_KEYS } from '../../core/cards/index';
+import { clashKey, isInside, isMarkdownPath, joinPath, noteTitle, parentPath, relativeTo } from '../../core/paths';
+import { overdueTasks, parseTodo } from '../../core/planner/index';
+import type { TodoFile } from '../../core/planner/index';
+import { TODO_FILE } from '../../core/projectLayout';
 import {
   STATS_FOLDER,
   TARGETS_KEY,
   addToTotals,
+  barItemIds,
   buildStatusLine,
   countsOn,
   formatDisplayDate,
@@ -34,11 +39,13 @@ import {
   writingProgress,
   writingStreak,
 } from '../../core/progress/index';
-import type { DailyTotals, DayCounts, StatusLineInput, StatusSegment } from '../../core/progress/index';
+import type { BarItemId, DailyTotals, DayCounts, StatusLineInput, StatusSegment } from '../../core/progress/index';
 import type { Frontmatter, ProjectSnapshot, StoreChange } from '../../core/types';
 import type { VaultEvent } from '../../core/vaultPort';
 import { countWords } from '../../core/wordCount';
 import type { FeatureContext } from '../registry';
+import { BarPrefs } from './barPrefs';
+import { findCommand, runCommand } from './commands';
 import { editorWatch } from './editorWatch';
 import { SceneDateKeeper } from './sceneDateKeeper';
 import { SCENE_LINE_SERVICE, STATS_SERVICE } from './services';
@@ -46,6 +53,7 @@ import type { DayWords, SceneLineService, StatsService, StatsSummary } from './s
 import { ProgressPrefs, progressSettings } from './settings';
 import { StatsLog } from './statsLog';
 import { StatusBar } from './statusBar';
+import type { BarPiece } from './statusBar';
 import { TargetsModal } from './targetsModal';
 import type { TargetsChoice } from './targetsModal';
 import { WordLedger } from './wordLedger';
@@ -116,6 +124,8 @@ function listen(listeners: Set<() => void>, listener: () => void): () => void {
 export class WritingProgress {
   private readonly context: FeatureContext;
   private readonly prefs: ProgressPrefs;
+  /** The writer's layout of the bar on this device. */
+  private readonly barPrefs: BarPrefs;
   private readonly ledger: WordLedger;
   private readonly log: StatsLog;
   private readonly dates: SceneDateKeeper;
@@ -136,6 +146,13 @@ export class WritingProgress {
   private shownLine = '';
   private statsDirty = false;
   private readingLog = false;
+  /** The open project's To-do.md as last read (by the project's index path); null until it has been, and after it changed. */
+  private todo: { readonly indexPath: string; readonly file: TodoFile } | null = null;
+  /** The to-dos that are due, as last worked out, and what they were worked out from. */
+  private todoDue: { readonly file: TodoFile; readonly day: string; readonly dueToday: number; readonly late: number } | null = null;
+  /** Goes up with every reading of To-do.md that is started: only the newest answer counts. */
+  private todoReading = 0;
+  private todoBeingRead = false;
   /** The date as it was last looked at, to notice midnight passing. */
   private day: string;
   /** Cancels the timer that waits for the date to change. */
@@ -148,6 +165,7 @@ export class WritingProgress {
     this.context = context;
     this.day = context.clock.today();
     this.prefs = new ProgressPrefs(context.storage);
+    this.barPrefs = new BarPrefs(context.storage);
     this.log = new StatsLog(context.store);
     this.dates = new SceneDateKeeper(context.store);
     this.ledger = new WordLedger({
@@ -183,7 +201,12 @@ export class WritingProgress {
     // The bottom bar. A phone has none; there the inspector shows the line.
     if (!Platform.isPhone) {
       try {
-        this.bar = new StatusBar(plugin.addStatusBarItem(), () => this.openTargets());
+        this.bar = new StatusBar(
+          plugin.addStatusBarItem(),
+          () => this.openTargets(),
+          // A button whose command is not there does nothing.
+          (command) => void runCommand(app, command),
+        );
       } catch (error) {
         console.error('Spellbook: the bottom bar could not be added', error);
       }
@@ -203,6 +226,8 @@ export class WritingProgress {
       context.vault.on((event) => this.onVaultEvent(event)),
       store.onChange((change) => this.onStoreChange(change)),
       context.wordCounts.onChange((paths) => this.onWordCounts(paths)),
+      // The writer changed the bar in the settings: draw it anew.
+      this.barPrefs.onChange(() => this.refresh()),
     );
 
     plugin.addCommand({
@@ -215,7 +240,7 @@ export class WritingProgress {
         return true;
       },
     });
-    context.addSettingsSection(progressSettings(this.prefs));
+    context.addSettingsSection(progressSettings(this.prefs, { prefs: this.barPrefs, app }));
 
     const sceneLine: SceneLineService = {
       current: () => this.line(),
@@ -252,6 +277,10 @@ export class WritingProgress {
     this.cancelRecount?.();
     this.cancelRecount = null;
     for (const stop of this.stops.splice(0)) stop();
+    this.barPrefs.close();
+    this.todo = null;
+    this.todoDue = null;
+    this.todoReading++;
     this.context.wordCounts.release(WORD_COUNT_ASKER);
     this.targetsWindow?.close();
     this.targetsWindow = null;
@@ -356,6 +385,7 @@ export class WritingProgress {
 
   private onVaultEvent(event: VaultEvent): void {
     if (this.closed) return;
+    this.todoTouched(event);
     switch (event.type) {
       case 'rename':
         if (event.folder) {
@@ -552,10 +582,11 @@ export class WritingProgress {
     if (this.closed) return;
     if (this.bar !== null || this.lineListeners.size > 0) {
       const segments = this.line();
+      // The bar itself leaves alone every piece that shows what it showed.
+      this.bar?.show(this.pieces(segments));
       const shown = JSON.stringify(segments);
       if (shown !== this.shownLine) {
         this.shownLine = shown;
-        this.bar?.show(segments);
         tell(this.lineListeners);
       }
     }
@@ -565,19 +596,54 @@ export class WritingProgress {
     }
   }
 
-  /** The pieces of the line as they stand now. */
+  /**
+   * What the bar holds, in the writer's order: the pieces of the line, with
+   * the shortcut buttons between them. Nothing at all with no project open.
+   */
+  private pieces(segments: readonly StatusSegment[]): BarPiece[] {
+    const { app, store } = this.context;
+    if (store.project === null || this.closed) return [];
+    const pieces: BarPiece[] = [];
+    this.barPrefs.layout.entries.forEach((entry, index) => {
+      if (entry.kind === 'item') {
+        const segment = segments.find((candidate) => candidate.id === entry.id);
+        if (segment !== undefined) pieces.push({ kind: 'figure', segment });
+        return;
+      }
+      const command = findCommand(app, entry.command);
+      pieces.push({
+        kind: 'button',
+        key: `button:${index}`,
+        command: entry.command,
+        label: entry.label,
+        icon: entry.icon,
+        name: command?.name ?? entry.command,
+        available: command !== null,
+      });
+    });
+    return pieces;
+  }
+
+  /** The pieces of the line as they stand now: the figures the writer chose, in the writer's order. */
   private line(): StatusSegment[] {
     const { store, vault, clock } = this.context;
     const project = store.project;
     if (project === null || this.closed) return [];
 
+    // Only what the bar shows is worked out.
+    const items = barItemIds(this.barPrefs.layout);
+    const wants = (...ids: BarItemId[]): boolean => ids.some((id) => items.includes(id));
+    if (items.length === 0) return [];
+
     const targets = parseTargets(store.projectData(TARGETS_KEY)).targets;
+    const today = clock.today();
     let figures: StatusLineInput = {
-      sessionWords: this.ledger.tracker.session().net,
-      projectWords: this.projectWords(project),
+      sessionWords: wants('session') ? this.ledger.tracker.session().net : null,
+      projectWords: wants('project') ? this.projectWords(project) : null,
       projectTarget: targets.project,
-      todayWords: this.todayWords(project, clock.today()),
+      todayWords: wants('today') ? this.todayWords(project, today) : null,
       dailyTarget: targets.daily,
+      todos: wants('todos') ? this.todosDue(project, today) : null,
     };
     const open = this.open;
     if (open !== null && isInside(project.folder, open.path)) {
@@ -585,12 +651,92 @@ export class WritingProgress {
         ...figures,
         sceneWords: open.words,
         sceneTarget: readWordTarget(open.frontmatter?.['target']),
-        started: sceneStartDate(open.frontmatter, vault.createdDay(open.path)),
+        started: wants('started') ? sceneStartDate(open.frontmatter, vault.createdDay(open.path)) : null,
         // Typed in today, and the date not written into the note yet: today it is.
-        edited: later(sceneEditedDate(open.frontmatter), this.dates.waitingFor(open.path)),
+        edited: wants('edited') ? later(sceneEditedDate(open.frontmatter), this.dates.waitingFor(open.path)) : null,
+        sceneTitle: noteTitle(open.path),
+        status: wants('status') ? this.statusOf(open.frontmatter) : null,
       };
     }
-    return buildStatusLine(figures);
+    return buildStatusLine(figures, items);
+  }
+
+  /** The open note's status: its name as the project's list of statuses spells it, and its colour there. */
+  private statusOf(frontmatter: Readonly<Frontmatter> | null): { name: string; color: string | null } | null {
+    const name = readSceneFields(frontmatter).status;
+    if (name === null) return null;
+    const listed = findTag(parseTagList('status', this.context.store.projectData(TAG_INDEX_KEYS.status)), name);
+    return { name: listed?.name ?? name, color: listed?.color ?? null };
+  }
+
+  // ------------------------------------------------------------------ the to-dos
+
+  /**
+   * How many open to-dos are due today, and how many were due before; null
+   * until To-do.md has been read. The file is read once, in the background,
+   * and again only after it changed: never while the line is being drawn.
+   */
+  private todosDue(project: ProjectSnapshot, today: string): { dueToday: number; late: number } | null {
+    const todo = this.todo;
+    if (todo === null || todo.indexPath !== project.indexPath) {
+      this.readTodo(project.indexPath);
+      return null;
+    }
+    let due = this.todoDue;
+    if (due === null || due.file !== todo.file || due.day !== today) {
+      due = {
+        file: todo.file,
+        day: today,
+        dueToday: todo.file.tasks.filter((task) => !task.done && task.due === today).length,
+        late: overdueTasks(todo.file, today).length,
+      };
+      this.todoDue = due;
+    }
+    return due;
+  }
+
+  /** Read To-do.md in the background, and draw again when it is in. */
+  private readTodo(indexPath: string): void {
+    if (this.todoBeingRead || this.closed) return;
+    this.todoBeingRead = true;
+    const token = ++this.todoReading;
+    const take = (text: string | null): void => {
+      this.todoBeingRead = false;
+      // The file changed again meanwhile, or another project was opened: the next drawing reads it anew.
+      if (this.closed || token !== this.todoReading || this.context.store.project?.indexPath !== indexPath) {
+        this.refresh();
+        return;
+      }
+      // A file that is not there, or cannot be read, has no to-dos to show.
+      this.todo = { indexPath, file: parseTodo(text ?? '') };
+      this.refresh();
+    };
+    this.context.store.readDataFile(TODO_FILE).then(
+      (result) => take(result.status === 'done' ? result.value : null),
+      () => take(null),
+    );
+  }
+
+  /** What is known of To-do.md is out of date. */
+  private forgetTodo(): void {
+    this.todo = null;
+    this.todoDue = null;
+    this.todoReading++;
+  }
+
+  /** Something happened in the vault: when it was to the open project's To-do.md, the file is read again when next wanted. */
+  private todoTouched(event: VaultEvent): void {
+    // A change of the text is reported as "modify"; "metadata" follows it and says nothing new.
+    if (event.type === 'metadata') return;
+    const project = this.context.store.project;
+    if (project === null || (this.todo === null && !this.todoBeingRead)) return;
+    if (event.type !== 'refresh') {
+      const todo = clashKey(joinPath(project.folder, TODO_FILE));
+      const touched = clashKey(event.path) === todo || (event.type === 'rename' && clashKey(event.oldPath) === todo);
+      if (!touched) return;
+    }
+    this.forgetTodo();
+    this.refresh();
   }
 
   /** The words of the whole manuscript, from the shared word counts; null while a scene is still uncounted. */

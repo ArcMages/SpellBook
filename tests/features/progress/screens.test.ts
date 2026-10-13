@@ -662,12 +662,14 @@ describe('the targets window', () => {
 });
 
 describe('the settings', () => {
-  it('adds a "Writing progress" section with one switch, off by default and kept on this device', async () => {
+  it('adds a "Writing progress" section whose switch is off by default and kept on this device', async () => {
     const stand = await standUp();
     expect(stand.features.settingsSections.map((section) => [section.id, section.title])).toEqual([['progress', 'Writing progress']]);
     const place = new FakeElement();
     stand.features.settingsSections[0]?.render(place as never);
+    // (The rows of the bottom bar come after it, in a part of their own: see bar.test.ts.)
     expect(place.settings.map((row) => row.nameEl.text)).toEqual(['Count pasted text']);
+    expect(place.withClass('spellbook-bar-settings')).toHaveLength(1);
     const toggle = (place.settings[0] as unknown as SettingWithToggles).toggles[0];
     if (!toggle) throw new Error('no switch');
     expect(toggle.getValue()).toBe(false);

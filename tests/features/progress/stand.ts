@@ -158,6 +158,31 @@ export class FakeWorkspace {
 }
 
 /**
+ * Obsidian's commands, as far as the shortcut buttons of the bar use them:
+ * the commands there are, by id, and a way to run one. A test adds and
+ * removes commands as plugins would.
+ */
+export class FakeCommands {
+  commands: Record<string, { id: string; name: string }> = {};
+  /** The ids of the commands that were run, in order. */
+  readonly ran: string[] = [];
+
+  add(id: string, name: string): void {
+    this.commands[id] = { id, name };
+  }
+
+  remove(id: string): void {
+    delete this.commands[id];
+  }
+
+  executeCommandById(id: string): boolean {
+    if (!(id in this.commands)) return false;
+    this.ran.push(id);
+    return true;
+  }
+}
+
+/**
  * A note open in an editor. Every change is a real CodeMirror transaction
  * with the user event the real editor gives it, handed to the listeners the
  * plugin registered.
@@ -267,6 +292,8 @@ export interface Stand {
   readonly storage: MemoryDeviceStorage;
   readonly plugin: FakePlugin;
   readonly workspace: FakeWorkspace;
+  /** The commands the app knows: none, until a test adds some. */
+  readonly commands: FakeCommands;
   readonly wordCounts: WordCountCache;
   readonly features: RegisteredFeatures;
   /** This device's id, made the way the plugin makes it (asking does not count as the feature asking). */
@@ -298,6 +325,8 @@ export interface StandOptions extends SeedOptions {
   prepare?: (vault: MemoryVault) => void;
   /** A seed for this device's id: another seed is another device. */
   device?: number;
+  /** What this device's own storage already holds when the feature starts: text by key. */
+  stored?: Readonly<Record<string, string>>;
   /** How long until midnight when the feature starts; null for a clock that cannot tell. Six hours when left out. */
   toMidnight?: number | null;
 }
@@ -322,7 +351,9 @@ export async function makeStand(options: StandOptions = {}): Promise<Stand> {
   const clock = new TestClock();
   if (options.toMidnight !== undefined) clock.toMidnight = options.toMidnight;
   const storage = new MemoryDeviceStorage();
+  for (const [key, value] of Object.entries(options.stored ?? {})) storage.values.set(key, JSON.stringify(value));
   const workspace = new FakeWorkspace();
+  const commands = new FakeCommands();
   const plugin = new FakePlugin({ workspace }, { id: 'spellbook-novel-writer', name: 'Spellbook', version: '0.1.0' });
   const wordCounts = new WordCountCache({ vault, setTimer: clock.setTimer });
   wordCounts.start();
@@ -331,7 +362,7 @@ export async function makeStand(options: StandOptions = {}): Promise<Stand> {
   const random = fixedRandom(options.device ?? 1);
   const features = registerFeatures([progressFeature], {
     plugin: plugin as never,
-    app: { workspace } as never,
+    app: { workspace, commands } as never,
     store,
     vault,
     storage,
@@ -365,6 +396,7 @@ export async function makeStand(options: StandOptions = {}): Promise<Stand> {
     storage,
     plugin,
     workspace,
+    commands,
     wordCounts,
     features,
     get deviceId(): string {

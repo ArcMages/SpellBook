@@ -5,13 +5,20 @@
    start with "spellbook-", colours come from Obsidian's variables, sides are
    "start" and "end", nothing depends on hover alone. */
 
-/* The bottom bar: one item of Obsidian's status bar, holding the pieces of
-   the line side by side. Obsidian styles the item itself (its size, and the
-   tint it gets when pointed at, because a click on it does something). */
+/* The bottom bar: one item of Obsidian's status bar, holding the figures the
+   writer chose and the shortcut buttons, side by side. Obsidian styles the
+   item itself (its size, and the tint it gets when pointed at, because a
+   click on it does something). */
 .spellbook-status {
+  --spellbook-status-touch: 44px;
   display: inline-flex;
   align-items: center;
   gap: var(--size-4-3);
+  /* A long bar in a narrow window is slid along with a finger or the wheel
+     rather than pushing Obsidian's own items off the screen. */
+  max-inline-size: 90vw;
+  overflow-x: auto;
+  scrollbar-width: none;
   font-variant-numeric: tabular-nums;
 }
 
@@ -22,6 +29,7 @@
 
 .spellbook-status .spellbook-status-segment {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: baseline;
   gap: var(--size-2-2);
   white-space: nowrap;
@@ -31,9 +39,121 @@
   color: var(--text-faint);
 }
 
+/* The writer's own text (a status, a title) is cut short rather than
+   crowding the figures out. It keeps its own direction. */
+.spellbook-status .spellbook-status-status .spellbook-status-value,
+.spellbook-status .spellbook-status-title .spellbook-status-value {
+  max-inline-size: 16em;
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+}
+
 /* A target that has been reached. */
 .spellbook-status .spellbook-status-segment.spellbook-is-met .spellbook-status-value {
   color: var(--text-success);
+}
+
+/* A to-do that is late. */
+.spellbook-status .spellbook-status-segment.spellbook-is-late .spellbook-status-value {
+  color: var(--text-error);
+}
+
+/* The small progress bar of the scene target. */
+.spellbook-status .spellbook-status-meter {
+  display: inline-block;
+  align-self: center;
+  inline-size: 3em;
+  block-size: var(--size-2-2);
+  overflow: hidden;
+  border-radius: var(--radius-s);
+  background-color: var(--background-modifier-border);
+}
+
+.spellbook-status .spellbook-status-meter-fill {
+  display: block;
+  block-size: 100%;
+  background-color: var(--interactive-accent);
+}
+
+.spellbook-status .spellbook-is-met .spellbook-status-meter-fill {
+  background-color: var(--text-success);
+}
+
+/* The colour of a status, as a dot in front of its name. */
+.spellbook-status .spellbook-status-segment.spellbook-has-color .spellbook-status-value::before {
+  display: inline-block;
+  inline-size: 0.6em;
+  block-size: 0.6em;
+  margin-inline-end: var(--size-2-2);
+  border-radius: 50%;
+  background-color: var(--spellbook-status-color, var(--text-faint));
+  content: "";
+}
+
+.spellbook-status .spellbook-status-color-red { --spellbook-status-color: var(--color-red); }
+.spellbook-status .spellbook-status-color-orange { --spellbook-status-color: var(--color-orange); }
+.spellbook-status .spellbook-status-color-yellow { --spellbook-status-color: var(--color-yellow); }
+.spellbook-status .spellbook-status-color-green { --spellbook-status-color: var(--color-green); }
+.spellbook-status .spellbook-status-color-cyan { --spellbook-status-color: var(--color-cyan); }
+.spellbook-status .spellbook-status-color-blue { --spellbook-status-color: var(--color-blue); }
+.spellbook-status .spellbook-status-color-purple { --spellbook-status-color: var(--color-purple); }
+.spellbook-status .spellbook-status-color-pink { --spellbook-status-color: var(--color-pink); }
+
+/* A shortcut button: an icon, a few words, or both. */
+.spellbook-status .spellbook-status-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--size-2-2);
+  padding-inline: var(--size-2-3);
+  border-radius: var(--radius-s);
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.spellbook-status .spellbook-status-button:hover,
+.spellbook-status .spellbook-status-button:focus-visible {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.spellbook-status .spellbook-status-button-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.spellbook-status .spellbook-status-button-label {
+  max-inline-size: 12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A button whose command is not there (its plugin is switched off): dimmed. */
+.spellbook-status .spellbook-status-button.spellbook-is-unavailable {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* On a tablet a button is wide enough for a finger. */
+.spellbook-status.spellbook-is-mobile .spellbook-status-button {
+  min-inline-size: var(--spellbook-status-touch);
+}
+
+/* -------------------------------------------- The bar's part of the settings */
+
+/* The rows that stand for what is in the bar, in the bar's order. A row's
+   buttons go under its name when there is no room beside it (a phone). */
+.spellbook-bar-settings .spellbook-bar-settings-entry {
+  flex-wrap: wrap;
+  row-gap: var(--size-4-2);
+}
+
+.spellbook-bar-settings .spellbook-bar-settings-entry .setting-item-control {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 /* ----------------------------------------------------- The targets window */
