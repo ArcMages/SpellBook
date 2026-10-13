@@ -1,0 +1,770 @@
+/*
+ * Spellbook: world-building. The World browser, its windows (entity types,
+ * the list that adds an entity to a scene), and the chips of "In this scene"
+ * in the inspector.
+ *
+ * The rules of styles.css hold here too:
+ *   - every class starts with "spellbook-", every variable with "--spellbook-";
+ *   - colours and spacing come only from Obsidian's CSS variables, so the
+ *     plugin follows the user's theme in light and dark mode;
+ *   - sides are named "start" and "end", never by their physical names, so
+ *     that everything mirrors when Obsidian itself runs the other way;
+ *   - nothing may depend on hover alone, and every layout must work at phone width.
+ *
+ * Whether the pane is narrow is measured by the plugin's code, which then
+ * sets "spellbook-world-narrow": one column of cards, and the details in
+ * place of the list.
+ */
+
+/* ------------------------------------------------------------------ Colours */
+
+/* A type has one of eight colours, stored by name. Each name is one of
+   Obsidian's own colours, so it follows the theme. Whatever carries the
+   class may use the colour as var(--spellbook-world-tag). */
+.spellbook-world-color-red {
+  --spellbook-world-tag: var(--color-red);
+}
+
+.spellbook-world-color-orange {
+  --spellbook-world-tag: var(--color-orange);
+}
+
+.spellbook-world-color-yellow {
+  --spellbook-world-tag: var(--color-yellow);
+}
+
+.spellbook-world-color-green {
+  --spellbook-world-tag: var(--color-green);
+}
+
+.spellbook-world-color-cyan {
+  --spellbook-world-tag: var(--color-cyan);
+}
+
+.spellbook-world-color-blue {
+  --spellbook-world-tag: var(--color-blue);
+}
+
+.spellbook-world-color-purple {
+  --spellbook-world-tag: var(--color-purple);
+}
+
+.spellbook-world-color-pink {
+  --spellbook-world-tag: var(--color-pink);
+}
+
+/* No colour: the quiet grey of muted text. */
+.spellbook-world-no-color {
+  --spellbook-world-tag: var(--text-faint);
+}
+
+/* A type's icon, in its colour. */
+.spellbook-world-badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--spellbook-world-tag, var(--text-muted));
+}
+
+.spellbook-world-badge .svg-icon {
+  width: var(--icon-s);
+  height: var(--icon-s);
+}
+
+.spellbook-world-menu-badge {
+  margin-inline-end: var(--size-2-3);
+  vertical-align: middle;
+}
+
+/* A small round patch of a colour: in the window of types, and in its menu. */
+.spellbook-world-swatch {
+  display: inline-block;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: var(--size-4-4);
+  height: var(--size-4-4);
+  border: var(--border-width) solid var(--spellbook-world-tag);
+  border-radius: 50%;
+  background-color: var(--spellbook-world-tag);
+  vertical-align: middle;
+}
+
+.spellbook-world-swatch.spellbook-world-no-color {
+  background-color: transparent;
+}
+
+.spellbook-world-menu-swatch {
+  margin-inline-end: var(--size-2-3);
+}
+
+/* Something that is there but not shown at the moment. (The class is
+   repeated to outweigh whatever gives the thing its own display.) */
+.spellbook-world-off.spellbook-world-off.spellbook-world-off {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ The pane */
+
+/* Obsidian's pane around the browser: the browser brings its own margins and
+   does its own scrolling. (The class is repeated to outweigh Obsidian's own
+   rule for pane contents.) */
+.spellbook-world-pane.spellbook-world-pane {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.spellbook-world {
+  --spellbook-world-touch: 44px;
+  --spellbook-world-bar-room: 80px;
+  --spellbook-world-card-min: 220px;
+  --spellbook-world-detail-width: 340px;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* The bar: the search box takes the room, the rest keep their own width and
+   go to a second line when the pane is too narrow for one. */
+.spellbook-world-bar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding: var(--size-4-2) var(--size-4-3);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-world-bar .spellbook-world-search {
+  flex: 1 1 160px;
+  min-width: 0;
+  text-align: start;
+}
+
+.spellbook-world-bar .spellbook-world-filter {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.spellbook-world-bar .spellbook-world-new {
+  flex: 0 0 auto;
+}
+
+.spellbook-world-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.spellbook-world-list {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--size-4-3);
+  overflow-y: auto;
+}
+
+.spellbook-world-message {
+  padding: var(--size-4-2) 0;
+  color: var(--text-muted);
+  text-align: start;
+}
+
+.spellbook-world-hint {
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+}
+
+/* ------------------------------------------------------------------- Groups */
+
+.spellbook-world-group + .spellbook-world-group {
+  margin-block-start: var(--size-4-6);
+}
+
+.spellbook-world-group-head,
+.spellbook-world-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  margin-block-end: var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-world-group-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.spellbook-world-group-count {
+  flex: 0 0 auto;
+  padding: 0 var(--size-2-3);
+  border-radius: var(--radius-s);
+  background-color: var(--background-modifier-hover);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-normal);
+}
+
+/* As many columns as fit, each at least a card wide. */
+.spellbook-world-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--spellbook-world-card-min), 100%), 1fr));
+  gap: var(--size-4-2);
+}
+
+.spellbook-world-narrow .spellbook-world-cards {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* -------------------------------------------------------------------- Cards */
+
+.spellbook-world-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-3);
+  min-width: 0;
+  padding: var(--size-4-2) var(--size-4-3);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-inline-start: var(--size-2-2) solid var(--spellbook-world-tag, var(--background-modifier-border));
+  border-radius: var(--radius-m);
+  background-color: var(--background-primary);
+  cursor: pointer;
+}
+
+.spellbook-world-card:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.spellbook-world-card:focus-visible {
+  outline: var(--size-2-1) solid var(--interactive-accent);
+  outline-offset: var(--size-2-1);
+}
+
+.spellbook-world-card.is-selected {
+  border-color: var(--interactive-accent);
+}
+
+.spellbook-world-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  min-width: 0;
+}
+
+.spellbook-world-card-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.spellbook-world-card .spellbook-world-card-more {
+  flex: 0 0 auto;
+}
+
+/* The summary: at most three lines on a card; the details show all of it. */
+.spellbook-world-card-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  overflow-wrap: anywhere;
+  text-align: start;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.spellbook-world-card-foot {
+  display: flex;
+  margin-block-start: auto;
+}
+
+.spellbook-world-card .spellbook-world-card-scenes {
+  height: auto;
+  padding: var(--size-2-1) var(--size-4-2);
+  box-shadow: none;
+  background-color: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+/* ------------------------------------------------------------------ Details */
+
+/* Beside the list in a wide pane; in its place in a narrow one. */
+.spellbook-world-detail {
+  display: none;
+  flex: 0 0 var(--spellbook-world-detail-width);
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 50%;
+  padding: var(--size-4-3);
+  border-inline-start: var(--border-width) solid var(--background-modifier-border);
+  overflow-y: auto;
+}
+
+.spellbook-world-has-detail .spellbook-world-detail {
+  display: block;
+}
+
+.spellbook-world-narrow.spellbook-world-has-detail .spellbook-world-list {
+  display: none;
+}
+
+.spellbook-world-narrow .spellbook-world-detail {
+  flex: 1 1 auto;
+  max-width: none;
+  border-inline-start: none;
+}
+
+.spellbook-world-detail-head {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+}
+
+.spellbook-world-detail-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-normal);
+  font-size: var(--font-ui-large);
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.spellbook-world-detail-type {
+  margin-block-start: var(--size-2-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+.spellbook-world-detail-aliases {
+  margin-inline-start: var(--size-4-2);
+  color: var(--text-faint);
+}
+
+.spellbook-world-detail-summary {
+  margin-block-start: var(--size-4-3);
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+  text-align: start;
+  white-space: pre-wrap;
+}
+
+/* The properties: the name of each above what it holds. */
+.spellbook-world-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--size-2-1);
+  margin: var(--size-4-3) 0 0;
+}
+
+.spellbook-world-field-name {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-align: start;
+}
+
+.spellbook-world-field-value {
+  margin: 0 0 var(--size-4-2);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.spellbook-world-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+  margin-block: var(--size-4-3);
+}
+
+.spellbook-world-section-head {
+  margin-block-start: var(--size-4-4);
+}
+
+.spellbook-world-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-1);
+}
+
+.spellbook-world-row {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-3);
+  min-width: 0;
+}
+
+/* A scene or an event: a button as wide as the row, with its title at the start. */
+.spellbook-world-row .spellbook-world-row-open {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  min-width: 0;
+  height: auto;
+  padding: var(--size-2-3) var(--size-4-2);
+  box-shadow: none;
+  background-color: transparent;
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+  text-align: start;
+  white-space: normal;
+}
+
+.spellbook-world-row .spellbook-world-row-open:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.spellbook-world-row .spellbook-world-row-unlink,
+.spellbook-world-row .spellbook-world-mention-link {
+  flex: 0 0 auto;
+}
+
+.spellbook-world-mention + .spellbook-world-mention {
+  margin-block-start: var(--size-4-2);
+}
+
+.spellbook-world-snippet {
+  padding-inline: var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.spellbook-world-snippet-name {
+  border-radius: var(--radius-s);
+  background-color: var(--text-highlight-bg);
+  color: var(--text-normal);
+}
+
+/* ------------------------------------------------------------ Touch screens */
+
+/* Everything that is tapped is tall enough for a finger. */
+.spellbook-world.spellbook-is-mobile .spellbook-world-search,
+.spellbook-world.spellbook-is-mobile .spellbook-world-filter,
+.spellbook-world.spellbook-is-mobile .spellbook-world-new,
+.spellbook-world.spellbook-is-mobile .spellbook-world-open,
+.spellbook-world.spellbook-is-mobile .spellbook-world-find,
+.spellbook-world.spellbook-is-mobile .spellbook-world-row-open,
+.spellbook-world.spellbook-is-mobile .spellbook-world-mention-link,
+.spellbook-world.spellbook-is-mobile .spellbook-world-card-scenes {
+  min-height: var(--spellbook-world-touch);
+}
+
+.spellbook-world.spellbook-is-mobile .clickable-icon {
+  min-width: var(--spellbook-world-touch);
+  min-height: var(--spellbook-world-touch);
+}
+
+@media (pointer: coarse) {
+  .spellbook-world .spellbook-world-search,
+  .spellbook-world .spellbook-world-filter,
+  .spellbook-world .spellbook-world-new,
+  .spellbook-world .spellbook-world-open,
+  .spellbook-world .spellbook-world-find,
+  .spellbook-world .spellbook-world-row-open,
+  .spellbook-world .spellbook-world-mention-link,
+  .spellbook-world .spellbook-world-card-scenes {
+    min-height: var(--spellbook-world-touch);
+  }
+
+  .spellbook-world .clickable-icon {
+    min-width: var(--spellbook-world-touch);
+    min-height: var(--spellbook-world-touch);
+  }
+}
+
+/* On a phone, Obsidian's own bar floats over the bottom of the pane: leave
+   room under the last card and the last line of the details. */
+.spellbook-world.spellbook-is-phone .spellbook-world-list,
+.spellbook-world.spellbook-is-phone .spellbook-world-detail {
+  padding-block-end: max(
+    var(--spellbook-world-bar-room),
+    calc(var(--mobile-navbar-height, 0px) + var(--safe-area-inset-bottom, 0px))
+  );
+}
+
+/* ---------------------------------------------- The window: choosing a type */
+
+.spellbook-world-choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+}
+
+.spellbook-world-choice .spellbook-world-choice-type {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--size-4-2);
+  min-height: 44px;
+  text-align: start;
+}
+
+.spellbook-world-choice-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------- The window: adding to a scene */
+
+.spellbook-world-picker .spellbook-world-picker-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  text-align: start;
+}
+
+.spellbook-world-picker-message {
+  min-height: var(--size-4-4);
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+.spellbook-world-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-1);
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.spellbook-world-picker .spellbook-world-picker-row {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--size-4-2);
+  min-width: 0;
+  height: auto;
+  min-height: 44px;
+  padding: var(--size-2-3) var(--size-4-2);
+  box-shadow: none;
+  background-color: transparent;
+  text-align: start;
+  white-space: normal;
+}
+
+.spellbook-world-picker .spellbook-world-picker-row:hover,
+.spellbook-world-picker .spellbook-world-picker-row:focus-visible {
+  background-color: var(--background-modifier-hover);
+}
+
+.spellbook-world-picker-words {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.spellbook-world-picker-name {
+  color: var(--text-normal);
+}
+
+.spellbook-world-picker-summary,
+.spellbook-world-picker-new,
+.spellbook-world-picker-type,
+.spellbook-world-picker-note {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-world-picker-type {
+  flex: 0 0 auto;
+}
+
+.spellbook-world-picker-note {
+  padding: var(--size-4-2);
+  text-align: start;
+}
+
+/* --------------------------------------------- The window: entity types */
+
+.spellbook-world-types-text {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.spellbook-world-types-list {
+  display: flex;
+  flex-direction: column;
+  margin-block-end: var(--size-4-3);
+}
+
+.spellbook-world-type {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-3);
+  min-height: 44px;
+  padding-block: var(--size-2-3);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-world-type .clickable-icon {
+  flex: 0 0 auto;
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.spellbook-world-type .clickable-icon.is-disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.spellbook-world-type .spellbook-world-type-icon {
+  color: var(--spellbook-world-tag, var(--text-muted));
+}
+
+.spellbook-world-type-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: start;
+}
+
+.spellbook-world-type-name {
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+
+.spellbook-world-type-meta {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--size-4-2);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------- The inspector: "In this scene" */
+
+.spellbook-inspector-entities {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  margin-block-start: var(--size-4-3);
+  padding-block-start: var(--size-4-2);
+  border-block-start: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-inspector-entities-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-2-3);
+}
+
+.spellbook-inspector-entities-none {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+/* A chip: the entity's name on a tint of its type's colour, and a small
+   button that takes it out of the scene. */
+.spellbook-entity-chip {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+  border: var(--border-width) solid var(--spellbook-world-tag);
+  border-radius: var(--radius-l);
+  background-color: color-mix(in srgb, var(--spellbook-world-tag) 16%, transparent);
+  overflow: hidden;
+}
+
+/* A link that leads to no entity: no tint, and a broken edge. */
+.spellbook-entity-chip.spellbook-entity-chip-lost {
+  border-style: dashed;
+  background-color: transparent;
+}
+
+.spellbook-entity-chip .spellbook-entity-chip-open,
+.spellbook-entity-chip .spellbook-entity-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-2-2);
+  min-width: 0;
+  height: auto;
+  min-height: 28px;
+  padding: var(--size-2-1) var(--size-4-2);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background-color: transparent;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+}
+
+.spellbook-entity-chip .spellbook-entity-chip-open:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.spellbook-entity-chip .spellbook-entity-chip-remove {
+  flex: 0 0 auto;
+  padding-inline: var(--size-2-3);
+  color: var(--text-muted);
+}
+
+.spellbook-entity-chip .spellbook-entity-chip-open:hover:not(:disabled),
+.spellbook-entity-chip .spellbook-entity-chip-remove:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.spellbook-entity-chip-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--spellbook-world-tag);
+}
+
+.spellbook-entity-chip .svg-icon {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.spellbook-entity-chip-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.spellbook-inspector-entities .spellbook-inspector-entities-add {
+  align-self: flex-start;
+}
+
+.spellbook-inspector.spellbook-is-mobile .spellbook-entity-chip-open,
+.spellbook-inspector.spellbook-is-mobile .spellbook-entity-chip-remove,
+.spellbook-inspector.spellbook-is-mobile .spellbook-inspector-entities-add {
+  min-height: var(--spellbook-inspector-touch);
+}
+
+.spellbook-inspector.spellbook-is-mobile .spellbook-entity-chip-remove {
+  min-width: var(--spellbook-inspector-touch);
+  justify-content: center;
+}
+
+@media (pointer: coarse) {
+  .spellbook-inspector .spellbook-entity-chip-open,
+  .spellbook-inspector .spellbook-entity-chip-remove,
+  .spellbook-inspector .spellbook-inspector-entities-add {
+    min-height: var(--spellbook-inspector-touch);
+  }
+
+  .spellbook-inspector .spellbook-entity-chip-remove {
+    min-width: var(--spellbook-inspector-touch);
+    justify-content: center;
+  }
+}

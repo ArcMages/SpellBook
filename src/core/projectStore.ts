@@ -77,6 +77,7 @@ import {
   STATS_FOLDER,
   TIMELINE_FOLDER,
   TODO_FILE,
+  WORLD_FOLDER,
 } from './projectLayout';
 import { plantSeed } from './projectSeed';
 import type { PlantedSeed, ProjectSeed } from './projectSeed';
@@ -101,6 +102,7 @@ import type { MarkdownFileInfo, VaultEvent, VaultPort } from './vaultPort';
 import { stripFrontmatter } from './wordCount';
 
 export { EXPORTS_FOLDER, MANUSCRIPT_FOLDER, PROJECT_FOLDERS, STATS_FOLDER, TIMELINE_FOLDER, TODO_FILE } from './projectLayout';
+export { WORLD_FOLDER } from './projectLayout';
 
 /** How long to wait after the last change before writing order keys into scene notes. */
 export const ORDER_DEBOUNCE_MS = 1500;
@@ -1696,6 +1698,174 @@ export class ProjectStore {
       }
       return saved ? done(undefined) : noop('unchanged', 'Nothing needed to change.');
     }, inProject);
+  }
+
+  // -------------------------------------------------------------- world notes
+  //
+  // The world-building notes (characters, places, factions, items and the
+  // writer's own types) are plain notes in the project's World folder, one
+  // folder per type. These four methods are the only way a screen can list,
+  // make, rename or remove one, and none of them reaches outside that folder.
+
+  /** The notes in the open project's World folder (one per entity), with their properties. See projectNotes. */
+  worldNotes(): ProjectNote[] {
+    return this.projectNotes(WORLD_FOLDER);
+  }
+
+  /**
+   * Create a world-building note: a new note in the open project's World
+   * folder, inside the folder of its type ("Characters"), with the properties
+   * and the text given. The folders are made first when they are missing.
+   *
+   * Nothing is ever replaced, and the names are used exactly as they are
+   * given or not at all: refused when the note's name or the folder's is not
+   * a tidy file name as it stands (see sanitiseFileName; tidy it first), and
+   * when the folder already holds something of that name, whatever its
+   * capitals, or the binder lists a note of that name there. Refused as well
+   * for properties that would mark the note as a project, for a read-only
+   * project, and when no project is open.
+   *
+   * @param folder      the type's folder inside World, for example "Characters"; "" for World itself
+   * @param name        the note's name, without ".md"
+   * @param frontmatter the note's properties
+   * @param body        the text the new note starts with (it is the writer's from then on)
+   * @returns the new note's path relative to the project folder
+   */
+  addWorldNote(
+    folder: string,
+    name: string,
+    frontmatter: Readonly<Frontmatter>,
+    body = '',
+    inProject?: string,
+  ): Promise<IntentResult<{ path: string }>> {
+    return this.run(async (): Promise<IntentResult<{ path: string }>> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      if (name === '' || sanitiseFileName(name, '') !== name) {
+        return refused('invalid-name', `"${name}" cannot be used as the name of a note.`);
+      }
+      if (folder !== '' && sanitiseFileName(folder, '') !== folder) {
+        return refused('invalid-name', `"${folder}" cannot be used as the name of a folder.`);
+      }
+      if (isProjectIndex(frontmatter)) {
+        return refused('inside-project', 'A note in a project cannot be marked as a project itself.');
+      }
+
+      const directory = folder === '' ? WORLD_FOLDER : `${WORLD_FOLDER}/${folder}`;
+      const rel = `${directory}/${name}.md`;
+      const target = joinPath(active.folder, rel);
+      const wanted = clashKey(rel);
+      const listed = flattenScenes(this.effectiveBinder(active)).some((scene) => clashKey(scene) === wanted);
+      if (listed || this.vault.exists(target)) {
+        return refused('exists', `There is already a note called "${name}" in the ${directory} folder.`);
+      }
+
+      let createdPath: string;
+      try {
+        for (const step of [WORLD_FOLDER, directory]) {
+          const path = joinPath(active.folder, step);
+          if (!this.vault.exists(path)) await this.vault.createFolder(path);
+        }
+        // The vault itself refuses to create a file where something already is.
+        createdPath = await this.vault.createFile(target, body, copyOf(frontmatter) as Frontmatter);
+      } catch (error) {
+        return failed(`The note "${name}" could not be created: ${messageOf(error)}`);
+      }
+      return done({ path: relativeTo(active.folder, createdPath) ?? rel });
+    }, inProject);
+  }
+
+  /**
+   * Rename a world-building note where it is: the note is renamed (links to
+   * it are updated by the vault) and stays in its folder. The name is used
+   * exactly as given or not at all, and nothing is replaced: refused for a
+   * name that is not a tidy file name as it stands and for one that is taken.
+   * Refused for every note outside the World folder, and for one the binder
+   * lists as a scene.
+   *
+   * @param path the note's path relative to the project folder
+   * @param name the new name, without ".md"
+   * @returns the note's new path relative to the project folder
+   */
+  renameWorldNote(path: string, name: string, inProject?: string): Promise<IntentResult<{ path: string }>> {
+    return this.run(async (): Promise<IntentResult<{ path: string }>> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const file = this.worldNote(active, path);
+      if ('status' in file) return file;
+      if (name === '' || sanitiseFileName(name, '') !== name) {
+        return refused('invalid-name', `"${name}" cannot be used as the name of a note.`);
+      }
+      if (name === noteTitle(file.path)) return noop('unchanged', 'The note already has that name.');
+      const target = joinPath(parentPath(file.path), `${name}.md`);
+      // Changing only the capitals of its own name is not a clash.
+      if (clashKey(target) !== clashKey(file.path) && this.vault.exists(target)) {
+        return refused('exists', `There is already a note called "${name}" in that folder.`);
+      }
+      let newPath: string;
+      try {
+        newPath = await this.vault.rename(file.path, target);
+      } catch (error) {
+        if (error instanceof VaultFileMissingError) return noop('not-found', 'That note is no longer in the project.');
+        return failed(`"${noteTitle(file.rel)}" could not be renamed: ${messageOf(error)}`);
+      }
+      return done({ path: relativeTo(active.folder, newPath) ?? relativeTo(active.folder, target) ?? file.rel });
+    }, inProject);
+  }
+
+  /**
+   * Move a world-building note to the trash (it is never deleted outright).
+   * Refused for every note outside the World folder, and for one the binder
+   * lists as a scene: that one is deleted as a scene, from the binder.
+   *
+   * @param path the note's path relative to the project folder
+   */
+  trashWorldNote(path: string, inProject?: string): Promise<IntentResult> {
+    return this.run(async (): Promise<IntentResult> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const file = this.worldNote(active, path);
+      if ('status' in file) return file;
+      try {
+        await this.vault.trash(file.path);
+      } catch (error) {
+        if (error instanceof VaultFileMissingError) return noop('not-found', 'That note is no longer in the project.');
+        return failed(`"${noteTitle(file.rel)}" could not be moved to the trash: ${messageOf(error)}`);
+      }
+      return done(undefined);
+    }, inProject);
+  }
+
+  /**
+   * Check a path given for a world-building note that is to be renamed or
+   * trashed: a note that is there, inside the World folder, that is not a
+   * project index and that the binder does not list. This is what keeps
+   * renameWorldNote and trashWorldNote away from scenes and from every other
+   * note. Returns the note, or a refusal.
+   */
+  private worldNote(
+    active: ActiveProject,
+    path: string,
+  ): ProjectFile | { status: 'refused'; reason: RefusalReason; message: string } {
+    const rel = this.checkedPath(active, path, true);
+    if (typeof rel !== 'string') return rel;
+    if (!isInside(WORLD_FOLDER, rel)) {
+      return refused('invalid-path', `"${path}" is not a note in the ${WORLD_FOLDER} folder of this project.`);
+    }
+    if (hasScene(this.effectiveBinder(active), rel)) {
+      return refused('invalid-path', `"${noteTitle(rel)}" is in the binder: rename or delete it there.`);
+    }
+    const file = this.projectFiles(active).get(pathKey(rel));
+    if (!file) {
+      return refused('missing-file', `"${rel}" has no note in this project (it may still be syncing).`);
+    }
+    if (this.projects.has(file.path)) {
+      return refused('invalid-path', `"${rel}" is a project index, not a note of this project.`);
+    }
+    return file;
   }
 
   /** Write any outstanding order keys now instead of waiting for the delay. */

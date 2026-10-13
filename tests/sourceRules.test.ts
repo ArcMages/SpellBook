@@ -110,6 +110,7 @@ describe('source layout', () => {
       'features/prose/index.ts',
       'features/scrivenings/index.ts',
       'features/snapshots/index.ts',
+      'features/world/index.ts',
     ]) {
       expect(names, expected).toContain(expected);
     }
@@ -379,6 +380,7 @@ describe('the whole plugin', () => {
       'features/scrivenings',
       'features/snapshots',
       'features/timeline',
+      'features/world',
     ]);
     for (const file of featureFiles) {
       const own = relative(file).split('/').slice(0, 2).join('/');
@@ -528,6 +530,7 @@ describe('the stylesheet is put together from one file per screen', () => {
       'prose.css',
       'scrivenings.css',
       'snapshots.css',
+      'world.css',
     ]);
     // No stylesheet is left out, and none is listed that is not there.
     expect(readdirSync(stylesDir).filter((name) => name.endsWith('.css')).sort()).toEqual([...STYLE_FILES].sort());
@@ -565,7 +568,7 @@ describe('the stylesheet is put together from one file per screen', () => {
   });
 
   it('gives each screen a stylesheet of its own, so that screens built side by side never share a file', () => {
-    for (const feature of ['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'report', 'export', 'prose', 'scrivenings', 'snapshots']) {
+    for (const feature of ['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world']) {
       expect(STYLE_FILES, feature).toContain(`${feature}.css`);
     }
   });

@@ -41,7 +41,7 @@ function importsOf(source: string): string[] {
  * inspector, and the registration. Every other file is a screen (or a piece
  * of one) and knows only its host.
  */
-const wiring = ['index.ts', 'panes.ts', 'storeHost.ts', 'summaryLine.ts'];
+const wiring = ['index.ts', 'panes.ts', 'sceneEntities.ts', 'storeHost.ts', 'summaryLine.ts'];
 const screens = files.filter((name) => !wiring.includes(name));
 
 describe('the source of the corkboard feature', () => {
@@ -55,6 +55,7 @@ describe('the source of the corkboard feature', () => {
       'inspectorView.ts',
       'panes.ts',
       'parts.ts',
+      'sceneEntities.ts',
       'storeHost.ts',
       'summaryLine.ts',
       'synopsisModal.ts',
@@ -126,6 +127,7 @@ describe('the source of the corkboard feature', () => {
     // Only what plugs the screens in is handed the plugin's working parts.
     expect(files.filter((name) => importsOf(codeOf(name)).includes('../registry'))).toEqual([
       'index.ts',
+      'sceneEntities.ts',
       'storeHost.ts',
       'summaryLine.ts',
     ]);

@@ -79,6 +79,27 @@ function clone<T>(value: T): T {
   return structuredClone(value);
 }
 
+/**
+ * Where a link leads, among the files given, the way Obsidian works it out:
+ * a file at that very path (".md" may be left off), or else a note of that
+ * name anywhere in the vault, capitals not told apart: the one in the folder
+ * of the note the link is written in when there is one, or else the one with
+ * the shortest path. Null when the link leads nowhere.
+ */
+export function resolveLinkAmong(paths: readonly string[], link: string, from: string): string | null {
+  const wanted = link.trim().replace(/^\/+/, '');
+  if (wanted === '') return null;
+  const exact = paths.find((path) => path === wanted || path === `${wanted}.md`);
+  if (exact !== undefined) return exact;
+  const name = clashKey(wanted.endsWith('.md') ? wanted : `${wanted}.md`);
+  const named = paths.filter((path) => {
+    const key = clashKey(path);
+    return key === name || key.endsWith(`/${name}`);
+  });
+  const beside = named.find((path) => parentPath(path) === parentPath(from));
+  return beside ?? [...named].sort((a, b) => a.length - b.length || (a < b ? -1 : 1))[0] ?? null;
+}
+
 export class MemoryVault implements VaultPort {
   private readonly files = new Map<string, StoredFile>();
   private readonly folders = new Set<string>();
@@ -324,6 +345,10 @@ export class MemoryVault implements VaultPort {
     for (const file of this.files.keys()) if (clashKey(file) === wanted) return true;
     for (const folder of this.folders) if (clashKey(folder) === wanted) return true;
     return false;
+  }
+
+  resolveLink(link: string, from: string): string | null {
+    return resolveLinkAmong([...this.files.keys()], link, from);
   }
 
   async readText(path: string): Promise<string> {

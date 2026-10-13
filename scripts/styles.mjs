@@ -36,6 +36,7 @@ export const STYLE_FILES = Object.freeze([
   'prose.css',
   'scrivenings.css',
   'snapshots.css',
+  'world.css',
 ]);
 
 const BANNER = `/*
