@@ -11,3 +11,6 @@ data.json
 
 # macOS
 .DS_Store
+
+# Packed releases (created by "npm run package")
+release/

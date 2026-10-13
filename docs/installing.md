@@ -8,7 +8,7 @@ Spellbook has not yet been tried on a real iPhone or iPad. It is built to work t
 
 - Obsidian 1.8.7 or newer, on a Mac, a Windows or Linux computer, an iPhone or an iPad.
 - A vault to try it in. For a first try, make a new empty vault rather than using the one that holds your writing.
-- For the first way: a GitHub account that has been invited to the Spellbook repository.
+- For the first way: a GitHub account that has been invited to the Spellbook repository. The second way needs no account.
 
 ## Way 1: with BRAT (updates by itself)
 
@@ -50,16 +50,16 @@ Open the command palette (Cmd+P or Ctrl+P on a computer; pull down, or use the t
 
 BRAT checks for new test versions when Obsidian starts. To check by hand, run the command **BRAT: Check for updates to all beta plugins**.
 
-## Way 2: by hand (three files)
+## Way 2: download the zip (no GitHub account, no git)
 
-Use this if you were sent the files instead of an invitation, or if you prefer not to use BRAT. A Spellbook release is three files: `main.js`, `manifest.json` and `styles.css`.
+Each Spellbook release comes with one file to download, `spellbook-novel-writer-<version>.zip`, on the repository's **Releases** page (or sent to you directly). Inside it is a folder named `spellbook-novel-writer` holding the three files that make the plugin: `main.js`, `manifest.json` and `styles.css`. Unzipping that folder into your vault's plugins folder installs it. Obsidian has no "install from file" button, so this step is done in Finder or File Explorer.
 
 ### On a computer
 
 1. In Obsidian, open **Settings**, then **Community plugins**, and turn on community plugins if asked.
 2. Open your vault's folder in Finder or File Explorer. Inside it is a hidden folder named `.obsidian`. On a Mac, press Cmd+Shift+. (full stop) in Finder to show hidden folders.
-3. Inside `.obsidian`, open `plugins` (make the folder if it is not there), and inside it make a folder named exactly `spellbook-novel-writer`.
-4. Put the three files in that folder.
+3. Inside `.obsidian`, open `plugins` (make the folder if it is not there).
+4. Unzip the download and move the folder `spellbook-novel-writer` into `plugins`. The three files must sit directly inside `plugins/spellbook-novel-writer`.
 5. Back in Obsidian, open **Settings**, then **Community plugins**, press the refresh button beside "Installed plugins", and switch **Spellbook** on.
 
 ### On an iPhone or iPad
@@ -71,7 +71,7 @@ The Files app does not show the hidden `.obsidian` folder, so the simplest way i
 
 ### Updates by hand
 
-Replace the three files with the new ones, then switch Spellbook off and on in **Settings**, then **Community plugins**.
+Download the new zip, replace the folder `spellbook-novel-writer` with the new one, then switch Spellbook off and on in **Settings**, then **Community plugins**.
 
 ## After installing
 

@@ -9,7 +9,8 @@
     "build": "npm run typecheck && node esbuild.config.mjs production",
     "dev": "node esbuild.config.mjs",
     "test": "vitest run",
-    "deploy": "npm run build && node scripts/deploy.mjs"
+    "deploy": "npm run build && node scripts/deploy.mjs",
+    "package": "npm run build && node scripts/package.mjs"
   },
   "author": "Daniel | DandiMage",
   "devDependencies": {
