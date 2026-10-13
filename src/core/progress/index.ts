@@ -364,6 +364,8 @@ export {
 export type {
   /** The line of figures for the open note, and a way to be told when it changes. */
   SceneLineService,
+  /** A shortcut button of the line: the command it runs, its label and its icon. */
+  SceneLineButton,
   /** The net words of one day: in the manuscript, and in all notes. */
   DayWords,
   /** The streak, the average and the totals of this week and this month. */

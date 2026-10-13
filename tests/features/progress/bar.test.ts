@@ -592,7 +592,7 @@ describe('on a phone, where the inspector shows the line', () => {
     expect(stand.bar()).toBeNull();
     let told = 0;
     stand.sceneLine().onChange(() => told++);
-    // The figures only: a button has no place in the inspector's line.
+    // The figures on their own; the buttons come after them in the inspector's line.
     expect(stand.sceneLine().current()).toEqual([
       { id: 'status', label: 'Status', value: DRAFT, ownText: true, color: 'blue' },
       { id: 'scene', label: 'Words', value: '9' },
@@ -603,6 +603,49 @@ describe('on a phone, where the inspector shows the line', () => {
     await drawn(stand);
     expect(told).toBeGreaterThan(0);
     expect(stand.line()).toEqual(['Words 9', `Status ${DRAFT}`]);
+  });
+});
+
+describe('the shortcut buttons, for the inspector\'s line', () => {
+  it('offers the buttons the writer chose, runs their commands, and says which have no command', async () => {
+    Object.assign(Platform, { isDesktop: false, isMobile: true, isPhone: true });
+    const layout = addBarButton(addBarButton({ entries: [{ kind: 'item', id: 'scene' }] }, ZEN, 'Zen', 'eye'), 'other:gone');
+    const stand = await standUp(undefined, layout);
+    stand.commands.add(ZEN, 'Spellbook: Toggle zen mode');
+    stand.workspace.show(OPENING);
+    await drawn(stand);
+    const line = stand.sceneLine();
+    expect(line.buttons?.()).toEqual([
+      { key: 'button:1', command: ZEN, label: 'Zen', icon: 'eye', name: 'Spellbook: Toggle zen mode', available: true },
+      { key: 'button:2', command: 'other:gone', label: '', icon: null, name: 'other:gone', available: false },
+    ]);
+    line.run?.(ZEN);
+    // A command that is not there does nothing.
+    line.run?.('other:gone');
+    expect(stand.commands.ran).toEqual([ZEN]);
+  });
+
+  it('tells the inspector when a button is taken out of the bar, though no figure changed', async () => {
+    Object.assign(Platform, { isDesktop: false, isMobile: true, isPhone: true });
+    const stand = await standUp(undefined, addBarButton({ entries: [{ kind: 'item', id: 'scene' }] }, ZEN));
+    stand.workspace.show(OPENING);
+    await drawn(stand);
+    let told = 0;
+    stand.sceneLine().onChange(() => told++);
+    await drawn(stand);
+    const before = told;
+    openSettings(stand).press(`2. Button: ${ZEN}`, 'Remove');
+    await drawn(stand);
+    expect(told).toBeGreaterThan(before);
+    expect(stand.sceneLine().buttons?.()).toEqual([]);
+    expect(stand.line()).toEqual(['Words 9']);
+  });
+
+  it('offers no buttons with no project open', async () => {
+    const stand = await standUp(undefined, addBarButton(DEFAULT_BAR_LAYOUT, ZEN));
+    await stand.store.closeProject();
+    await drawn(stand);
+    expect(stand.sceneLine().buttons?.()).toEqual([]);
   });
 });
 

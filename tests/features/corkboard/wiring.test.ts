@@ -5,6 +5,7 @@
 // reaches the notes through the store, and that nothing is left behind. How
 // it looks, and how the real app behaves, can only be checked in Obsidian.
 
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   ACTIVE_CLASS,
@@ -33,7 +34,7 @@ import { NO_ROOM_FOR_INSPECTOR } from '../../../src/features/corkboard/panes';
 import { CARD_SIZE_KEY, TEXT_SETTLE_MS, TEXT_SLICE } from '../../../src/features/corkboard/storeHost';
 // The line's name and shape: declared once in the core, for the screen that offers it and the one that shows it.
 import { SCENE_LINE_SERVICE } from '../../../src/core/progress/index';
-import type { SceneLineService, StatusSegment } from '../../../src/core/progress/index';
+import type { SceneLineButton, SceneLineService, StatusSegment } from '../../../src/core/progress/index';
 import { TagListsModal } from '../../../src/features/corkboard/tagListsModal';
 import { WORD_COUNT_DEBOUNCE_MS, WORD_COUNT_SLICE_NOTES } from '../../../src/core/wordCountCache';
 import { SHOW_ON_CORKBOARD } from '../../../src/views/binderActions';
@@ -889,6 +890,103 @@ describe('the line at the top of the inspector', () => {
     leaf.detach();
     await calm(s);
     expect(line.listeners.size).toBe(0);
+  });
+
+  describe('the shortcut buttons of the bottom bar', () => {
+    const ZEN: SceneLineButton = { key: 'button:1', command: 'spellbook:zen', label: '', icon: 'eye', name: 'Toggle zen mode', available: true };
+    const GONE: SceneLineButton = { key: 'button:3', command: 'other:gone', label: 'קדימה', icon: null, name: 'other:gone', available: false };
+
+    class ButtonLine extends FakeLine {
+      shortcuts: unknown = [ZEN, GONE];
+      readonly ran: string[] = [];
+      buttons = (): readonly SceneLineButton[] => this.shortcuts as SceneLineButton[];
+      run = (command: string): void => {
+        this.ran.push(command);
+      };
+      setButtons(shortcuts: unknown): void {
+        this.shortcuts = shortcuts;
+        for (const listener of [...this.listeners]) listener();
+      }
+    }
+
+    const buttonsOf = (pane: FakeElement): FakeElement[] => one(pane, SUMMARY_SLOT_CLASS).withClass('spellbook-summary-button');
+
+    async function withButtons(): Promise<{ line: ButtonLine; pane: FakeElement }> {
+      StubPlatform.isMobile = true;
+      const s = await stage();
+      const line = new ButtonLine();
+      s.features.services.provide(SCENE_LINE_SERVICE, line);
+      const { pane } = await openInspectorPane(s);
+      return { line, pane };
+    }
+
+    it('come after the figures, each with its icon or its words, and run their commands', async () => {
+      const { line, pane } = await withButtons();
+      const slot = one(pane, SUMMARY_SLOT_CLASS);
+      expect(slot.children.map((child) => [...child.classes][0])).toEqual(['spellbook-summary-figures', 'spellbook-summary-buttons']);
+      expect(shown(pane)).toHaveLength(2);
+      const [zen, gone] = buttonsOf(pane);
+      expect(buttonsOf(pane)).toHaveLength(2);
+      // An icon alone: the command's name is what a screen reader says.
+      expect(zen?.attrs['aria-label']).toBe('Toggle zen mode');
+      expect(zen?.attrs['role']).toBe('button');
+      expect(zen?.withClass('spellbook-summary-button-icon')).toHaveLength(1);
+      expect(zen?.withClass('spellbook-summary-button-label')).toHaveLength(0);
+      // The writer's own words pick their own direction.
+      expect(one(gone as FakeElement, 'spellbook-summary-button-label').text).toBe('קדימה');
+      expect(one(gone as FakeElement, 'spellbook-summary-button-label').attrs['dir']).toBe('auto');
+
+      zen?.dispatch('click', {});
+      zen?.dispatch('keydown', { key: 'Enter' });
+      zen?.dispatch('keydown', { key: 'a' });
+      expect(line.ran).toEqual(['spellbook:zen', 'spellbook:zen']);
+    });
+
+    it('dims a button whose command is not there', async () => {
+      const { pane } = await withButtons();
+      const [zen, gone] = buttonsOf(pane);
+      expect(zen?.hasClass('spellbook-is-unavailable')).toBe(false);
+      expect(gone?.hasClass('spellbook-is-unavailable')).toBe(true);
+      expect(gone?.attrs['aria-disabled']).toBe('true');
+      expect(gone?.attrs['aria-label']).toBe('קדימה: other:gone (this command is not available)');
+    });
+
+    it('leaves the buttons standing when only a figure changes, and draws them anew when they change', async () => {
+      const { line, pane } = await withButtons();
+      const before = buttonsOf(pane)[0];
+      line.set([{ id: 'scene', label: 'Words', value: '1,250' }]);
+      expect(shown(pane)).toEqual([['Words', '1,250']]);
+      expect(buttonsOf(pane)[0]).toBe(before);
+
+      line.setButtons([{ ...ZEN, available: false }]);
+      expect(buttonsOf(pane)).toHaveLength(1);
+      expect(buttonsOf(pane)[0]?.hasClass('spellbook-is-unavailable')).toBe(true);
+
+      line.setButtons([]);
+      expect(one(pane, SUMMARY_SLOT_CLASS).withClass('spellbook-summary-buttons')).toHaveLength(0);
+      expect(one(pane, SUMMARY_SLOT_CLASS).hasClass('spellbook-summary-is-empty')).toBe(false);
+      // No figures and no buttons: the line takes no room.
+      line.set([]);
+      expect(one(pane, SUMMARY_SLOT_CLASS).hasClass('spellbook-summary-is-empty')).toBe(true);
+    });
+
+    it('shows buttons without figures, and takes nothing that is not a button for one', async () => {
+      const { line, pane } = await withButtons();
+      line.set([]);
+      expect(buttonsOf(pane)).toHaveLength(2);
+      expect(one(pane, SUMMARY_SLOT_CLASS).hasClass('spellbook-summary-is-empty')).toBe(false);
+      line.setButtons([ZEN, null, { command: 7 }, 'nonsense']);
+      expect(buttonsOf(pane)).toHaveLength(1);
+      line.setButtons('not a list');
+      expect(buttonsOf(pane)).toHaveLength(0);
+    });
+
+    it('gives a button room for a finger', () => {
+      const css = readFileSync(new URL('../../../src/styles/corkboard.css', import.meta.url), 'utf8');
+      const rule = /\.spellbook-inspector-slot \.spellbook-summary-button \{[^}]*\}/.exec(css)?.[0] ?? '';
+      expect(rule).toMatch(/min-inline-size: 44px/);
+      expect(rule).toMatch(/min-block-size: 44px/);
+    });
   });
 
   it('is not shown on a desktop, where Obsidian has a bottom bar for it', async () => {
