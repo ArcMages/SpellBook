@@ -2,6 +2,8 @@
 
 This guide explains every screen and tool of Spellbook, a plugin for Obsidian for planning and writing novels. It describes version 0.1.0.
 
+This is the reference: one section per screen. If you are new to Spellbook, start with the [tutorial](tutorial.md), which walks through a first novel step by step. To change colours, keys, bars and lists, see [Making Spellbook your own](customising.md).
+
 Two things to know before you start:
 
 - **Commands.** Most things are opened with a command. Open Obsidian's command palette (swipe down on a phone, or press Ctrl+P or Cmd+P on a computer) and type the name. Obsidian shows every Spellbook command with "Spellbook:" in front, for example "Spellbook: Open binder". This guide gives the names without that prefix. Spellbook sets no keyboard shortcuts of its own; you can give any command a shortcut in Obsidian's Hotkeys settings.
@@ -10,6 +12,13 @@ Two things to know before you start:
 Nothing here has been tried on a real iPhone or iPad yet. Where this guide says how something behaves on a phone, that is how it was built, and how it looked in Obsidian's phone layout on a Mac. See [Known limits](#known-limits).
 
 ## Contents
+
+Other pages:
+
+- [Tutorial: your first novel in Spellbook](tutorial.md)
+- [Customising: making Spellbook your own](customising.md)
+
+In this guide:
 
 - [Getting started](#getting-started)
 - [Binder](#binder)
@@ -57,6 +66,10 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 
 ## Binder
 
+![The binder on the left, a scene open in the middle and the inspector on the right](images/binder-scene-inspector.png)
+
+*The binder in the left sidebar, with a scene open in the editor and the inspector in the right sidebar.*
+
 **What it is for.** The binder is the project as a tree: your scenes and folders in the order of the book.
 
 **How to open it.** Command **Open binder**, or the ribbon button "Open Spellbook binder". It opens in the left sidebar. There is only ever one binder.
@@ -89,6 +102,10 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 **Limits.** If the project's index note cannot be understood, the binder says "This project is read-only" and changes nothing until the note is put right. If two devices changed the binder before syncing, a notice appears with **Merge** and **Dismiss**; see [Sync and several devices](#sync-and-several-devices).
 
 ## Corkboard
+
+![The corkboard with index cards showing titles, synopses, statuses and coloured labels](images/corkboard.png)
+
+*The corkboard: one index card per scene, with its title, synopsis, status, coloured label and word count.*
 
 **What it is for.** Seeing the shape of the book: each scene is an index card with its title, the start of its synopsis, its status, its coloured label and its word count.
 
@@ -123,7 +140,7 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 - **Created** and **Edited**: the dates the scene was started and last changed. Spellbook keeps these for you.
 - **In this scene**: the characters, places, factions and items the scene involves. Press **Add** to choose from the world or to type a new name. Each one shows as a chip that can be taken out again. See [World](#world).
 
-**On a phone.** A phone has no bottom bar, so the line of word figures (see [Word counts and the bottom bar](#word-counts-and-the-bottom-bar)) stands at the top of the inspector.
+**On a phone.** A phone has no bottom bar, so the line of word figures (see [Word counts and the bottom bar](#word-counts-and-the-bottom-bar)) stands at the top of the inspector. The shortcut buttons you added to the bar stand there too, on a phone and on a tablet.
 
 **Limits.** The inspector shows scenes of the open project only. For any other note it says "No scene is open."
 
@@ -136,6 +153,10 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 **What you can do.** A new project starts with the statuses To do, First draft, Revised and Final. In the window you can **Add status** and **Add label**, give each a colour, move them up and down, and **Rename**, **Change colour** or **Remove** them from each one's menu. Renaming a status or label changes it in the scenes that use it. Names used by scenes but missing from the list are shown under "Used by scenes, but not in the list" with an **Add** button.
 
 ## Outliner
+
+![The outliner, a table with one row per scene and columns for status, label, target, words and synopsis](images/outliner.png)
+
+*The outliner: the manuscript as a table, with a row of totals for each folder and for the whole book.*
 
 **What it is for.** The manuscript as a table, one row per scene under its folders, for checking and tidying many scenes at once.
 
@@ -159,6 +180,10 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 
 ## Novel view
 
+![The novel view showing several scenes as one continuous page](images/novel-view.png)
+
+*The novel view: the scenes one after another as a single page, each under a small divider.*
+
 **What it is for.** Reading the manuscript as one continuous page, scene after scene, each under a small divider with its title and word count.
 
 **How to open it.** Command **Open novel view**, or the ribbon button "Open Spellbook novel view". It opens as a tab in the main area.
@@ -174,6 +199,10 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 **Limits.** The novel view is for reading. You cannot type in it: Obsidian gives plugins no supported way to put a working editor for one note inside another screen. Tap to open the scene, and edit it there.
 
 ## Writing modes
+
+![A scene in letter box mode, with a lit band of lines and the rest of the page covered](images/letter-box.png)
+
+*Letter box mode: a band of lines stays lit, and the text above and below it is covered.*
 
 **What they are for.** Four switches that change how the editor behaves while you write. They work in any note, not only in scenes, and can be on together.
 
@@ -200,6 +229,10 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 
 ## Prose checks
 
+![A scene in the editor with filler words, repeated words and long sentences marked](images/prose-checks.png)
+
+*Prose checks: marks in the editor on words and sentences worth a second look.*
+
 **What they are for.** Marks in the editor that point at things worth a second look. They only change how the text looks, never the text itself. They show in the notes of Spellbook projects.
 
 **How to switch them.** Everything is off until you switch it on. **Toggle prose checks** switches all of them on or off together; the first time, it turns on filler words, passive voice, repeated words, overused adverbs and sentence rhythm. Each check also has its own command:
@@ -224,6 +257,10 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 
 ## Colour schemes
 
+![A scene and the binder in the Sepia colour scheme](images/colour-scheme-sepia.png)
+
+*The Sepia scheme, worn by the editor and by Spellbook's own screens.*
+
 **What they are for.** Colours to write in. A scheme recolours the editor and Spellbook's own screens, on top of whatever Obsidian theme you use.
 
 **How to choose one.** Command **Choose colour scheme** opens a list; **Next colour scheme** steps to the next one. They are also in the settings under "Colour scheme".
@@ -234,9 +271,13 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 
 ## Word counts and the bottom bar
 
+![The inspector on a phone, with the line of word figures at the top](images/phone-inspector.png)
+
+*On a phone, the figures of the bottom bar stand at the top of the inspector.*
+
 **What it is for.** Spellbook counts the words you write and shows a line of figures for the open scene.
 
-**Where it is.** On a computer or a tablet, in the bar at the bottom of the Obsidian window. On a phone, which has no bottom bar, at the top of the [inspector](#inspector). Click a figure to open the [Writing targets](#writing-targets) window.
+**Where it is.** On a computer or a tablet, in the bar at the bottom of the Obsidian window. On a phone, which has no bottom bar, at the top of the [inspector](#inspector). Shortcut buttons you add to the bar also show at the top of the inspector on a phone and on a tablet. Click a figure to open the [Writing targets](#writing-targets) window.
 
 **The figures you can show.** Scene words, Scene target, Session words, Words today, Project words, Reading time, Date started, Date last edited, Status, To-dos due and Scene title. A new bar shows scene words, date started, date last edited, session, project and today.
 
@@ -250,7 +291,7 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 
 **The daily word log.** While you write, Spellbook keeps a log of the words added and deleted each day, split into the manuscript and other notes of the project. The calendar and the "today" figures are worked out from it. See [How your writing is stored](#how-your-writing-is-stored).
 
-**Limits.** Shortcut buttons do not appear on a phone: the line in the inspector only shows figures. A long bar takes at most 60% of the window's width and scrolls sideways. Link addresses and code blocks count as words. The layout of the bar is remembered on each device separately.
+**Limits.** A long bar takes at most 60% of the window's width and scrolls sideways. Link addresses and code blocks count as words. The layout of the bar is remembered on each device separately.
 
 ## Writing targets
 
@@ -263,6 +304,10 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 The targets show in the bottom bar, the outliner, the corkboard cards and the calendar.
 
 ## Planner: calendar and to-dos
+
+![The planner with a month calendar beside a to-do list](images/planner.png)
+
+*The planner: the month, with words written, to-dos due and day marks, beside the to-do list.*
 
 **What it is for.** One screen for the project's calendar and its to-do list.
 
@@ -290,6 +335,10 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 
 ## Writing report
 
+![The writing report with tiles for words, pages and reading time, and a list of the most used words](images/writing-report.png)
+
+*The writing report for one scene: counts, pages, reading time, a reading grade and the most used words.*
+
 **What it is for.** The figures of a piece of writing: words, characters with and without spaces, sentences, paragraphs, pages, reading time, a reading grade and the most used words.
 
 **How to open it.** Command **Open writing report**, or the ribbon button "Open Spellbook writing report". It opens as a tab in the main area.
@@ -298,12 +347,16 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 
 - Choose what the report is about: **The open scene**, a folder of the binder, or **Whole manuscript**.
 - Press **Refresh** to work the figures out again. The report does not follow your typing; it tells you when its figures are out of date.
-- Set **Words on a page** (under the pages figure) to change what counts as one page. It starts at 250.
+- Set **Words on a page** (under the pages figure) to change what counts as one page. It starts at 250. The same number can be set in Spellbook's settings, where the writing report has a row for it.
 - Under **Most used words**, switch **Leave out common words** on or off, and press **Show more words** for a longer list.
 
 **Limits.** Each line of text counts as one paragraph. For English the reading grade is the Flesch-Kincaid grade level. Hebrew has no such standard formula, so for Hebrew the report shows an approximate index (LIX) that is useful for comparing your own chapters with each other, not as a school year. Whole-manuscript and Hebrew reports have not been looked at on screen.
 
 ## Timeline
+
+![The timeline with coloured lanes and event cards along a time axis](images/timeline.png)
+
+*The timeline: named, coloured lanes on one time axis, with events as cards.*
 
 **What it is for.** Laying the story out in time: several named, coloured lanes on one time axis.
 
@@ -331,7 +384,7 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 
 **On a phone.** A narrow pane shows one lane at a time, with time running from top to bottom and a row of buttons to switch lane. Slide with one finger to move along the timeline and pinch with two to zoom. Rest a finger on an event to pick it up; "Move earlier" and "Move later" do the same without dragging.
 
-**Limits.** Which lanes are hidden is remembered on each device separately. Entity chips on narrow cards are cut short.
+**Limits.** Which lanes are hidden is remembered on each device separately. A narrow card shows as many whole entity chips as fit, then a "+N" chip for the rest.
 
 ## Story calendar
 
@@ -344,6 +397,10 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 **Limits.** Switching calendar changes no note. Dates that do not fit the new calendar show as undated until you set them again; the window lists them first and asks you to press **Use it anyway**. Dates sort correctly only within one era. The date pickers in the event window have not been tried on screen.
 
 ## World
+
+![The World screen with cards for characters, places and items](images/world.png)
+
+*The World screen: a card for each character, place, faction and item.*
 
 **What it is for.** Keeping track of the characters, places, factions and items of the story, and which scenes they are in.
 
@@ -367,6 +424,10 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 
 ## Snapshots
 
+![The Snapshots screen comparing a saved version of a scene with the scene as it is now](images/snapshots-compare.png)
+
+*Comparing a snapshot with the scene as it is now: added text is underlined, removed text is struck through.*
+
 **What they are for.** A snapshot is a saved version of one scene, so that you can revise without fear.
 
 **How to use them.**
@@ -389,6 +450,10 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 
 ## Export
 
+![The export window with the format, what to include and the title page options](images/export.png)
+
+*The export window.*
+
 **What it is for.** Putting the manuscript into one file to send or print, with the scenes in binder order. Scenes whose "Include in compile" switch is off are left out.
 
 **How to open it.** Command **Export manuscript**. It has no ribbon button.
@@ -404,15 +469,17 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 - **Author**, and switches for **Title page**, **Line at the top of each page**, **List of contents** and **Scene titles**.
 - **Paper**: A4 or US Letter.
 
-Press **Export**. The file is saved as a new file in the project's Exports folder; an export never replaces an earlier one. The window then says how many scenes and words were saved and which scenes were left out, and offers **Open**.
+Press **Export**. The file is saved as a new file in the project's Exports folder; an export never replaces an earlier one. The window then says how many scenes and words were saved and which scenes were left out, and offers **Open**. On a computer there is also a button that shows the file in its folder.
 
 **On a phone.** "Print / save as PDF" is not offered on a phone or tablet. Export the web page instead, open it in the browser or the Files app, and print it from the share menu, which offers to save it as a PDF.
 
-**Limits.** There is no direct PDF file. The Word file was checked by converting it with macOS tools, not by opening it in Word, Pages or Google Docs. Word and web-page files only show in Obsidian's file list when Obsidian's "Detect all file extensions" setting is on. There is no button to show the file in Finder.
+**Limits.** There is no direct PDF file. The Word file was checked by converting it with macOS tools, not by opening it in Word, Pages or Google Docs. Word and web-page files only show in Obsidian's file list when Obsidian's "Detect all file extensions" setting is on. The button that shows the file in its folder is on computers only.
 
 ## Settings
 
-Open Obsidian's Settings and choose **Spellbook**. The page shows the installed version, the **Projects in this vault**, and these sections, each described above: **Writing progress** (with the bottom bar), **Colour scheme**, **Writing modes**, **Prose checks** and **Snapshots**.
+Open Obsidian's Settings and choose **Spellbook**. The page shows the installed version, the **Projects in this vault**, and these sections, each described above: **Writing progress** (with the bottom bar), **Colour scheme**, **Writing modes**, **Prose checks** and **Snapshots**, and a row for the writing report's words on a page.
+
+[Making Spellbook your own](customising.md) goes through these settings one by one, and ends with a table of where each setting lives.
 
 Every choice on this page is kept on the device you make it on. See [Sync and several devices](#sync-and-several-devices).
 
@@ -593,11 +660,10 @@ Spellbook is at version 0.1.0 and has not been used for real writing yet. This l
 - Switching calendar changes no note; dates that do not fit show as undated until set again.
 - Dates sort as text only within one era.
 - The date pickers in the event window were not tried on screen.
-- Entity chips on narrow timeline cards are cut short.
 
 **Bottom bar**
 
-- Shortcut buttons cannot appear on phones.
+- On phones and tablets, shortcut buttons show at the top of the inspector, not in a bar.
 - A long bar takes at most 60% of the window and scrolls sideways, so its last figures are off-screen until scrolled.
 
 **Export**
@@ -605,7 +671,7 @@ Spellbook is at version 0.1.0 and has not been used for real writing yet. This l
 - No direct PDF file; use "Print / save as PDF" on a computer, or print the web page on a phone or tablet.
 - The Word file was checked by converting it with macOS tools, not by opening it in Word, Pages or Google Docs.
 - Exported Word and web-page files only show in Obsidian's file list when "Detect all file extensions" is on.
-- There is no "reveal in Finder" button.
+- The button that shows an exported file in its folder is on computers only.
 
 **Writing report**
 
