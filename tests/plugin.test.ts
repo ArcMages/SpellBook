@@ -3,18 +3,47 @@
 // check the plugin's own behaviour from command to notes; they cannot prove
 // how the real app behaves or looks.
 
+import { getFrontMatterInfo } from 'obsidian';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ACTIVE_PROJECT_KEY } from '../src/core/devicePrefs';
 import { ProjectStore } from '../src/core/projectStore';
 import SpellbookPlugin from '../src/main';
 import { openNote } from '../src/obsidian/openNote';
 import { SpellbookSettingTab } from '../src/settings';
+import { ConfirmModal } from '../src/ui/confirmModal';
 import { CreateProjectModal } from '../src/ui/createProjectModal';
+import { FolderPickerModal } from '../src/ui/folderPickerModal';
+import { TextPromptModal } from '../src/ui/textPromptModal';
 import { BinderView } from '../src/views/binderView';
-import { countOf, heading, one, picture, rowOf, tap } from './binderScreen';
+import {
+  carry,
+  countOf,
+  heading,
+  inRow,
+  layOut,
+  letGo,
+  moreOf,
+  one,
+  picture,
+  press,
+  rowOf,
+  selectedTitle,
+  tap,
+  toolbarButton,
+  toolbarLabels,
+} from './binderScreen';
 import { FakeObsidian, note } from './fakeObsidianApp';
 import type { FakeLeaf } from './fakeObsidianApp';
-import { Modal as StubModal, Notice as StubNotice, Platform as StubPlatform, resetPlatform } from './obsidianStub';
+import {
+  Menu as StubMenu,
+  Modal as StubModal,
+  Notice as StubNotice,
+  Platform as StubPlatform,
+  fakeDocument,
+  fakeWindow,
+  resetFakeDocument,
+  resetPlatform,
+} from './obsidianStub';
 import type {
   ButtonComponent,
   DropdownComponent,
@@ -94,6 +123,8 @@ function notesUnder(fake: FakeObsidian, folder: string): string[] {
 beforeEach(() => {
   StubNotice.shown.length = 0;
   StubModal.opened.length = 0;
+  StubMenu.shown.length = 0;
+  resetFakeDocument();
 });
 
 afterEach(() => {
@@ -112,6 +143,11 @@ describe('loading and unloading', () => {
       ['create-project', 'Create project'],
       ['create-sample-project', 'Create sample project'],
       ['open-binder', 'Open binder'],
+      ['new-scene', 'New scene'],
+      ['new-folder', 'New folder'],
+      ['move-scene-up', 'Move scene up'],
+      ['move-scene-down', 'Move scene down'],
+      ['reveal-active-scene', 'Reveal active scene in binder'],
     ]);
     expect(stub.viewTypes).toEqual(['spellbook-binder']);
     expect(stub.ribbonIcons.map((icon) => [icon.icon, icon.title, icon.shown])).toEqual([
@@ -346,24 +382,69 @@ describe('creating a project', () => {
   });
 });
 
+const binders = (fake: FakeObsidian): FakeLeaf[] => fake.workspace.getLeavesOfType('spellbook-binder');
+
+function paneOf(leaf: FakeLeaf | undefined): FakeElement {
+  if (!leaf?.view) throw new Error('there is no binder');
+  return (leaf.view as unknown as { contentEl: FakeElement }).contentEl;
+}
+
+/** The plugin on a vault with one small novel, the binder open and filled in. */
+async function withBinder(fake: FakeObsidian = novelVault()): Promise<Loaded & { pane: FakeElement; leaf: FakeLeaf }> {
+  const loaded = loadReady(fake);
+  await loaded.plugin.openBinder();
+  const leaf = binders(fake)[0] as FakeLeaf;
+  const pane = paneOf(leaf);
+  await until(() => pane.withClass('spellbook-count').some((count) => count.text !== ''), 'the binder to fill in');
+  return { ...loaded, pane, leaf };
+}
+
+/** A novel with three scenes in a row, a loose note in its Manuscript folder, and a research note. */
+function threeScenes(): FakeObsidian {
+  const fake = new FakeObsidian();
+  fake.addNote(
+    'Novel/Novel.md',
+    note({ spellbook: 'project', version: 1, title: 'My Novel', binder: ['Manuscript/Opening.md', 'Manuscript/Middle.md', 'Manuscript/Ending.md'] }, 'Index text.'),
+  );
+  fake.addNote('Novel/Manuscript/Opening.md', note({ status: 'To do', order: 1024 }, 'It was a dark night.\n'));
+  fake.addNote('Novel/Manuscript/Middle.md', note({ status: 'To do', order: 2048 }, 'The train left.\n'));
+  fake.addNote('Novel/Manuscript/Ending.md', note({ status: 'To do', order: 3072 }, 'Morning came.\n'));
+  fake.addNote('Novel/Manuscript/Loose.md', 'Not in the binder.');
+  fake.addNote('Novel/Research/Trains.md', 'Timetables.');
+  fake.addNote('Novel/To-do.md', '- [ ] Write');
+  fake.addNote('Notes/Plain.md', 'No properties here.');
+  return fake;
+}
+
+/** The properties of a note as they are on "disk" (the stand-in writes them as JSON). */
+function propertiesOf(fake: FakeObsidian, path: string): Record<string, unknown> {
+  const info = getFrontMatterInfo(fake.textOf(path));
+  return info.exists ? (JSON.parse(info.frontmatter) as Record<string, unknown>) : {};
+}
+
+const binderOf = (fake: FakeObsidian, indexPath = 'Novel/Novel.md'): unknown => propertiesOf(fake, indexPath)['binder'];
+
+/** The writer moves to a note (or to none). */
+function workOn(fake: FakeObsidian, path: string | null): void {
+  fake.workspace.setActiveFile(path === null ? null : fake.vault.getFileByPath(path));
+}
+
+/** The window that was opened last. */
+function lastWindow(): StubModal {
+  const modal = StubModal.opened[StubModal.opened.length - 1];
+  if (!modal) throw new Error('no window was opened');
+  return modal;
+}
+
+/** Type a name into the window that asks for one, and press Enter. */
+function answer(text: string): void {
+  const input = lastWindow().contentEl.withClass('spellbook-prompt-input')[0];
+  if (!input) throw new Error('the open window does not ask for a name');
+  input.value = text;
+  press(input, 'Enter');
+}
+
 describe('the binder', () => {
-  const binders = (fake: FakeObsidian): FakeLeaf[] => fake.workspace.getLeavesOfType('spellbook-binder');
-
-  function paneOf(leaf: FakeLeaf | undefined): FakeElement {
-    if (!leaf?.view) throw new Error('there is no binder');
-    return (leaf.view as unknown as { contentEl: FakeElement }).contentEl;
-  }
-
-  /** The plugin on a vault with one small novel, the binder open and filled in. */
-  async function withBinder(fake: FakeObsidian = novelVault()): Promise<Loaded & { pane: FakeElement; leaf: FakeLeaf }> {
-    const loaded = loadReady(fake);
-    await loaded.plugin.openBinder();
-    const leaf = binders(fake)[0] as FakeLeaf;
-    const pane = paneOf(leaf);
-    await until(() => pane.withClass('spellbook-count').some((count) => count.text !== ''), 'the binder to fill in');
-    return { ...loaded, pane, leaf };
-  }
-
   it('opens in the left sidebar from the command, and shows the open project', async () => {
     const { fake, command } = loadReady(novelVault());
     expect(binders(fake)).toEqual([]);
@@ -531,6 +612,567 @@ describe('the binder', () => {
     // And a plugin that is off does not open anything.
     await plugin.openBinder();
     expect(fake.workspace.leaves).toEqual([leaf]);
+  });
+});
+
+describe('editing the binder, through to the notes', () => {
+  /** Tap the "more" button of a row and give the menu that opens. */
+  function menuFor(pane: FakeElement, title: string): StubMenu {
+    const button = moreOf(pane, title);
+    if (!button) throw new Error(`the row "${title}" has no "more" button`);
+    tap(button);
+    return StubMenu.shown[StubMenu.shown.length - 1] as StubMenu;
+  }
+
+  const lines = (pane: FakeElement): string[] => picture(pane).map((line) => line.replace(' *', ''));
+
+  it('shows the novel with its toolbar', async () => {
+    const { pane } = await withBinder(threeScenes());
+    await until(() => picture(pane)[0] === 'v Manuscript 10', 'the words to be counted');
+    expect(toolbarLabels(pane)).toEqual(['New scene', 'New folder', 'More options']);
+    expect(picture(pane)).toEqual([
+      'v Manuscript 10',
+      '  Opening 5',
+      '  Middle 3',
+      '  Ending 2',
+      'v Unfiled',
+      '  Loose 4',
+      'v Research',
+      '  Trains',
+    ]);
+  });
+
+  it('creates a new scene below the selected one, with the agreed properties, and opens it for writing', async () => {
+    const { fake, pane } = await withBinder(threeScenes());
+    tap(rowOf(pane, 'Opening'));
+    await until(() => fake.workspace.opened.length === 1, 'the tapped scene to open');
+    fake.calls.length = 0;
+
+    tap(toolbarButton(pane, 'New scene'));
+    expect(lastWindow()).toBeInstanceOf(TextPromptModal);
+    answer('רכבת לילה');
+    await until(() => fake.workspace.opened.includes('Novel/Manuscript/רכבת לילה.md'), 'the new scene to open');
+
+    expect(lastWindow().isOpen).toBe(false);
+    expect(binderOf(fake)).toEqual([
+      'Manuscript/Opening.md',
+      'Manuscript/רכבת לילה.md',
+      'Manuscript/Middle.md',
+      'Manuscript/Ending.md',
+    ]);
+    const properties = propertiesOf(fake, 'Novel/Manuscript/רכבת לילה.md');
+    expect(properties).toEqual({
+      synopsis: '',
+      status: 'To do',
+      label: '',
+      compile: true,
+      order: 1536,
+      created: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) as unknown,
+    });
+    expect(Object.keys(properties)).toEqual(['synopsis', 'status', 'label', 'compile', 'order', 'created']);
+    expect(fake.textOf('Novel/Manuscript/רכבת לילה.md').endsWith('---\n')).toBe(true); // properties, and no text yet
+    // The index was changed through Obsidian's own doorway for properties, once; no other note was touched.
+    expect(fake.calls).toEqual(['processFrontMatter Novel/Novel.md']);
+    expect(fake.textOf('Novel/Novel.md').endsWith('---\nIndex text.')).toBe(true);
+    // Opened in the current tab, as the note being worked on.
+    expect(fake.workspace.openCalls[fake.workspace.openCalls.length - 1]).toEqual({
+      path: 'Novel/Manuscript/רכבת לילה.md',
+      where: false,
+      state: { active: true },
+    });
+    await until(() => picture(pane).includes('  רכבת לילה 0 *'), 'the new scene to be shown');
+    expect(selectedTitle(pane)).toBe('רכבת לילה');
+  });
+
+  it('turns down an empty name in the window, creating nothing', async () => {
+    const { fake, pane } = await withBinder(threeScenes());
+    const before = new Map(fake.vault.text);
+    tap(toolbarButton(pane, 'New scene'));
+    answer('  ');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(lastWindow().isOpen).toBe(true);
+    expect(lastWindow().contentEl.withClass('spellbook-prompt-message')[0]?.text).toBe('Give the scene a name.');
+    expect(new Map(fake.vault.text)).toEqual(before);
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('adds a folder to the index, which makes no folder in the vault', async () => {
+    const { fake, pane } = await withBinder(threeScenes());
+    const foldersBefore = fake.vault.getAllFolders().map((folder) => folder.path).sort();
+    tap(toolbarButton(pane, 'New folder'));
+    answer('חלק ראשון');
+    await until(() => picture(pane).includes('  v חלק ראשון 0'), 'the folder to be shown');
+    const binder = binderOf(fake) as unknown[];
+    expect(binder.slice(0, 3)).toEqual(['Manuscript/Opening.md', 'Manuscript/Middle.md', 'Manuscript/Ending.md']);
+    expect(binder[3]).toMatchObject({ folder: 'חלק ראשון', children: [] });
+    expect((binder[3] as { id: string }).id).toMatch(/^f-[a-z0-9]{6}$/);
+    expect(fake.vault.getAllFolders().map((folder) => folder.path).sort()).toEqual(foldersBefore);
+    expect(fake.calls).toEqual(['processFrontMatter Novel/Novel.md']);
+  });
+
+  it('renames a scene with Obsidian\'s own rename (which keeps links working), and the binder follows', async () => {
+    const { fake, pane } = await withBinder(threeScenes());
+    menuFor(pane, 'Middle').item('Rename').click();
+    expect((lastWindow().contentEl.withClass('spellbook-prompt-input')[0] as FakeElement).value).toBe('Middle');
+    answer('Crossing');
+    await until(() => lines(pane).includes('  Crossing 3'), 'the new name to be shown');
+
+    expect(fake.calls).toEqual([
+      'renameFile Novel/Manuscript/Middle.md -> Novel/Manuscript/Crossing.md',
+      'processFrontMatter Novel/Novel.md',
+    ]);
+    expect(binderOf(fake)).toEqual(['Manuscript/Opening.md', 'Manuscript/Crossing.md', 'Manuscript/Ending.md']);
+    expect(fake.textOf('Novel/Manuscript/Crossing.md').endsWith('---\nThe train left.\n')).toBe(true);
+    expect(fake.vault.getFileByPath('Novel/Manuscript/Middle.md')).toBeNull();
+    expect(selectedTitle(pane)).toBe('Crossing');
+  });
+
+  it('deletes a scene only after asking, and then through Obsidian\'s trash', async () => {
+    const { fake, pane } = await withBinder(threeScenes());
+    menuFor(pane, 'Ending').item('Delete scene').click();
+    const asked = lastWindow();
+    expect(asked).toBeInstanceOf(ConfirmModal);
+    expect(asked.titleEl.text).toBe('Delete "Ending"?');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fake.calls).toEqual([]); // nothing before the answer
+    expect(fake.trashed).toEqual([]);
+
+    (asked.contentEl.settings[0]?.components[1] as ButtonComponent).click();
+    await until(() => fake.trashed.length > 0, 'the note to go to the trash');
+    expect(fake.trashed).toEqual(['Novel/Manuscript/Ending.md']);
+    // The index first: a note is only trashed once the binder no longer lists it.
+    expect(fake.calls).toEqual(['processFrontMatter Novel/Novel.md', 'trashFile Novel/Manuscript/Ending.md']);
+    expect(binderOf(fake)).toEqual(['Manuscript/Opening.md', 'Manuscript/Middle.md']);
+    await until(() => !picture(pane).some((line) => line.includes('Ending')), 'the row to go');
+    expect(notices()).toEqual(['Moved "Ending" to the trash.']);
+    // The other notes are as they were.
+    expect(fake.textOf('Novel/Manuscript/Opening.md').endsWith('---\nIt was a dark night.\n')).toBe(true);
+    expect(fake.vault.getFileByPath('Novel/Manuscript/Loose.md')).not.toBeNull();
+  });
+
+  it('deletes nothing when the question is answered with Cancel', async () => {
+    const { fake, pane } = await withBinder(threeScenes());
+    const before = new Map(fake.vault.text);
+    menuFor(pane, 'Ending').item('Delete scene').click();
+    (lastWindow().contentEl.settings[0]?.components[0] as ButtonComponent).click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(new Map(fake.vault.text)).toEqual(before);
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('moves a scene down, writes its order key into that one note, and leaves every text alone', async () => {
+    const { fake, plugin, pane } = await withBinder(threeScenes());
+    menuFor(pane, 'Opening').item('Move down').click();
+    await until(() => lines(pane)[1] === '  Middle 3', 'the scene to move');
+    expect(binderOf(fake)).toEqual(['Manuscript/Middle.md', 'Manuscript/Opening.md', 'Manuscript/Ending.md']);
+    expect(selectedTitle(pane)).toBe('Opening');
+    expect(fake.calls).toEqual(['processFrontMatter Novel/Novel.md']); // the order key waits a moment
+
+    await storeOf(plugin).syncOrderKeysNow(); // as if that moment had passed
+    expect(fake.calls).toEqual(['processFrontMatter Novel/Novel.md', 'processFrontMatter Novel/Manuscript/Opening.md']);
+    expect(propertiesOf(fake, 'Novel/Manuscript/Opening.md')).toEqual({ status: 'To do', order: 2560 });
+    expect(fake.textOf('Novel/Manuscript/Opening.md').endsWith('---\nIt was a dark night.\n')).toBe(true);
+    expect(propertiesOf(fake, 'Novel/Manuscript/Middle.md')['order']).toBe(2048);
+    expect(propertiesOf(fake, 'Novel/Manuscript/Ending.md')['order']).toBe(3072);
+    // The plugin's own write does not set it off again.
+    await storeOf(plugin).syncOrderKeysNow();
+    expect(fake.calls).toHaveLength(2);
+  });
+
+  it('moves a scene into a folder picked from the list', async () => {
+    const { fake, pane } = await withBinder(threeScenes());
+    tap(toolbarButton(pane, 'New folder'));
+    answer('Part one');
+    await until(() => picture(pane).includes('  v Part one 0'), 'the folder to be shown');
+
+    menuFor(pane, 'Middle').item('Move to folder').click();
+    const list = lastWindow() as unknown as { shownFor(query?: string): FakeElement[]; pick(text: string): void };
+    expect(lastWindow()).toBeInstanceOf(FolderPickerModal);
+    expect(list.shownFor().map((row) => row.text)).toEqual(['Top level', 'Part one']);
+    list.pick('Part one');
+    await until(() => picture(pane).includes('    Middle 3'), 'the scene to move into the folder');
+    const binder = binderOf(fake) as unknown[];
+    expect(binder.slice(0, 2)).toEqual(['Manuscript/Opening.md', 'Manuscript/Ending.md']);
+    expect(binder[2]).toMatchObject({ folder: 'Part one', children: ['Manuscript/Middle.md'] });
+    // The note itself did not move: binder folders are not folders in the vault.
+    expect(fake.vault.getFileByPath('Novel/Manuscript/Middle.md')).not.toBeNull();
+    expect(fake.calls.every((call) => call === 'processFrontMatter Novel/Novel.md')).toBe(true);
+  });
+
+  it('files an unfiled note at the end of the manuscript', async () => {
+    const { fake, pane } = await withBinder(threeScenes());
+    menuFor(pane, 'Loose').item('Add to manuscript').click();
+    await until(() => !picture(pane).includes('v Unfiled'), 'the note to be filed');
+    expect(binderOf(fake)).toEqual(['Manuscript/Opening.md', 'Manuscript/Middle.md', 'Manuscript/Ending.md', 'Manuscript/Loose.md']);
+    expect(fake.textOf('Novel/Manuscript/Loose.md')).toBe('Not in the binder.'); // not a letter of it changed
+    expect(selectedTitle(pane)).toBe('Loose');
+  });
+
+  it('follows a rename made in Obsidian\'s file explorer, and brings the index up to date', async () => {
+    const { fake, pane } = await withBinder(threeScenes());
+    const file = fake.vault.getFileByPath('Novel/Manuscript/Middle.md');
+    if (!file) throw new Error('no such note');
+    await fake.fileManager.renameFile(file, 'Novel/Manuscript/Crossing.md'); // as the file explorer does
+    await until(() => picture(pane).includes('  Crossing 3'), 'the new name to be shown');
+    expect(picture(pane).some((line) => line.includes('Middle'))).toBe(false);
+    expect(picture(pane)).toContain('  Loose 4'); // and it did not turn up as an unfiled note
+    await until(() => JSON.stringify(binderOf(fake)).includes('Manuscript/Crossing.md'), 'the index to follow');
+    expect(binderOf(fake)).toEqual(['Manuscript/Opening.md', 'Manuscript/Crossing.md', 'Manuscript/Ending.md']);
+  });
+
+  it('follows a note deleted in the file explorer: its entry is kept and shown as missing', async () => {
+    const { fake, pane } = await withBinder(threeScenes());
+    const file = fake.vault.getFileByPath('Novel/Manuscript/Middle.md');
+    if (!file) throw new Error('no such note');
+    fake.calls.length = 0;
+    await fake.fileManager.trashFile(file);
+    await until(() => picture(pane).some((line) => line.startsWith('  ! Middle')), 'the entry to be shown as missing');
+    expect(binderOf(fake)).toEqual(['Manuscript/Opening.md', 'Manuscript/Middle.md', 'Manuscript/Ending.md']); // not "repaired"
+    expect(fake.calls).toEqual(['trashFile Novel/Manuscript/Middle.md']); // the plugin itself wrote nothing
+    expect(menuFor(pane, 'Middle').outline).toEqual(['Remove from binder']);
+  });
+
+  it('follows an index that another device changed', async () => {
+    const { fake, pane } = await withBinder(threeScenes());
+    const index = fake.vault.getFileByPath('Novel/Novel.md');
+    if (!index) throw new Error('no index note');
+    // The synced file lands on disk; Obsidian notices and indexes it again.
+    fake.vault.text.set(
+      'Novel/Novel.md',
+      note(
+        {
+          spellbook: 'project',
+          version: 1,
+          title: 'My Novel',
+          binder: ['Manuscript/Ending.md', { folder: 'From the phone', id: 'f-phone', children: ['Manuscript/Opening.md', 'Manuscript/Middle.md'] }],
+        },
+        'Index text.',
+      ),
+    );
+    fake.vault.trigger('modify', index);
+    fake.metadataCache.index(index);
+    await until(() => picture(pane)[1] === '  Ending 2', 'the binder to follow');
+    expect(picture(pane).slice(0, 5)).toEqual(['v Manuscript 10', '  Ending 2', '  v From the phone 8', '    Opening 5', '    Middle 3']);
+    expect(fake.calls).toEqual([]); // following writes nothing
+  });
+});
+
+describe('dragging in the binder, through to the notes', () => {
+  const lines = (pane: FakeElement): string[] => picture(pane).map((line) => line.replace(' *', ''));
+
+  it('moves a dragged scene with one change of the index, and touches no note', async () => {
+    const { fake, pane } = await withBinder(threeScenes());
+    layOut(pane);
+    const opening = rowOf(pane, 'Opening');
+    const y = inRow(rowOf(pane, 'Middle'), 0.75);
+    carry(opening, 60, y);
+    expect(fakeDocument.body.withClass('spellbook-drag-ghost')).toHaveLength(1);
+    expect(fake.calls).toEqual([]); // nothing changes while it is carried
+    letGo(opening, 60, y);
+    await until(() => lines(pane)[1] === '  Middle 3', 'the scene to move');
+
+    expect(binderOf(fake)).toEqual(['Manuscript/Middle.md', 'Manuscript/Opening.md', 'Manuscript/Ending.md']);
+    expect(fake.calls).toEqual(['processFrontMatter Novel/Novel.md']);
+    expect(selectedTitle(pane)).toBe('Opening');
+    expect(fake.textOf('Novel/Manuscript/Opening.md').endsWith('---\nIt was a dark night.\n')).toBe(true);
+    expect(fake.workspace.opened).toEqual([]); // dragging opens nothing
+    expect(fakeDocument.body.children).toEqual([]);
+  });
+
+  it('files an unfiled note where it is dropped', async () => {
+    const { fake, pane } = await withBinder(threeScenes());
+    layOut(pane);
+    const loose = rowOf(pane, 'Loose');
+    const y = inRow(rowOf(pane, 'Middle'), 0.25);
+    carry(loose, 60, y);
+    letGo(loose, 60, y);
+    await until(() => !picture(pane).includes('v Unfiled'), 'the note to be filed');
+    expect(binderOf(fake)).toEqual(['Manuscript/Opening.md', 'Manuscript/Loose.md', 'Manuscript/Middle.md', 'Manuscript/Ending.md']);
+    expect(fake.calls).toEqual(['processFrontMatter Novel/Novel.md']);
+    expect(fake.textOf('Novel/Manuscript/Loose.md')).toBe('Not in the binder.');
+  });
+
+  it('leaves nothing on the page when the plugin is switched off in the middle of a drag', async () => {
+    const { plugin, pane } = await withBinder(threeScenes());
+    layOut(pane);
+    carry(rowOf(pane, 'Opening'), 60, inRow(rowOf(pane, 'Ending'), 0.75));
+    expect(fakeDocument.body.children.length).toBeGreaterThan(0);
+    plugin.unload();
+    await until(() => pane.children.length === 0, 'the binder to be emptied');
+    expect(fakeDocument.body.children).toEqual([]);
+    expect(fakeDocument.listenerCount()).toBe(0);
+    expect(fakeWindow.listenerCount()).toBe(0);
+  });
+});
+
+describe('a conflicting copy of the index, through to the notes', () => {
+  function withCopy(): FakeObsidian {
+    const fake = threeScenes();
+    // What another device left behind: its own order, and the loose note filed.
+    fake.addNote(
+      'Novel/Novel 2.md',
+      note({ spellbook: 'project', version: 1, title: 'My Novel', binder: ['Manuscript/Ending.md', 'Manuscript/Loose.md', 'Manuscript/Opening.md'] }, 'Index text.'),
+    );
+    return fake;
+  }
+
+  const banner = (pane: FakeElement): FakeElement[] => pane.withClass('spellbook-conflict-banner');
+  const button = (pane: FakeElement, name: string): FakeElement =>
+    one(pane, 'spellbook-binder-alerts').all().filter((element) => element.tag === 'button' && element.text === name)[0] as FakeElement;
+
+  it('is shown as a notice, not as a second project', async () => {
+    const { plugin, pane } = await withBinder(withCopy());
+    expect(storeOf(plugin).listProjects().map((project) => project.indexPath)).toEqual(['Novel/Novel.md']);
+    expect(storeOf(plugin).project?.indexPath).toBe('Novel/Novel.md');
+    expect(banner(pane)).toHaveLength(1);
+    expect(one(banner(pane)[0] as FakeElement, 'spellbook-binder-banner-title').text).toBe(
+      "A conflicting copy of this project's structure was found.",
+    );
+    expect(heading(pane).fullText).toBe('My Novel');
+  });
+
+  it('is merged into the index and moved to Obsidian\'s trash, never deleted', async () => {
+    const { fake, pane } = await withBinder(withCopy());
+    tap(button(pane, 'Merge'));
+    await until(() => fake.trashed.length > 0, 'the copy to be trashed');
+    await until(() => banner(pane).length === 0, 'the notice to go');
+
+    expect(binderOf(fake)).toEqual(['Manuscript/Opening.md', 'Manuscript/Middle.md', 'Manuscript/Ending.md', 'Manuscript/Loose.md']);
+    expect(fake.calls).toEqual(['processFrontMatter Novel/Novel.md', 'trashFile Novel/Novel 2.md']);
+    expect(fake.trashed).toEqual(['Novel/Novel 2.md']);
+    expect(fake.textOf('Novel/Novel.md').endsWith('---\nIndex text.')).toBe(true); // the index note's own text is as it was
+    expect(notices()).toEqual([
+      'Merged the copy "Novel 2": 1 scene was added at the end of the manuscript. The copy was moved to the trash.',
+    ]);
+  });
+
+  it('is left alone when the notice is dismissed', async () => {
+    const { fake, pane } = await withBinder(withCopy());
+    tap(button(pane, 'Dismiss'));
+    expect(banner(pane)).toEqual([]);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(fake.calls).toEqual([]);
+    expect(fake.vault.getFileByPath('Novel/Novel 2.md')).not.toBeNull();
+  });
+});
+
+describe('the commands for working without a mouse', () => {
+  const EDITING = ['new-scene', 'new-folder', 'move-scene-up', 'move-scene-down', 'reveal-active-scene'];
+
+  const offered = (loaded: Loaded, id: string): boolean => loaded.command(id).checkCallback?.(true) === true;
+  const offeredOf = (loaded: Loaded): string[] => EDITING.filter((id) => offered(loaded, id));
+  const run = (loaded: Loaded, id: string): void => {
+    loaded.command(id).checkCallback?.(false);
+  };
+
+  /** The plugin on the three-scene novel, with its project open. */
+  async function ready(fake: FakeObsidian = threeScenes()): Promise<Loaded> {
+    const loaded = loadReady(fake);
+    await until(() => storeOf(loaded.plugin).project !== null, 'the project to open');
+    return loaded;
+  }
+
+  it('are commands that the palette asks before offering them', () => {
+    const loaded = load();
+    for (const id of EDITING) {
+      expect(typeof loaded.command(id).checkCallback, id).toBe('function');
+      expect(loaded.command(id).callback, id).toBeUndefined();
+    }
+  });
+
+  it('are hidden while Obsidian is starting, and in a vault without a project', async () => {
+    const starting = load(threeScenes());
+    expect(offeredOf(starting)).toEqual([]);
+
+    const fake = new FakeObsidian();
+    fake.addNote('Notes/Plain.md', 'No properties here.');
+    const empty = loadReady(fake);
+    workOn(fake, 'Notes/Plain.md');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(storeOf(empty.plugin).project).toBeNull();
+    expect(offeredOf(empty)).toEqual([]);
+
+    // And once the plugin has been switched off.
+    const off = await ready();
+    workOn(off.fake, 'Novel/Manuscript/Middle.md');
+    expect(offeredOf(off)).toEqual(EDITING);
+    off.plugin.unload();
+    expect(offeredOf(off)).toEqual([]);
+  });
+
+  it('offer New scene and New folder whenever a project is open, and the scene commands only for a scene of it', async () => {
+    const loaded = await ready();
+    const { fake } = loaded;
+    expect(offeredOf(loaded)).toEqual(['new-scene', 'new-folder']); // no note is being worked on
+
+    workOn(fake, 'Novel/Manuscript/Middle.md');
+    expect(offeredOf(loaded)).toEqual(EDITING);
+
+    workOn(fake, 'Notes/Plain.md'); // a note outside the project
+    expect(offeredOf(loaded)).toEqual(['new-scene', 'new-folder']);
+    workOn(fake, 'Novel/To-do.md'); // a note of the project that is not a scene
+    expect(offeredOf(loaded)).toEqual(['new-scene', 'new-folder']);
+    workOn(fake, 'Novel/Novel.md'); // the index note itself
+    expect(offeredOf(loaded)).toEqual(['new-scene', 'new-folder']);
+
+    // Notes that have a row but no place in the binder can be revealed, not moved.
+    workOn(fake, 'Novel/Manuscript/Loose.md');
+    expect(offeredOf(loaded)).toEqual(['new-scene', 'new-folder', 'reveal-active-scene']);
+    workOn(fake, 'Novel/Research/Trains.md');
+    expect(offeredOf(loaded)).toEqual(['new-scene', 'new-folder', 'reveal-active-scene']);
+
+    workOn(fake, null);
+    expect(offeredOf(loaded)).toEqual(['new-scene', 'new-folder']);
+  });
+
+  it('offer nothing that would change a read-only project', async () => {
+    const fake = new FakeObsidian();
+    fake.addNote('Novel/Novel.md', note({ spellbook: 'project', version: 1, binder: { not: 'a list' } }));
+    fake.addNote('Novel/Manuscript/Opening.md', 'Text.');
+    const loaded = await ready(fake);
+    expect(storeOf(loaded.plugin).project?.readOnly).toBe(true);
+    workOn(fake, 'Novel/Manuscript/Opening.md');
+    expect(offeredOf(loaded)).toEqual(['reveal-active-scene']); // looking is still allowed
+  });
+
+  it('change nothing and open nothing when the palette only asks', async () => {
+    const loaded = await ready();
+    const before = new Map(loaded.fake.vault.text);
+    workOn(loaded.fake, 'Novel/Manuscript/Middle.md');
+    for (let turn = 0; turn < 3; turn++) offeredOf(loaded);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(new Map(loaded.fake.vault.text)).toEqual(before);
+    expect(loaded.fake.calls).toEqual([]);
+    expect(StubModal.opened).toEqual([]);
+    expect(binders(loaded.fake)).toEqual([]);
+    expect(notices()).toEqual([]);
+  });
+
+  it('"New scene" asks for a name, and puts the scene below the scene being worked on', async () => {
+    const loaded = await ready();
+    const { fake } = loaded;
+    workOn(fake, 'Novel/Manuscript/Opening.md');
+    run(loaded, 'new-scene');
+    expect(lastWindow()).toBeInstanceOf(TextPromptModal);
+    expect(lastWindow().titleEl.text).toBe('New scene');
+    answer('Between');
+    await until(() => fake.workspace.opened.includes('Novel/Manuscript/Between.md'), 'the new scene to open');
+    expect(binderOf(fake)).toEqual(['Manuscript/Opening.md', 'Manuscript/Between.md', 'Manuscript/Middle.md', 'Manuscript/Ending.md']);
+    expect(propertiesOf(fake, 'Novel/Manuscript/Between.md')).toMatchObject({ status: 'To do', compile: true, order: 1536 });
+    expect(binders(fake)).toEqual([]); // the binder does not have to be open for this
+  });
+
+  it('"New scene" puts the scene at the end when no scene is being worked on', async () => {
+    const loaded = await ready();
+    const { fake } = loaded;
+    workOn(fake, 'Notes/Plain.md');
+    run(loaded, 'new-scene');
+    answer('Epilogue');
+    await until(() => fake.workspace.opened.includes('Novel/Manuscript/Epilogue.md'), 'the new scene to open');
+    expect(binderOf(fake)).toEqual(['Manuscript/Opening.md', 'Manuscript/Middle.md', 'Manuscript/Ending.md', 'Manuscript/Epilogue.md']);
+    expect(propertiesOf(fake, 'Novel/Manuscript/Epilogue.md')['order']).toBe(4096);
+  });
+
+  it('"New folder" asks for a name, and puts the folder below the scene being worked on', async () => {
+    const loaded = await ready();
+    const { fake } = loaded;
+    workOn(fake, 'Novel/Manuscript/Opening.md');
+    run(loaded, 'new-folder');
+    expect(lastWindow().titleEl.text).toBe('New folder');
+    answer('Part two');
+    await until(() => (binderOf(fake) as unknown[]).length === 4, 'the folder to be added');
+    const binder = binderOf(fake) as unknown[];
+    expect(binder[0]).toBe('Manuscript/Opening.md');
+    expect(binder[1]).toMatchObject({ folder: 'Part two', children: [] });
+    expect(binder.slice(2)).toEqual(['Manuscript/Middle.md', 'Manuscript/Ending.md']);
+  });
+
+  it('"Move scene down" and "Move scene up" move the scene being worked on', async () => {
+    const loaded = await ready();
+    const { fake, plugin } = loaded;
+    workOn(fake, 'Novel/Manuscript/Opening.md');
+    run(loaded, 'move-scene-down');
+    await until(() => (binderOf(fake) as string[])[0] === 'Manuscript/Middle.md', 'the scene to move down');
+    expect(binderOf(fake)).toEqual(['Manuscript/Middle.md', 'Manuscript/Opening.md', 'Manuscript/Ending.md']);
+    run(loaded, 'move-scene-down');
+    await until(() => (binderOf(fake) as string[])[2] === 'Manuscript/Opening.md', 'the scene to move down again');
+    run(loaded, 'move-scene-up');
+    await until(() => (binderOf(fake) as string[])[1] === 'Manuscript/Opening.md', 'the scene to move up');
+    expect(binderOf(fake)).toEqual(['Manuscript/Middle.md', 'Manuscript/Opening.md', 'Manuscript/Ending.md']);
+    expect(notices()).toEqual([]);
+
+    // Its order key ends up between its new neighbours; nothing else is written.
+    await storeOf(plugin).syncOrderKeysNow();
+    expect(propertiesOf(fake, 'Novel/Manuscript/Opening.md')['order']).toBe(2560);
+    expect(fake.calls.filter((call) => !call.endsWith('Novel/Novel.md'))).toEqual(['processFrontMatter Novel/Manuscript/Opening.md']);
+    expect(fake.workspace.opened).toEqual([]); // the writer stays where they were
+  });
+
+  it('"Move scene up" says so when the scene is already the first', async () => {
+    const loaded = await ready();
+    workOn(loaded.fake, 'Novel/Manuscript/Opening.md');
+    run(loaded, 'move-scene-up');
+    await until(() => notices().length > 0, 'the notice');
+    expect(notices()).toEqual(['It is already at the top.']);
+    expect(loaded.fake.saves).toEqual([]); // the index was looked at, and left as it was
+  });
+
+  it('"Reveal active scene in binder" opens the binder with the scene\'s row selected', async () => {
+    const loaded = await ready();
+    const { fake } = loaded;
+    workOn(fake, 'Novel/Manuscript/Middle.md');
+    expect(binders(fake)).toEqual([]);
+    run(loaded, 'reveal-active-scene');
+    await until(() => binders(fake)[0]?.view != null && selectedTitle(paneOf(binders(fake)[0])) === 'Middle', 'the row to be selected');
+    expect(binders(fake)).toHaveLength(1);
+    expect(fake.workspace.leftSplit.collapsed).toBe(false); // the sidebar was opened to show it
+    expect(picture(paneOf(binders(fake)[0]))).toContain('  Middle 3 *');
+    expect(fake.calls).toEqual([]); // revealing writes nothing
+  });
+
+  it('"Reveal active scene in binder" unfolds what the scene is folded into', async () => {
+    const fake = threeScenes();
+    fake.vault.text.set(
+      'Novel/Novel.md',
+      note({
+        spellbook: 'project',
+        version: 1,
+        title: 'My Novel',
+        binder: ['Manuscript/Opening.md', { folder: 'Part one', id: 'f-one', children: ['Manuscript/Middle.md'] }, 'Manuscript/Ending.md'],
+      }),
+    );
+    const loaded = await withBinder(fake);
+    tap(rowOf(loaded.pane, 'Part one'));
+    tap(rowOf(loaded.pane, 'Manuscript'));
+    expect(picture(loaded.pane)[0]).toMatch(/^> Manuscript/);
+
+    workOn(fake, 'Novel/Manuscript/Middle.md');
+    run(loaded, 'reveal-active-scene');
+    await until(() => picture(loaded.pane)[0] === 'v Manuscript 10', 'the section to be unfolded');
+    expect(picture(loaded.pane).slice(0, 4)).toEqual(['v Manuscript 10', '  Opening 5', '  v Part one 3', '    Middle 3 *']);
+    expect(selectedTitle(loaded.pane)).toBe('Middle');
+  });
+
+  it('"Reveal active scene in binder" opens the scene\'s own project when it belongs to another one', async () => {
+    const fake = threeScenes();
+    fake.addNote('Second/Second.md', note({ spellbook: 'project', version: 1, title: 'Second Book', binder: ['Manuscript/Elsewhere.md'] }));
+    fake.addNote('Second/Manuscript/Elsewhere.md', note({ order: 1024 }, 'Far away.'));
+    fake.addNote('Second/To-do.md', '');
+    const loaded = await ready(fake);
+    expect(storeOf(loaded.plugin).project?.title).toBe('My Novel');
+
+    workOn(fake, 'Second/To-do.md');
+    expect(offered(loaded, 'reveal-active-scene')).toBe(false); // not a note the binder shows
+    workOn(fake, 'Second/Manuscript/Elsewhere.md');
+    expect(offered(loaded, 'reveal-active-scene')).toBe(true);
+    expect(offered(loaded, 'move-scene-up')).toBe(false); // moving works in the open project only
+
+    run(loaded, 'reveal-active-scene');
+    await until(() => binders(fake)[0]?.view != null && selectedTitle(paneOf(binders(fake)[0])) === 'Elsewhere', 'the row to be selected');
+    expect(storeOf(loaded.plugin).project?.title).toBe('Second Book');
+    expect(heading(paneOf(binders(fake)[0])).fullText).toBe('Second Book');
+    expect(fake.loadLocalStorage(ACTIVE_PROJECT_KEY)).toBe('Second/Second.md'); // it is the project this device works on now
+    expect(fake.calls).toEqual([]);
   });
 });
 

@@ -59,6 +59,32 @@ describe('what is folded shut', () => {
     expect(prefs.isCollapsed('Novel/Novel.md', 'folder:f-1')).toBe(false);
   });
 
+  it('goes along with a project whose index note is at another path now', () => {
+    const storage = new MemoryDeviceStorage();
+    const prefs = new DevicePrefs(storage);
+    prefs.setCollapsed('Novel/Novel.md', 'folder:f-1', true);
+    prefs.setCollapsed('Novel/Novel.md', 'section:research', true);
+    prefs.setCollapsed('Other/Other.md', 'folder:f-2', true);
+    storage.saves.length = 0;
+
+    prefs.moveCollapsed('Novel/Novel.md', 'My Novel/Novel.md');
+    expect(prefs.isCollapsed('My Novel/Novel.md', 'folder:f-1')).toBe(true);
+    expect(prefs.isCollapsed('My Novel/Novel.md', 'section:research')).toBe(true);
+    expect(prefs.isCollapsed('Novel/Novel.md', 'folder:f-1')).toBe(false); // nothing is left under the old path
+    expect(foldedIn(storage)).toEqual({
+      'Other/Other.md': ['folder:f-2'],
+      'My Novel/Novel.md': ['folder:f-1', 'section:research'],
+    });
+    expect(storage.saves).toHaveLength(1);
+    // It is there after a restart as well.
+    expect(new DevicePrefs(storage).isCollapsed('My Novel/Novel.md', 'folder:f-1')).toBe(true);
+
+    // Nothing to move, or nowhere to move it: nothing is saved.
+    prefs.moveCollapsed('Nowhere/Nowhere.md', 'Somewhere/Somewhere.md');
+    prefs.moveCollapsed('Other/Other.md', 'Other/Other.md');
+    expect(storage.saves).toHaveLength(1);
+  });
+
   it('is remembered per project and per item, also after a restart', () => {
     const storage = new MemoryDeviceStorage();
     const prefs = new DevicePrefs(storage);

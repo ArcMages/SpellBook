@@ -257,6 +257,27 @@ export function moveNode(binder: Binder, ref: NodeRef, placement: Placement): Mo
   return { ok: true, binder: inserted.binder };
 }
 
+/** One step towards the top of the binder, or towards its end. */
+export type StepDirection = 'up' | 'down';
+
+/**
+ * Where a node goes when it is moved one step ("Move up", "Move down"): past
+ * the sibling next to it or, at the edge of its folder, out to the level
+ * above, straight before the folder (going up) or straight after it (going
+ * down). Null when the node is not in the tree, or when it is already the
+ * first (or the last) thing at the top level.
+ */
+export function stepPlacement(binder: Binder, ref: NodeRef, direction: StepDirection): Placement | null {
+  const found = locate(binder, ref);
+  if (!found) return null;
+  const siblings = childrenOf(binder, found.parentId) ?? [];
+  const neighbour = siblings[direction === 'up' ? found.index - 1 : found.index + 1];
+  const at = direction === 'up' ? 'before' : 'after';
+  if (neighbour) return { at, sibling: refOf(neighbour) };
+  if (found.parentId === null) return null;
+  return { at, sibling: folderRef(found.parentId) };
+}
+
 /** Give a folder a new display name. Null when the folder is not there. */
 export function renameFolder(binder: Binder, id: string, name: string): Binder | null {
   const found = locate(binder, folderRef(id));
