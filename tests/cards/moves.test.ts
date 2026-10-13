@@ -250,12 +250,25 @@ describe('dropAt', () => {
     const board = boardOf(binder);
     expect(dropAt(board, ref('A'), 99)?.placement).toEqual({ at: 'end', parentId: null });
     expect(dropAt(board, ref('A'), Number.POSITIVE_INFINITY)?.placement).toEqual({ at: 'end', parentId: null });
-    expect(dropAt(board, ref('A'), Number.NaN)?.placement).toEqual({ at: 'end', parentId: null });
     expect(dropAt(board, ref('D'), -3)?.placement).toEqual({ at: 'start', parentId: null });
+    expect(dropAt(board, ref('D'), Number.NEGATIVE_INFINITY)?.placement).toEqual({ at: 'start', parentId: null });
     expect(dropAt(board, ref('D'), 99)).toBeNull(); // the last card is already at the end
+    expect(dropAt(board, ref('D'), Number.POSITIVE_INFINITY)).toBeNull();
     expect(dropAt(board, ref('A'), -3)).toBeNull();
+    expect(dropAt(board, ref('A'), Number.NEGATIVE_INFINITY)).toBeNull();
     // A gap that is not a whole number counts as the gap below it.
     expect(dropAt(board, ref('D'), 2.9)?.placement).toEqual({ at: 'after', sibling: { kind: 'folder', id: 'f-Part one' } });
+  });
+
+  it('moves nothing when the gap is not a number: a drop that landed nowhere is not a drop at the end', () => {
+    for (const scope of [undefined, PART_ONE_SCOPE]) {
+      const board = boardOf(binder, scope);
+      for (const card of board.cards) {
+        for (const gap of [Number.NaN, undefined, null, '2', '', {}]) {
+          expect(dropAt(board, card, gap as never), `${cardRef(card).kind} into ${String(gap)}`).toBeNull();
+        }
+      }
+    }
   });
 
   it('has nothing to do for a card that is not on the board', () => {

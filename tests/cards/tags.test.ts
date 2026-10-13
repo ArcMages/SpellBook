@@ -642,6 +642,23 @@ describe('moveTag', () => {
     expect(names(accepted(moveTag(statuses(), 'To do', 99)).list)).toEqual(['First draft', HEBREW.final, 'To do']);
     expect(names(accepted(moveTag(statuses(), 'To do', Number.POSITIVE_INFINITY)).list)).toEqual(['First draft', HEBREW.final, 'To do']);
     expect(names(accepted(moveTag(statuses(), HEBREW.final, -4)).list)).toEqual([HEBREW.final, 'To do', 'First draft']);
+    expect(names(accepted(moveTag(statuses(), HEBREW.final, Number.NEGATIVE_INFINITY)).list)).toEqual([HEBREW.final, 'To do', 'First draft']);
+    expect(refusal(moveTag(statuses(), 'To do', Number.NEGATIVE_INFINITY))).toBe('unchanged');
+  });
+
+  it('refuses a place that is not a number, with nothing to store: it is not a move to the end', () => {
+    for (const name of ['To do', 'First draft', HEBREW.final]) {
+      for (const place of [Number.NaN, undefined, null, '0', '', {}]) {
+        const result = moveTag(statuses(), name, place as never);
+        expect(refusal(result), `${name} to ${String(place)}`).toBe('invalid-position');
+        expect(result).not.toHaveProperty('value');
+        expect(result).not.toHaveProperty('list');
+      }
+    }
+    const result = moveTag(labels(), HEBREW.daniel, Number.NaN);
+    expect(result).toEqual({ ok: false, reason: 'invalid-position', message: 'That is not a place the label can be moved to.' });
+    // A name the list does not have is still the first thing wrong.
+    expect(refusal(moveTag(statuses(), 'Abandoned', Number.NaN))).toBe('not-found');
   });
 
   it('refuses a move to where it already is, and a status that is not there', () => {

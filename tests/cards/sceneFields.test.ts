@@ -215,10 +215,18 @@ describe('parseTargetText', () => {
     expect(parseTargetText('000')).toBeNull();
   });
 
-  it('rejects everything else', () => {
-    for (const bad of ['abc', '15oo', '1.5', '1,5', ',500', '1,2345', '-3', '+3', '1 500', '1e3', '0x10', HEBREW.anna, String(MAX_TARGET + 1), '99999999999999999999']) {
+  it('rejects everything that is not a whole number, misplaced commas included', () => {
+    for (const bad of ['abc', '15oo', '1.5', '1,5', '15,00', ',500', '1,2345', '1500,', '-3', '+3', '1 500', '1e3', '0x10', HEBREW.anna]) {
       expect(parseTargetText(bad), bad).toBe('invalid');
     }
+  });
+
+  it('tells a whole number above the largest target apart from text that is no number', () => {
+    for (const big of [String(MAX_TARGET + 1), '10,000,001', '99999999999999999999', '9'.repeat(400)]) {
+      expect(parseTargetText(big), big).toBe('too-large');
+    }
+    // Too many digits, but not a number as written: the commas decide.
+    expect(parseTargetText('99999,999,999')).toBe('invalid');
   });
 });
 

@@ -289,10 +289,52 @@ describe('inspectorPatch: status and label', () => {
     expect(patchOf(inspectorPatch(scene(), { label: HEBREW.anna })).set).toEqual({ label: HEBREW.anna });
   });
 
-  it('does not count a difference in capitals alone as a change', () => {
+  it('stores a name retyped with other capitals, as typed', () => {
+    // None of these is in a list, so the inspector shows the scene's own spelling and the writer can correct it.
+    expect(inspectorPatch({ label: 'anna' }, { label: 'Anna' })).toEqual({ ok: true, patch: { set: { label: 'Anna' }, remove: [] }, changed: ['label'] });
+    expect(inspectorPatch({ status: 'first draft' }, { status: 'First Draft' })).toEqual({
+      ok: true,
+      patch: { set: { status: 'First Draft' }, remove: [] },
+      changed: ['status'],
+    });
+    expect(patchOf(inspectorPatch({ status: 'first draft' }, { status: 'FIRST DRAFT' })).set).toEqual({ status: 'FIRST DRAFT' });
+    expect(patchOf(inspectorPatch({ status: 'abandoned' }, { status: ' Abandoned ' }, lists)).set).toEqual({ status: 'Abandoned' });
+    expect(patchOf(inspectorPatch({ label: 'ben' }, { label: 'Ben' }, lists)).set).toEqual({ label: 'Ben' });
+    // A name in Hebrew and English: only the capital changes, the Hebrew is passed through.
+    expect(patchOf(inspectorPatch({ label: `${HEBREW.anna} (anna)` }, { label: `${HEBREW.anna} (Anna)` }, lists)).set).toEqual({
+      label: `${HEBREW.anna} (Anna)`,
+    });
+  });
+
+  it('shows the corrected capitals afterwards, and then has nothing more to change', () => {
+    for (const withLists of [lists, undefined]) {
+      const frontmatter: Frontmatter = { status: 'abandoned', label: `${HEBREW.anna} (anna)`, order: 2 };
+      const edits: InspectorEdits = { status: 'Abandoned', label: `${HEBREW.anna} (Anna)` };
+      const result = inspectorPatch(frontmatter, edits, withLists);
+      expect(result.ok && result.changed).toEqual(['status', 'label']);
+      expect(applyFrontmatterPatch(frontmatter, patchOf(result))).toBe(true);
+      expect(frontmatter).toEqual({ status: 'Abandoned', label: `${HEBREW.anna} (Anna)`, order: 2 });
+      const shown = buildInspector({ path: 'a.md', frontmatter }, lists);
+      expect(shown.status).toBe('Abandoned');
+      expect(shown.label).toBe(`${HEBREW.anna} (Anna)`);
+      expect(inspectorPatch(frontmatter, edits, withLists)).toEqual({ ok: true, patch: NOTHING, changed: [] });
+    }
+  });
+
+  it('changes nothing when the name the inspector shows is handed back, whatever capitals the scene stores', () => {
+    // The list spells them "First draft" and "Anna"; the inspector shows them so.
     expect(patchOf(inspectorPatch({ status: 'first draft' }, { status: 'First draft' }, lists))).toEqual(NOTHING);
-    expect(patchOf(inspectorPatch({ status: 'first draft' }, { status: 'FIRST DRAFT' }))).toEqual(NOTHING);
+    expect(patchOf(inspectorPatch({ status: 'FIRST  DRAFT', label: ' anna ' }, { status: 'First draft', label: 'Anna' }, lists))).toEqual(NOTHING);
     expect(patchOf(inspectorPatch({ label: ` ${HEBREW.daniel} ` }, { label: HEBREW.daniel }, lists))).toEqual(NOTHING);
+    // Not in a list: shown as the scene spells it, with tidy spacing.
+    expect(patchOf(inspectorPatch({ status: '  second   draft ' }, { status: 'second draft' }, lists))).toEqual(NOTHING);
+    expect(patchOf(inspectorPatch({ label: ` ${HEBREW.anna} ` }, { label: HEBREW.anna }))).toEqual(NOTHING);
+  });
+
+  it('changes nothing when a listed name the scene already has is typed in other capitals: the list decides the spelling', () => {
+    expect(patchOf(inspectorPatch({ status: 'first draft' }, { status: 'FIRST DRAFT' }, lists))).toEqual(NOTHING);
+    expect(patchOf(inspectorPatch({ label: 'Anna' }, { label: 'anna' }, lists))).toEqual(NOTHING);
+    expect(buildInspector({ path: 'a.md', frontmatter: { status: 'first draft' } }, lists).status).toBe('First draft');
   });
 
   it('stores a cleared status or label as empty text', () => {
@@ -370,6 +412,14 @@ describe('inspectorPatch: target', () => {
       const result = inspectorPatch(scene(), { target: tooBig });
       expect(refusedFields(result), String(tooBig)).toEqual(['target']);
       if (!result.ok) expect(result.errors[0]?.message).toBe('A target can be at most 10,000,000 words.');
+    }
+  });
+
+  it('does not call a small number too large because its commas are in the wrong places', () => {
+    for (const misplaced of ['15,00', '1,50', ',500', '1,2345', '1500,', '1,,500', '1,500,00', '12,34,567']) {
+      const result = inspectorPatch(scene(), { target: misplaced });
+      expect(refusedFields(result), misplaced).toEqual(['target']);
+      if (!result.ok) expect(result.errors[0]?.message, misplaced).toBe('A target is a whole number of words.');
     }
   });
 });
@@ -455,5 +505,18 @@ describe('parseTargetInput', () => {
     expect(parseTargetInput(-1)).toEqual({ ok: false, message: 'A target is a whole number of words.' });
     expect(parseTargetInput(MAX_TARGET + 1)).toEqual({ ok: false, message: 'A target can be at most 10,000,000 words.' });
     expect(parseTargetInput('10,000,001')).toEqual({ ok: false, message: 'A target can be at most 10,000,000 words.' });
+  });
+
+  it('names the limit only for a whole number that really is above it', () => {
+    const notWhole = { ok: false, message: 'A target is a whole number of words.' };
+    const tooLarge = { ok: false, message: 'A target can be at most 10,000,000 words.' };
+    // Commas in the wrong places: not a number as written, however small it would be without them.
+    for (const misplaced of ['15,00', '1,50', ',500', '1,2345', '1500,', '1,,500', ' 1,500,00 ', '99999,999,999']) {
+      expect(parseTargetInput(misplaced), misplaced).toEqual(notWhole);
+    }
+    for (const big of ['10000001', ' 10,000,001 ', '99,999,999,999', '9'.repeat(400)]) {
+      expect(parseTargetInput(big), big).toEqual(tooLarge);
+    }
+    expect(parseTargetInput('10,000,000')).toEqual({ ok: true, target: MAX_TARGET });
   });
 });

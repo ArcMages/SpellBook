@@ -228,7 +228,9 @@ export type TagRefusal =
   /** It already is that way. */
   | 'unchanged'
   /** The colour is not one of the eight names. */
-  | 'invalid-color';
+  | 'invalid-color'
+  /** The place to move it to is not a number. */
+  | 'invalid-position';
 
 /** What a change to a list comes to. Nothing is written here: the caller stores `value`. */
 export type TagEditResult =
@@ -400,18 +402,24 @@ export function recolourTag(list: TagList, name: string, color: CardColor | null
 }
 
 /**
- * Move a status or a label to another place in the list.
+ * Move a status or a label to another place in the list. Refused when the
+ * place is not a number at all (NaN), or is where it already is.
  *
  * @param toIndex where it should end up among `list.tags`, counting from 0;
- *                anything past the end means last
+ *                anything past the end means last, anything before the start
+ *                means first
  */
 export function moveTag(list: TagList, name: string, toIndex: number): TagEditResult {
   if (list.unreadable) return unreadable(list);
   const tag = findTag(list, name);
   const from = tag === null ? -1 : list.tags.indexOf(tag);
   if (from < 0) return notFound(list, name);
+  // Not a place in the list: guessing one would reorder the list unasked.
+  if (typeof toIndex !== 'number' || Number.isNaN(toIndex)) {
+    return refuse('invalid-position', `That is not a place the ${WORD[list.kind]} can be moved to.`);
+  }
   const last = list.tags.length - 1;
-  const to = Number.isFinite(toIndex) ? Math.max(0, Math.min(last, Math.trunc(toIndex))) : last;
+  const to = Math.max(0, Math.min(last, Math.trunc(toIndex)));
   if (to === from) return refuse('unchanged', `The ${WORD[list.kind]} is already there.`);
 
   // Entries that are not shown travel with the shown one in front of them,

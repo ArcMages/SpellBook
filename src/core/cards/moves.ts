@@ -59,9 +59,13 @@ export function moveLater(board: Board, card: NodeRef): CardMove | null {
  *
  * Gaps are counted on the board as it is shown, with the moving card still in
  * its place: gap 0 is in front of the first card, gap 1 between the first and
- * the second, and gap `board.cards.length` after the last. Null when the card
- * is not on the board, or the gap is one of the two beside the card itself
- * (dropping it there changes nothing).
+ * the second, and gap `board.cards.length` after the last. A gap past the end
+ * counts as the last one, and a gap before the start as the first.
+ *
+ * Null when there is nothing to move: the card is not on the board, the gap
+ * is one of the two beside the card itself (dropping it there changes
+ * nothing), or the gap is not a number at all (NaN, as a drop that landed on
+ * no gap may produce).
  *
  * @param card the card itself, or a reference to its binder node
  */
@@ -69,8 +73,10 @@ export function dropAt(board: Board, card: NodeRef, gap: number): CardMove | nul
   const from = cardIndex(board, card);
   const moving = board.cards[from];
   if (from < 0 || !moving) return null;
+  // Not a place on the board: guessing one would reorder the binder unasked.
+  if (typeof gap !== 'number' || Number.isNaN(gap)) return null;
   const count = board.cards.length;
-  const at = Number.isFinite(gap) ? Math.max(0, Math.min(count, Math.trunc(gap))) : count;
+  const at = Math.max(0, Math.min(count, Math.trunc(gap)));
   if (at === from || at === from + 1) return null;
 
   const ref = cardRef(moving);

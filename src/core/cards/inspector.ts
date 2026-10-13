@@ -11,7 +11,7 @@ import type { CardLists } from './card';
 import type { CardColor } from './colors';
 import type { FrontmatterPatch } from './patch';
 import { MAX_TARGET, formatDisplayDate, parseTargetText, readSceneFields } from './sceneFields';
-import { findTag, sameTagName } from './tags';
+import { findTag } from './tags';
 import type { TagList } from './tags';
 
 /** The fields of the inspector that can be edited. */
@@ -59,13 +59,23 @@ export interface InspectorModel {
   readonly problems: readonly string[];
 }
 
+/**
+ * The name the inspector shows for a scene's status or label: the way the
+ * project's list spells it when the list has it, otherwise the scene's own
+ * spelling. Null when the scene has none.
+ */
+function shownName(list: TagList | undefined, current: string | null): string | null {
+  const listed = list && current !== null ? findTag(list, current) : null;
+  return listed ? listed.name : current;
+}
+
 function options(list: TagList, current: string | null): { name: string | null; options: TagOption[] } {
   const chosen = current === null ? null : findTag(list, current);
   const out = list.tags.map(
     (tag): TagOption => ({ name: tag.name, color: tag.color, listed: true, selected: tag === chosen }),
   );
   if (current !== null && chosen === null) out.push({ name: current, color: null, listed: false, selected: true });
-  return { name: chosen ? chosen.name : current, options: out };
+  return { name: shownName(list, current), options: out };
 }
 
 /**
@@ -140,7 +150,9 @@ export type InspectorResult =
 
 /**
  * Read a target typed into the inspector: digits, with or without commas
- * ("1500", "1,500"). An empty box or a zero means no target.
+ * ("1500", "1,500"). An empty box or a zero means no target. Anything else
+ * is refused with a message: that a target is a whole number, or, for a
+ * whole number above the largest allowed, what the limit is.
  */
 export function parseTargetInput(
   input: number | string | null | undefined,
@@ -157,9 +169,9 @@ export function parseTargetInput(
   }
   if (typeof input !== 'string') return problem('A target is a whole number of words.');
   const parsed = parseTargetText(input);
-  if (parsed !== 'invalid') return { ok: true, target: parsed };
-  const digits = input.trim().split(',').join('');
-  return problem(/^\d+$/.test(digits) ? limit : 'A target is a whole number of words.');
+  if (parsed === 'too-large') return problem(limit);
+  if (parsed === 'invalid') return problem('A target is a whole number of words.');
+  return { ok: true, target: parsed };
 }
 
 function editedName(
@@ -183,20 +195,28 @@ function editedName(
  * scene's properties.
  *
  * Only keys that really change are in the patch: a field set to what the
- * scene already says is left out, and so is a status or label that differs
- * from the stored one only in capitals. Clearing the target removes its key;
+ * scene already says is left out. Clearing the target removes its key;
  * clearing the synopsis, status or label stores an empty text. The created
  * and edited dates, and every key this engine does not know, are never in
  * the patch. When any edit is not acceptable, nothing is: the result lists
  * the errors and carries no patch.
+ *
+ * A status or label is compared, letter for letter, with the name
+ * buildInspector shows for the scene (`status` and `label` of the model). So
+ * the shown name handed back untouched changes nothing, whatever capitals
+ * the scene itself stores it in; and a name retyped with other capitals is a
+ * change, stored as typed. A name that is in the project's list always takes
+ * the list's spelling, so typing a listed name the scene already has, in
+ * whatever capitals, changes nothing: to change the capitals of a listed
+ * name, rename it in the list (renameTag).
  *
  * Work it out against the properties as they are on disk at the moment of
  * writing, so that a change made on another device is not undone.
  *
  * @param frontmatter the scene's properties now (null when it has none)
  * @param edits       the fields the writer changed
- * @param lists       the project's statuses and labels; when given, a name that
- *                    is in a list is stored the way the list spells it
+ * @param lists       the project's statuses and labels: pass the same lists as
+ *                    to buildInspector, so that both agree on the names shown
  */
 export function inspectorPatch(
   frontmatter: Readonly<Frontmatter> | null | undefined,
@@ -221,15 +241,16 @@ export function inspectorPatch(
   for (const field of ['status', 'label'] as const) {
     const value = edits[field];
     if (value === undefined) continue;
-    const edited = editedName(field, value, field === 'status' ? lists?.statuses : lists?.labels);
+    const list = field === 'status' ? lists?.statuses : lists?.labels;
+    const edited = editedName(field, value, list);
     if (!edited.ok) {
       errors.push(edited.error);
       continue;
     }
-    const current = fields[field];
-    const same =
-      edited.name === null || current === null ? edited.name === current : sameTagName(edited.name, current);
-    if (same) continue;
+    // Compared letter for letter with the name the inspector shows, so that a
+    // name retyped with other capitals is a change like any other, while the
+    // name handed back just as it was shown is none.
+    if (edited.name === shownName(list, fields[field])) continue;
     set[field] = edited.name ?? '';
     changed.push(field);
   }

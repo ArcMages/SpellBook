@@ -111,6 +111,34 @@ describe('derivePreview: what counts as prose', () => {
     expect(derivePreview(`${HEBREW.letter}\n\n\n${HEBREW.opening}`)).toBe(`${HEBREW.letter} ${HEBREW.opening}`);
   });
 
+  it('skips scene breaks, underlined headings and a bare # in a note with Windows line endings', () => {
+    expect(derivePreview('Anna stood.\r\n\r\n***\r\n\r\nShe left.\r\n')).toBe('Anna stood. She left.');
+    expect(derivePreview('Anna stood.\r\n\r\n* * *\r\n\r\nShe left.\r\n\r\n---\r\n___\r\nThe end.')).toBe('Anna stood. She left. The end.');
+    expect(derivePreview('Chapter One\r\n===========\r\n\r\nAnna stood by the window.')).toBe('Anna stood by the window.');
+    expect(derivePreview(`${HEBREW.chapterOne}\r\n-----\r\n${HEBREW.synopsis}\r\n`)).toBe(HEBREW.synopsis);
+    expect(derivePreview('# Part one\r\n#\r\n###\r\nAnna stood by the window.\r\n#\r\n')).toBe('Anna stood by the window.');
+    expect(derivePreview(`${HEBREW.letter}\r\n\r\n- - -\r\n\r\n${HEBREW.opening}\r\n`)).toBe(`${HEBREW.letter} ${HEBREW.opening}`);
+    // The last line of the file, with nothing after its "\r".
+    expect(derivePreview('Anna stood.\r\n\r\n***\r')).toBe('Anna stood.');
+    expect(derivePreview('---\r\na: 1\r\n---\r\n\r\n# Title\r\n\r\n%% note %%\r\n\r\n***\r\n#\r\n')).toBe('');
+  });
+
+  it('reads a note the same way whichever line endings it was saved with', () => {
+    const notes = [
+      '---\nsynopsis: ""\nstatus: To do\n---\n\n# Part one\n\nChapter One\n===========\n\n%%\nrough notes\n%%\n\nAnna stood.\n\n***\n\nShe left.\n\n---\n\n#\n\nThe end.\n',
+      `---\nlabel: ${HEBREW.anna}\n---\n${HEBREW.chapterOne}\n-----\n${HEBREW.synopsis}\n\n_ _ _\n\n<!--\nnote\n-->\n${HEBREW.letter}\n## ${HEBREW.partTwo}\n${HEBREW.opening}`,
+      `# ${HEBREW.chapterOne}\n\n${HEBREW.prose}\n\n* * *\n\n${ENGLISH_PROSE}\n`,
+      '***\n===\n---\n#\n',
+    ];
+    for (const note of notes) {
+      const plain = derivePreview(note);
+      expect(plain).not.toMatch(/[*=#_]|---/);
+      for (const ending of ['\r\n', '\r\r\n']) {
+        expect(derivePreview(note.split('\n').join(ending)), JSON.stringify(note)).toBe(plain);
+      }
+    }
+  });
+
   it('keeps the words themselves exactly as written, markup and all', () => {
     const line = `She *never* said "yes" to [[Daniel]] ${EM_DASH} not once; he_knew.`;
     expect(derivePreview(line)).toBe(line);

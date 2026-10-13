@@ -71,10 +71,13 @@ function readSynopsis(value: unknown): Reading<string> {
 
 /**
  * Read a target typed as text: digits, with or without commas between the
- * thousands ("1500", "1,500"). Returns the number, null for "no target"
- * (nothing typed, or zero), or 'invalid'.
+ * thousands ("1500", "1,500"). Returns the number, or null for "no target"
+ * (nothing typed, or zero). Text that cannot be a target gives the reason:
+ * 'too-large' for a whole number above MAX_TARGET, and 'invalid' for
+ * anything that is not a whole number at all, commas in the wrong places
+ * ("15,00") included.
  */
-export function parseTargetText(text: string): number | null | 'invalid' {
+export function parseTargetText(text: string): number | null | 'invalid' | 'too-large' {
   const typed = text.trim();
   if (typed === '') return null;
   let digits: string;
@@ -82,7 +85,7 @@ export function parseTargetText(text: string): number | null | 'invalid' {
   else if (/^\d{1,3}(,\d{3})+$/.test(typed)) digits = typed.split(',').join('');
   else return 'invalid';
   const value = Number(digits);
-  if (!Number.isFinite(value) || value > MAX_TARGET) return 'invalid';
+  if (!Number.isFinite(value) || value > MAX_TARGET) return 'too-large';
   return value === 0 ? null : value;
 }
 
@@ -95,7 +98,7 @@ function readTarget(value: unknown): Reading<number | null> {
   }
   if (typeof value === 'string') {
     const parsed = parseTargetText(value);
-    return parsed === 'invalid' ? notUnderstood(null) : understood(parsed);
+    return parsed === 'invalid' || parsed === 'too-large' ? notUnderstood(null) : understood(parsed);
   }
   return notUnderstood(null);
 }

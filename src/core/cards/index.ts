@@ -47,7 +47,7 @@ export type { TagEntry } from './tags';
 export type { TagList } from './tags';
 /** The result of changing a list: the new value to store in the index, or why it was refused. */
 export type { TagEditResult } from './tags';
-/** Why a change to a list was refused (empty name, duplicate, not found, unchanged, invalid colour, unreadable). */
+/** Why a change to a list was refused (empty name, duplicate, not found, unchanged, invalid colour, invalid position, unreadable). */
 export type { TagRefusal } from './tags';
 /** A status or label that scenes use but the list does not have, with the scenes that use it. */
 export type { UnlistedTag } from './tags';
@@ -155,7 +155,7 @@ export { cardIndex } from './moves';
 export { moveEarlier } from './moves';
 /** The move that puts a card one place later; null when it is already last. */
 export { moveLater } from './moves';
-/** The move for a card dropped into a gap between cards; null when that changes nothing. */
+/** The move for a card dropped into a gap between cards; null when that changes nothing or the gap is not a number. */
 export { dropAt } from './moves';
 
 // ------------------------------------------------------------------ the grid

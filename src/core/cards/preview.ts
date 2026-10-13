@@ -104,6 +104,9 @@ const RULE = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 // The line under a heading written the other way ("Title" over "=====" or "-----").
 const UNDERLINE = /^ {0,3}(?:={2,}|-{2,})[ \t]*$/;
 
+// The "\r" of a Windows line ending ("\r\n").
+const CARRIAGE_RETURN = 0x0d;
+
 function isBlank(line: string): boolean {
   return line.trim() === '';
 }
@@ -117,10 +120,16 @@ function gatherProse(body: string, budget: number): { prose: string; more: boole
   let position = 0;
   let previousWasText = false;
 
+  // A line runs up to "\n". The "\r" that Windows writes in front of it is
+  // part of the line ending, not of the line: left on, it would stop a scene
+  // break, an underline or a bare "#" from being recognised.
   const lineAt = (start: number): { line: string; next: number } | null => {
     if (start >= body.length) return null;
-    const end = body.indexOf('\n', start);
-    return end < 0 ? { line: body.slice(start), next: body.length } : { line: body.slice(start, end), next: end + 1 };
+    const newline = body.indexOf('\n', start);
+    const next = newline < 0 ? body.length : newline + 1;
+    let end = newline < 0 ? body.length : newline;
+    while (end > start && body.charCodeAt(end - 1) === CARRIAGE_RETURN) end--;
+    return { line: body.slice(start, end), next };
   };
 
   for (let current = lineAt(position); current !== null; current = lineAt(position)) {
