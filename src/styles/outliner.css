@@ -108,6 +108,7 @@
   --spellbook-outliner-indent: var(--size-4-4);
   --spellbook-outliner-touch: 44px;
   --spellbook-outliner-bar-room: 80px;
+  --spellbook-outliner-status-room: 30px;
   --spellbook-outliner-name-width: 20em;
   display: flex;
   flex: 1 1 auto;
@@ -221,6 +222,12 @@
     var(--spellbook-outliner-bar-room),
     calc(var(--mobile-navbar-height, 0px) + var(--safe-area-inset-bottom, 0px))
   );
+}
+
+/* On a computer, Obsidian's bottom bar lies over the foot of the pane: the
+   table ends above it, so that the Total row is not hidden behind it. */
+.spellbook-outliner.spellbook-has-status-bar .spellbook-outliner-scroll {
+  margin-block-end: var(--spellbook-outliner-status-room);
 }
 
 .spellbook-outliner-table {

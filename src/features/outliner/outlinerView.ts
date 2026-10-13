@@ -270,6 +270,8 @@ export class OutlinerView extends ItemView {
     // On a phone, Obsidian's own bar floats over the bottom of the pane: the
     // stylesheet keeps the table clear of it.
     root.toggleClass('spellbook-is-phone', Platform.isPhone);
+    // On a computer Obsidian's bottom bar lies over the foot of the pane.
+    root.toggleClass('spellbook-has-status-bar', !Platform.isMobile);
     // Until the pane has been measured, a phone is taken to be narrow.
     this.narrow = Platform.isPhone;
     root.toggleClass('spellbook-is-narrow', this.narrow);
