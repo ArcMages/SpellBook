@@ -33,6 +33,7 @@ export const STYLE_FILES = Object.freeze([
   'modes.css',
   'report.css',
   'export.css',
+  'prose.css',
 ]);
 
 const BANNER = `/*
