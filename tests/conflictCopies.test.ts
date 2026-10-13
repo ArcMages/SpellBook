@@ -1,10 +1,21 @@
 // Conflicting copies of a project's index: telling the copy from the
-// original, and merging a copy's binder into the index's.
+// original, merging a copy's binder into the index's, and merging what the
+// other screens keep there (statuses, labels, timelines, marks, targets).
 
 import { describe, expect, it } from 'vitest';
 import { flattenScenes } from '../src/core/binderTree';
-import { conflictCopies, mergeConflictCopy } from '../src/core/conflictCopies';
+import { TAG_INDEX_KEYS } from '../src/core/cards';
+import {
+  MERGED_GROUP_KEYS,
+  MERGED_LIST_KEYS,
+  conflictCopies,
+  mergeConflictCopy,
+  mergeConflictData,
+} from '../src/core/conflictCopies';
+import { MARKS_KEY } from '../src/core/planner';
+import { TARGETS_KEY } from '../src/core/progress';
 import type { Binder } from '../src/core/types';
+import { TIMELINES_KEY } from '../src/features/timeline/timelineWiring';
 
 /** The copies among index notes at these paths. */
 const copiesOf = (...paths: string[]): Record<string, string> =>
@@ -203,5 +214,204 @@ describe('mergeConflictCopy', () => {
     const twice = mergeConflictCopy(once.binder, copy);
     expect(twice.added).toEqual([]);
     expect(twice.binder).toBe(once.binder);
+  });
+});
+
+describe('mergeConflictData: what the other screens keep in the index', () => {
+  /** Apply a merge the way the store does: every changed key gets its new value, nothing else is touched. */
+  const applied = (index: Record<string, unknown>, copy: Record<string, unknown>): Record<string, unknown> => ({
+    ...index,
+    ...mergeConflictData(index, copy).changes,
+  });
+
+  it('merges exactly the five things the screens keep there, under the names they read them by', () => {
+    expect(MERGED_LIST_KEYS).toEqual([TAG_INDEX_KEYS.status, TAG_INDEX_KEYS.label, TIMELINES_KEY]);
+    expect(MERGED_GROUP_KEYS).toEqual([MARKS_KEY, TARGETS_KEY]);
+  });
+
+  it('adds a status, a label and a timeline the index does not list, at the end, as the copy has them', () => {
+    const index = {
+      statuses: [{ name: 'To do', color: 'red' }, { name: 'Final', color: 'green' }],
+      labels: [{ name: 'Mara', color: 'purple' }],
+      timelines: [{ name: 'Main plot', color: 'purple' }],
+    };
+    const copy = {
+      statuses: [{ name: 'Revised', color: 'blue' }, { name: 'To do', color: 'red' }, { name: 'First draft' }],
+      labels: [{ name: 'Noa', color: 'pink' }, { name: 'Mara', color: 'purple' }],
+      timelines: [{ name: 'Backstory', color: 'orange' }, { name: 'Main plot', color: 'purple' }],
+    };
+    const merged = mergeConflictData(index, copy);
+    expect(merged.added).toEqual([
+      { key: 'statuses', items: ['Revised', 'First draft'] },
+      { key: 'labels', items: ['Noa'] },
+      { key: 'timelines', items: ['Backstory'] },
+    ]);
+    expect(merged.changes).toEqual({
+      statuses: [...index.statuses, { name: 'Revised', color: 'blue' }, { name: 'First draft' }],
+      labels: [...index.labels, { name: 'Noa', color: 'pink' }],
+      timelines: [...index.timelines, { name: 'Backstory', color: 'orange' }],
+    });
+  });
+
+  it('keeps the index\'s own version where both have the same name, whatever the copy says about it', () => {
+    const index = { labels: [{ name: 'Mara', color: 'purple' }, { name: 'Tobias' }, 'Noa'] };
+    const copy = {
+      labels: [
+        { name: 'mara', color: 'red' }, // other capitals, another colour
+        { name: '  Tobias ', color: 'cyan' }, // a colour the index's entry does not have
+        { name: 'NOA', color: 'pink' }, // the index lists it as plain text
+        { name: 'Dana', color: 'green' },
+      ],
+    };
+    const merged = mergeConflictData(index, copy);
+    expect(merged.added).toEqual([{ key: 'labels', items: ['Dana'] }]);
+    expect(merged.changes['labels']).toEqual([...index.labels, { name: 'Dana', color: 'green' }]);
+  });
+
+  it('tells the same name apart by neither capitals nor the way an accent or a Hebrew point is stored', () => {
+    const composed = 'Zoë';
+    const decomposed = 'Zoë';
+    const index = { labels: [{ name: composed, color: 'red' }, { name: 'נועה', color: 'pink' }] };
+    const copy = { labels: [{ name: decomposed.toUpperCase(), color: 'blue' }, { name: 'נועה', color: 'cyan' }, { name: 'דנה' }] };
+    expect(mergeConflictData(index, copy).added).toEqual([{ key: 'labels', items: ['דנה'] }]);
+  });
+
+  it('adds each new name once, and leaves out entries that have no name', () => {
+    const copy = { labels: [{ name: 'Noa' }, 'noa', { name: 'NOA', color: 'red' }, { color: 'blue' }, 42, null, { name: '  ' }, 'Dana'] };
+    const merged = mergeConflictData({ labels: [] }, copy);
+    expect(merged.added).toEqual([{ key: 'labels', items: ['Noa', 'Dana'] }]);
+    expect(merged.changes['labels']).toEqual([{ name: 'Noa' }, 'Dana']);
+  });
+
+  it('adds the mark of a day the index has none for, and keeps its own mark where both have one', () => {
+    const index = { marks: { '2026-10-15': { color: 'blue', label: 'Writing group' } } };
+    const copy = {
+      marks: {
+        '2026-10-15': { color: 'red', label: 'Deadline' },
+        '2026-10-19': { color: 'green', label: 'Day off' },
+        '2026-10-20': { label: 'יום הולדת' },
+      },
+    };
+    const merged = mergeConflictData(index, copy);
+    expect(merged.added).toEqual([{ key: 'marks', items: ['2026-10-19', '2026-10-20'] }]);
+    expect(merged.changes['marks']).toEqual({
+      '2026-10-15': { color: 'blue', label: 'Writing group' },
+      '2026-10-19': { color: 'green', label: 'Day off' },
+      '2026-10-20': { label: 'יום הולדת' },
+    });
+  });
+
+  it('adds a target the index has not set, and never changes one it has', () => {
+    const index = { targets: { project: 80000, daily: null, deadline: '' } };
+    const copy = { targets: { project: 50000, daily: 1000, deadline: '2027-03-12', note: null } };
+    const merged = mergeConflictData(index, copy);
+    expect(merged.added).toEqual([{ key: 'targets', items: ['daily', 'deadline'] }]);
+    expect(merged.changes['targets']).toEqual({ project: 80000, daily: 1000, deadline: '2027-03-12' });
+    // A target of nought is a target that was set: it is kept.
+    expect(mergeConflictData({ targets: { daily: 0 } }, { targets: { daily: 500 } })).toEqual({ changes: {}, added: [] });
+  });
+
+  it('takes over a whole list or group the index does not have at all', () => {
+    const copy = {
+      statuses: [{ name: 'To do', color: 'red' }],
+      labels: [{ name: 'Mara', color: 'purple' }],
+      timelines: [{ name: 'Main plot', color: 'purple' }],
+      marks: { '2026-10-15': { color: 'blue', label: 'Writing group' } },
+      targets: { daily: 1000 },
+    };
+    for (const index of [{}, { statuses: null, labels: '', timelines: undefined, marks: null, targets: '  ' }]) {
+      const merged = mergeConflictData(index, copy);
+      expect(merged.changes).toEqual(copy);
+      expect(merged.added.map((entry) => entry.key)).toEqual(['statuses', 'labels', 'timelines', 'marks', 'targets']);
+    }
+    // An empty list or group in the index is the index's own: the copy's entries are added to it all the same.
+    expect(mergeConflictData({ labels: [], marks: {} }, copy).added.map((entry) => entry.key)).toEqual([
+      'statuses',
+      'labels',
+      'timelines',
+      'marks',
+      'targets',
+    ]);
+  });
+
+  it('never removes, reorders or rewrites anything the index has', () => {
+    const index = {
+      statuses: [{ name: 'Final', color: 'green' }, { name: 'To do', color: 'red' }, { odd: true }, 'Loose'],
+      labels: [{ name: 'Only here', color: 'yellow' }],
+      timelines: [{ name: 'Main plot', color: 'purple' }],
+      marks: { '2026-10-15': { color: 'blue', label: 'Writing group' }, 'not a day': 'kept as it is' },
+      targets: { project: 80000, somethingOfMine: 'kept' },
+    };
+    const copy = {
+      statuses: [{ name: 'To do', color: 'red' }, { name: 'Revised', color: 'blue' }],
+      labels: [],
+      timelines: [{ name: 'Backstory', color: 'orange' }],
+      marks: { '2026-10-19': { color: 'green', label: 'Day off' } },
+      targets: { daily: 1000 },
+    };
+    const after = applied(index, copy);
+    for (const key of ['statuses', 'timelines'] as const) {
+      const list = after[key] as unknown[];
+      expect(list.slice(0, index[key].length), key).toEqual(index[key]); // the same entries, in the same order, first
+    }
+    expect(after['labels']).toBe(index.labels); // the copy had none to add: not even rewritten
+    expect(after['marks']).toMatchObject(index.marks);
+    expect(after['targets']).toMatchObject(index.targets);
+    // Whatever the copy holds, each key of the index holds at least what it held.
+    const noisy = { statuses: [], labels: null, timelines: 'x', marks: {}, targets: [] };
+    expect(mergeConflictData(index, noisy)).toEqual({ changes: {}, added: [] });
+    expect(applied(index, noisy)).toEqual(index);
+  });
+
+  it('leaves alone a value in the index that is not what it should be, and ignores one in the copy', () => {
+    const copy = {
+      statuses: [{ name: 'To do' }],
+      labels: [{ name: 'Mara' }],
+      marks: { '2026-10-15': { label: 'x' } },
+      targets: { daily: 1000 },
+    };
+    // A text where a list belongs, a list where a group belongs, a number: not understood, so not touched.
+    const odd = { statuses: 'To do, Done', labels: { Mara: 'purple' }, marks: ['2026-10-15'], targets: 80000 };
+    expect(mergeConflictData(odd, copy)).toEqual({ changes: {}, added: [] });
+    const good = { statuses: [{ name: 'Final' }], marks: { '2026-10-19': { label: 'y' } } };
+    expect(mergeConflictData(good, { statuses: 'To do', labels: 7, timelines: {}, marks: [1], targets: 'many' })).toEqual({
+      changes: {},
+      added: [],
+    });
+  });
+
+  it('ignores every other key of the copy', () => {
+    const copy = { title: 'Another title', binder: ['Manuscript/X.md'], spellbook: 'project', theme: 'dark', notes: ['a'] };
+    expect(mergeConflictData({ theme: 'light' }, copy)).toEqual({ changes: {}, added: [] });
+  });
+
+  it('changes neither of the two it is given, and hands back copies of its own', () => {
+    const index = { labels: [{ name: 'Mara', color: 'purple' }], marks: { '2026-10-15': { label: 'a' } } };
+    const copy = { labels: [{ name: 'Noa', color: 'pink' }], marks: { '2026-10-19': { label: 'b' } } };
+    const before = JSON.stringify([index, copy]);
+    const frozen = (value: unknown): unknown => {
+      if (typeof value === 'object' && value !== null) Object.values(value).forEach(frozen);
+      return Object.freeze(value);
+    };
+    frozen(index);
+    frozen(copy);
+    const merged = mergeConflictData(index, copy);
+    expect(JSON.stringify([index, copy])).toBe(before);
+    const labels = merged.changes['labels'] as Array<{ name: string }>;
+    expect(labels[0]).not.toBe(index.labels[0]);
+    expect(labels[1]).not.toBe(copy.labels[0]);
+    expect(Object.isFrozen(labels)).toBe(false);
+    expect(Object.isFrozen(merged.changes['marks'])).toBe(false);
+  });
+
+  it('has nothing more to add when the same copy is merged a second time', () => {
+    const index = { labels: [{ name: 'Mara' }], targets: { project: 80000 } };
+    const copy = { labels: [{ name: 'Noa' }], marks: { '2026-10-19': { label: 'b' } }, targets: { daily: 1000 } };
+    const once = applied(index, copy);
+    expect(mergeConflictData(once, copy)).toEqual({ changes: {}, added: [] });
+    // Merged the other way round, the other device comes to the same things, each side keeping its own order.
+    const other = applied(copy, index);
+    expect((other['labels'] as unknown[]).length).toBe((once['labels'] as unknown[]).length);
+    expect(other['targets']).toEqual(once['targets']);
   });
 });

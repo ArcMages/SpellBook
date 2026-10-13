@@ -57,6 +57,34 @@ export const SHOW_ON_CORKBOARD = 'corkboard.showFolder';
 /** What the corkboard offers under that name: show a folder of a project, by the project's index path and the folder's id. */
 export type ShowOnCorkboard = (inProject: string, folderId: string) => unknown;
 
+/** What a kind of thing kept in the index is called in a notice: one of them, and several. */
+const BROUGHT_OVER: Readonly<Record<string, readonly [string, string]>> = {
+  statuses: ['status', 'statuses'],
+  labels: ['label', 'labels'],
+  timelines: ['timeline', 'timelines'],
+  marks: ['day mark', 'day marks'],
+  targets: ['target', 'targets'],
+};
+
+/**
+ * A sentence for what a merged copy had besides scenes that the project
+ * lacked: " It also had 2 labels and 1 day mark that the project did not;
+ * they were added." Empty when it had nothing of the kind.
+ */
+export function broughtOver(data: ReadonlyArray<{ readonly key: string; readonly items: readonly string[] }>): string {
+  const parts: string[] = [];
+  for (const { key, items } of data) {
+    const words = BROUGHT_OVER[key];
+    if (words === undefined || items.length === 0) continue;
+    parts.push(`${items.length} ${items.length === 1 ? words[0] : words[1]}`);
+  }
+  if (parts.length === 0) return '';
+  const last = parts.pop() as string;
+  const list = parts.length === 0 ? last : `${parts.join(', ')} and ${last}`;
+  const one = data.reduce((sum, entry) => sum + entry.items.length, 0) === 1;
+  return ` It also had ${list} that the project did not; ${one ? 'it was' : 'they were'} added.`;
+}
+
 /** The open project and the services, checked at the start of an action. */
 interface Scope {
   readonly services: BinderServices;
@@ -390,7 +418,9 @@ export class BinderActions {
           added === 0
             ? 'it listed nothing that the binder did not have'
             : `${added === 1 ? '1 scene was' : `${added} scenes were`} added at the end of the manuscript`;
-        // Only the binder is merged. Notes written into the copy itself are not lost, but they are in the trash now.
+        // What the other screens keep in the index came along too, where the copy had something the project lacked.
+        const also = broughtOver(result.value.data);
+        // The copy's own text is not merged. Notes written into the copy itself are not lost, but they are in the trash now.
         const text = result.value.textDiffers
           ? " Its own text was not the same as the index note's: if you wrote notes there, you will find them in the trash."
           : '';
@@ -400,7 +430,7 @@ export class BinderActions {
             ? ''
             : ` The copy was titled "${result.value.otherTitle}"; the project keeps its own title.`;
         new Notice(
-          `Merged the copy "${name}": ${what}. The copy was moved to the trash.${text}${title}`,
+          `Merged the copy "${name}": ${what}.${also} The copy was moved to the trash.${text}${title}`,
           PROBLEM_NOTICE_MS,
         );
       }

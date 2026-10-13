@@ -39,7 +39,8 @@ import {
   stepPlacement,
 } from './binderTree';
 import type { StepDirection } from './binderTree';
-import { conflictCopies, mergeConflictCopy as mergeCopyInto } from './conflictCopies';
+import { conflictCopies, mergeConflictCopy as mergeCopyInto, mergeConflictData as mergeCopyData } from './conflictCopies';
+import type { MergedData } from './conflictCopies';
 import { newFolderId, sanitiseFileName, tidyDisplayName, uniqueName } from './names';
 import { ORDER_STEP, planLocalOrderKeys, readOrder } from './orderKeys';
 import type { OrderedScene } from './orderKeys';
@@ -121,6 +122,12 @@ export interface NewProjectOptions {
 export interface MergedCopy {
   /** The scene paths that were added to the binder, relative to the project folder. */
   readonly added: string[];
+  /**
+   * What else was brought over, key by key: the statuses, labels and
+   * timelines the index did not list (by name), the days it had no mark for,
+   * and the targets it had not set. Empty when the copy had nothing new.
+   */
+  readonly data: readonly MergedData[];
   /** True when the copy's text (below its properties) was not the same as the index note's. */
   readonly textDiffers: boolean;
   /**
@@ -1051,14 +1058,19 @@ export class ProjectStore {
    * It is only trashed once the index has been saved, and never when it
    * could not be understood: a copy that cannot be read is left where it is.
    *
-   * Only the binder is merged. The copy's own text (the notes a writer may
+   * What the other screens keep in the index is merged in the same write and
+   * by the same rule: the copy's statuses, labels, timelines, day marks and
+   * targets that the index lacks are added, and nothing the index has is
+   * removed or written over (`data` tells what was brought over).
+   *
+   * Nothing else is merged. The copy's own text (the notes a writer may
    * keep in the index note) goes to the trash with it; `textDiffers` tells
    * whether that text was different from the index note's, so that the
    * writer can be told where to find it. The copy's title is not taken over
    * either; `otherTitle` gives it when it was not the index note's.
    *
    * @param copyPath the vault path of the copy, as the snapshot's `conflicts` gives it
-   * @returns the scene paths that were added (relative to the project folder)
+   * @returns the scene paths that were added (relative to the project folder), and what else was brought over
    */
   mergeConflictCopy(copyPath: string, inProject?: string): Promise<IntentResult<MergedCopy>> {
     return this.run(async (): Promise<IntentResult<MergedCopy>> => {
@@ -1103,16 +1115,30 @@ export class ProjectStore {
       }
 
       let added: string[] = [];
+      let data: MergedData[] = [];
+      // What the other screens keep in the copy: its statuses, labels, timelines, marks and targets.
+      const copyData = projectDataOf(frontmatter);
       // The index note's own title, as it is on disk when the binder is merged.
       const index: { title: string | null } = { title: null };
-      const merged = await this.mutateBinder<undefined>((onDisk, title) => {
-        index.title = title;
-        const outcome = mergeCopyInto(onDisk, parsed.binder);
-        added = [...outcome.added];
-        // Nothing new in the copy: the index is not written at all.
-        if (added.length === 0) return noop('unchanged', '');
-        return { status: 'done', binder: outcome.binder, value: undefined };
-      });
+      const merged = await this.mutateBinder<undefined>(
+        (onDisk, title) => {
+          index.title = title;
+          const outcome = mergeCopyInto(onDisk, parsed.binder);
+          added = [...outcome.added];
+          // No scene is new in the copy: the binder is not written.
+          if (added.length === 0) return noop('unchanged', '');
+          return { status: 'done', binder: outcome.binder, value: undefined };
+        },
+        // In the same write, against the index as it is on disk right then:
+        // what the copy has and the index lacks is added. Nothing is removed
+        // or written over (see mergeConflictData).
+        (onDisk) => {
+          const outcome = mergeCopyData(projectDataOf(onDisk), copyData);
+          data = [...outcome.added];
+          for (const [key, value] of Object.entries(outcome.changes)) onDisk[key] = value;
+          return data.length > 0;
+        },
+      );
       if (merged.status === 'failed' || merged.status === 'refused') return merged;
       if (merged.status === 'done') this.scheduleOrderSync(added);
 
@@ -1137,7 +1163,7 @@ export class ProjectStore {
       }
       // The two versions may disagree about the title: the project keeps its own.
       const otherTitle = parsed.title !== null && parsed.title !== index.title ? parsed.title : null;
-      return done({ added, textDiffers, otherTitle });
+      return done({ added, data, textDiffers, otherTitle });
     }, inProject);
   }
 
@@ -1631,9 +1657,15 @@ export class ProjectStore {
    * index note's title property, null when it has none) and decides what to
    * do. Renames waiting in `pendingRenames` ride along in the same write.
    * Nothing is written when there is nothing to change.
+   *
+   * @param alongside something else to change in the same write: it is handed the index note's
+   *   properties as they are on disk, edits them in place, and says whether it changed anything.
+   *   It runs after the binder's own change, and not at all when that was refused or failed.
+   *   It may be called more than once.
    */
   private async mutateBinder<T>(
     change: (onDisk: Binder, title: string | null) => BinderChange<T>,
+    alongside?: (frontmatter: Frontmatter) => boolean,
   ): Promise<IntentResult<T>> {
     const active = this.active;
     const blocked = this.whyNotWritable(active);
@@ -1661,16 +1693,20 @@ export class ProjectStore {
         const renamed = replaceScenePaths(parsed.binder, renames);
         const result = change(renamed.binder, parsed.title);
         box.outcome = result;
+        let write = false;
         if (result.status === 'done') {
           writeBinder(frontmatter, result.binder);
-          return true;
-        }
-        // The intent itself changed nothing, but a waiting rename may have.
-        if (renamed.changed) {
+          write = true;
+        } else if (renamed.changed) {
+          // The intent itself changed nothing, but a waiting rename may have.
           writeBinder(frontmatter, renamed.binder);
-          return true;
+          write = true;
         }
-        return false;
+        // What else is to change in the same write. Not when the binder's own change was refused or failed.
+        if (alongside !== undefined && (result.status === 'done' || result.status === 'noop') && alongside(frontmatter)) {
+          write = true;
+        }
+        return write;
       });
     } catch (error) {
       this.needsReload = true;

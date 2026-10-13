@@ -104,6 +104,7 @@ describe('finding a conflicting copy', () => {
     // Merging keeps the project's own title, and says what the copy's was.
     expect(valueOf(await store.mergeConflictCopy(COPY))).toEqual({
       added: ['Manuscript/D.md'],
+      data: [],
       textDiffers: true,
       otherTitle: 'My Novel, draft 2',
     });
@@ -145,7 +146,7 @@ describe('merging a conflicting copy', () => {
     const { store, vault, indexPath } = await openSeeded(threeScenes, withCopy());
     const result = await store.mergeConflictCopy(COPY);
 
-    expect(valueOf(result)).toEqual({ added: ['Manuscript/D.md'], textDiffers: false, otherTitle: null });
+    expect(valueOf(result)).toEqual({ added: ['Manuscript/D.md'], data: [], textDiffers: false, otherTitle: null });
     expect(binderOnDisk(vault, indexPath)).toEqual([
       'Manuscript/A.md',
       'Manuscript/B.md',
@@ -277,6 +278,7 @@ describe('merging a conflicting copy', () => {
     const differing = await openSeeded(threeScenes, withCopy(undefined, other));
     expect(valueOf(await differing.store.mergeConflictCopy(COPY))).toEqual({
       added: ['Manuscript/D.md'],
+      data: [],
       textDiffers: true,
       otherTitle: null,
     });
@@ -303,6 +305,128 @@ describe('merging a conflicting copy', () => {
     ]);
     expect(vault.trashed).toEqual([COPY, 'Novel/Novel 3.md']);
     expect(project(store).conflicts).toEqual([]);
+  });
+});
+
+describe('merging what the other screens keep in a conflicting copy', () => {
+  // What this device's index holds, and what the other device's version of it holds.
+  const mine = {
+    statuses: [{ name: 'To do', color: 'red' }, { name: 'Final', color: 'green' }],
+    labels: [{ name: 'Mara', color: 'purple' }],
+    timelines: [{ name: 'Main plot', color: 'purple' }],
+    marks: { '2026-10-15': { color: 'blue', label: 'Writing group' } },
+    targets: { project: 80000 },
+    theme: 'left alone',
+  };
+  const theirs = {
+    statuses: [{ name: 'To do', color: 'pink' }, { name: 'Revised', color: 'blue' }],
+    labels: [{ name: 'mara', color: 'cyan' }, { name: 'Noa', color: 'pink' }],
+    timelines: [{ name: 'Backstory', color: 'orange' }, { name: 'Main plot', color: 'red' }],
+    marks: { '2026-10-15': { color: 'red', label: 'Deadline' }, '2026-10-19': { color: 'green', label: 'Day off' } },
+    targets: { project: 50000, daily: 1000, deadline: '2027-03-12' },
+    theme: 'the other device',
+    somethingElse: 'not one of the screens',
+  };
+
+  function withData(copyExtra: Frontmatter, binder: unknown = ['Manuscript/A.md', 'Manuscript/B.md', 'Manuscript/C.md']): MemoryVault {
+    const vault = new MemoryVault();
+    vault.seed(COPY, { frontmatter: copyOf(binder, copyExtra), body: INDEX_BODY });
+    return vault;
+  }
+
+  it('adds the statuses, labels, timelines, marks and targets the index lacks, and writes over nothing it has', async () => {
+    const { store, vault, indexPath } = await openSeeded({ ...threeScenes, extra: mine }, withData(theirs));
+    const result = valueOf(await store.mergeConflictCopy(COPY));
+
+    expect(result.added).toEqual([]); // the binders agreed
+    expect(result.data).toEqual([
+      { key: 'statuses', items: ['Revised'] },
+      { key: 'labels', items: ['Noa'] },
+      { key: 'timelines', items: ['Backstory'] },
+      { key: 'marks', items: ['2026-10-19'] },
+      { key: 'targets', items: ['daily', 'deadline'] },
+    ]);
+    const index = vault.frontmatterOf(indexPath) ?? {};
+    // Everything the index had is as it was, in its place; what was new comes after it.
+    expect(index['statuses']).toEqual([...mine.statuses, { name: 'Revised', color: 'blue' }]);
+    expect(index['labels']).toEqual([{ name: 'Mara', color: 'purple' }, { name: 'Noa', color: 'pink' }]);
+    expect(index['timelines']).toEqual([{ name: 'Main plot', color: 'purple' }, { name: 'Backstory', color: 'orange' }]);
+    expect(index['marks']).toEqual({
+      '2026-10-15': { color: 'blue', label: 'Writing group' },
+      '2026-10-19': { color: 'green', label: 'Day off' },
+    });
+    expect(index['targets']).toEqual({ project: 80000, daily: 1000, deadline: '2027-03-12' });
+    // Keys that are not the screens' are neither merged nor taken over.
+    expect(index['theme']).toBe('left alone');
+    expect(index).not.toHaveProperty('somethingElse');
+    expect(binderOnDisk(vault, indexPath)).toEqual(['Manuscript/A.md', 'Manuscript/B.md', 'Manuscript/C.md']);
+
+    // One write of the index, then the copy goes to the trash.
+    expect(vault.writes).toEqual([
+      { op: 'updateFrontmatter', path: indexPath },
+      { op: 'trash', path: COPY },
+    ]);
+    // The screens see it at once.
+    expect(store.projectData('labels')).toEqual(index['labels']);
+    expect(store.projectData('targets')).toEqual(index['targets']);
+  });
+
+  it('brings scenes and data over together, in the same single write', async () => {
+    const vault = withData({ labels: [{ name: 'Noa', color: 'pink' }] }, ['Manuscript/A.md', 'Manuscript/D.md']);
+    vault.seed('Novel/Manuscript/D.md', { frontmatter: { status: 'To do' }, body: sceneBody('D') });
+    const { store, indexPath } = await openSeeded(threeScenes, vault);
+    const result = valueOf(await store.mergeConflictCopy(COPY));
+    expect(result.added).toEqual(['Manuscript/D.md']);
+    expect(result.data).toEqual([{ key: 'labels', items: ['Noa'] }]);
+    expect(vault.writes.filter((write) => write.path === indexPath)).toEqual([{ op: 'updateFrontmatter', path: indexPath }]);
+    expect(vault.frontmatterOf(indexPath)?.['labels']).toEqual([{ name: 'Noa', color: 'pink' }]);
+    expect(binderOnDisk(vault, indexPath)).toContain('Manuscript/D.md');
+  });
+
+  it('does not write the index at all when the copy has nothing the index lacks', async () => {
+    const { store, vault } = await openSeeded({ ...threeScenes, extra: mine }, withData({ labels: [{ name: 'MARA', color: 'red' }], targets: { project: 1 } }));
+    const result = valueOf(await store.mergeConflictCopy(COPY));
+    expect(result).toMatchObject({ added: [], data: [] });
+    expect(vault.writes).toEqual([{ op: 'trash', path: COPY }]);
+  });
+
+  it('merges against the index as it is on disk at that moment, not as it was last read', async () => {
+    const { store, vault, indexPath } = await openSeeded({ ...threeScenes, extra: { labels: [{ name: 'Mara', color: 'purple' }] } }, withData({ labels: [{ name: 'Noa', color: 'pink' }, { name: 'Tobias', color: 'cyan' }] }));
+    // Another device added Noa to the index itself a moment ago, in its own colour.
+    vault.external.editFrontmatter(indexPath, (frontmatter) => {
+      (frontmatter['labels'] as unknown[]).push({ name: 'Noa', color: 'green' });
+    });
+    const result = valueOf(await store.mergeConflictCopy(COPY));
+    expect(result.data).toEqual([{ key: 'labels', items: ['Tobias'] }]);
+    expect(vault.frontmatterOf(indexPath)?.['labels']).toEqual([
+      { name: 'Mara', color: 'purple' },
+      { name: 'Noa', color: 'green' },
+      { name: 'Tobias', color: 'cyan' },
+    ]);
+  });
+
+  it('leaves alone a value in the index that is not what it should be', async () => {
+    const odd = { labels: 'Plot, Mood', marks: ['not', 'days'], targets: 80000 };
+    const { store, vault, indexPath } = await openSeeded({ ...threeScenes, extra: odd }, withData(theirs));
+    const result = valueOf(await store.mergeConflictCopy(COPY));
+    // What the index does not have at all is taken over; what it has in a form of its own is not touched.
+    expect(result.data.map((entry) => entry.key)).toEqual(['statuses', 'timelines']);
+    const index = vault.frontmatterOf(indexPath) ?? {};
+    expect(index['labels']).toBe('Plot, Mood');
+    expect(index['marks']).toEqual(['not', 'days']);
+    expect(index['targets']).toBe(80000);
+    expect(index['statuses']).toEqual(theirs.statuses);
+    expect(index['timelines']).toEqual(theirs.timelines);
+  });
+
+  it('merges nothing and trashes nothing when the index cannot be saved', async () => {
+    const { store, vault, indexPath } = await openSeeded(threeScenes, withData(theirs));
+    vault.failNext('updateFrontmatter', indexPath);
+    const result = await store.mergeConflictCopy(COPY);
+    expect(result.status).toBe('failed');
+    expect(vault.trashed).toEqual([]);
+    expect(vault.has(COPY)).toBe(true);
+    expect(vault.frontmatterOf(indexPath)).not.toHaveProperty('labels');
   });
 });
 

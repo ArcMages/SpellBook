@@ -2,6 +2,7 @@
 // ("Novel 2.md" next to "Novel.md"), with its two buttons: Merge and Dismiss.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { broughtOver } from '../src/views/binderActions';
 import { CONFLICTS_MESSAGE, CONFLICT_MESSAGE, MISSING_LABEL } from '../src/views/binderView';
 import { heading, one, picture, scroller, tap } from './binderScreen';
 import { INDEX, clearScreen, notices, novel, rest, stage } from './binderStage';
@@ -151,6 +152,46 @@ describe('Merge', () => {
     expect(notices()).toEqual([
       'Merged the copy "Novel 2": it listed nothing that the binder did not have. The copy was moved to the trash.',
     ]);
+  });
+
+  it('brings over the labels, marks and targets only the copy had, and says how many', async () => {
+    const vault = novel();
+    vault.seed(COPY, {
+      frontmatter: {
+        spellbook: 'project',
+        version: 1,
+        title: 'My Novel',
+        binder: ['Manuscript/Opening.md', 'Manuscript/Loose.md'],
+        labels: [{ name: 'Noa', color: 'pink' }, { name: 'דנה', color: 'cyan' }],
+        marks: { '2026-10-19': { color: 'green', label: 'Day off' } },
+        targets: { daily: 1000 },
+      },
+      body: INDEX_BODY,
+    });
+    const s = await stage(vault);
+    tap(button(s.pane, 'Merge'));
+    await rest(s);
+    expect(notices()).toEqual([
+      'Merged the copy "Novel 2": 1 scene was added at the end of the manuscript. ' +
+        'It also had 2 labels, 1 day mark and 1 target that the project did not; they were added. ' +
+        'The copy was moved to the trash.',
+    ]);
+    const index = s.vault.frontmatterOf(INDEX) ?? {};
+    expect(index['labels']).toEqual([{ name: 'Noa', color: 'pink' }, { name: 'דנה', color: 'cyan' }]);
+    expect(index['marks']).toEqual({ '2026-10-19': { color: 'green', label: 'Day off' } });
+    expect(index['targets']).toEqual({ daily: 1000 });
+    expect(s.vault.trashed).toEqual([COPY]);
+  });
+
+  it('words what was brought over for one thing and for several kinds', () => {
+    expect(broughtOver([])).toBe('');
+    expect(broughtOver([{ key: 'labels', items: [] }, { key: 'unknown', items: ['x'] }])).toBe('');
+    expect(broughtOver([{ key: 'timelines', items: ['Backstory'] }])).toBe(
+      ' It also had 1 timeline that the project did not; it was added.',
+    );
+    expect(broughtOver([{ key: 'statuses', items: ['a', 'b'] }, { key: 'marks', items: ['2026-10-19'] }])).toBe(
+      ' It also had 2 statuses and 1 day mark that the project did not; they were added.',
+    );
   });
 
   it('says where the copy\'s own text has gone when it was not the same as the index note\'s', async () => {
