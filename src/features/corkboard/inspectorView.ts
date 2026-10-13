@@ -37,7 +37,7 @@ import type {
 import type { Frontmatter } from '../../core/types';
 import { isInputMethodKey } from '../../ui/keys';
 import { safely } from '../../ui/safely';
-import type { CardsChange, InspectorHost } from './host';
+import type { CardsChange, InspectorHost, SceneEntitiesPart } from './host';
 import { setShown, settle } from './parts';
 import { openTagLists } from './tagListsModal';
 
@@ -57,6 +57,8 @@ export const NO_DATE_TEXT = 'Not known';
 
 /** The class of the empty place at the top of the inspector. */
 export const SUMMARY_SLOT_CLASS = 'spellbook-inspector-slot';
+/** The class of the place under the scene's dates where the entities in the scene are shown. */
+export const ENTITIES_SLOT_CLASS = 'spellbook-inspector-entities-slot';
 
 const FIELDS: readonly InspectorField[] = ['synopsis', 'status', 'label', 'target', 'compile'];
 
@@ -112,6 +114,8 @@ export class InspectorView extends ItemView {
   /** The timer of a save that is about to happen, if any. */
   private saveStop: (() => void) | null = null;
   private sent: Sent[] = [];
+  /** The "In this scene" part, when the host has one. */
+  private entities: SceneEntitiesPart | null = null;
 
   constructor(leaf: WorkspaceLeaf, host: InspectorHost) {
     super(leaf);
@@ -168,6 +172,10 @@ export class InspectorView extends ItemView {
 
     const unmount = this.host.mountSummary?.(slot);
     if (typeof unmount === 'function') this.stops.push(unmount);
+    // Who and what is in the scene, under its dates: drawn by sceneEntities.ts when the world-building offers it.
+    const entities = this.host.mountEntities?.(form.createDiv({ cls: ENTITIES_SLOT_CLASS }), () => this.shownPath) ?? null;
+    this.entities = entities;
+    if (entities) this.stops.push(() => entities.stop());
     this.stops.push(
       this.host.onChange((change) => {
         this.onHostChange(change);
@@ -185,6 +193,7 @@ export class InspectorView extends ItemView {
     for (const stop of this.stops.splice(0)) stop();
     this.dirty.clear();
     this.shownPath = null;
+    this.entities = null;
     this.lists = null;
     this.form = null;
     this.els = null;
@@ -369,6 +378,7 @@ export class InspectorView extends ItemView {
     setShown(els.hint, false);
     setShown(els.form, true);
     this.showScene(form, buildInspector({ path, frontmatter: this.frontmatterOf(path) }, project.lists), project.readOnly);
+    this.entities?.refresh();
   }
 
   /** No scene is on show any more: nothing is being edited, and no field has a complaint. */
@@ -378,6 +388,7 @@ export class InspectorView extends ItemView {
     this.shownPath = null;
     this.dirty.clear();
     for (const field of FIELDS) this.setError(field, null);
+    this.entities?.refresh();
   }
 
   /** Fill the form in. A field the writer is in the middle of changing keeps what they typed. */
