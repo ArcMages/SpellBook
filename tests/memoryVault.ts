@@ -16,7 +16,7 @@
 // Every write the code under test makes is recorded in `writes`, so tests can
 // assert exactly which files were touched.
 
-import { clashKey, isInside, isMarkdownPath, joinPath, parentPath } from '../src/core/paths';
+import { clashKey, isImagePath, isInside, isMarkdownPath, joinPath, parentPath } from '../src/core/paths';
 import type { Frontmatter } from '../src/core/types';
 import { VaultFileMissingError } from '../src/core/vaultPort';
 import type { MarkdownFileInfo, VaultEvent, VaultListener, VaultPort } from '../src/core/vaultPort';
@@ -91,7 +91,9 @@ export function resolveLinkAmong(paths: readonly string[], link: string, from: s
   if (wanted === '') return null;
   const exact = paths.find((path) => path === wanted || path === `${wanted}.md`);
   if (exact !== undefined) return exact;
-  const name = clashKey(wanted.endsWith('.md') ? wanted : `${wanted}.md`);
+  // A link to a file that is not a note says its ending ("portrait.png"); a note's may be left off.
+  const other = /\.[A-Za-z0-9]+$/.test(wanted) && !wanted.endsWith('.md');
+  const name = clashKey(wanted.endsWith('.md') || other ? wanted : `${wanted}.md`);
   const named = paths.filter((path) => {
     const key = clashKey(path);
     return key === name || key.endsWith(`/${name}`);
@@ -334,6 +336,15 @@ export class MemoryVault implements VaultPort {
 
   listFiles(folder: string): string[] {
     return [...this.files.keys()].filter((path) => parentPath(path) === folder);
+  }
+
+  listImageFiles(): string[] {
+    return [...this.files.keys()].filter(isImagePath).sort();
+  }
+
+  resourceUrl(path: string): string | null {
+    // What Obsidian gives is an address inside the app; the tests only need to tell one file from another.
+    return this.files.has(path) ? `app://vault/${path}` : null;
   }
 
   createdDay(path: string): string | null {

@@ -31,6 +31,16 @@ export function isMarkdownPath(path: string): boolean {
   return path.toLowerCase().endsWith('.md');
 }
 
+/** The endings of the files that are pictures a browser can show, in lower case. */
+export const IMAGE_EXTENSIONS: readonly string[] = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'svg'];
+
+/** True for the path of a picture: a file whose name ends in one of IMAGE_EXTENSIONS, whatever its capitals. */
+export function isImagePath(path: string): boolean {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  const dot = name.lastIndexOf('.');
+  return dot > 0 && IMAGE_EXTENSIONS.includes(name.slice(dot + 1).toLowerCase());
+}
+
 /** True when `path` is somewhere below `folder`. The root ("") contains everything. */
 export function isInside(folder: string, path: string): boolean {
   if (folder === '') return path !== '';

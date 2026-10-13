@@ -96,6 +96,15 @@ class FakeVault extends FakeEvents {
     );
   }
 
+  getFiles(): TFile[] {
+    return [...this.entries.values()].filter((entry): entry is TFile => entry instanceof TFile);
+  }
+
+  /** An address a file can be shown at. (Obsidian's own leads into the app; the tests only tell files apart.) */
+  getResourcePath(file: TFile): string {
+    return `app://vault/${file.path}`;
+  }
+
   getMarkdownFiles(): TFile[] {
     return [...this.entries.values()].filter(
       (entry): entry is TFile => entry instanceof TFile && entry.extension === 'md',
@@ -209,7 +218,7 @@ class FakeMetadataCache extends FakeEvents {
 
   /** Where a link written in the note at `sourcePath` leads, or null. */
   getFirstLinkpathDest(linkpath: string, sourcePath: string): TFile | null {
-    const paths = this.owner.vault.getMarkdownFiles().map((file) => file.path);
+    const paths = this.owner.vault.getFiles().map((file) => file.path);
     const found = resolveLinkAmong(paths, linkpath, sourcePath);
     return found === null ? null : this.owner.vault.getFileByPath(found);
   }
