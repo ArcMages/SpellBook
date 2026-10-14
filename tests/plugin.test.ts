@@ -943,6 +943,22 @@ describe('editing the binder, through to the notes', () => {
     expect(selectedTitle(pane)).toBe('Loose');
   });
 
+  it('says in the rename window where links are changed, and tells how many notes outside the project keep the old name', async () => {
+    const fake = threeScenes();
+    fake.addNote('Elsewhere/Diary.md', 'Wrote [[Middle]] today.');
+    fake.addNote('Novel/Research/Plan.md', 'Then [[Middle|the middle]].');
+    const { pane } = await withBinder(fake);
+    menuFor(pane, 'Middle').item('Rename').click();
+    const window = lastWindow();
+    const said = (window.contentEl.withClass('spellbook-prompt-note')[0] as FakeElement).text;
+    expect(said).toMatch(/^Every link to it in this project is changed to the new name\. 1 note outside the project links to it, and that link keeps the old name/);
+    answer('Crossing');
+    await until(() => lines(pane).includes('  Crossing 3'), 'the new name to be shown');
+    expect(fake.textOf('Novel/Research/Plan.md')).toBe('Then [[Crossing|the middle]].');
+    expect(fake.textOf('Elsewhere/Diary.md')).toBe('Wrote [[Middle]] today.');
+    expect(notices().some((text) => /^1 note outside the project still links to the old name of "Crossing"\./.test(text))).toBe(true);
+  });
+
   it('follows a rename made in Obsidian\'s file explorer, and brings the index up to date', async () => {
     const { fake, pane } = await withBinder(threeScenes());
     const file = fake.vault.getFileByPath('Novel/Manuscript/Middle.md');

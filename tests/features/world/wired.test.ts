@@ -425,6 +425,8 @@ describe('the card\'s menu', () => {
     expect(lastMenu().outline).toEqual(['Open note', 'Open note in new tab', 'Open sheet', '---', 'Rename', 'Delete']);
     lastMenu().item('Rename').click();
     expect(one(lastWindow().contentEl, 'spellbook-prompt-input').value).toBe('Mara');
+    // The window says where the links are changed, as the setting has it as it comes.
+    expect(one(lastWindow().contentEl, 'spellbook-prompt-note').text).toBe('Every link to it in this project is changed to the new name.');
     await answer(s, 'Saltwick');
     // Another note of that name in another folder is no clash.
     expect(s.vault.writes).toEqual([

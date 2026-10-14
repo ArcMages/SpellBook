@@ -78,9 +78,13 @@ export function seedProject(vault: MemoryVault, options: SeedOptions = {}): stri
 }
 
 /** A store with one seeded project already open. */
-export async function openSeeded(options: SeedOptions = {}, vault: MemoryVault = new MemoryVault()): Promise<Harness & { indexPath: string }> {
+export async function openSeeded(
+  options: SeedOptions = {},
+  vault: MemoryVault = new MemoryVault(),
+  linkScope?: () => LinkScope,
+): Promise<Harness & { indexPath: string }> {
   const indexPath = seedProject(vault, options);
-  const harness = makeStore(vault);
+  const harness = makeStore(vault, linkScope);
   const opened = await harness.store.openProject(indexPath);
   if (opened.status !== 'done') throw new Error(`could not open the seeded project: ${JSON.stringify(opened)}`);
   harness.changes.length = 0;

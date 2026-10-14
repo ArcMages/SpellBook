@@ -189,7 +189,8 @@ function lastPart(path: string): string {
 /**
  * How a link is to name a note (or another file) that was renamed or moved,
  * written the way the link was: "Mara" stays a bare name ("Mara Voss"), a
- * path stays a path, and a ".md" ending is written only where it was. The
+ * path stays a path of as many steps ("Characters/Mara" -> "People/Mara"),
+ * and a ".md" ending is written only where it was. The
  * first way that `resolves` (asked with the link as it would be written,
  * from where the link is) says leads to the file is taken; when none does,
  * the file's whole vault path.
@@ -204,7 +205,15 @@ export function movedLinkPath(linkPath: string, newPath: string, resolves: (cand
   const name = keepEnding ? lastPart(newPath) : lastPart(newPath).replace(/\.md$/i, '');
   const whole = keepEnding ? newPath : newPath.replace(/\.md$/i, '');
   const slash = linkPath.lastIndexOf('/');
-  const candidates = slash < 0 ? [name] : [`${linkPath.slice(0, slash + 1)}${name}`];
+  const candidates: string[] = [];
+  if (slash < 0) candidates.push(name);
+  else {
+    // The same folders as before (a rename where it is), or else as many steps of the new path as the link had.
+    candidates.push(`${linkPath.slice(0, slash + 1)}${name}`);
+    const steps = linkPath.split('/').length;
+    const parts = whole.split('/');
+    if (parts.length > steps) candidates.push(parts.slice(-steps).join('/'));
+  }
   for (const candidate of candidates) {
     if (resolves(candidate)) return candidate;
   }
