@@ -11,7 +11,9 @@
 // A filled cell shows a dot in the column's colour with a tick in it (so the
 // colour is never all there is to see). A tap on a cell puts the scene in the
 // column or takes it out: the host writes that one property of that scene.
-// A long stretch of scenes a column is missing from is shaded quietly.
+// A long stretch of scenes a column is missing from is shaded quietly, and so
+// (unless the setting turns it off) are the scenes before its first scene and
+// after its last, so that the span where it is in the story stands out.
 //
 // The scene names stay at the start while the plot columns scroll sideways;
 // on a narrow pane (measured, not guessed from the device) the cells are at
@@ -57,6 +59,8 @@ export const NO_COLUMNS_TEXT: Readonly<Record<ColumnKind, string>> = {
 export const FILLED_CLASS = 'spellbook-plotgrid-filled';
 /** On a cell in a long stretch the column is missing from. */
 export const GAP_CLASS = 'spellbook-plotgrid-gap';
+/** On a cell before the column's first scene or after its last: outside the stretch it is in the story. */
+export const OUTSIDE_CLASS = 'spellbook-plotgrid-outside';
 /** On a cell whose change is being saved. */
 export const BUSY_CLASS = 'spellbook-plotgrid-busy';
 
@@ -374,6 +378,7 @@ export class PlotGridView extends ItemView {
       const on = row.cells[at] === true;
       const td = tr.createEl('td', { cls: 'spellbook-plotgrid-cell' });
       td.toggleClass(GAP_CLASS, row.gaps[at] === true);
+      td.toggleClass(OUTSIDE_CLASS, row.outside[at] === true);
       const mark = td.createDiv({
         cls: 'spellbook-plotgrid-mark',
         attr: {

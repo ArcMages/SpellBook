@@ -346,57 +346,20 @@
   border-inline-start: var(--border-width) solid var(--background-modifier-border);
 }
 
-/* An entity's name on a card or in a row of the table: a button that opens
-   its note, which looks like the name it is and like a link under the
-   pointer. (The card or row around it shows the sheet.) */
-.spellbook-world .spellbook-world-name-open {
-  display: inline-block;
-  height: auto;
+/* An entity's name on a card or in a row of the table: part of the card or
+   row around it, which shows the sheet when tapped. */
+.spellbook-world .spellbook-world-name {
   min-width: 0;
   max-width: 100%;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-s);
-  box-shadow: none;
-  background-color: transparent;
   color: var(--text-normal);
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
   overflow-wrap: anywhere;
-  white-space: normal;
   text-align: start;
-  cursor: var(--cursor-link, pointer);
-}
-
-.spellbook-world .spellbook-world-name-open:hover {
-  background-color: transparent;
-  box-shadow: none;
-  color: var(--link-color, var(--text-accent));
-  text-decoration: underline;
-}
-
-.spellbook-world .spellbook-world-name-open:focus-visible {
-  box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
 }
 
 .spellbook-world .spellbook-world-card-name {
   flex: 0 1 auto;
   align-self: flex-start;
   font-weight: var(--font-semibold);
-}
-
-/* On a phone the name stays an easy target: a finger's height, its text in the middle. */
-.spellbook-world.spellbook-is-mobile .spellbook-world-name-open {
-  display: inline-flex;
-  align-items: center;
-}
-
-@media (pointer: coarse) {
-  .spellbook-world .spellbook-world-name-open {
-    display: inline-flex;
-    align-items: center;
-  }
 }
 
 .spellbook-world-card .spellbook-world-card-more {
@@ -914,7 +877,6 @@
 .spellbook-world.spellbook-is-mobile .spellbook-world-row-open,
 .spellbook-world.spellbook-is-mobile .spellbook-world-mention-link,
 .spellbook-world.spellbook-is-mobile .spellbook-world-layout-button,
-.spellbook-world.spellbook-is-mobile .spellbook-world-name-open,
 .spellbook-world.spellbook-is-mobile .spellbook-world-choose-picture,
 .spellbook-world.spellbook-is-mobile .spellbook-world-remove-picture,
 .spellbook-world.spellbook-is-mobile .spellbook-world-relate,
@@ -940,7 +902,6 @@
   .spellbook-world .spellbook-world-row-open,
   .spellbook-world .spellbook-world-mention-link,
   .spellbook-world .spellbook-world-layout-button,
-  .spellbook-world .spellbook-world-name-open,
   .spellbook-world .spellbook-world-choose-picture,
   .spellbook-world .spellbook-world-remove-picture,
   .spellbook-world .spellbook-world-relate,

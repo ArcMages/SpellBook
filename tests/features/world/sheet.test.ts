@@ -898,14 +898,18 @@ describe('cards and list', () => {
     pane.withClass('spellbook-world-table-entity')[0]?.fire('click', { metaKey: true });
     await calm(s);
     expect(s.opened).toEqual([{ path: inNovel(LAMP), where: 'tab' }]);
-    // The name in a row opens the note, and the sheet stays as it was.
+    // The name in a row is part of the row: it shows the sheet, and opens no note.
     const saltwick = pane.withClass('spellbook-world-table-entity').find((candidate) => candidate.getAttr('data-path') === SALTWICK) as FakeElement;
     const name = one(saltwick.withClass('spellbook-world-table-name')[0] as FakeElement, 'spellbook-world-table-text');
-    expect(name.tag).toBe('button');
+    expect(name.tag).not.toBe('button');
     name.fire('click');
     await calm(s);
-    expect(s.opened.slice(1)).toEqual([{ path: inNovel(SALTWICK), where: false }]);
-    expect(one(one(pane, 'spellbook-world-detail'), 'spellbook-world-detail-name').text).toBe(MARA_HE);
+    expect(s.opened).toEqual([{ path: inNovel(LAMP), where: 'tab' }]);
+    expect(one(one(pane, 'spellbook-world-detail'), 'spellbook-world-detail-name').text).toBe('Saltwick');
+    // The middle button on a row: the note, in a new tab.
+    saltwick.fire('auxclick', { button: 1, preventDefault: () => undefined });
+    await calm(s);
+    expect(s.opened.slice(1)).toEqual([{ path: inNovel(SALTWICK), where: 'tab' }]);
   });
 
   it('remembers cards or list on this device, and nowhere else', async () => {
