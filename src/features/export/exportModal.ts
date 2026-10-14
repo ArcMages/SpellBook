@@ -10,8 +10,8 @@
 
 import { Modal, Notice, Platform, Setting } from 'obsidian';
 import type { App } from 'obsidian';
-import { MATTER_KINDS, MAX_MATTER_TEXT, PRESET_IDS, withPreset } from '../../core/export';
-import type { ExportFormat, ExportOptions, MatterChoice, MatterKind, PaperId, PresetId } from '../../core/export';
+import { HEADING_KEYS, MATTER_KINDS, MAX_HEADING_TEXT, MAX_MATTER_TEXT, PRESET_IDS, bookWords, cleanHeading, withPreset } from '../../core/export';
+import type { ExportFormat, ExportOptions, HeadingKey, MatterChoice, MatterKind, PaperId, PresetId } from '../../core/export';
 import { safely } from '../../ui/safely';
 import { ExportDoneModal, PROBLEM_NOTICE_MS } from './doneModal';
 import { MATTER_NAMES } from './exporter';
@@ -67,6 +67,33 @@ export const MATTER_CHOICE_NAMES: Readonly<Record<MatterChoice['from'], string>>
 export const MATTER_NOTE =
   'A dedication and an epigraph come after the title page, each on a page of its own; acknowledgements and about the author come at the end. A heading on the first line of the text becomes the page\'s title.';
 
+export const HEADINGS_HEADING = 'Headings';
+export const HEADINGS_NOTE =
+  'The headings the book writes by itself. Type your own in place of any of them; an empty box keeps the usual word, shown in grey, in the language of the book. A heading on the first line of a page\'s own text comes first.';
+/** What each heading is called in the window. */
+export const HEADING_NAMES: Readonly<Record<HeadingKey, string>> = {
+  contents: 'List of contents',
+  dedication: 'Dedication',
+  epigraph: 'Epigraph',
+  acknowledgements: 'Acknowledgements',
+  about: 'About the author',
+  cover: 'Cover',
+  titlePage: 'Title page',
+  start: 'Start of the text',
+};
+/** What stands under a heading's name, for those that need it. */
+export const HEADING_NOTES: Readonly<Partial<Record<HeadingKey, string>>> = {
+  dedication: 'Usually none. A heading typed here is printed above the dedication.',
+  epigraph: 'Usually none. A heading typed here is printed above the epigraph.',
+  cover: 'In the menu of an e-book reader.',
+  titlePage: 'In the menu of an e-book reader.',
+  start: 'In the menu of an e-book reader.',
+};
+/** The headings only an e-book has: entries of the reader's menu. */
+const EBOOK_HEADINGS: readonly HeadingKey[] = ['cover', 'titlePage', 'start'];
+/** The grey text of an empty box for a page that usually has no heading. */
+export const NO_HEADING_TEXT = 'No heading';
+
 /** Shown on a phone or a tablet, where the plugin cannot hand a page to the printer itself. */
 export const MOBILE_PDF_NOTE =
   'For a PDF on a phone or tablet: export the web page, open it in the browser or the Files app, and print it from the share menu. Printing offers to save it as a PDF.';
@@ -116,6 +143,8 @@ export class ExportModal extends Modal {
   private shut = false;
   /** Whether the pages before and after the text are unfolded. */
   private matterOpen = false;
+  /** Whether the book's own headings are unfolded. */
+  private headingsOpen = false;
   /** The small window that says the export is saved, once it is. */
   private done: ExportDoneModal | null = null;
   /** Set when the plugin is switched off: nothing more is opened. */
@@ -234,6 +263,7 @@ export class ExportModal extends Modal {
     }
     if (choices.format === 'epub') this.drawCover();
     this.drawMatter();
+    this.drawHeadings();
 
     new Setting(contentEl)
       .addButton((button) => {
@@ -285,6 +315,39 @@ export class ExportModal extends Modal {
       for (const kind of MATTER_KINDS) this.drawMatterChoice(list, kind, notes, draw);
     };
     draw();
+  }
+
+  /** The headings the book writes by itself, folded away until the writer opens them. */
+  private drawHeadings(): void {
+    const details = this.contentEl.createEl('details', { cls: 'spellbook-export-headings' });
+    details.open = this.headingsOpen;
+    const keys = HEADING_KEYS.filter((key) => this.choices.format === 'epub' || !EBOOK_HEADINGS.includes(key));
+    const typed = keys.filter((key) => cleanHeading(this.choices.headings[key]) !== '').length;
+    details.createEl('summary', { text: typed === 0 ? HEADINGS_HEADING : `${HEADINGS_HEADING} (${typed})` });
+    details.addEventListener('toggle', () => {
+      this.headingsOpen = details.open;
+    });
+    details.createEl('p', { cls: 'spellbook-export-note', text: HEADINGS_NOTE });
+    const usual = bookWords(this.exporter.language());
+    for (const key of keys) {
+      const setting = new Setting(details).setName(HEADING_NAMES[key]);
+      const note = HEADING_NOTES[key];
+      if (note !== undefined) setting.setDesc(note);
+      setting.addText((text) => {
+        text.inputEl.setAttr('dir', 'auto');
+        text.inputEl.setAttr('maxlength', String(MAX_HEADING_TEXT));
+        text.inputEl.setAttr('aria-label', HEADING_NAMES[key]);
+        const shown = key === 'dedication' || key === 'epigraph' ? NO_HEADING_TEXT : usual[key];
+        text.setPlaceholder(shown);
+        text.setValue(this.choices.headings[key] ?? '').onChange((value) => {
+          const headings = { ...this.choices.headings };
+          const heading = cleanHeading(value);
+          if (heading === '') delete headings[key];
+          else headings[key] = heading;
+          this.change({ headings });
+        });
+      });
+    }
   }
 
   private drawMatterChoice(parent: HTMLElement, kind: MatterKind, notes: ReturnType<Exporter['noteChoices']>, redraw: () => void): void {

@@ -23,7 +23,7 @@
 
 import { directionOf, splitByScript } from './direction';
 import type { Direction } from './direction';
-import { MARGIN_TWIPS, PAPER_SIZES, PRESETS, bookWords, contentsOf, headerText, titledMatter, wordsLine } from './manuscript';
+import { MARGIN_TWIPS, PAPER_SIZES, PRESETS, contentsOf, headerText, headingDirection, titledMatter, wordsLine } from './manuscript';
 import type { ExportOptions, Manuscript, MatterPart, Preset } from './manuscript';
 import type { Block, Run } from './markdown';
 import { utf8, zipStored } from './zip';
@@ -203,7 +203,7 @@ function documentXml(manuscript: Manuscript, options: DocxOptions): string {
   const base = manuscript.direction;
   const preset = presetOf(options);
   const breakMark = preset.sceneBreak;
-  const words = bookWords(manuscript.language);
+  const words = manuscript.headings;
   const body: string[] = [];
   const bookmarks = new Map<string, { id: number; name: string }>();
   const entries = options.contents ? [...contentsOf(manuscript), ...titledMatter(manuscript.back)] : [];
@@ -234,7 +234,7 @@ function documentXml(manuscript: Manuscript, options: DocxOptions): string {
   }
   let afterContents = !pageIsNew;
   if (entries.length > 0) {
-    const contentsDirection: Direction = manuscript.language === 'he' ? 'rtl' : 'ltr';
+    const contentsDirection: Direction = headingDirection(manuscript, 'contents');
     body.push(
       paragraph(DOCX_STYLES.contentsTitle, textRuns(words.contents, { bold: true }, contentsDirection), {
         direction: contentsDirection,

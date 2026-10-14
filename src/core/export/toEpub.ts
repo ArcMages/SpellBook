@@ -28,7 +28,7 @@
 // outside the book. The cover picture is a file inside it.
 
 import type { Direction } from './direction';
-import { PRESETS, bookWords } from './manuscript';
+import { PRESETS, headingDirection } from './manuscript';
 import type { ExportOptions, Manuscript, MatterKind, MatterPart, Preset } from './manuscript';
 import type { Block, Run } from './markdown';
 import { escapeXml } from './toDocx';
@@ -249,7 +249,7 @@ const MATTER_TYPES: Readonly<Record<MatterKind, string>> = {
 /** The files an EPUB of this manuscript is made of, in the order they go into the zip. */
 export function epubParts(manuscript: Manuscript, options: EpubOptions, extras: EpubExtras): ZipEntry[] {
   const preset = PRESETS[options.preset ?? 'manuscript'];
-  const words = bookWords(manuscript.language);
+  const words = manuscript.headings;
   const base = manuscript.direction;
   const breakMark = preset.sceneBreak;
   const sections: Section[] = [];
@@ -330,7 +330,7 @@ export function epubParts(manuscript: Manuscript, options: EpubOptions, extras: 
   // A table of contents must have an entry: a book with no chapters and no titles has its title.
   const target = firstText ?? sections[sections.length - 1];
   if (toc.length === 0) toc.push({ level: 1, title: manuscript.title, href: target ? target.file : NAV_FILE, direction: base });
-  const contentsDirection: Direction = manuscript.language === 'he' ? 'rtl' : 'ltr';
+  const contentsDirection: Direction = headingDirection(manuscript, 'contents');
   const navBody = [
     `<nav epub:type="toc" id="toc" class="contents">`,
     `<h1 dir="${contentsDirection}">${escapeXml(words.contents)}</h1>`,

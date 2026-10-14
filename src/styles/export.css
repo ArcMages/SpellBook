@@ -97,14 +97,16 @@
   overflow-wrap: anywhere;
 }
 
-/* The pages before and after the text: folded away under a heading that a finger can open. */
-.spellbook-export .spellbook-export-matter {
+/* The pages before and after the text, and the book's own headings: folded away under a heading that a finger can open. */
+.spellbook-export .spellbook-export-matter,
+.spellbook-export .spellbook-export-headings {
   margin-block: var(--size-4-3);
   padding-block: var(--size-4-2);
   border-block-start: 1px solid var(--background-modifier-border);
 }
 
-.spellbook-export .spellbook-export-matter > summary {
+.spellbook-export .spellbook-export-matter > summary,
+.spellbook-export .spellbook-export-headings > summary {
   min-height: var(--touch-target-size, 44px);
   display: flex;
   align-items: center;

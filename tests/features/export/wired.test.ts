@@ -15,6 +15,7 @@ import {
   COULD_NOT_SHOW_TEXT,
   EXPORT_WINDOW_TITLE,
   FORMAT_NOTES,
+  HEADINGS_NOTE,
   HIDDEN_FILE_NOTE,
   MATTER_NOTE,
   MOBILE_PDF_NOTE,
@@ -184,7 +185,7 @@ describe('the export window', () => {
       ['letter', 'US Letter'],
     ]);
     expect(textField(window, 'Author').inputEl.getAttr('dir')).toBe('auto');
-    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.docx, PRESET_NOTES.manuscript, MATTER_NOTE]);
+    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.docx, PRESET_NOTES.manuscript, MATTER_NOTE, HEADINGS_NOTE]);
     expect(dropdown(window, 'Preset').getValue()).toBe('manuscript');
   });
 
@@ -206,10 +207,10 @@ describe('the export window', () => {
     expect(hasRow(window, 'Paper')).toBe(false);
     expect(hasRow(window, 'Line at the top of each page')).toBe(false);
     expect(hasRow(window, 'Title page')).toBe(true);
-    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.markdown, PRESET_NOTES.manuscript, MATTER_NOTE]);
+    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.markdown, PRESET_NOTES.manuscript, MATTER_NOTE, HEADINGS_NOTE]);
     dropdown(window, 'Format').choose('print');
     expect(hasRow(window, 'Paper')).toBe(true);
-    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.print, PRESET_NOTES.manuscript, MATTER_NOTE]);
+    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.print, PRESET_NOTES.manuscript, MATTER_NOTE, HEADINGS_NOTE]);
     expect(hasRow(window, 'Cover')).toBe(false);
     dropdown(window, 'Format').choose('epub');
     // An e-book has no pages of a fixed size: no paper, no line at the top; it may have a cover.
@@ -229,7 +230,7 @@ describe('the export window', () => {
     const window = openWindow(stage);
     expect(choicesOf(window, 'Format').map(([value]) => value)).toEqual(['docx', 'epub', 'html', 'markdown']);
     expect(dropdown(window, 'Format').getValue()).toBe('html');
-    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.html, MOBILE_PDF_NOTE, PRESET_NOTES.manuscript, MATTER_NOTE]);
+    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.html, MOBILE_PDF_NOTE, PRESET_NOTES.manuscript, MATTER_NOTE, HEADINGS_NOTE]);
     expect(MOBILE_PDF_NOTE).toMatch(/export the web page/);
   });
 

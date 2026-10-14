@@ -58,6 +58,41 @@ export interface ExportOptions {
   /** The picture on the cover of an e-book, as a vault path; null for none. */
   readonly cover: string | null;
   readonly matter: Readonly<Record<MatterKind, MatterChoice>>;
+  /**
+   * The headings the writer typed for the book's own pages ("Contents",
+   * "About the Author" and the rest). A heading that is not here takes the
+   * usual word in the book's language.
+   */
+  readonly headings: HeadingChoices;
+}
+
+/** The headings an exported book writes by itself: its list of contents, the pages before and after the text, and the e-book's menu entries. */
+export type HeadingKey = 'contents' | 'cover' | 'titlePage' | 'start' | MatterKind;
+
+/** The headings the writer typed, by what they head. Only those typed are here. */
+export type HeadingChoices = Readonly<Partial<Record<HeadingKey, string>>>;
+
+/** The headings in the order the export window lists them. */
+export const HEADING_KEYS: readonly HeadingKey[] = ['contents', 'dedication', 'epigraph', 'acknowledgements', 'about', 'cover', 'titlePage', 'start'];
+
+/** The longest heading the writer may type, in characters. */
+export const MAX_HEADING_TEXT = 200;
+
+/** A heading as the writer typed it, on one line and trimmed; '' for one not given. */
+export function cleanHeading(value: unknown): string {
+  return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, MAX_HEADING_TEXT).trim() : '';
+}
+
+/** The headings the writer typed, made safe: what is empty or not text is left out. */
+export function readHeadingChoices(value: unknown): HeadingChoices {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  const given = value as Record<string, unknown>;
+  const headings: Partial<Record<HeadingKey, string>> = {};
+  for (const key of HEADING_KEYS) {
+    const heading = cleanHeading(given[key]);
+    if (heading !== '') headings[key] = heading;
+  }
+  return headings;
 }
 
 /** What a preset sets: how the pages look, and where the switches of the window start. */
@@ -143,6 +178,7 @@ export const DEFAULT_EXPORT_OPTIONS: ExportOptions = Object.freeze({
   paper: 'a4',
   cover: null,
   matter: Object.freeze({ dedication: NO_MATTER, epigraph: NO_MATTER, acknowledgements: NO_MATTER, about: NO_MATTER }),
+  headings: Object.freeze({}),
 });
 
 export const EXPORT_FORMATS: readonly ExportFormat[] = ['docx', 'epub', 'html', 'markdown', 'print'];
@@ -204,6 +240,7 @@ export function readExportOptions(saved: unknown): ExportOptions {
       acknowledgements: readMatterChoice(matterGiven['acknowledgements']),
       about: readMatterChoice(matterGiven['about']),
     },
+    headings: readHeadingChoices(given['headings']),
   };
 }
 
@@ -362,9 +399,9 @@ export interface MatterPart {
   readonly id: string;
   /**
    * The heading the page has: the writer's own when the text starts with a
-   * heading line, else the usual one for acknowledgements and about the
-   * author in the book's language. A dedication and an epigraph have none
-   * unless the writer gave one.
+   * heading line, else the one typed in the export window, else the usual
+   * one for acknowledgements and about the author in the book's language. A
+   * dedication and an epigraph have none unless the writer gave one.
    */
   readonly title: string | null;
   readonly direction: Direction;
@@ -376,8 +413,10 @@ export interface MatterPart {
 /** The languages a book's words (its headings) are given in. */
 export type BookLanguage = 'en' | 'he' | 'ar';
 
+export type BookWords = Readonly<Record<HeadingKey, string>>;
+
 /** The words an exported book uses for its own headings, in its language. Arabic books get the English ones. */
-export const BOOK_WORDS: Readonly<Record<'en' | 'he', Readonly<Record<'contents' | 'cover' | 'titlePage' | 'start' | MatterKind, string>>>> = {
+export const BOOK_WORDS: Readonly<Record<'en' | 'he', BookWords>> = {
   en: {
     contents: 'Contents',
     cover: 'Cover',
@@ -400,9 +439,38 @@ export const BOOK_WORDS: Readonly<Record<'en' | 'he', Readonly<Record<'contents'
   },
 };
 
-/** The words of a book in this language. */
-export function bookWords(language: BookLanguage): (typeof BOOK_WORDS)['en'] {
-  return language === 'he' ? BOOK_WORDS.he : BOOK_WORDS.en;
+/** The words of a book in this language, with the headings the writer typed in place of the usual ones. */
+export function bookWords(language: BookLanguage, own: HeadingChoices = {}): BookWords {
+  const usual = language === 'he' ? BOOK_WORDS.he : BOOK_WORDS.en;
+  const words: Record<HeadingKey, string> = { ...usual };
+  for (const key of HEADING_KEYS) {
+    const heading = cleanHeading(own[key]);
+    if (heading !== '') words[key] = heading;
+  }
+  return words;
+}
+
+/**
+ * The language a book's usual headings would be in, guessed from a few of
+ * its texts (the titles of its scenes and chapters, say): Hebrew or Arabic
+ * when most of them run right to left, else English. The export itself
+ * decides from the text; this is for showing the usual headings beforehand.
+ */
+export function guessBookLanguage(texts: readonly string[]): BookLanguage {
+  let rtl = 0;
+  let ltr = 0;
+  for (const text of texts) {
+    const direction = directionOf(text);
+    if (direction === 'rtl') rtl++;
+    else if (direction === 'ltr') ltr++;
+  }
+  if (rtl <= ltr) return 'en';
+  return looksArabic(texts.join(' ')) ? 'ar' : 'he';
+}
+
+/** The direction a heading of the book is set in: its own, or the usual one for the book's language. */
+export function headingDirection(manuscript: Pick<Manuscript, 'language' | 'headings'>, key: HeadingKey): Direction {
+  return directionOf(manuscript.headings[key]) ?? (manuscript.language === 'he' ? 'rtl' : 'ltr');
 }
 
 export interface Manuscript {
@@ -412,6 +480,8 @@ export interface Manuscript {
   readonly direction: Direction;
   /** The language of the text: Hebrew or Arabic when most of it runs right to left, else English. */
   readonly language: BookLanguage;
+  /** The headings the book writes by itself: the usual words of its language, or the writer's own. */
+  readonly headings: BookWords;
   /** The words in the exported scenes. */
   readonly words: number;
   readonly parts: readonly ManuscriptPart[];
@@ -429,7 +499,7 @@ export interface Manuscript {
 export interface ManuscriptInput {
   readonly title: string;
   readonly tree: readonly TreeNode[];
-  readonly options: Pick<ExportOptions, 'scope' | 'author' | 'sceneTitles'>;
+  readonly options: Pick<ExportOptions, 'scope' | 'author' | 'sceneTitles'> & { readonly headings?: HeadingChoices };
   /** The scenes that were read, by their path relative to the project folder. A scene that is not here is left out as unread. */
   readonly scenes: ReadonlyMap<string, SceneSource>;
   /** The texts of the pages before and after the text, as Markdown (a note's whole text will do). */
@@ -512,11 +582,12 @@ export function buildManuscript(input: ManuscriptInput): Manuscript {
   const parts = drafts.map((part): ManuscriptPart => ({ ...part, direction: part.direction ?? direction }));
   const sample = parts.map((part) => (part.kind === 'scene' ? plainTextOfBlocks(part.blocks.slice(0, 3)) : part.title)).join(' ');
   const language: BookLanguage = direction === 'rtl' ? (looksArabic(sample) ? 'ar' : 'he') : 'en';
+  const headings = bookWords(language, options.headings);
   const matterOf = (kinds: readonly MatterKind[]): MatterPart[] =>
     kinds.flatMap((role) => {
       const text = input.matter?.get(role);
       if (text === undefined) return [];
-      const part = matterPart(role, text, language, direction, `part-${nextId}`);
+      const part = matterPart(role, text, headings, cleanHeading(options.headings?.[role]), direction, `part-${nextId}`);
       if (part) nextId++;
       return part ? [part] : [];
     });
@@ -527,6 +598,7 @@ export function buildManuscript(input: ManuscriptInput): Manuscript {
     author: options.author.replace(/\s+/g, ' ').trim(),
     direction,
     language,
+    headings,
     words,
     parts,
     front,
@@ -541,7 +613,7 @@ export function buildManuscript(input: ManuscriptInput): Manuscript {
  * One page before or after the text, from its Markdown. Null when the text
  * holds nothing to print. A heading on its first line becomes the page's title.
  */
-function matterPart(role: MatterKind, text: string, language: BookLanguage, base: Direction, id: string): MatterPart | null {
+function matterPart(role: MatterKind, text: string, words: BookWords, typed: string, base: Direction, id: string): MatterPart | null {
   let markdown = manuscriptText(text).trim();
   let title: string | null = null;
   const first = /^#{1,6}[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*(?:\n|$)/.exec(markdown);
@@ -552,7 +624,8 @@ function matterPart(role: MatterKind, text: string, language: BookLanguage, base
   }
   const blocks = parseBlocks(markdown);
   if (blocks.length === 0) return null;
-  if (title === null && (role === 'acknowledgements' || role === 'about')) title = bookWords(language)[role];
+  if (title === null && typed !== '') title = typed;
+  if (title === null && (role === 'acknowledgements' || role === 'about')) title = words[role];
   const direction = (title === null ? null : directionOf(title)) ?? blocks.map((block) => ('direction' in block ? block.direction : null)).find((found) => found !== null) ?? base;
   return { kind: 'matter', role, id, title, direction, blocks, markdown };
 }

@@ -166,6 +166,7 @@ describe('the options', () => {
       paper: 'a4',
       cover: null,
       matter: { dedication: none, epigraph: none, acknowledgements: none, about: none },
+      headings: {},
     });
   });
 

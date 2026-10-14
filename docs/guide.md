@@ -765,8 +765,9 @@ Command **Board: around this entity** (for the World entry open in the editor, o
 - **Author**, and switches for **Title page**, **Line at the top of each page**, **List of contents** and **Scene titles**.
 - **Paper**: A4 or US Letter.
 - **Front and back matter** (folded away; tap to open): a **Dedication**, an **Epigraph**, **Acknowledgements** and **About the author**. For each, choose **None**, **Write it here** (a box to type in) or **From a note** (any note of the project, for example one in Research). The dedication and the epigraph come after the title page, each on a page of its own; the acknowledgements and about the author come at the end, with headings. A heading on the first line of the text (`# With thanks`) becomes the page's heading; otherwise the acknowledgements are headed "Acknowledgements" and about the author "About the Author", or their Hebrew words in a Hebrew book. In an e-book each is a part of its own; in Markdown the epigraph is a quote.
+- **Headings** (folded away; tap to open): the headings the book writes by itself, each in a box of its own: **List of contents**, **Dedication**, **Epigraph**, **Acknowledgements** and **About the author**, and for an e-book also **Cover**, **Title page** and **Start of the text**, the entries of an e-book reader's menu. An empty box keeps the usual word, shown in grey, in the language of the book (English, or Hebrew for a Hebrew book). Type your own to use it instead, for example a different wording of "About the Author". A dedication and an epigraph have no heading unless you type one here. A heading on the first line of a page's own text still comes first.
 
-The window remembers your last choices for each project, on this device, typed front and back matter included.
+The window remembers your last choices for each project, on this device, typed front and back matter and headings included.
 
 **Per-scene choices.** Two scene properties change how one scene goes out. The inspector does not show them: add them in Obsidian's properties of the scene note.
 

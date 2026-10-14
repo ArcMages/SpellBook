@@ -20,7 +20,7 @@
 // follows when it prints: Chrome and Edge do, Safari leaves the line out.
 
 import type { Direction } from './direction';
-import { MARGIN_TWIPS, PAPER_SIZES, PRESETS, bookWords, contentsOf, headerText, titledMatter, wordsLine } from './manuscript';
+import { MARGIN_TWIPS, PAPER_SIZES, PRESETS, contentsOf, headerText, headingDirection, titledMatter, wordsLine } from './manuscript';
 import type { ExportOptions, Manuscript, MatterPart, PaperId, Preset } from './manuscript';
 import type { Block, Run } from './markdown';
 
@@ -183,7 +183,7 @@ function printBar(options: HtmlOptions, preset: Preset): string {
 export function toHtml(manuscript: Manuscript, options: HtmlOptions, forPrinting = false): string {
   const base = manuscript.direction;
   const preset = PRESETS[options.preset ?? 'manuscript'];
-  const words = bookWords(manuscript.language);
+  const words = manuscript.headings;
   const breakMark = preset.sceneBreak;
   const body: string[] = [];
 
@@ -201,7 +201,7 @@ export function toHtml(manuscript: Manuscript, options: HtmlOptions, forPrinting
 
   const entries = options.contents ? [...contentsOf(manuscript), ...titledMatter(manuscript.back)] : [];
   if (entries.length > 0) {
-    const contentsDirection: Direction = manuscript.language === 'he' ? 'rtl' : 'ltr';
+    const contentsDirection: Direction = headingDirection(manuscript, 'contents');
     body.push(`<nav class="contents${manuscript.front.length > 0 ? ' new-page' : ''}">`);
     body.push(`<h2 dir="${contentsDirection}">${escapeHtml(words.contents)}</h2>`);
     for (const entry of entries) {
