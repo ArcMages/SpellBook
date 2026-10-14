@@ -14,7 +14,7 @@
 import type { CardColor } from '../cards/colors';
 import { boardId } from './canvas';
 import type { BoardColor, NewBoard, NewCard, NewEdge } from './canvas';
-import { circle, force, ringRadius, rows, spread, toCorner } from './layout';
+import { rows, spread, toCorner, web } from './layout';
 import type { Point, Size } from './layout';
 
 /** The size of a card that stands for an entity. */
@@ -23,6 +23,8 @@ export const ENTITY_CARD: Size = { width: 280, height: 120 };
 export const SCENE_CARD: Size = { width: 320, height: 200 };
 /** The room between two cards. */
 export const CARD_GAP = 60;
+/** The room between two cards on a relationship map: enough for an edge's label. */
+export const MAP_GAP = 140;
 /** How many scene cards stand in one row. */
 export const CARDS_PER_ROW = 4;
 /** The room between a group's box and the cards in it. */
@@ -86,7 +88,8 @@ export interface MapRelation {
  * one both sides list has no arrows, and both labels when they differ
  * ("sister / brother"). Relations with an entity that is not on the map,
  * and an entity's relation with itself, are left out. Laid out by a force
- * layout: related cards near each other.
+ * layout: related cards near each other, the ones related to nothing in a
+ * row under them.
  */
 export function relationMap(entities: readonly MapEntity[], relations: readonly MapRelation[]): NewBoard {
   const indexOf = new Map(entities.map((entity, index) => [entity.key, index]));
@@ -112,7 +115,7 @@ export function relationMap(entities: readonly MapEntity[], relations: readonly 
   }
 
   const joined = [...pairs.values()].map((pair): [number, number] => [pair.a, pair.b]);
-  const middles = spread(force(entities.length, joined, { length: ENTITY_CARD.width * 1.4 }), ENTITY_CARD, CARD_GAP);
+  const middles = web(entities.length, joined, ENTITY_CARD, MAP_GAP);
   const taken = new Set<string>();
   const nodes: NewCard[] = entities.map((entity, index) => ({
     id: boardId(`entity:${entity.key}`, taken),
@@ -205,6 +208,46 @@ export function chapterCards(groups: readonly SceneGroup[]): NewBoard {
 
 // --------------------------------------------------------------- entity web
 
+/** How wide the arcs above and below the middle card reach, in radians: they leave its sides free. */
+const ARC_SPAN = (140 * Math.PI) / 180;
+
+/**
+ * The middles of `count` entity cards round one at (0, 0): the first half
+ * (rounded up) on an arc above it, left to right, the rest on an arc below
+ * it, so that the sides stay free for the edges to the boxes. The arcs are
+ * as wide as the cards need, and the cards never overlap.
+ */
+function arcs(count: number): Point[] {
+  if (count === 0) return [];
+  const above = Math.ceil(count / 2);
+  const below = count - above;
+  const most = Math.max(above, below);
+  // Neighbours on an arc stand a card's width and a gap apart, at least.
+  const step = most > 1 ? ARC_SPAN / (most - 1) : ARC_SPAN;
+  const apart = ENTITY_CARD.width + CARD_GAP;
+  const radius = Math.max(ENTITY_CARD.height * 2 + CARD_GAP * 2, most > 1 ? apart / (2 * Math.sin(step / 2)) : 0);
+  const arc = (many: number, middle: number): Point[] => {
+    const points: Point[] = [];
+    for (let i = 0; i < many; i++) {
+      const angle = many === 1 ? middle : middle - ARC_SPAN / 2 + (ARC_SPAN * i) / (many - 1);
+      points.push({ x: radius * Math.cos(angle), y: radius * Math.sin(angle) });
+    }
+    return points;
+  };
+  // Above: left to right (from -160 degrees to -20); below: left to right as well.
+  const top = arc(above, -Math.PI / 2);
+  const bottom = arc(below, Math.PI / 2).reverse();
+  // Make sure of it: nothing overlaps the middle card or each other.
+  const all = spread([{ x: 0, y: 0 }, ...top, ...bottom], ENTITY_CARD, CARD_GAP);
+  const middle = all[0] as Point;
+  return all.slice(1).map((point) => ({ x: point.x - middle.x, y: point.y - middle.y }));
+}
+
+/** How many cards stand in a row in a box of scenes or events: near a square, at most CARDS_PER_ROW. */
+function boxColumns(count: number): number {
+  return Math.max(1, Math.min(CARDS_PER_ROW, Math.round(Math.sqrt(count))));
+}
+
 /** An entity the one in the middle has to do with. */
 export interface WebEntity {
   readonly file: string;
@@ -230,10 +273,11 @@ export interface EntityWeb {
 }
 
 /**
- * Around one entity: it in the middle, the entities it has to do with in a
- * ring round it (an edge to each, with the relation's label), and, beside
- * the ring, a box of its scenes in reading order and a box of its events,
- * each joined to it by one edge. A box with nothing in it is left out.
+ * Around one entity: it in the middle, the entities it has to do with in two
+ * arcs above and below it (an edge to each, with the relation's label), and,
+ * to either side, a box of its scenes in reading order and a box of its
+ * events, each joined to it by one edge. A box with nothing in it is left
+ * out.
  */
 export function entityWeb(web: EntityWeb): NewBoard {
   const taken = new Set<string>();
@@ -250,8 +294,7 @@ export function entityWeb(web: EntityWeb): NewBoard {
   };
   nodes.push(center);
 
-  const radius = ringRadius(web.related.length, ENTITY_CARD, CARD_GAP, ENTITY_CARD.width * 1.3);
-  const ring = circle(web.related.length, radius);
+  const ring = arcs(web.related.length);
   for (const [index, entity] of web.related.entries()) {
     const card: NewCard = {
       id: boardId(`related:${entity.file}`, taken),
@@ -273,16 +316,18 @@ export function entityWeb(web: EntityWeb): NewBoard {
     });
   }
 
-  // The two boxes stand to either side of the ring, their tops level with its top.
-  const reach = web.related.length > 0 ? radius + ENTITY_CARD.width / 2 : ENTITY_CARD.width / 2;
-  const top = -Math.max(reach, ENTITY_CARD.height / 2);
+  // The two boxes stand to either side of the arcs, level with the entity,
+  // so that the edges to them run straight out sideways between the arcs.
+  const reach = Math.max(ENTITY_CARD.width / 2, ...ring.map((point) => Math.abs(point.x) + ENTITY_CARD.width / 2));
   const box = (files: readonly string[], label: string, side: 1 | -1, kind: string): void => {
     if (files.length === 0) return;
-    const across = Math.min(files.length, 2);
-    const down = Math.ceil(files.length / 2);
+    const perRow = boxColumns(files.length);
+    const across = Math.min(files.length, perRow);
+    const down = Math.ceil(files.length / perRow);
     const width = across * SCENE_CARD.width + (across - 1) * CARD_GAP + 2 * GROUP_PADDING;
     const height = down * SCENE_CARD.height + (down - 1) * CARD_GAP + 2 * GROUP_PADDING;
     const x = side === 1 ? reach + CARD_GAP * 2 : -reach - CARD_GAP * 2 - width;
+    const top = -height / 2;
     const group: NewCard = {
       id: boardId(`box:${kind}`, taken),
       type: 'group',
@@ -293,7 +338,7 @@ export function entityWeb(web: EntityWeb): NewBoard {
       label,
     };
     nodes.push(group);
-    const middles = rows(files.length, 2, SCENE_CARD, CARD_GAP);
+    const middles = rows(files.length, perRow, SCENE_CARD, CARD_GAP);
     for (const [index, file] of files.entries()) {
       const middle = middles[index] as Point;
       nodes.push({

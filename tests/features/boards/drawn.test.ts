@@ -233,3 +233,113 @@ describe('around one entity', () => {
     expect(scenesOnly.nodes.filter((node) => node.type === 'group')).toHaveLength(1);
   });
 });
+
+describe('boards that can be read at a glance', () => {
+  /** The sample novel's world: fourteen entities, twelve relations, a pair joined only to each other. */
+  const names = ['Ellen', 'Mara', 'Noa', 'Saltwick', 'Archive', 'Bell', 'Drowned', 'HarbourMaster', 'HarbourOffice', 'Keeper', 'Legend', 'Lighthouse', 'Tobias', 'Sea'];
+  const sample = names.map((name): MapEntity => ({ key: name, file: `Novel/World/${name}.md`, color: 'blue' }));
+  const pairs: Array<[string, string]> = [
+    ['Mara', 'HarbourMaster'],
+    ['Mara', 'Tobias'],
+    ['Noa', 'Ellen'],
+    ['Noa', 'Archive'],
+    ['Archive', 'Saltwick'],
+    ['Bell', 'Tobias'],
+    ['Bell', 'Saltwick'],
+    ['HarbourMaster', 'HarbourOffice'],
+    ['Keeper', 'Lighthouse'],
+    ['Legend', 'Drowned'],
+    ['Lighthouse', 'Saltwick'],
+    ['Sea', 'Keeper'],
+  ];
+  const relate = (list: Array<[string, string]>) => list.map(([from, to]) => ({ from, to, label: 'knows' }));
+  const many = (count: number): MapEntity[] => Array.from({ length: count }, (_, index) => ({ key: `C${index}`, file: `Novel/World/C${index}.md`, color: null }));
+  const chain = (count: number): Array<[string, string]> => Array.from({ length: count - 1 }, (_, index) => [`C${index}`, `C${index + 1}`]);
+  // Some joined in small knots, some alone.
+  const knots = (count: number): Array<[string, string]> =>
+    Array.from({ length: count - 1 }, (_, index): [string, string] => [`C${(index * 7) % (index + 1)}`, `C${index + 1}`]).filter((_, index) => index % 3 !== 0);
+
+  function size(board: NewBoard): { width: number; height: number } {
+    const left = Math.min(...board.nodes.map((node) => node.x));
+    const top = Math.min(...board.nodes.map((node) => node.y));
+    const right = Math.max(...board.nodes.map((node) => node.x + node.width));
+    const bottom = Math.max(...board.nodes.map((node) => node.y + node.height));
+    return { width: right - left, height: bottom - top };
+  }
+
+  function longestEdge(board: NewBoard): number {
+    const byId = new Map(board.nodes.map((node) => [node.id, node]));
+    return Math.max(
+      0,
+      ...board.edges.map((edge) => {
+        const a = byId.get(edge.fromNode) as NewCard;
+        const b = byId.get(edge.toNode) as NewCard;
+        return Math.hypot(a.x + a.width / 2 - (b.x + b.width / 2), a.y + a.height / 2 - (b.y + b.height / 2));
+      }),
+    );
+  }
+
+  /** At most three card widths per side for each square root of the number of cards. */
+  function expectCompact(board: NewBoard): void {
+    const bound = 3 * Math.sqrt(board.nodes.length) * ENTITY_CARD.width;
+    const { width, height } = size(board);
+    expect(width).toBeLessThanOrEqual(bound);
+    expect(height).toBeLessThanOrEqual(bound);
+  }
+
+  const cases: Array<[string, MapEntity[], Array<[string, string]>]> = [
+    ['the sample novel', sample, pairs],
+    ['a chain of forty', many(40), chain(40)],
+    ['forty in knots and alone', many(40), knots(40)],
+    ['forty joined to nothing', many(40), []],
+  ];
+
+  it.each(cases)('draws %s small, with no card overlapping or crowding another, on whole numbers', (_, entities, list) => {
+    const board = relationMap(entities, relate(list));
+    expectValid(board);
+    expectCompact(board);
+    expectNoOverlap(board.nodes.map((node) => ({ ...node, x: node.x - 30, y: node.y - 30, width: node.width + 60, height: node.height + 60 })));
+  });
+
+  it.each(cases.slice(0, 3))('keeps every edge of %s short', (_, entities, list) => {
+    expect(longestEdge(relationMap(entities, relate(list)))).toBeLessThan(ENTITY_CARD.width * 2.5);
+  });
+
+  it('keeps a card joined to the others near them, and one joined to nothing close by', () => {
+    const board = relationMap([...sample, { key: 'Lonely', file: 'Novel/World/Lonely.md', color: null }], relate(pairs));
+    expectCompact(board);
+    const lonely = board.nodes[board.nodes.length - 1] as NewCard;
+    const others = board.nodes.slice(0, -1);
+    const nearest = Math.min(...others.map((node) => Math.hypot(node.x - lonely.x, node.y - lonely.y)));
+    expect(nearest).toBeLessThan(ENTITY_CARD.width * 2.5);
+  });
+
+  it('draws the same sample the same way every time', () => {
+    expect(relationMap(sample, relate(pairs))).toEqual(relationMap(sample, relate(pairs)));
+  });
+
+  it('keeps the sides of the entity free for the edges to its boxes, and the boxes near square', () => {
+    const related = Array.from({ length: 7 }, (_, index) => ({ file: `Novel/World/R${index}.md`, color: null, label: 'knows', way: 'out' as const }));
+    const board = entityWeb({
+      center: { file: 'Novel/World/Noa.md', color: 'blue' },
+      related,
+      scenes: Array.from({ length: 11 }, (_, index) => `Novel/Manuscript/S${index}.md`),
+      events: ['Novel/Timeline/E.md'],
+      sceneLabel: 'Scenes',
+      eventLabel: 'Events',
+    });
+    expectValid(board);
+    const center = board.nodes[0] as NewCard;
+    const ring = board.nodes.slice(1, 8);
+    // No related card stands level with the entity, where the edges to the boxes run.
+    for (const card of ring) expect(card.y + card.height <= center.y || card.y >= center.y + center.height).toBe(true);
+    expectNoOverlap([center, ...ring, ...board.nodes.filter((node) => node.type === 'group')]);
+    const scenes = board.nodes.find((node) => node.type === 'group' && node.label === 'Scenes') as NewCard;
+    expect(scenes.width / scenes.height).toBeGreaterThan(0.8);
+    expect(scenes.width / scenes.height).toBeLessThan(2);
+    expect(longestEdge({ nodes: [center, ...ring], edges: board.edges.slice(0, 7) })).toBeLessThan(ENTITY_CARD.width * 3);
+    const { width, height } = size(board);
+    expect(width).toBeLessThan(4000);
+    expect(height).toBeLessThan(1500);
+  });
+});
