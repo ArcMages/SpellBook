@@ -356,6 +356,7 @@ With **Chosen entities**, press **Choose** to open the "Choose entities" window,
 - **Letter box: height of the band** and **Letter box: text outside the band** (Hidden, Barely visible or Dimmed).
 - **Typewriter: where the line rests**.
 - **Zen: hide properties**, **Zen: hide the title** and **Zen: leave with Escape**.
+- **Hemingway: allow undo**: Never, On phones and tablets only (the default), or Everywhere.
 
 **On a phone.** A phone or tablet has no Escape key, so Zen shows a small "Leave Zen mode" button in the corner of the screen.
 

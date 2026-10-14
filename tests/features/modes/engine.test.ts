@@ -14,7 +14,9 @@ import {
   blockedInput,
   blockedKeys,
   blockedText,
+  allowedHere,
   defaultModeSettings,
+  hemingwayAllows,
   formatModeSettings,
   formatModes,
   frameOf,
@@ -67,6 +69,22 @@ describe('which modes are on', () => {
   });
 });
 
+describe('what Hemingway lets through', () => {
+  it('lets undo through on phones and tablets by default, and where the writer chose', () => {
+    const defaults = defaultModeSettings(false);
+    expect([...hemingwayAllows(defaults, true)]).toEqual(['undo']);
+    expect([...hemingwayAllows(defaults, false)]).toEqual([]);
+    expect([...hemingwayAllows({ hemingwayUndo: 'never' }, true)]).toEqual([]);
+    expect([...hemingwayAllows({ hemingwayUndo: 'always' }, false)]).toEqual(['undo']);
+    expect(allowedHere('mobile', true)).toBe(true);
+    expect(allowedHere('mobile', false)).toBe(false);
+  });
+
+  it('settings saved before the choice existed come back with the default', () => {
+    expect(parseModeSettings({ bandPercent: 60 }, false).hemingwayUndo).toBe('mobile');
+  });
+});
+
 describe('the settings of the modes', () => {
   it('start with the line in the middle on a desktop, and above the middle on a phone', () => {
     expect(defaultModeSettings(false)).toEqual({
@@ -76,12 +94,13 @@ describe('the settings of the modes', () => {
       zenHideProperties: true,
       zenHideTitle: false,
       zenEscape: true,
+      hemingwayUndo: 'mobile',
     });
     expect(defaultModeSettings(true).anchorPercent).toBe(40);
   });
 
   it('come back as they were saved', () => {
-    const settings = { ...defaultModeSettings(false), bandPercent: 60, bandShade: 'hidden' as const, anchorPercent: 30, zenEscape: false };
+    const settings = { ...defaultModeSettings(false), bandPercent: 60, bandShade: 'hidden' as const, anchorPercent: 30, zenEscape: false, hemingwayUndo: 'never' as const };
     expect(parseModeSettings(formatModeSettings(settings), false)).toEqual(settings);
     expect(parseModeSettings(JSON.parse(formatModeSettings(settings)), true)).toEqual(settings);
   });
@@ -91,7 +110,7 @@ describe('the settings of the modes', () => {
     for (const stored of [null, 7, 'not json', '[1,2]', '"text"']) {
       expect(parseModeSettings(stored, false), String(stored)).toEqual(defaults);
     }
-    const mixed = parseModeSettings({ bandPercent: 'tall', bandShade: 'purple', anchorPercent: 33, zenHideTitle: true, zenEscape: 'no' }, false);
+    const mixed = parseModeSettings({ bandPercent: 'tall', bandShade: 'purple', anchorPercent: 33, zenHideTitle: true, zenEscape: 'no', hemingwayUndo: 'sometimes' }, false);
     expect(mixed).toEqual({ ...defaults, anchorPercent: 30, zenHideTitle: true });
     // A number outside the choices becomes the nearest choice.
     expect(parseModeSettings({ bandPercent: 500, anchorPercent: -4 }, false)).toMatchObject({

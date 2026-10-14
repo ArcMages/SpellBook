@@ -13,19 +13,21 @@
 export { MODES, MODE_IDS, NO_MODES, anyMode, formatModes, isModeId, parseModes, withMode } from './modes';
 export type { ModeId, ModeInfo, ModeSet } from './modes';
 export {
+  ALLOW_WHERE,
   ANCHOR_PERCENTS,
   BAND_PERCENTS,
   BAND_SHADES,
   SHADE_OPACITY,
+  allowedHere,
   defaultModeSettings,
   formatModeSettings,
   parseModeSettings,
   sameModeSettings,
 } from './settings';
-export type { BandShade, ModeSettings } from './settings';
+export type { AllowWhere, BandShade, ModeSettings } from './settings';
 export { MIN_BAND_LINES, SETTLED_WITHIN, frameOf, sameFrame, typewriterTarget } from './frame';
 export type { Frame, FrameInput, LinePlace } from './frame';
-export { blockedChange, blockedInput, blockedKeys, blockedText } from './hemingway';
+export { blockedChange, blockedInput, blockedKeys, blockedText, hemingwayAllows } from './hemingway';
 export type { Blocked, BlockedKey, ChangeFacts } from './hemingway';
 export { MODES_SERVICE } from './services';
 export type { ModeState, ModesService } from './services';

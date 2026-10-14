@@ -99,8 +99,32 @@ describe('Hemingway in the editor', () => {
     expect(guardInput({ inputType: 'insertText' }, selected.state)).toBe('replace');
   });
 
+  it('lets undo and redo through when the writer allowed it, and still refuses deleting', () => {
+    const refused: Blocked[] = [];
+    const allowed = new Set<Blocked>(['undo']);
+    const state = EditorState.create({ doc: 'Hello world', extensions: [hemingwayGuard((what) => refused.push(what), allowed)] });
+    expect(state.update({ changes: { from: 5, to: 11 }, userEvent: 'undo' }).state.doc.toString()).toBe('Hello');
+    expect(state.update({ changes: { from: 5, to: 11 }, userEvent: 'redo' }).state.doc.toString()).toBe('Hello');
+    expect(state.update({ changes: { from: 5, to: 11 }, userEvent: 'delete.backward' }).state.doc.toString()).toBe('Hello world');
+    expect(refused).toEqual(['delete']);
+    expect(guardInput({ inputType: 'historyUndo' }, state, allowed)).toBeNull();
+    expect(guardInput({ inputType: 'deleteContentBackward' }, state, allowed)).toBe('delete');
+  });
+
+  it('follows the setting and the device when the modes hand out the guard', () => {
+    const settings = { ...defaultModeSettings(false), hemingwayUndo: 'mobile' as const };
+    const on = withMode(NO_MODES, 'hemingway', true);
+    const undoOn = (mobile: boolean) => {
+      const needs = { clock: clockOn(new ManualTimers()), ios: false, mobile, blocked: () => undefined };
+      const state = EditorState.create({ doc: 'Hello world', extensions: modeExtensions(on, settings, needs) });
+      return state.update({ changes: { from: 5, to: 11 }, userEvent: 'undo' }).state.doc.toString();
+    };
+    expect(undoOn(true)).toBe('Hello');
+    expect(undoOn(false)).toBe('Hello world');
+  });
+
   it('is gone when the mode is off: an editor without it deletes as ever', () => {
-    const needs = { clock: clockOn(new ManualTimers()), ios: false, blocked: () => undefined };
+    const needs = { clock: clockOn(new ManualTimers()), ios: false, mobile: false, blocked: () => undefined };
     const settings = defaultModeSettings(false);
     expect(modeExtensions(NO_MODES, settings, needs)).toEqual([]);
     expect(modeExtensions(withMode(NO_MODES, 'zen', true), settings, needs)).toEqual([]); // Zen changes nothing in an editor

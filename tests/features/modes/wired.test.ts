@@ -362,6 +362,7 @@ describe('the settings', () => {
       'Zen: hide properties',
       'Zen: hide the title',
       'Zen: leave with Escape',
+      'Hemingway: allow undo',
     ]);
     const band = row('Letter box: height of the band').components[0] as DropdownComponent;
     expect(band.getValue()).toBe('40');
@@ -372,6 +373,23 @@ describe('the settings', () => {
     expect([anchorName(20), anchorName(50), anchorName(80)]).toEqual(['20% from the top', 'In the middle', '20% from the bottom']);
     expect(row('Zen: hide properties').toggles[0]?.getValue()).toBe(true);
     expect(row('Zen: hide the title').toggles[0]?.getValue()).toBe(false);
+    const undo = row('Hemingway: allow undo').components[0] as DropdownComponent;
+    expect(undo.getValue()).toBe('mobile');
+    expect(undo.selectEl.children.map((option) => option.text)).toEqual(['Never', 'On phones and tablets only', 'Everywhere']);
+  });
+
+  it('let the writer choose where Hemingway lets undo through, and the editors follow at once', () => {
+    const s = stage();
+    s.run('toggle-hemingway-mode');
+    const before = handed(s)[0];
+    s.storage.saves.length = 0;
+    const { row } = drawn(s);
+    (row('Hemingway: allow undo').components[0] as DropdownComponent).choose('always');
+    expect(handed(s)[0]).not.toBe(before);
+    expect(JSON.parse(s.storage.saves[s.storage.saves.length - 1]?.[1] as string)).toMatchObject({ hemingwayUndo: 'always' });
+    const saved = s.storage.saves.length;
+    (row('Hemingway: allow undo').components[0] as DropdownComponent).choose('sometimes');
+    expect(s.storage.saves).toHaveLength(saved);
   });
 
   it('start with the line above the middle on a phone', () => {
@@ -406,6 +424,7 @@ describe('the settings', () => {
       zenHideProperties: false,
       zenHideTitle: true,
       zenEscape: true,
+      hemingwayUndo: 'mobile',
     });
 
     // Choosing what is chosen already saves nothing.

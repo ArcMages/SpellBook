@@ -330,6 +330,7 @@ How they behave is set in Obsidian's **Settings**, under **Spellbook**, in the s
 | Zen: hide properties | On or off. Starts on. | Hides the properties at the top of a note while Zen is on. |
 | Zen: hide the title | On or off. Starts off. | Hides the title above the text while Zen is on. |
 | Zen: leave with Escape | On or off. Starts on. | The Escape key leaves Zen. Switch it off if you use Escape for something else while writing. |
+| Hemingway: allow undo | Never, On phones and tablets only, Everywhere. Starts on phones and tablets only. | Whether undo and redo still work while Hemingway is on. A phone has no other way to fix a typo. |
 
 **Some set-ups to try**
 

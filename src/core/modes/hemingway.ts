@@ -13,9 +13,27 @@
 //   - the change itself, just before it is made, which catches whatever came
 //     another way, such as the undo button of the phone's toolbar
 //     (blockedChange).
+//
+// The writer may let some of it through (see hemingwayAllows): undo, which
+// is let through on phones and tablets unless they choose otherwise.
+
+import { allowedHere } from './settings';
+import type { ModeSettings } from './settings';
 
 /** What was refused. */
 export type Blocked = 'delete' | 'undo' | 'cut' | 'replace' | 'move';
+
+/**
+ * What the writer's settings let through Hemingway on this device. "undo"
+ * covers redo too.
+ *
+ * @param mobile whether this device is a phone or tablet
+ */
+export function hemingwayAllows(settings: Pick<ModeSettings, 'hemingwayUndo'>, mobile: boolean): ReadonlySet<Blocked> {
+  const allowed = new Set<Blocked>();
+  if (allowedHere(settings.hemingwayUndo, mobile)) allowed.add('undo');
+  return allowed;
+}
 
 /** A key that is refused. `key` is for every keyboard; `mac` only for a Mac's. */
 export interface BlockedKey {
