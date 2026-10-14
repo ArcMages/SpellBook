@@ -6,6 +6,8 @@ import { sceneRef } from './core/binderTree';
 import { deviceIdOf } from './core/deviceId';
 import { DevicePrefs } from './core/devicePrefs';
 import { createSampleProject, createStarterProject } from './core/newProject';
+import type { ProjectSeed } from './core/projectSeed';
+import { BLANK_STRUCTURE_ID, findStructure, libraryPathOf, projectChoices, readProjectTemplate, seedOfParts } from './core/templates';
 import type { NewProject } from './core/newProject';
 import { isInside, isMarkdownPath, relativeTo } from './core/paths';
 import { MANUSCRIPT_FOLDER, RESEARCH_FOLDER } from './core/projectLayout';
@@ -21,6 +23,7 @@ import { openNote } from './obsidian/openNote';
 import { localToday, nextFrame, nowMs, setTimer, untilTomorrow } from './obsidian/systemClock';
 import { SpellbookSettingTab } from './settings';
 import { CreateProjectModal } from './ui/createProjectModal';
+import type { ProjectStart } from './ui/createProjectModal';
 import { BINDER_ICON } from './ui/icons';
 import { BinderActions } from './views/binderActions';
 import type { ActionsHost } from './views/binderActions';
@@ -394,29 +397,65 @@ export default class SpellbookPlugin extends Plugin implements BinderHost, Actio
 
   // ----------------------------------------------------------------- commands
 
-  /** Show the window that asks for a new project's name and location. */
+  /**
+   * Show the window that asks for a new project's name, its location and the
+   * structure it starts with: the built-in ones and the project templates of
+   * the vault.
+   */
   askForNewProject(): void {
     const store = this.store;
     if (!store) {
       new Notice(STILL_STARTING);
       return;
     }
-    new CreateProjectModal(this.app, store.listParentFolders(), (name, parentFolder) =>
-      this.createProject(name, parentFolder),
+    new CreateProjectModal(
+      this.app,
+      store.listParentFolders(),
+      (name, parentFolder, start) => this.createProject(name, parentFolder, start),
+      projectChoices(store.libraryNotes()),
     ).open();
   }
 
   /**
-   * Create a project with a first scene, make it the open project and show
-   * the scene. Says what happened in a notice.
+   * Create a project with a first scene (or with the folders and scenes of
+   * the structure chosen), make it the open project and show its first
+   * scene. Says what happened in a notice.
    *
+   * @param start the structure chosen; none, or the blank one, gives one empty scene
    * @returns true when the project was created
    */
-  async createProject(name: string, parentFolder = ''): Promise<boolean> {
+  async createProject(name: string, parentFolder = '', start?: ProjectStart): Promise<boolean> {
+    let seed: ProjectSeed | undefined;
+    if (start !== undefined && start.choice !== BLANK_STRUCTURE_ID) {
+      const found = await this.seedOf(start);
+      if (typeof found === 'string') {
+        new Notice(found, PROBLEM_NOTICE_MS);
+        return false;
+      }
+      seed = found;
+    }
     return this.createWith(
-      (store) => createStarterProject(store, name, parentFolder),
-      (made) => `Created the project "${made.project.title}".`,
+      (store) => createStarterProject(store, name, parentFolder, seed),
+      (made) =>
+        seed === undefined
+          ? `Created the project "${made.project.title}".`
+          : `Created the project "${made.project.title}" with ${made.project.scenes.length} ${made.project.scenes.length === 1 ? 'scene' : 'scenes'}.`,
     );
+  }
+
+  /** What a chosen structure puts in a new project, or why it cannot be used. */
+  private async seedOf(start: ProjectStart): Promise<ProjectSeed | string> {
+    const structure = findStructure(start.choice);
+    if (structure) return seedOfParts(structure.parts(start.chapters));
+    const path = libraryPathOf(start.choice);
+    const store = this.store;
+    if (path === null || !store) return 'That structure is no longer on offer. Choose another.';
+    // Read from the note itself, as it is now: it may have changed since the window was opened.
+    const read = await store.readTemplate(path, 'library');
+    if (read.status !== 'done') return read.message;
+    const template = readProjectTemplate(read.value.frontmatter);
+    if (template === null) return 'That project template holds no folders or scenes that can be read. Choose another structure.';
+    return seedOfParts(template.parts);
   }
 
   /**

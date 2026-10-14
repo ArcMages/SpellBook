@@ -26,6 +26,8 @@ import { Notice } from 'obsidian';
 import type { PaneType } from 'obsidian';
 import { sanitiseFileName } from '../../core/names';
 import { isImagePath, noteTitle, pathKey, relativeTo } from '../../core/paths';
+import { entityStart, worldTemplates } from '../../core/templates';
+import type { TemplateEntry } from '../../core/templates';
 import { CALENDAR_KEY, readCalendar } from '../../core/timeline';
 import type { StoryCalendar, StoryDate } from '../../core/timeline';
 import type { Frontmatter, IntentResult, TreeNode } from '../../core/types';
@@ -487,13 +489,26 @@ export class WorldHost {
   }
 
   /**
+   * The templates a new entity of a type can start from: the notes in the
+   * project's Templates/World/<the type's folder>, by name. Empty when there
+   * are none, or no project is open.
+   */
+  templatesFor(typeId: string): TemplateEntry[] {
+    const type = findType(this.types, typeId);
+    if (this.disposed || !type || !this.context.store.project) return [];
+    return worldTemplates(this.context.store.templateNotes(), type);
+  }
+
+  /**
    * Make a new entity: a note in the folder of its type, with the type's
-   * properties, empty, and a few headings. Nothing is replaced: a name that
-   * is taken is turned down.
+   * properties, empty, and a few headings; or, when a template is given,
+   * with the type's properties and the template's on top, and the
+   * template's text. Nothing is replaced: a name that is taken is turned down.
    *
+   * @param template the path of a template (see templatesFor), relative to the project folder
    * @returns the new note's path relative to the project folder, or why it was not made
    */
-  async createEntity(typeId: string, rawName: string): Promise<{ readonly path: string } | { readonly problem: string }> {
+  async createEntity(typeId: string, rawName: string, template?: string): Promise<{ readonly path: string } | { readonly problem: string }> {
     const project = this.writable();
     if (typeof project === 'string') return { problem: project };
     const type = findType(this.types, typeId);
@@ -501,7 +516,17 @@ export class WorldHost {
     if (rawName.trim() === '') return { problem: NO_NAME_TEXT };
     const name = sanitiseFileName(rawName, '');
     if (name === '') return { problem: BAD_NAME_TEXT };
-    const result = await this.context.store.addWorldNote(type.folder, name, newEntityFrontmatter(type), newEntityBody(type), project.id);
+    let frontmatter = newEntityFrontmatter(type);
+    let body = newEntityBody(type);
+    if (template !== undefined && template !== '') {
+      // The template as it is now: it may have changed since the window was opened.
+      const read = await this.context.store.readTemplate(template, 'project');
+      if (read.status !== 'done') return { problem: read.message };
+      const start = entityStart(frontmatter, read.value, { title: name, date: this.context.clock.today(), project: project.title });
+      frontmatter = start.frontmatter;
+      body = start.body;
+    }
+    const result = await this.context.store.addWorldNote(type.folder, name, frontmatter, body, project.id);
     this.changed();
     if (result.status === 'done') return { path: result.value.path };
     return { problem: result.message };

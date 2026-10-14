@@ -1,0 +1,67 @@
+/*
+ * Templates: the choice of a starting structure in the "Create project"
+ * window, the "Start from" list of the windows that make a scene or an entry
+ * of the World, the window that saves a project as a template, and the list
+ * of templates in the settings.
+ */
+
+/* What the chosen structure will make: a short list that scrolls on its own,
+   so that a book of a hundred chapters does not push the buttons off a phone's screen. */
+.spellbook-create-project .spellbook-create-preview {
+  margin-block: var(--size-2-3) var(--size-4-4);
+  padding: var(--size-2-3) var(--size-4-3);
+  max-height: 14em;
+  overflow-y: auto;
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background-color: var(--background-secondary);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+.spellbook-create-project .spellbook-create-preview-size {
+  margin-block-end: var(--size-2-2);
+  color: var(--text-muted);
+}
+
+.spellbook-create-project .spellbook-create-preview-list {
+  margin: 0;
+  padding-inline-start: var(--size-4-4);
+}
+
+.spellbook-create-project .spellbook-create-preview-folder > .spellbook-create-preview-name {
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-create-project .spellbook-create-preview-scene > .spellbook-create-preview-name {
+  color: var(--text-normal);
+}
+
+.spellbook-create-project .spellbook-create-message,
+.spellbook-template-save .spellbook-template-message {
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+.spellbook-create-project .spellbook-create-message:empty,
+.spellbook-template-save .spellbook-template-message:empty {
+  display: none;
+}
+
+/* "Start from" in the windows that ask for a name: a long template name must
+   not push the window wider than a phone's screen. */
+.spellbook-prompt .spellbook-prompt-choice-row .setting-item-control select {
+  max-width: 100%;
+}
+
+.spellbook-template-save .setting-item-control input[type='text'] {
+  max-width: 100%;
+}
+
+/* The list of templates in the settings: on a narrow screen the two buttons
+   go under the name instead of squeezing it. */
+.spellbook-settings-templates .spellbook-template-row {
+  flex-wrap: wrap;
+  gap: var(--size-2-3);
+}

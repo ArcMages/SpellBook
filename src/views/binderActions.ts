@@ -24,6 +24,8 @@ import { folderRef, sceneRef } from '../core/binderTree';
 import type { StepDirection } from '../core/binderTree';
 import { checkFolderName, checkSceneName, tidyDisplayName } from '../core/names';
 import { noteTitle } from '../core/paths';
+import { sceneStart, sceneTemplates } from '../core/templates';
+import type { NoteStart } from '../core/templates';
 import type { IntentResult, NodeRef, Placement, ProjectSnapshot } from '../core/types';
 import { ConfirmModal } from '../ui/confirmModal';
 import { FolderPickerModal } from '../ui/folderPickerModal';
@@ -39,6 +41,9 @@ const PROBLEM_NOTICE_MS = 10000;
 const NOT_STARTED = 'Spellbook is still starting. Try again in a moment.';
 const OTHER_PROJECT = 'That project is no longer the open one. Nothing was changed.';
 const READ_ONLY = 'This project is read-only because its index could not be understood. Nothing was changed.';
+
+/** The first choice of "Start from" in the New scene window, when the project has scene templates. */
+export const EMPTY_SCENE_CHOICE = 'Empty scene';
 
 /** What the actions need from the plugin. */
 export interface ActionsHost {
@@ -170,20 +175,42 @@ export class BinderActions {
 
   // ---------------------------------------------------------------- creating
 
-  /** Ask for a name, create a scene at `placement`, select it and open it for writing. */
+  /**
+   * Ask for a name, create a scene at `placement`, select it and open it for
+   * writing. When the project has scene templates (Templates/Scenes), the
+   * window also asks which one the scene starts from; an empty scene is
+   * chosen at first.
+   */
   newScene(inProject: string, placement: Placement): void {
-    if (!this.writable(inProject)) return;
+    const scope = this.writable(inProject);
+    if (!scope) return;
+    const templates = sceneTemplates(scope.services.store.templateNotes());
     new TextPromptModal(this.host.app, {
       title: 'New scene',
       label: 'Name of the scene',
       placeholder: 'Name of the scene',
       confirm: 'Create',
-      submit: async (typed) => {
+      ...(templates.length === 0
+        ? {}
+        : {
+            choice: {
+              label: 'Start from',
+              options: [{ value: '', text: EMPTY_SCENE_CHOICE }, ...templates.map((template) => ({ value: template.path, text: template.name }))],
+            },
+          }),
+      submit: async (typed, chosen) => {
         const name = checkSceneName(typed);
         if (!name.ok) return name.message;
         const store = this.host.services?.store;
         if (!store) return NOT_STARTED;
-        const result = await store.addScene(name.name, placement, inProject);
+        let start: NoteStart | undefined;
+        if (chosen !== '') {
+          // The template as it is now: it may have changed since the window was opened.
+          const read = await store.readTemplate(chosen, 'project');
+          if (read.status !== 'done') return read.message;
+          start = sceneStart(read.value, { title: name.name, date: store.today(), project: store.project?.title ?? scope.project.title });
+        }
+        const result = await store.addScene(name.name, placement, inProject, start);
         if (!this.report(result)) return null;
         const path = result.value.path;
         this.sayNameIfChanged('scene', typed, noteTitle(path));

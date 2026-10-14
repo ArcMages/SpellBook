@@ -99,6 +99,8 @@ import type {
   StoreChange,
   TreeNode,
 } from './types';
+import { LIBRARY_FOLDER, SCENES_SUBFOLDER, TEMPLATES_FOLDER, WORLD_SUBFOLDER, isLibraryPath } from './templates/places';
+import type { NoteStart, TemplateText } from './templates/templateNote';
 import { VaultFileMissingError } from './vaultPort';
 import type { MarkdownFileInfo, VaultEvent, VaultPort } from './vaultPort';
 import { stripFrontmatter } from './wordCount';
@@ -291,6 +293,23 @@ function summaryOf(known: KnownProject): ProjectSummary {
 
 const END_OF_BINDER: Placement = { at: 'end', parentId: null };
 
+/** The properties of a scene that are the plugin's own, whatever a template says. */
+const SCENE_OWN_PROPERTIES: readonly string[] = ['order', 'created', 'spellbook'];
+
+/**
+ * A new scene's properties: the standard ones, with what a template gives
+ * added or put in their place, except the plugin's own (see SCENE_OWN_PROPERTIES).
+ */
+function sceneFrontmatterFrom(standard: Frontmatter, start: NoteStart | undefined): Frontmatter {
+  if (start === undefined) return standard;
+  const frontmatter = { ...standard };
+  for (const [key, value] of Object.entries(start.frontmatter)) {
+    if (SCENE_OWN_PROPERTIES.includes(key.trim().toLowerCase())) continue;
+    frontmatter[key] = copyOf(value);
+  }
+  return frontmatter;
+}
+
 export class ProjectStore {
   private readonly vault: VaultPort;
   private readonly deps: StoreDeps;
@@ -407,6 +426,11 @@ export class ProjectStore {
    */
   mainIndexOf(indexPath: string): string | null {
     return conflictCopies(this.projects.values()).get(indexPath) ?? null;
+  }
+
+  /** Today's date on this device, as YYYY-MM-DD: the day new notes are said to be created. */
+  today(): string {
+    return this.deps.today();
   }
 
   /** The open project, or null. A new object whenever something changed. */
@@ -697,15 +721,25 @@ export class ProjectStore {
       .filter((folder) => folder !== '');
     const free = this.vault
       .listFolders()
-      .filter((folder) => !projectFolders.some((taken) => folder === taken || isInside(taken, folder)));
+      .filter((folder) => !projectFolders.some((taken) => folder === taken || isInside(taken, folder)))
+      // The folder of project templates holds templates, not projects.
+      .filter((folder) => !isLibraryPath(folder));
     return ['', ...free.sort(comparePaths)];
   }
 
-  /** Create a scene note in Manuscript/ and put it in the binder. */
+  /**
+   * Create a scene note in Manuscript/ and put it in the binder.
+   *
+   * @param start what the scene starts with when it is made from a template:
+   *   properties added to (or taking the place of) the standard ones, and its
+   *   text. The scene's own order key and the day it was made are always the
+   *   plugin's. Default: the standard properties and no text.
+   */
   addScene(
     title: string,
     placement: Placement = END_OF_BINDER,
     inProject?: string,
+    start?: NoteStart,
   ): Promise<IntentResult<{ path: string }>> {
     return this.run(async (): Promise<IntentResult<{ path: string }>> => {
       const active = this.active;
@@ -734,8 +768,8 @@ export class ProjectStore {
       const order = this.orderForNewScene(keyed.scenes, binder, wanted, placement);
       const createdPath = await this.vault.createFile(
         joinPath(active.folder, wanted),
-        '',
-        newSceneFrontmatter(order, this.deps.today()),
+        start?.body ?? '',
+        sceneFrontmatterFrom(newSceneFrontmatter(order, this.deps.today()), start),
       );
       const rel = relativeTo(active.folder, createdPath) ?? wanted;
       this.knownOrders.set(createdPath, order);
@@ -1914,6 +1948,250 @@ export class ProjectStore {
       return refused('invalid-path', `"${rel}" is a project index, not a note of this project.`);
     }
     return file;
+  }
+
+  // ---------------------------------------------------------------- templates
+  //
+  // Templates are plain notes in two places: the open project's Templates
+  // folder ("Templates/Scenes/<name>.md" and "Templates/World/<type
+  // folder>/<name>.md"), and the folder of project templates at the top of
+  // the vault ("Spellbook templates/<name>.md"). The methods below are the
+  // only way a screen can read, make or remove one; none of them reaches
+  // anywhere else, and none of them ever replaces a note.
+
+  /** The notes in the open project's Templates folder, with their properties. See projectNotes. */
+  templateNotes(): ProjectNote[] {
+    return this.projectNotes(TEMPLATES_FOLDER);
+  }
+
+  /**
+   * The notes directly inside the vault's folder of project templates, with
+   * the properties the vault has indexed for each, sorted by path. Vault
+   * paths. Cheap; reads no files.
+   */
+  libraryNotes(): MarkdownFileInfo[] {
+    return this.vault
+      .listMarkdownFiles(LIBRARY_FOLDER)
+      .filter((file) => parentPath(file.path) === LIBRARY_FOLDER && !this.projects.has(file.path))
+      .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  }
+
+  /**
+   * Read a template: its properties and its text (without the properties
+   * block), from the file itself.
+   *
+   * @param path  for a template of the open project, its path relative to the project folder;
+   *              for a project template, its vault path
+   * @param where 'project' or 'library'
+   */
+  readTemplate(path: string, where: 'project' | 'library'): Promise<IntentResult<TemplateText>> {
+    return this.run(async (): Promise<IntentResult<TemplateText>> => {
+      let vaultPath: string;
+      if (where === 'project') {
+        const active = this.active;
+        if (!active) return refused('no-project', 'No project is open.');
+        const rel = this.templateNotePath(active, path);
+        if (typeof rel !== 'string') return rel;
+        vaultPath = this.vaultPathOf(rel) ?? joinPath(active.folder, rel);
+      } else {
+        const checked = this.libraryNotePath(path);
+        if (typeof checked !== 'string') return checked;
+        vaultPath = checked;
+      }
+      try {
+        const frontmatter = (await this.vault.readFrontmatter(vaultPath)) ?? {};
+        const body = stripFrontmatter(await this.vault.readText(vaultPath));
+        return done({ frontmatter, body });
+      } catch (error) {
+        if (error instanceof VaultFileMissingError) return noop('not-found', 'That template is no longer there.');
+        return failed(`The template "${noteTitle(vaultPath)}" could not be read: ${messageOf(error)}`);
+      }
+    });
+  }
+
+  /**
+   * Save a template in the open project: a new note in its Templates
+   * folder, with the properties and the text given. The folders are made
+   * first when they are missing.
+   *
+   * Nothing is ever replaced: refused ("exists") when something of that name
+   * is there, whatever its capitals. Refused as well for a place other than
+   * "Templates/Scenes/<name>.md" or "Templates/World/<type folder>/<name>.md",
+   * for names that are not tidy file names as they stand, for properties that
+   * would mark the note as a project, for a read-only project, and when no
+   * project is open.
+   *
+   * @param folder "Scenes", or "World/<type folder>"
+   * @param name   the note's name, without ".md"
+   * @returns the new note's path relative to the project folder
+   */
+  createTemplateNote(
+    folder: string,
+    name: string,
+    frontmatter: Readonly<Frontmatter>,
+    body: string,
+    inProject?: string,
+  ): Promise<IntentResult<{ path: string }>> {
+    return this.run(async (): Promise<IntentResult<{ path: string }>> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = this.templateNotePath(active, `${TEMPLATES_FOLDER}/${folder}/${name}.md`);
+      if (typeof rel !== 'string') return rel;
+      if (isProjectIndex(frontmatter)) {
+        return refused('inside-project', 'A note in a project cannot be marked as a project itself.');
+      }
+      const target = joinPath(active.folder, rel);
+      if (this.vault.exists(target)) {
+        return refused('exists', `There is already a template called "${name}" there.`);
+      }
+      let createdPath: string;
+      try {
+        let step = '';
+        for (const part of parentPath(rel).split('/')) {
+          step = step === '' ? part : `${step}/${part}`;
+          const wanted = joinPath(active.folder, step);
+          if (!this.vault.exists(wanted)) await this.vault.createFolder(wanted);
+        }
+        // The vault itself refuses to create a file where something already is.
+        createdPath = await this.vault.createFile(target, body, copyOf(frontmatter) as Frontmatter);
+      } catch (error) {
+        return failed(`The template could not be saved: ${messageOf(error)}`);
+      }
+      return done({ path: relativeTo(active.folder, createdPath) ?? rel });
+    }, inProject);
+  }
+
+  /**
+   * Move a template of the open project to the trash (it is never deleted
+   * outright). Only a note in one of the two places templateNotePath allows.
+   *
+   * @param path the note's path relative to the project folder
+   */
+  trashTemplateNote(path: string, inProject?: string): Promise<IntentResult> {
+    return this.run(async (): Promise<IntentResult> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = this.templateNotePath(active, path);
+      if (typeof rel !== 'string') return rel;
+      const file = this.projectFiles(active).get(pathKey(rel));
+      if (!file) return noop('not-found', 'That template is no longer in the project.');
+      if (this.projects.has(file.path)) {
+        return refused('invalid-path', `"${rel}" is a project index, not a template.`);
+      }
+      try {
+        await this.vault.trash(file.path);
+      } catch (error) {
+        if (error instanceof VaultFileMissingError) return noop('not-found', 'That template is no longer in the project.');
+        return failed(`The template could not be moved to the trash: ${messageOf(error)}`);
+      }
+      return done(undefined);
+    }, inProject);
+  }
+
+  /**
+   * Save a project template: a new note directly inside the vault's folder of
+   * project templates, which is made when it is missing. Nothing is ever
+   * replaced: refused ("exists") when something of that name is there,
+   * whatever its capitals. Refused as well for a name that is not a tidy file
+   * name as it stands, and for properties that would mark it as a project.
+   * This does not need a project to be open.
+   *
+   * @param name the note's name, without ".md"
+   * @returns the new note's vault path
+   */
+  createLibraryTemplate(name: string, frontmatter: Readonly<Frontmatter>, body: string): Promise<IntentResult<{ path: string }>> {
+    return this.run(async (): Promise<IntentResult<{ path: string }>> => {
+      const target = this.libraryNotePath(`${LIBRARY_FOLDER}/${name}.md`);
+      if (typeof target !== 'string') return target;
+      if (isProjectIndex(frontmatter)) {
+        return refused('inside-project', 'A template cannot be marked as a project itself.');
+      }
+      if (this.vault.exists(target)) {
+        return refused('exists', `There is already a template called "${name}" in the "${LIBRARY_FOLDER}" folder.`);
+      }
+      let createdPath: string;
+      try {
+        if (!this.vault.exists(LIBRARY_FOLDER)) await this.vault.createFolder(LIBRARY_FOLDER);
+        // The vault itself refuses to create a file where something already is.
+        createdPath = await this.vault.createFile(target, body, copyOf(frontmatter) as Frontmatter);
+      } catch (error) {
+        return failed(`The template could not be saved: ${messageOf(error)}`);
+      }
+      return done({ path: createdPath });
+    });
+  }
+
+  /**
+   * Move a project template to the trash (it is never deleted outright).
+   * Only a note directly inside the vault's folder of project templates.
+   *
+   * @param path the note's vault path
+   */
+  trashLibraryTemplate(path: string): Promise<IntentResult> {
+    return this.run(async (): Promise<IntentResult> => {
+      const target = this.libraryNotePath(path);
+      if (typeof target !== 'string') return target;
+      if (!this.vault.exists(target)) return noop('not-found', 'That template is no longer there.');
+      try {
+        await this.vault.trash(target);
+      } catch (error) {
+        if (error instanceof VaultFileMissingError) return noop('not-found', 'That template is no longer there.');
+        return failed(`The template could not be moved to the trash: ${messageOf(error)}`);
+      }
+      return done(undefined);
+    });
+  }
+
+  /**
+   * Check a path given for a template of the open project. Only two places
+   * pass, and only when every name in them is a tidy file name as it stands:
+   * "Templates/Scenes/<name>.md" and "Templates/World/<folder>/<name>.md".
+   * A note the binder lists, or the project index, never passes. Returns the
+   * path relative to the project folder, or a refusal.
+   */
+  private templateNotePath(
+    active: ActiveProject,
+    path: string,
+  ): string | { status: 'refused'; reason: RefusalReason; message: string } {
+    const no = refused('invalid-path', `"${path}" is not a template. Templates are the notes in the ${TEMPLATES_FOLDER} folder.`);
+    const rel = normaliseRelativePath(path);
+    if (rel === null || !isSafeRelativePath(rel) || !isMarkdownPath(rel)) return no;
+    const parts = rel.split('/');
+    const scenes = parts.length === 3 && parts[1] === SCENES_SUBFOLDER;
+    const world = parts.length === 4 && parts[1] === WORLD_SUBFOLDER;
+    if (parts[0] !== TEMPLATES_FOLDER || !(scenes || world)) return no;
+    const name = noteTitle(rel);
+    if (name === '' || sanitiseFileName(name, '') !== name) return no;
+    if (world) {
+      const folder = parts[2] ?? '';
+      if (folder === '' || sanitiseFileName(folder, '') !== folder) return no;
+    }
+    if (clashKey(joinPath(active.folder, rel)) === clashKey(active.indexPath)) return no;
+    const wanted = clashKey(rel);
+    if (flattenScenes(this.effectiveBinder(active)).some((scene) => clashKey(scene) === wanted)) return no;
+    return rel;
+  }
+
+  /**
+   * Check a vault path given for a project template: a note directly inside
+   * the vault's folder of project templates, with a tidy name, that is not a
+   * project index, in a folder that is not a project's. Returns the vault
+   * path, or a refusal.
+   */
+  private libraryNotePath(path: string): string | { status: 'refused'; reason: RefusalReason; message: string } {
+    const no = refused('invalid-path', `"${path}" is not a project template. They are the notes in the "${LIBRARY_FOLDER}" folder.`);
+    const parts = path.split('/');
+    if (parts.length !== 2 || parts[0] !== LIBRARY_FOLDER || !isSafeRelativePath(path) || !isMarkdownPath(path)) return no;
+    const name = noteTitle(path);
+    if (name === '' || sanitiseFileName(name, '') !== name) return no;
+    if (this.projects.has(path)) return no;
+    for (const known of this.projects.values()) {
+      const folder = summaryOf(known).folder;
+      if (folder === '' || clashKey(folder) === clashKey(LIBRARY_FOLDER) || isInside(folder, LIBRARY_FOLDER)) return no;
+    }
+    return path;
   }
 
   /** Write any outstanding order keys now instead of waiting for the delay. */
