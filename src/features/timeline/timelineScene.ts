@@ -12,9 +12,13 @@ import { noteTitle } from '../../core/paths';
 import {
   DEFAULT_CLUSTER_BELOW_PX_PER_DAY,
   DEFAULT_NARRATIVE_SPACING,
+  EVENTS_KIND,
+  NO_TAG_FILTER,
+  SCENES_KIND,
   MAX_PX_PER_DAY,
   MIN_LABEL_GAP,
   clampZoom,
+  countTags,
   createEntityIndex,
   dateAtPosition,
   dayNumberToStoryDate,
@@ -25,19 +29,23 @@ import {
   eventLaneKeys,
   fitAll,
   formatStoryDateRange,
+  isTagFilterActive,
   laneBands,
   layoutLaneVertical,
   layoutTimeline,
   makeScale,
   narrativeOrder,
+  passesTagFilter,
   positionToDay,
   precisionForScale,
   readCalendar,
   readLanes,
+  readTags,
   readTimeline,
   storyDateToDayNumber,
   ticksFor,
   timelineExtent,
+  typeKind,
   visibleLanes,
   zoomAbout,
 } from '../../core/timeline';
@@ -52,6 +60,8 @@ import type {
   NarrativeItem,
   StoryCalendar,
   StoryDate,
+  TagCount,
+  TagFilter,
   TimeScale,
   TimelineEvent,
   TimelineModel,
@@ -168,6 +178,39 @@ export interface TimelineContent {
   readonly storyEvents: readonly TimelineEvent[];
   /** The world on the timeline: a lane per type of entity. */
   readonly world: WorldContent;
+  /** The filter by tags and by kind this device shows the timeline with. */
+  readonly tagFilter: TagFilter;
+  /** True when the filter by tags and by kind narrows anything. */
+  readonly tagged: boolean;
+  /** How many events, scenes and entities with a date the filter by tags leaves out. */
+  readonly taggedOut: number;
+  /** Every tag of the project's events, scenes and entities, with how many carry it, the most used first. */
+  readonly tagCounts: readonly TagCount[];
+  /** The kinds there are to filter by: events, scenes, and each type of the world that has an entity with a date. */
+  readonly kinds: readonly KindChoice[];
+  /**
+   * The lanes not drawn: those this device hides, and, while the filter by
+   * tags is on, those it leaves empty.
+   */
+  readonly hiddenLanes: readonly string[];
+}
+
+/** A kind of thing the timeline can be narrowed to. */
+export interface KindChoice {
+  /** EVENTS_KIND, SCENES_KIND or typeKind(id). */
+  readonly kind: string;
+  /** "Events", "Scenes", or a type's name (which may be the writer's own text). */
+  readonly name: string;
+  /** True for a type of the world, whose name is the writer's own text. */
+  readonly world: boolean;
+}
+
+export const EVENTS_KIND_NAME = 'Events';
+export const SCENES_KIND_NAME = 'Scenes';
+
+/** The tags an entity's note carries, in its "tags" property. */
+function entityTags(entity: { readonly frontmatter: Readonly<Record<string, unknown>> | null }): string[] {
+  return readTags(entity.frontmatter?.['tags']);
 }
 
 /** The world on the timeline. */
@@ -186,7 +229,13 @@ export interface WorldContent {
  * The world lanes of a project: read from the entity notes the host hands
  * over. When the timeline is narrowed to some entities, only those have a row.
  */
-function readWorld(data: TimelineData, calendar: StoryCalendar | null, entityIndex: EntityIndex, wanted: ReadonlySet<string>): WorldContent {
+function readWorld(
+  data: TimelineData,
+  calendar: StoryCalendar | null,
+  entityIndex: EntityIndex,
+  wanted: ReadonlySet<string>,
+  tagFilter: TagFilter,
+): WorldContent {
   const choice = data.worldLanes ?? { on: false, hidden: [] };
   const types = readEntityTypes(data.entityTypes);
   const notes = (data.worldNotes ?? []).map(
@@ -201,7 +250,14 @@ function readWorld(data: TimelineData, calendar: StoryCalendar | null, entityInd
   });
   const rows = new Map<string, WorldTimeRow>();
   for (const lane of lanes) for (const row of lane.rows) rows.set(row.entity.path, row);
-  return { on: choice.on, lanes, shown: choice.on ? lanes.filter((lane) => !lane.hidden) : [], rows };
+  let shown = choice.on ? lanes.filter((lane) => !lane.hidden) : [];
+  if (isTagFilterActive(tagFilter)) {
+    // Narrowed by tags: each lane keeps the entities that pass, and a lane left empty is not drawn.
+    shown = shown
+      .map((lane) => ({ ...lane, rows: lane.rows.filter((row) => passesTagFilter(tagFilter, entityTags(row.entity), typeKind(lane.typeId))) }))
+      .filter((lane) => lane.rows.length > 0);
+  }
+  return { on: choice.on, lanes, shown, rows };
 }
 
 /** The world lanes that are drawn in a mode: the world has dates, so it shows by date only. */
@@ -242,9 +298,18 @@ export function readContent(data: TimelineData, filter: readonly string[] = []):
   // An entity that is gone altogether no longer narrows anything.
   const wanted = new Set(filter.filter((key) => allEntities.some((entity) => entity.key === key)));
   const keep = (event: TimelineEvent): boolean => eventHasEntity(event, wanted, entityIndex);
-  const model: TimelineModel =
+  const byEntities: TimelineModel =
     wanted.size === 0 ? whole : { dated: whole.dated.filter(keep), undated: whole.undated.filter(keep) };
-  const filteredOut = whole.dated.length + whole.undated.length - model.dated.length - model.undated.length;
+  const filteredOut = whole.dated.length + whole.undated.length - byEntities.dated.length - byEntities.undated.length;
+  // ...and then by tags and by kind.
+  const tagFilter = data.tagFilter ?? NO_TAG_FILTER;
+  const tagged = isTagFilterActive(tagFilter);
+  const passes = (event: TimelineEvent): boolean =>
+    passesTagFilter(tagFilter, event.tags, event.source === 'scene' ? SCENES_KIND : EVENTS_KIND);
+  const model: TimelineModel = tagged
+    ? { dated: byEntities.dated.filter(passes), undated: byEntities.undated.filter(passes) }
+    : byEntities;
+  let taggedOut = byEntities.dated.length + byEntities.undated.length - model.dated.length - model.undated.length;
 
   const frontmatter = new Map<string, unknown>();
   // An entity's dates are changed like an event's: its properties are known here too.
@@ -258,6 +323,29 @@ export function readContent(data: TimelineData, filter: readonly string[] = []):
   const storyEvents = story.map(
     (item): TimelineEvent => ({ ...item.event, start: dayNumberToStoryDate(item.position, 'day'), end: null }),
   );
+  const world = readWorld(data, calendar, entityIndex, wanted, tagFilter);
+  if (tagged) {
+    const before = world.lanes.filter((lane) => world.on && !lane.hidden).reduce((sum, lane) => sum + lane.rows.length, 0);
+    taggedOut += before - world.shown.reduce((sum, lane) => sum + lane.rows.length, 0);
+  }
+  // While the filter is on, a lane it leaves without anything is not drawn.
+  let hiddenLanes = data.hiddenLanes;
+  if (tagged) {
+    const filled = new Set<string>();
+    for (const event of all) for (const key of eventLaneKeys(event, laneList.lanes)) filled.add(key);
+    const empty = displayLanes(laneList.lanes, all).filter((lane) => !filled.has(lane.key)).map((lane) => lane.name);
+    hiddenLanes = [...data.hiddenLanes, ...empty];
+  }
+  const tagCounts = countTags([
+    ...[...whole.dated, ...whole.undated].filter((event) => event.source === 'event').map((event) => event.tags),
+    ...data.scenes.map((scene) => readTags(isRecordValue(scene.frontmatter) ? scene.frontmatter['tags'] : undefined)),
+    ...(data.worldNotes ?? []).map((entry) => readTags(isRecordValue(entry.frontmatter) ? entry.frontmatter['tags'] : undefined)),
+  ]);
+  const kinds: KindChoice[] = [
+    { kind: EVENTS_KIND, name: EVENTS_KIND_NAME, world: false },
+    { kind: SCENES_KIND, name: SCENES_KIND_NAME, world: false },
+    ...world.lanes.map((lane): KindChoice => ({ kind: typeKind(lane.typeId), name: lane.name, world: true })),
+  ];
   return {
     data,
     laneList,
@@ -274,8 +362,18 @@ export function readContent(data: TimelineData, filter: readonly string[] = []):
     frontmatter,
     story,
     storyEvents,
-    world: readWorld(data, calendar, entityIndex, wanted),
+    world,
+    tagFilter,
+    tagged,
+    taggedOut,
+    tagCounts,
+    kinds,
+    hiddenLanes,
   };
+}
+
+function isRecordValue(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** The events that are placed in a mode: the dated ones by date, all of them in story order. */
@@ -439,7 +537,7 @@ function worldLaneBoxes(laid: WorldLaneLayout, start: number, size: number): Lan
 export function layoutScene(content: TimelineContent, options: SceneOptions): Scene {
   const { mode, vertical, scale } = options;
   const events = placedEvents(content, mode);
-  const hidden = content.data.hiddenLanes;
+  const hidden = content.hiddenLanes;
   const display = displayLanes(content.lanes, events);
   const shown = visibleLanes(display, hidden);
   const worldOnShow = worldShown(content, mode);
@@ -577,7 +675,7 @@ export function boxesIn(scene: Scene, part: SceneWindow): PlacedBox[] {
 export function laneOnShow(content: TimelineContent, mode: TimeMode, laneKey: string | null): DisplayLane | null {
   const events = placedEvents(content, mode);
   const world = worldShown(content, mode).map(worldDisplay);
-  const shown = [...visibleLanes(displayLanes(content.lanes, events), content.data.hiddenLanes), ...world];
+  const shown = [...visibleLanes(displayLanes(content.lanes, events), content.hiddenLanes), ...world];
   const asked = shown.find((candidate) => candidate.key === laneKey);
   if (asked !== undefined) return asked;
   const filled = new Set<string>();

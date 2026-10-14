@@ -6,7 +6,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dayNumber } from '../../../src/core/dates';
 import { addLane, moveLane, renameLane, renameLaneInEventPatch } from '../../../src/core/timeline';
-import { HIDDEN_LANES_KEY } from '../../../src/features/timeline/hiddenLanes';
+import { HIDDEN_LANES_KEY, WORLD_LANES_KEY } from '../../../src/features/timeline/hiddenLanes';
+import { VIEW_CHOICES_KEY } from '../../../src/features/timeline/viewChoices';
 import type { NoteChange, TimelineData } from '../../../src/features/timeline/timelineHost';
 import { NOTE_NOT_OPENED, NO_PROJECT_OPEN } from '../../../src/features/timeline/timelineWiring';
 import type { TimelineWiring } from '../../../src/features/timeline/timelineWiring';
@@ -109,6 +110,9 @@ describe('what the timeline is shown', () => {
       ],
       sceneOrder: ['Manuscript/Opening.md', 'Manuscript/Middle.md', 'Manuscript/Ending.md'],
       hiddenLanes: [],
+      // No filter by tags and no saved views until this device has some.
+      tagFilter: { tags: [], match: 'any', kinds: [] },
+      savedViews: [],
       today: dayNumber(TODAY),
     });
     expect(w.vault.writes).toEqual([]);
@@ -566,6 +570,31 @@ describe('hiding lanes', () => {
     const w = wire();
     hostOf(w).setHiddenLanes(['Main plot']);
     expect(w.storage.saves).toEqual([]);
+  });
+});
+
+describe('the filter by tags and the saved views of a device', () => {
+  it('switches to a view at once: the lanes, the world and the filter, told once, kept on the device', async () => {
+    const { w, host, heard } = await opened();
+    host.setViewState({ hiddenLanes: ['Manuscript'], world: { on: true, hidden: [] }, filter: { tags: ['מלוכה'], match: 'all', kinds: [] } });
+    expect(heard.told).toBe(1);
+    const data = dataOf(host);
+    expect(data.hiddenLanes).toEqual(['Manuscript']);
+    expect(data.worldLanes).toEqual({ on: true, hidden: [] });
+    expect(data.tagFilter).toEqual({ tags: ['מלוכה'], match: 'all', kinds: [] });
+    expect(w.vault.writes).toEqual([]);
+    expect(new Set(w.storage.saves.map(([key]) => key))).toEqual(new Set([HIDDEN_LANES_KEY, WORLD_LANES_KEY, VIEW_CHOICES_KEY]));
+
+    host.setSavedViews([{ name: 'Royals', hiddenLanes: [], world: { on: false, hidden: [] }, filter: data.tagFilter ?? { tags: [], match: 'any', kinds: [] } }]);
+    expect(heard.told).toBe(2);
+    host.setTagFilter({ tags: [], match: 'any', kinds: [] });
+    expect(heard.told).toBe(3);
+    // After a restart, and when the project's folder is renamed, the device still knows.
+    w.vault.external.rename('Novel', 'Book');
+    await rest(w);
+    const again = dataOf(hostOf(w));
+    expect(again.savedViews?.map((view) => view.name)).toEqual(['Royals']);
+    expect(again.tagFilter).toEqual({ tags: [], match: 'any', kinds: [] });
   });
 });
 

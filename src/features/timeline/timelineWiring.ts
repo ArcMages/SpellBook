@@ -25,7 +25,7 @@ import { isInside, joinPath, pathKey, relativeTo } from '../../core/paths';
 import { TIMELINE_FOLDER } from '../../core/projectLayout';
 import type { ProjectStore } from '../../core/projectStore';
 import { CALENDAR_KEY, WORLD_FOLDER, applyFrontmatterPatch, isEmptyPatch, laneKey, readLanes } from '../../core/timeline';
-import type { Lane, LaneChange, TimelineNote } from '../../core/timeline';
+import type { Lane, LaneChange, SavedView, TagFilter, TimelineNote, ViewState } from '../../core/timeline';
 import type { Frontmatter, StoreChange, TreeNode } from '../../core/types';
 import { DATE_KEY, END_KEY, ENTITY_SHEET_SERVICE, ENTITY_TYPES_KEY, MOMENTS_KEY, TYPE_KEY } from '../../core/world';
 import type { EntitySheetService } from '../../core/world';
@@ -33,6 +33,7 @@ import type { VaultEvent } from '../../core/vaultPort';
 import type { DragClock } from '../../ui/dragDrop';
 import type { FeatureContext, FeatureServices } from '../registry';
 import { HiddenLanes, WORLD_LANES_KEY, readWorldMarks, writeWorldMarks } from './hiddenLanes';
+import { ViewChoiceStore } from './viewChoices';
 import type { CreateEventResult, NewEvent, NoteChange, TimelineData, TimelineHost, WorldLaneChoice } from './timelineHost';
 
 /** The key of the project index that holds the lanes. */
@@ -63,12 +64,12 @@ function sameValue(a: unknown, b: unknown): boolean {
   return a === b || JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 }
 
-/** The properties of an entity note that the timeline shows something of. */
-const WORLD_KEYS = [TYPE_KEY, DATE_KEY, END_KEY, MOMENTS_KEY] as const;
+/** The properties of an entity note that the timeline shows something of (its tags: for the filter by tags). */
+const WORLD_KEYS = [TYPE_KEY, DATE_KEY, END_KEY, MOMENTS_KEY, 'tags'] as const;
 
 /**
- * An entity note as the timeline needs it: its type, its two dates and its
- * moments, and nothing else, so that typing in a summary redraws nothing.
+ * An entity note as the timeline needs it: its type, its two dates, its
+ * moments and its tags, and nothing else, so that typing in a summary redraws nothing.
  */
 function worldNote(note: TimelineNote): TimelineNote {
   const all = typeof note.frontmatter === 'object' && note.frontmatter !== null ? (note.frontmatter as Record<string, unknown>) : {};
@@ -104,6 +105,8 @@ export class TimelineWiring implements TimelineHost {
   private readonly hidden: HiddenLanes;
   /** What this device shows of the world, project by project: a list of marks (see hiddenLanes.ts). */
   private readonly worldMarks: HiddenLanes;
+  /** The filter by tags and the saved views, project by project (see viewChoices.ts). */
+  private readonly viewChoices: ViewChoiceStore;
   private readonly services: FeatureServices | null;
   private readonly listeners = new Set<() => void>();
   private stops: Array<() => void> = [];
@@ -136,6 +139,7 @@ export class TimelineWiring implements TimelineHost {
     this.show = (path, where) => context.openNote(path, where);
     this.hidden = new HiddenLanes(context.storage);
     this.worldMarks = new HiddenLanes(context.storage, WORLD_LANES_KEY);
+    this.viewChoices = new ViewChoiceStore(context.storage);
     this.services = context.services ?? null;
     this.stops.push(
       context.store.onChange((change) => {
@@ -219,6 +223,8 @@ export class TimelineWiring implements TimelineHost {
         next.worldNotes ?? null,
         next.entityTypes ?? null,
         next.worldLanes ?? null,
+        next.tagFilter ?? null,
+        next.savedViews ?? null,
       ]);
       if (before === null || signature !== this.signature) {
         this.data = next;
@@ -281,6 +287,8 @@ export class TimelineWiring implements TimelineHost {
       scenes,
       sceneOrder,
       hiddenLanes: this.hidden.of(project.indexPath),
+      tagFilter: this.viewChoices.of(project.indexPath).filter,
+      savedViews: this.viewChoices.of(project.indexPath).views,
       today: dayNumber(this.today()) ?? 0,
     };
   }
@@ -294,6 +302,7 @@ export class TimelineWiring implements TimelineHost {
       // The same project at another path: what this device hides in it comes along.
       this.hidden.move(change.movedFrom, project.indexPath);
       this.worldMarks.move(change.movedFrom, project.indexPath);
+      this.viewChoices.move(change.movedFrom, project.indexPath);
     } else if (this.data !== null && project?.indexPath !== this.data.projectId) {
       // Another project, or none: what was written a moment ago was for the last one.
       this.written.clear();
@@ -503,6 +512,28 @@ export class TimelineWiring implements TimelineHost {
     const project = this.released ? null : this.store.project;
     if (!project) return;
     if (this.worldMarks.set(project.indexPath, writeWorldMarks(choice))) this.changed();
+  }
+
+  setTagFilter(filter: TagFilter): void {
+    const project = this.released ? null : this.store.project;
+    if (!project) return;
+    if (this.viewChoices.setFilter(project.indexPath, filter)) this.changed();
+  }
+
+  setViewState(state: ViewState): void {
+    const project = this.released ? null : this.store.project;
+    if (!project) return;
+    // All three are remembered first, so that the timeline is drawn once, with the whole view.
+    const lanes = this.hidden.set(project.indexPath, state.hiddenLanes);
+    const world = this.worldMarks.set(project.indexPath, writeWorldMarks(state.world));
+    const filter = this.viewChoices.setFilter(project.indexPath, state.filter);
+    if (lanes || world || filter) this.changed();
+  }
+
+  setSavedViews(views: readonly SavedView[]): void {
+    const project = this.released ? null : this.store.project;
+    if (!project) return;
+    if (this.viewChoices.setViews(project.indexPath, views)) this.changed();
   }
 
   showEntity(path: string): boolean {

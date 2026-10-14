@@ -27,7 +27,7 @@ const codeOf = (name: string): string =>
  * host it gives the screen, and what the device remembers for it. Every
  * other file is the screen, which knows nothing of the plugin but its host.
  */
-const WIRING = ['hiddenLanes.ts', 'index.ts', 'timelineWiring.ts'];
+const WIRING = ['hiddenLanes.ts', 'index.ts', 'timelineWiring.ts', 'viewChoices.ts'];
 const screenFiles = files.filter((name) => !WIRING.includes(name));
 const importsOf = (name: string): string[] => [...read(name).matchAll(/from\s+['"]([^'"]+)['"]/g)].map((match) => match[1] ?? '');
 
@@ -40,6 +40,7 @@ describe('the timeline screen source', () => {
       'hiddenLanes.ts',
       'index.ts',
       'lanesModal.ts',
+      'tagFilterModal.ts',
       'timelineActions.ts',
       'timelineGestures.ts',
       'timelineHost.ts',
@@ -47,11 +48,12 @@ describe('the timeline screen source', () => {
       'timelineScene.ts',
       'timelineView.ts',
       'timelineWiring.ts',
+      'viewChoices.ts',
       'worldCards.ts',
     ]);
     // The date fields are shared with the entity sheet: they live in src/ui.
     expect(files).not.toContain('dateFields.ts');
-    expect(screenFiles).toHaveLength(11);
+    expect(screenFiles).toHaveLength(12);
   });
 
   it('reaches the project only through its host: no store, no vault, no session', () => {
@@ -61,7 +63,7 @@ describe('the timeline screen source', () => {
         imports++;
         expect(/projectStore|projectSession|vaultPort|devicePrefs|wordCount|registry|\/obsidian\/|\/views\/|main$/.test(target), `${name} imports ${target}`).toBe(false);
         // Nor does the screen know who its host is.
-        expect(/\.\/(index|timelineWiring|hiddenLanes)$/.test(target), `${name} imports ${target}`).toBe(false);
+        expect(/\.\/(index|timelineWiring|hiddenLanes|viewChoices)$/.test(target), `${name} imports ${target}`).toBe(false);
       }
       expect(/\b(processFrontMatter|trashFile|getMarkdownFiles|getFileCache|metadataCache|fileManager)\b/.test(codeOf(name)), name).toBe(false);
     }

@@ -718,8 +718,9 @@
   color: var(--text-faint);
 }
 
-/* The strip under the header while the timeline is narrowed to some entities. */
-.spellbook-timeline-filter {
+/* The strips under the header while the timeline is narrowed to some entities, or by tags. */
+.spellbook-timeline-filter,
+.spellbook-timeline-tag-filter {
   display: flex;
   flex: 0 0 auto;
   flex-wrap: wrap;
@@ -1220,5 +1221,69 @@
   .spellbook-timeline-lanes-window .spellbook-timeline-world-toggle {
     min-block-size: var(--spellbook-timeline-target);
     min-inline-size: var(--spellbook-timeline-target);
+  }
+}
+
+/* ------------------------------------------------- filter by tags and views */
+
+/* The views button names the view shown now; a long name of the writer's is cut short. */
+.spellbook-timeline-view-switch {
+  max-inline-size: 12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The strip of the filter by tags: what it shows is a button that opens the filter's window. */
+.spellbook-timeline-tag-summary {
+  display: inline-flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-2-3);
+  min-width: 0;
+  block-size: auto;
+  padding: 0;
+  border: none;
+  background-color: transparent;
+  box-shadow: none;
+  color: var(--text-normal);
+  font-size: inherit;
+  text-align: start;
+}
+
+.spellbook-timeline-tag-words {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.spellbook-timeline-tags-window .spellbook-timeline-tag-match {
+  margin-block-end: var(--size-4-2);
+}
+
+.spellbook-timeline-tags-window .spellbook-timeline-entity-list {
+  max-block-size: 32vh;
+}
+
+.spellbook-timeline-tags-window .spellbook-timeline-count {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+}
+
+.spellbook-timeline-tag-heading {
+  margin-block-start: var(--size-4-2);
+  font-weight: var(--font-semibold);
+  text-align: start;
+}
+
+.spellbook-timeline.spellbook-is-mobile .spellbook-timeline-tag-summary {
+  min-block-size: var(--spellbook-timeline-target);
+}
+
+@media (pointer: coarse) {
+  .spellbook-timeline-tags-window .spellbook-timeline-tag-match .spellbook-timeline-button {
+    min-block-size: var(--spellbook-timeline-target);
   }
 }
