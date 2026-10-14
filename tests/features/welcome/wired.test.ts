@@ -20,6 +20,7 @@ import {
   TOUR_STOPS,
   Tour,
   WELCOME_COMMANDS,
+  pageScreen,
   WELCOME_SEEN_KEY,
   WELCOME_VIEW_TYPE,
   WHATS_NEW_KEY,
@@ -446,14 +447,136 @@ describe('the tour', () => {
     expect(page.listeners.size).toBe(0);
   });
 
-  it('points at the word figures of the inspector on a phone, and not at the bottom bar', () => {
-    const page = screen({ [BAR]: { top: 780, left: 0, width: 300, height: 20 }, [LINE]: { top: 0, left: 0, width: 390, height: 30 } }, true);
+  /** A phone's page with sidebar drawers the tour can slide out; a part in a drawer is on screen only while its drawer is out. */
+  function phone(panes: Partial<Record<'left' | 'right', string>>, drawerParts: Record<string, 'left' | 'right'>, parts: Record<string, Partial<FakeElement['rect']>> = {}) {
+    const base = screen(parts, true);
+    const drawers = { left: false, right: false };
+    const opened: string[] = [];
+    const timers: Array<{ handler: () => void; cancelled: boolean }> = [];
+    const page = Object.assign(base, {
+      find: (selectors: readonly string[]) => {
+        for (const selector of selectors) {
+          const side = drawerParts[selector];
+          if (side && drawers[side]) {
+            const element = new FakeElement();
+            element.rect = { top: 0, left: side === 'left' ? 0 : 90, bottom: 800, right: 390, width: 300, height: 800 };
+            return element as unknown as HTMLElement;
+          }
+        }
+        return null;
+      },
+      openSidebar: (where: { view: string; side: 'left' | 'right' }) => {
+        const side = Object.entries(panes).find(([, view]) => view === where.view)?.[0] as 'left' | 'right' | undefined;
+        drawers.left = side === 'left';
+        drawers.right = side === 'right';
+        if (side) opened.push(side);
+        return side !== undefined;
+      },
+      closeSidebars: () => {
+        drawers.left = false;
+        drawers.right = false;
+        opened.push('closed');
+      },
+      later: (handler: () => void) => {
+        const timer = { handler, cancelled: false };
+        timers.push(timer);
+        return () => {
+          timer.cancelled = true;
+        };
+      },
+      drawers,
+      opened,
+      settle: () => {
+        for (const timer of timers.splice(0)) if (!timer.cancelled) timer.handler();
+      },
+    });
+    return page;
+  }
+  const INSPECTOR = TOUR_STOPS.find((stop) => stop.id === 'inspector')?.selectors[0] ?? '';
+
+  it('on a phone slides out the drawer of each sidebar stop in turn, shows the word figures, and slides them away at the end', () => {
+    const page = phone(
+      { left: 'spellbook-binder', right: 'spellbook-inspector' },
+      { [BINDER]: 'left', [INSPECTOR]: 'right', [LINE]: 'right' },
+      { [BAR]: { top: 780, left: 0, width: 300, height: 20 } },
+    );
     const tour = new Tour(page, TOUR_STOPS);
     tour.start();
+    const bubble = (): FakeElement => page.layer.withClass('spellbook-tour-bubble')[0] as FakeElement;
+    const ring = (): FakeElement => page.layer.withClass('spellbook-tour-ring')[0] as FakeElement;
+    expect(tour.current).toBe('binder');
+    expect(page.drawers).toEqual({ left: true, right: false });
+    expect(bubble().fullText).toContain('1 of 4'); // binder, inspector, word figures, commands; never the bottom bar
+    expect(bubble().fullText).toContain('left sidebar');
+    page.settle();
+    expect(ring().hasClass('spellbook-is-hidden')).toBe(false); // ringed once the drawer is out
+
+    tour.next();
+    expect(tour.current).toBe('inspector');
+    expect(page.drawers).toEqual({ left: false, right: true });
+    tour.next();
+    expect(tour.current).toBe('inspector-line');
+    expect(page.drawers.right).toBe(true);
+    page.settle();
+    expect(ring().hasClass('spellbook-is-hidden')).toBe(false);
+    tour.next();
+    expect(tour.current).toBe('commands');
+    expect(page.drawers).toEqual({ left: false, right: false }); // slid away for the last card
+    expect(bubble().hasClass('spellbook-is-mobile')).toBe(true);
+
+    tour.back();
+    expect(page.drawers.right).toBe(true);
+    tour.end();
+    expect(page.drawers).toEqual({ left: false, right: false });
+    expect(page.layer.children).toEqual([]);
+  });
+
+  it('on a phone without the panes open shows the sidebar stops as cards saying where to find them', () => {
+    const page = phone({}, {});
+    const tour = new Tour(page, TOUR_STOPS);
+    tour.start();
+    const bubble = (): FakeElement => page.layer.withClass('spellbook-tour-bubble')[0] as FakeElement;
+    const ring = (): FakeElement => page.layer.withClass('spellbook-tour-ring')[0] as FakeElement;
+    expect(tour.current).toBe('binder');
+    page.settle();
+    expect(ring().hasClass('spellbook-is-hidden')).toBe(true); // a card in the middle
+    expect(bubble().fullText).toContain('swipe in from the left edge');
+    tour.next();
+    expect(bubble().fullText).toContain('swipe in from the right edge');
+    tour.next();
     expect(tour.current).toBe('inspector-line');
     tour.next();
     expect(tour.current).toBe('commands');
-    expect(page.layer.withClass('spellbook-tour-bubble')[0]?.hasClass('spellbook-is-mobile')).toBe(true);
+    tour.end();
+    expect(page.opened).not.toContain('left');
+  });
+
+  it('on a desktop the stops keep their desktop words and no drawer is touched', () => {
+    const page = phone({ left: 'spellbook-binder' }, { [BINDER]: 'left' });
+    Object.assign(page, { isPhone: false, isMobile: false });
+    const tour = new Tour(page, TOUR_STOPS);
+    tour.start();
+    expect(tour.current).toBe('commands'); // nothing on the desktop page: no sidebar stop is forced in
+    expect(page.layer.withClass('spellbook-tour-bubble')[0]?.fullText).not.toContain('sidebar');
+    tour.end();
+    expect(page.opened).toEqual([]);
+  });
+
+  it("the page's drawers: slides out the sidebar that holds the pane and the other away, or both away when the pane is not open", () => {
+    const fake = new FakeObsidian();
+    const { workspace } = fake;
+    const doc = { defaultView: null, documentElement: { clientWidth: 390, clientHeight: 800 }, body: new FakeElement('body') } as unknown as Document;
+    const page = pageScreen(doc, true, true, workspace as never);
+    const binder = workspace.addLeaf(workspace.leftSplit);
+    binder.type = 'spellbook-binder';
+    workspace.rightSplit.expand();
+    expect(page.openSidebar?.({ view: 'spellbook-binder', side: 'left' })).toBe(true);
+    expect(workspace.leftSplit.collapsed).toBe(false);
+    expect(workspace.rightSplit.collapsed).toBe(true);
+    expect(workspace.revealed).toContain(binder);
+    expect(page.openSidebar?.({ view: 'spellbook-inspector', side: 'right' })).toBe(false);
+    expect(workspace.leftSplit.collapsed).toBe(true);
+    expect(workspace.rightSplit.collapsed).toBe(true);
   });
 
   it('ends with Escape, and ends at once when nothing can be shown', () => {
@@ -470,14 +593,15 @@ describe('the tour', () => {
     expect(ended).toHaveBeenCalledOnce();
   });
 
-  it('the command opens the binder and the inspector first, not on a phone', async () => {
+  it('the command opens the binder and the inspector first, on a phone too (in the drawers the tour slides out)', async () => {
     const stage = await wire({ stored: SEEN });
     stage.command(WELCOME_COMMANDS.tour.id).callback?.();
     expect(stage.ran).toEqual(['open-binder', 'open-inspector']);
     stage.advance(1000); // without a page (as in these tests) the tour does not start, and nothing fails
     Object.assign(Platform, { isDesktop: false, isMobile: true, isPhone: true });
     stage.command(WELCOME_COMMANDS.tour.id).callback?.();
-    expect(stage.ran).toEqual(['open-binder', 'open-inspector']);
+    expect(stage.ran).toEqual(['open-binder', 'open-inspector', 'open-binder', 'open-inspector']);
+    stage.advance(1000);
     stage.switchOff();
   });
 });

@@ -141,6 +141,21 @@ export interface TourStop {
   readonly selectors: readonly string[];
   /** Only on a phone (true), or never on a phone (false), or anywhere (undefined). */
   readonly phone?: boolean;
+  /**
+   * The thing lives in a sidebar pane. On a phone the sidebars are drawers,
+   * closed most of the time: the tour slides out the one that holds the pane
+   * before this stop, and when the pane is not open anywhere it shows the
+   * stop as a card in the middle, saying where to find it.
+   */
+  readonly sidebar?: TourSidebar;
+  /** What the stop says on a phone, when it differs: where to find the thing there. */
+  readonly phoneText?: string;
+}
+
+/** Where a sidebar pane of the tour is: its kind of pane, and the side it usually opens on. */
+export interface TourSidebar {
+  readonly view: string;
+  readonly side: 'left' | 'right';
 }
 
 export const TOUR_STOPS: readonly TourStop[] = [
@@ -149,12 +164,18 @@ export const TOUR_STOPS: readonly TourStop[] = [
     title: 'The binder',
     text: 'Your book as a tree: folders for chapters, notes for scenes, each with its word count. Tap a scene to open it. The "More options" button of a row does the rest.',
     selectors: ['.workspace-leaf-content[data-type="spellbook-binder"]'],
+    sidebar: { view: 'spellbook-binder', side: 'left' },
+    phoneText:
+      'Your book as a tree: folders for chapters, notes for scenes, each with its word count. Tap a scene to open it. On a phone it lives in the left sidebar: swipe in from the left edge of the screen to open it.',
   },
   {
     id: 'inspector',
     title: 'The inspector',
     text: "The open scene's synopsis, status, label and target. Change them here.",
     selectors: ['.workspace-leaf-content[data-type="spellbook-inspector"]'],
+    sidebar: { view: 'spellbook-inspector', side: 'right' },
+    phoneText:
+      "The open scene's synopsis, status, label and target. On a phone it lives in the right sidebar: swipe in from the right edge of the screen to open it.",
   },
   {
     id: 'bottom-bar',
@@ -166,9 +187,10 @@ export const TOUR_STOPS: readonly TourStop[] = [
   {
     id: 'inspector-line',
     title: 'Your word figures',
-    text: 'On a phone the word figures stand here, at the top of the inspector: this scene, this session, the project and today.',
+    text: 'On a phone the word figures stand at the top of the inspector, in the right sidebar: this scene, this session, the project and today.',
     selectors: ['.workspace-leaf-content[data-type="spellbook-inspector"] .spellbook-inspector-slot'],
     phone: true,
+    sidebar: { view: 'spellbook-inspector', side: 'right' },
   },
   {
     id: 'ribbon',
