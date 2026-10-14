@@ -254,7 +254,7 @@ function readSceneLinks(value: unknown): ReadList {
 }
 
 /** The tags in Obsidian's own "tags" property: a list, or one text with commas or spaces between the tags. */
-function readTags(value: unknown): string[] {
+export function readTags(value: unknown): string[] {
   const parts: string[] = [];
   if (typeof value === 'string') parts.push(...value.split(/[,\s]+/));
   else if (Array.isArray(value)) {
