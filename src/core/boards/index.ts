@@ -6,7 +6,7 @@
 //
 //   canvas.ts   a board's file: reading it, writing a new one, turning text
 //               cards into file cards, ids
-//   layout.ts   circles, a force layout, rows
+//   layout.ts   circles, a force layout, a packed web, rows
 //   drawn.ts    the boards drawn for the writer: relationship map, chapter
 //               as cards, around one entity
 //   cards.ts    what a text card becomes: its title and the rest
@@ -31,10 +31,10 @@ export {
 } from './canvas';
 export type { BoardColor, BoardReading, BoardSide, CardPlace, CardSwap, NewBoard, NewCard, NewEdge, ReadCard, ReadEdge, SwapResult } from './canvas';
 
-export { circle, force, ringRadius, rows, spread, toCorner } from './layout';
+export { circle, force, ringRadius, rows, spread, toCorner, web } from './layout';
 export type { ForceOptions, Point, Size } from './layout';
 
-export { CARDS_PER_ROW, CARD_GAP, ENTITY_CARD, GROUP_PADDING, SCENE_CARD, boardColor, chapterCards, entityWeb, relationMap } from './drawn';
+export { CARDS_PER_ROW, CARD_GAP, ENTITY_CARD, GROUP_PADDING, MAP_GAP, SCENE_CARD, boardColor, chapterCards, entityWeb, relationMap } from './drawn';
 export type { EntityWeb, MapEntity, MapRelation, SceneGroup, WebEntity } from './drawn';
 
 export { TITLE_MAX, cardNoteName, choiceKey, choiceOf, oneLine, splitCardText } from './cards';
