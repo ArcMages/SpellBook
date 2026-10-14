@@ -11,6 +11,7 @@
 //                        name in the text of the manuscript
 //
 // The parts, each in a file of its own in this folder:
+//   book.ts          where the notes are kept: one file per project
 //   keeper.ts        everything the tools do, on top of the project store
 //   editor.ts        the underlined passages and their bubble
 //   noteModal.ts     the window for a note
@@ -22,12 +23,13 @@
 // How a note is kept, how words are found and how a scene's text is changed
 // in exact places is the engine's, in src/core/revision.
 
-import { Notice, Platform, parseYaml } from 'obsidian';
+import { Notice, Platform } from 'obsidian';
 import type { App, Editor, Menu, WorkspaceLeaf } from 'obsidian';
 import { relativeTo } from '../../core/paths';
 import { RENAME_EVERYWHERE_SERVICE, splitBody } from '../../core/revision/index';
 import type { RenameEverywhereService } from '../../core/revision/index';
 import type { Feature, FeatureContext } from '../registry';
+import { RevisionNotesBook } from './book';
 import { revisionEditor } from './editor';
 import { FindReplaceModal } from './findModal';
 import { NO_PROJECT_TEXT, NO_SCENE_TEXT, NO_SELECTION_TEXT, RevisionKeeper } from './keeper';
@@ -37,7 +39,8 @@ import { REVISION_VIEW_TYPE, createRevisionView, revisionIcon } from './revision
 
 export { RevisionKeeper, SNAPSHOTS_SERVICE_NAME } from './keeper';
 export type { LinksReport, RenameReport, ReplaceReport, SceneAt, SceneMatches, ScenePlan } from './keeper';
-export { NotesReader, PASSAGE_CLASS, PASSAGE_NOTE, RevisionMarksView, notesAt, revisionEditor } from './editor';
+export { RevisionNotesBook, UNREADABLE_NOTES_TEXT } from './book';
+export { PASSAGE_CLASS, PASSAGE_NOTE, RevisionMarksView, notesAt, revisionEditor } from './editor';
 export { FindReplaceModal, replaceSnapshotName } from './findModal';
 export { RenameEverywhereModal } from './renameModal';
 export { TickedResults, changesText } from './results';
@@ -112,11 +115,15 @@ export const revisionFeature: Feature = {
   id: 'revision',
   register(context: FeatureContext): void {
     const { app, plugin } = context;
-    const keeper = new RevisionKeeper(context);
+    // The notes of every project, kept in one file per project; renamed scenes take their notes along.
+    const book = new RevisionNotesBook(context, { keep: true });
+    book.start();
+    const keeper = new RevisionKeeper(context, book);
     const pane = new RevisionPane(app);
     context.onUnload(() => {
       pane.release();
       keeper.dispose();
+      book.dispose();
     });
 
     const openFind = (start = ''): void => {
@@ -174,7 +181,8 @@ export const revisionFeature: Feature = {
     // The underlined passages: in the notes of Spellbook projects, and nowhere else.
     const editorHost = {
       covers: (path: string | null) => keeper.inAnyProject(path),
-      parseProperties: (yaml: string): unknown => parseYaml(yaml),
+      notesOf: (path: string) => book.notesAtVaultPath(path),
+      onNotesChange: (listener: () => void) => book.onChange(listener),
       touch: Platform.isMobile,
       setTimer: (callback: () => void, ms: number) => context.clock.setTimer(callback, ms),
     };

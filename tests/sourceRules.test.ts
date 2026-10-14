@@ -308,7 +308,22 @@ describe('the whole plugin', () => {
     expect(place).toMatch(/flattenScenes\(this\.effectiveBinder\(active\)\)\.some\(/);
     const helperUsers = allFiles.filter((file) => /\.\s*updateHelperNote\s*\(/.test(codeOf(file))).map(relative);
     expect(helperUsers).toEqual(['features/aihelper/helperNote.ts']);
-    expect(writesIn(store)).toBe(4); // and nowhere else
+    // A fourth reaches it for one fixed file and no other: the revision notes,
+    // "Revision notes.json" at the top of a project's folder (the open project
+    // or one named by its index). It takes no path either; the place comes from
+    // revisionNotesPath, whose refusal is returned first.
+    const notes = methodOf('updateRevisionNotes');
+    expect(writesIn(notes)).toBe(2);
+    expect(notes).toMatch(/updateRevisionNotes\(\s*indexPath: string,\s*change: \(current: string \| null\) => string \| null,\s*\)/);
+    for (const piece of notes.split('this.writeDataFile(').slice(0, -1)) {
+      expect(piece).toMatch(/const rel = this\.revisionNotesPath\([^;]*\);\s*if \(typeof rel !== 'string'\) return rel;\s*return $/);
+    }
+    const notesPlace = /\n  private revisionNotesPath\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
+    expect(notesPlace).toMatch(/const rel = REVISION_NOTES_FILE;/);
+    expect(notesPlace).toMatch(/flattenScenes\(binder\)\.some\(/);
+    const notesUsers = allFiles.filter((file) => /\.\s*updateRevisionNotes\s*\(/.test(codeOf(file))).map(relative);
+    expect(notesUsers).toEqual(['features/revision/book.ts']);
+    expect(writesIn(store)).toBe(6); // and nowhere else
     // Each write comes right after its own check of the path (dataFilePath), whose refusal is returned first.
     for (const method of [open, named]) {
       const pieces = method.split('this.writeDataFile(').slice(0, -1);

@@ -1,8 +1,27 @@
-// The revision tools' engine: notes pinned to passages, finding words in the
-// manuscript, changing a scene's text in exact places, and finding a name for
-// "Rename everywhere". No screen and no vault.
+// The revision tools' engine: notes pinned to passages (and the file they
+// are kept in), finding words in the manuscript, changing a scene's text in
+// exact places, and finding a name for "Rename everywhere". No screen and no
+// vault.
 
-export { addNoteTo, changeNoteIn, entryOf, findNote, locatePassage, MAX_PASSAGE_LENGTH, passageMarks, propertiesOf, readNote, readNotes, removeNoteFrom, REVISION_NOTES_KEY, sameNote, tidyPassage } from './notes';
+export { addToList, changeInList, entryOf, findNote, locatePassage, MAX_PASSAGE_LENGTH, passageMarks, propertiesOf, readNote, readNoteList, readNotes, removeFromList, REVISION_NOTES_KEY, sameNote, tidyPassage } from './notes';
+export {
+  editScene,
+  emptyNotesFile,
+  entriesAt,
+  findEntry,
+  holdsAll,
+  mergeIntoScene,
+  NOTES_FILE_ABOUT,
+  NOTES_FILE_MARK,
+  NOTES_FILE_VERSION,
+  parseNotesFile,
+  putEntriesAt,
+  renameScenes,
+  sceneNotes,
+  serialiseNotesFile,
+  takeEntriesAt,
+} from './notesFile';
+export type { IdAt, NotesFile, SceneKey } from './notesFile';
 export type { PassageMark, PlacedNote, RevisionNote } from './notes';
 export { CONTEXT_REACH, contextOf, DEFAULT_SEARCH, findInText, isWholeWord, isWordChar, MAX_MATCHES_PER_TEXT, patternOf } from './search';
 export type { MatchContext, SearchOptions, TextMatch } from './search';
