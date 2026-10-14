@@ -14,8 +14,8 @@
 import type { CardColor } from '../cards/colors';
 import { boardId } from './canvas';
 import type { BoardColor, NewBoard, NewCard, NewEdge } from './canvas';
-import { rows, spread, toCorner, web } from './layout';
-import type { Point, Size } from './layout';
+import { labelWidth, roomForLabels, rows, spread, toCorner, web } from './layout';
+import type { LabelledEdge, Point, Size } from './layout';
 
 /** The size of a card that stands for an entity. */
 export const ENTITY_CARD: Size = { width: 280, height: 120 };
@@ -114,8 +114,13 @@ export function relationMap(entities: readonly MapEntity[], relations: readonly 
     pairs.set(key, pair);
   }
 
+  const labelOf = (pair: Pair): string => {
+    const labels = [pair.ab, pair.ba].filter((label): label is string => label !== null && label !== '');
+    return (labels.length === 2 && labels[0] === labels[1] ? labels[0] : labels.join(' / ')) ?? '';
+  };
   const joined = [...pairs.values()].map((pair): [number, number] => [pair.a, pair.b]);
-  const middles = web(entities.length, joined, ENTITY_CARD, MAP_GAP);
+  const labelled = [...pairs.values()].map((pair): LabelledEdge => ({ from: pair.a, to: pair.b, width: labelWidth(labelOf(pair)) }));
+  const middles = web(entities.length, joined, ENTITY_CARD, MAP_GAP, labelled);
   const taken = new Set<string>();
   const nodes: NewCard[] = entities.map((entity, index) => ({
     id: boardId(`entity:${entity.key}`, taken),
@@ -134,14 +139,13 @@ export function relationMap(entities: readonly MapEntity[], relations: readonly 
     const both = pair.ab !== null && pair.ba !== null;
     // An edge one side lists runs from that side to the other.
     const [from, to] = pair.ab !== null ? [first, second] : [second, first];
-    const labels = [pair.ab, pair.ba].filter((label): label is string => label !== null && label !== '');
-    const label = labels.length === 2 && labels[0] === labels[1] ? labels[0] : labels.join(' / ');
+    const label = labelOf(pair);
     edges.push({
       id: boardId(`relation:${entities[pair.a]?.key ?? ''}:${entities[pair.b]?.key ?? ''}`, taken),
       fromNode: from.id,
       toNode: to.id,
       ...(both ? { fromEnd: 'none' as const, toEnd: 'none' as const } : {}),
-      ...(label !== undefined && label !== '' ? { label } : {}),
+      ...(label !== '' ? { label } : {}),
     });
   }
   return { nodes, edges };
@@ -215,9 +219,10 @@ const ARC_SPAN = (140 * Math.PI) / 180;
  * The middles of `count` entity cards round one at (0, 0): the first half
  * (rounded up) on an arc above it, left to right, the rest on an arc below
  * it, so that the sides stay free for the edges to the boxes. The arcs are
- * as wide as the cards need, and the cards never overlap.
+ * as wide as the cards need, and the cards never overlap, nor stand so
+ * close to the middle one that the label of the edge between is squeezed.
  */
-function arcs(count: number): Point[] {
+function arcs(count: number, labels: readonly string[] = []): Point[] {
   if (count === 0) return [];
   const above = Math.ceil(count / 2);
   const below = count - above;
@@ -238,7 +243,9 @@ function arcs(count: number): Point[] {
   const top = arc(above, -Math.PI / 2);
   const bottom = arc(below, Math.PI / 2).reverse();
   // Make sure of it: nothing overlaps the middle card or each other.
-  const all = spread([{ x: 0, y: 0 }, ...top, ...bottom], ENTITY_CARD, CARD_GAP);
+  // And that each edge's label has room between the middle card and the one it leads to.
+  const room = labels.map((label, index): LabelledEdge => ({ from: 0, to: index + 1, width: labelWidth(label) }));
+  const all = roomForLabels(spread([{ x: 0, y: 0 }, ...top, ...bottom], ENTITY_CARD, CARD_GAP), ENTITY_CARD, room, CARD_GAP);
   const middle = all[0] as Point;
   return all.slice(1).map((point) => ({ x: point.x - middle.x, y: point.y - middle.y }));
 }
@@ -294,7 +301,10 @@ export function entityWeb(web: EntityWeb): NewBoard {
   };
   nodes.push(center);
 
-  const ring = arcs(web.related.length);
+  const ring = arcs(
+    web.related.length,
+    web.related.map((entity) => entity.label.trim()),
+  );
   for (const [index, entity] of web.related.entries()) {
     const card: NewCard = {
       id: boardId(`related:${entity.file}`, taken),

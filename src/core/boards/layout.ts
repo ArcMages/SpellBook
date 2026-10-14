@@ -7,6 +7,8 @@
 //   web     a force layout for each set of joined cards, the sets and the
 //           lone cards packed close under the biggest one
 //   spread  cards that overlap are pushed apart until none do
+//   labels  room made for the labels of edges, so that none is squeezed
+//           between two cards or drawn over one
 //   rows    cards in reading order, a few to a row
 //
 // Positions are of the middle of a card until `toCorners` turns them into
@@ -196,9 +198,17 @@ function bounds(points: readonly Point[], size: Size): { left: number; top: numb
  * `gap` of room at least between any two cards; the biggest set stands on
  * top, and the smaller sets and the cards joined to nothing stand in tidy
  * rows under it, no wider than it (or than a square of all the cards).
- * The whole is centred on (0, 0). Middles of the cards, in the order given.
+ * With `labels`, each set makes room for the labels of its edges (see
+ * roomForLabels). The whole is centred on (0, 0). Middles of the cards, in
+ * the order given.
  */
-export function web(count: number, edges: ReadonlyArray<readonly [number, number]>, size: Size, gap: number): Point[] {
+export function web(
+  count: number,
+  edges: ReadonlyArray<readonly [number, number]>,
+  size: Size,
+  gap: number,
+  labels: readonly LabelledEdge[] = [],
+): Point[] {
   const joined = edges.filter(([a, b]) => a !== b && a >= 0 && b >= 0 && a < count && b < count);
   // The sets of cards joined to each other.
   const head = Array.from({ length: count }, (_, i) => i);
@@ -236,6 +246,10 @@ export function web(count: number, edges: ReadonlyArray<readonly [number, number
         .filter(([a]) => local.has(a))
         .map(([a, b]): [number, number] => [local.get(a) as number, local.get(b) as number]);
       middles = spread(force(cards.length, inside, { length: gap * 1.5, size }), size, gap);
+      const own = labels
+        .filter((edge) => local.has(edge.from) && local.has(edge.to))
+        .map((edge): LabelledEdge => ({ from: local.get(edge.from) as number, to: local.get(edge.to) as number, width: edge.width }));
+      middles = roomForLabels(middles, size, own, gap);
     }
     const box = bounds(middles, size);
     return {
@@ -320,6 +334,132 @@ export function spread(points: readonly Point[], size: Size, gap: number, rounds
       }
     }
     if (!moved) break;
+  }
+  return x.map((value, i) => ({ x: value, y: y[i] as number }));
+}
+
+/** A labelled edge between two cards, and how much room its label takes. */
+export interface LabelledEdge {
+  readonly from: number;
+  readonly to: number;
+  /** How wide the label is drawn. */
+  readonly width: number;
+}
+
+/** How tall an edge's label is drawn on a board (Canvas: one line, with its padding). */
+export const LABEL_HEIGHT = 72;
+
+/**
+ * How wide Canvas draws an edge's label: about 17 units a letter at the
+ * size boards are drawn at, and its padding. A little generous, so that a
+ * label in a wider script still fits.
+ */
+export function labelWidth(label: string): number {
+  return label.trim() === '' ? 0 : [...label.trim()].length * 18 + 40;
+}
+
+/**
+ * Make room for the labels of edges. Canvas draws a label in the middle of
+ * its edge, which runs between the two cards: when they stand close, the
+ * label is squeezed between them and drawn over their edges. Here each
+ * label is taken as a box at the middle between its two cards' middles;
+ * while a card is in a label's box (with `margin` round it), the two cards
+ * of a label move apart along the way they stand (sideways or up and down,
+ * whichever needs less), and any other card in the way moves out of it the
+ * shorter way. Two labels on top of each other part the same way, by their
+ * cards (a card both edges share stays). Cards that come to overlap are
+ * spread again. The same cards
+ * and labels always come out the same.
+ */
+export function roomForLabels(
+  points: readonly Point[],
+  size: Size,
+  labels: readonly LabelledEdge[],
+  gap: number,
+  margin = 16,
+  rounds = 300,
+): Point[] {
+  let x = points.map((point) => point.x);
+  let y = points.map((point) => point.y);
+  const count = x.length;
+  const edges = labels.filter((edge) => edge.width > 0 && edge.from !== edge.to && edge.from >= 0 && edge.to >= 0 && edge.from < count && edge.to < count);
+  if (edges.length === 0) return points.map((point) => ({ ...point }));
+  const halfW = size.width / 2;
+  const halfH = size.height / 2;
+  for (let round = 0; round < rounds; round++) {
+    let moved = false;
+    for (const edge of edges) {
+      const a = edge.from;
+      const b = edge.to;
+      const cx = ((x[a] as number) + (x[b] as number)) / 2;
+      const cy = ((y[a] as number) + (y[b] as number)) / 2;
+      const reachX = edge.width / 2 + halfW + margin;
+      const reachY = LABEL_HEIGHT / 2 + halfH + margin;
+      // The two cards of the label: half of the way between them is all the room the label has.
+      const dx = (x[b] as number) - (x[a] as number);
+      const dy = (y[b] as number) - (y[a] as number);
+      const overX = reachX - Math.abs(dx) / 2;
+      const overY = reachY - Math.abs(dy) / 2;
+      if (overX > 0 && overY > 0) {
+        moved = true;
+        if (overX / reachX < overY / reachY) {
+          const sign = dx > 0 || (dx === 0 && a < b) ? 1 : -1;
+          x[a] = (x[a] as number) - sign * overX;
+          x[b] = (x[b] as number) + sign * overX;
+        } else {
+          const sign = dy > 0 || (dy === 0 && a < b) ? 1 : -1;
+          y[a] = (y[a] as number) - sign * overY;
+          y[b] = (y[b] as number) + sign * overY;
+        }
+        continue;
+      }
+      // Any other card in the label's way steps out of it.
+      for (let k = 0; k < count; k++) {
+        if (k === a || k === b) continue;
+        const ex = (x[k] as number) - cx;
+        const ey = (y[k] as number) - cy;
+        const outX = reachX - Math.abs(ex);
+        const outY = reachY - Math.abs(ey);
+        if (outX <= 0 || outY <= 0) continue;
+        moved = true;
+        if (outX / reachX < outY / reachY) x[k] = (x[k] as number) + (ex > 0 || (ex === 0 && k > a) ? 1 : -1) * outX;
+        else y[k] = (y[k] as number) + (ey > 0 || (ey === 0 && k > a) ? 1 : -1) * outY;
+      }
+    }
+    // Two labels on top of each other: the cards of each move away from the other's (a card both share stays).
+    for (let i = 0; i < edges.length; i++) {
+      for (let j = i + 1; j < edges.length; j++) {
+        const one = edges[i] as LabelledEdge;
+        const two = edges[j] as LabelledEdge;
+        const ex = ((x[two.from] as number) + (x[two.to] as number) - (x[one.from] as number) - (x[one.to] as number)) / 2;
+        const ey = ((y[two.from] as number) + (y[two.to] as number) - (y[one.from] as number) - (y[one.to] as number)) / 2;
+        const reachX = (one.width + two.width) / 2 + margin;
+        const reachY = LABEL_HEIGHT + margin;
+        const overX = reachX - Math.abs(ex);
+        const overY = reachY - Math.abs(ey);
+        if (overX <= 0 || overY <= 0) continue;
+        moved = true;
+        const sideways = overX / reachX < overY / reachY;
+        const sign = (sideways ? ex : ey) > 0 || ((sideways ? ex : ey) === 0 && i < j) ? 1 : -1;
+        const step = sign * (sideways ? overX : overY);
+        const shared = new Set([one.from, one.to].filter((card) => card === two.from || card === two.to));
+        const nudge = (card: number, by: number): void => {
+          if (shared.has(card)) return;
+          if (sideways) x[card] = (x[card] as number) + by;
+          else y[card] = (y[card] as number) + by;
+        };
+        for (const card of new Set([one.from, one.to])) nudge(card, -step / 2);
+        for (const card of new Set([two.from, two.to])) nudge(card, step / 2);
+      }
+    }
+    if (!moved) break;
+    const apart = spread(
+      x.map((value, i) => ({ x: value, y: y[i] as number })),
+      size,
+      gap,
+    );
+    x = apart.map((point) => point.x);
+    y = apart.map((point) => point.y);
   }
   return x.map((value, i) => ({ x: value, y: y[i] as number }));
 }
