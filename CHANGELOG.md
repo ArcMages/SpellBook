@@ -16,4 +16,4 @@ The first tester release.
 
 Checked on a Mac and in Obsidian's phone layout. Not yet tried on a real iPhone or iPad.
 
-Planned for 1.0: maps.
+Planned for 1.1: maps.
