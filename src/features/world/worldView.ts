@@ -7,15 +7,17 @@
 //            the button for the window of types
 //   list     as cards: the entities in groups, one per type; each card shows
 //            the picture (or the type's icon), the name, one or two key
-//            facts, the summary, the number of scenes it is in and "Sheet";
+//            facts, the summary and the number of scenes it is in;
 //            as a list: one table of them all, sorted by the column whose
 //            heading was tapped (name, type, kind, scenes)
 //   details  the entity sheet (sheet.ts): one entity as a card to read and
 //            to fill in
 //
-// A tap on a card opens the entity's note; "Sheet" and the number of scenes
-// on the card show its sheet, and so does a tap on a row of the table. The
-// card's menu has both, and Rename and Delete (to the trash).
+// A tap on a card shows the entity's sheet, and so does the number of scenes
+// on it; a tap on the name on the card opens the entity's note. In the table
+// it is the same: a row shows the sheet, the name opens the note. With the
+// usual key held, either opens the note in a new tab. The card's menu has
+// both, and Rename and Delete (to the trash).
 //
 // How many columns of cards fit is the stylesheet's business; whether the
 // pane is narrow is measured here, from the pane itself and not from the
@@ -82,8 +84,8 @@ export const NONE_OF_TYPE_TEXT = 'None yet.';
 export const CARDS_TEXT = 'Cards';
 export const LIST_TEXT = 'List';
 export const LAYOUT_LABEL = 'Show as';
-export const SHEET_TEXT = 'Sheet';
 export const OPEN_SHEET_TEXT = 'Open sheet';
+export const OPEN_IN_NEW_TAB_TEXT = 'Open note in new tab';
 
 export {
   BACK_LABEL,
@@ -376,7 +378,7 @@ export class WorldView extends ItemView {
     // The picture, cropped to a small square; the type's icon for an entity without one.
     entityPicture(head, this.host.imageOf(entity), group.type, 'spellbook-world-card-picture');
     const words = head.createDiv({ cls: 'spellbook-world-card-words' });
-    words.createSpan({ cls: 'spellbook-world-card-name', text: entity.name, attr: { dir: 'auto' } });
+    this.nameButton(words, 'spellbook-world-card-name', entity);
     // One or two key facts: a character's role, a place's kind and region.
     const facts = cardFacts(entity, group.type);
     if (facts.length > 0) {
@@ -399,19 +401,45 @@ export class WorldView extends ItemView {
     });
     count.setAttr('dir', 'ltr');
     count.setAttr('aria-label', `${sceneCountText(scenes)}: show the sheet`);
-    textButton(foot, 'spellbook-world-card-sheet', SHEET_TEXT, () => {
-      this.select(entity.path, true);
-    }).setAttr('aria-label', `${OPEN_SHEET_TEXT}: ${entity.name}`);
 
-    // A tap anywhere else on the card opens the entity's note.
-    card.addEventListener('click', (event) => {
-      safely(OPEN_NOTE_TEXT, () => this.host.open(entity.path, Keymap.isModEvent(event)));
-    });
+    // A tap anywhere else on the card shows the entity's sheet.
+    const show = this.sheetOpener(entity);
+    card.addEventListener('click', show);
     card.addEventListener('keydown', (event) => {
       if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
       event.preventDefault();
+      show(event);
+    });
+  }
+
+  /** What a tap on a card or a row does: the entity's sheet; with the usual key held, its note in a new tab. */
+  private sheetOpener(entity: Entity): (event: MouseEvent | KeyboardEvent) => void {
+    return (event) => {
+      safely(OPEN_SHEET_TEXT, () => {
+        if (Keymap.isModEvent(event)) return this.host.open(entity.path, Keymap.isModEvent(event));
+        this.select(entity.path, true);
+        return undefined;
+      });
+    };
+  }
+
+  /** An entity's name, as a button that opens its note. The card or row around it shows the sheet instead. */
+  private nameButton(parent: HTMLElement, cls: string, entity: Entity): HTMLButtonElement {
+    const button = parent.createEl('button', {
+      cls: `spellbook-world-name-open ${cls}`,
+      text: entity.name,
+      // A name is the writer's own text.
+      attr: { type: 'button', dir: 'auto', 'aria-label': `${OPEN_NOTE_TEXT}: ${entity.name}` },
+    });
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
       safely(OPEN_NOTE_TEXT, () => this.host.open(entity.path, Keymap.isModEvent(event)));
     });
+    button.addEventListener('keydown', (event) => {
+      // Enter on the name is the name's own: the card does not answer it as well.
+      if (event.key === 'Enter' || event.key === ' ') event.stopPropagation();
+    });
+    return button;
   }
 
   // -------------------------------------------------------------------- table
@@ -456,19 +484,13 @@ export class WorldView extends ItemView {
       line.createDiv({ cls: `spellbook-world-table-cell spellbook-world-table-${column}`, attr: { role: 'cell' } });
     const name = cell('name');
     typeBadge(name, row.type);
-    name.createSpan({ cls: 'spellbook-world-table-text', text: entity.name, attr: { dir: 'auto' } });
+    this.nameButton(name, 'spellbook-world-table-text', entity);
     // The name of a type of the writer's own, and what a field holds, are the writer's text.
     cell('type').createSpan({ cls: 'spellbook-world-table-text', text: row.typeName, attr: { dir: 'auto' } });
     cell('kind').createSpan({ cls: 'spellbook-world-table-text', text: row.kind, attr: { dir: 'auto' } });
     cell('scenes').createSpan({ cls: 'spellbook-world-table-text', text: String(row.scenes), attr: { dir: 'ltr' } });
-    // A tap on a row shows the entity's sheet; with the usual key held, its note in a new tab.
-    const show = (event: MouseEvent | KeyboardEvent): void => {
-      safely(OPEN_SHEET_TEXT, () => {
-        if (Keymap.isModEvent(event)) return this.host.open(entity.path, Keymap.isModEvent(event));
-        this.select(entity.path, true);
-        return undefined;
-      });
-    };
+    // A tap on a row shows the entity's sheet; a tap on the name opens the note.
+    const show = this.sheetOpener(entity);
     line.addEventListener('click', show);
     line.addEventListener('keydown', (event) => {
       if (event.target !== line || (event.key !== 'Enter' && event.key !== ' ')) return;
@@ -527,8 +549,8 @@ export class WorldView extends ItemView {
         if (warning) entry.setWarning(true);
       });
     };
-    item('Open', WORLD_ICONS.open, () => this.host.open(entity.path, false));
-    item('Open in new tab', WORLD_ICONS.openInNewTab, () => this.host.open(entity.path, 'tab'));
+    item(OPEN_NOTE_TEXT, WORLD_ICONS.open, () => this.host.open(entity.path, false));
+    item(OPEN_IN_NEW_TAB_TEXT, WORLD_ICONS.openInNewTab, () => this.host.open(entity.path, 'tab'));
     item(OPEN_SHEET_TEXT, WORLD_ICONS.sheet, () => {
       this.select(entity.path, true);
     });

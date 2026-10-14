@@ -75,10 +75,10 @@ function pictureVault(): MemoryVault {
   return vault;
 }
 
-/** Open the browser and the sheet of the entity of this name, through the "Sheet" button on its card. */
+/** Open the browser and the sheet of the entity of this name, through a tap on its card. */
 async function sheetOf(s: Wired, name: string, width = 900): Promise<{ pane: FakeElement; sheet: () => FakeElement; root: FakeElement }> {
   const { pane } = await openWorld(s, width);
-  one(cardNamed(pane, name), 'spellbook-world-card-sheet').fire('click');
+  cardNamed(pane, name).fire('click');
   return { pane, sheet: () => one(pane, 'spellbook-world-detail'), root: one(pane, 'spellbook-world') };
 }
 
@@ -412,7 +412,7 @@ describe('a picture', () => {
     expect(pictures(cardNamed(pane, 'Mara'))).toEqual([[null, true]]);
     expect(one(card, 'spellbook-world-badge').icon).toBe('user');
     expect(card.hasClass('spellbook-world-color-blue')).toBe(true);
-    one(cardNamed(pane, 'Mara'), 'spellbook-world-card-sheet').fire('click');
+    cardNamed(pane, 'Mara').fire('click');
     expect(pictures(one(sheet(), 'spellbook-world-sheet-hero'))).toEqual([[null, true]]);
     expect(one(one(sheet(), 'spellbook-world-sheet-picture'), 'spellbook-world-badge').icon).toBe('user');
     expect(sheet().withClass('spellbook-world-remove-picture')).toEqual([]);
@@ -736,6 +736,14 @@ describe('cards and list', () => {
     pane.withClass('spellbook-world-table-entity')[0]?.fire('click', { metaKey: true });
     await calm(s);
     expect(s.opened).toEqual([{ path: inNovel(LAMP), where: 'tab' }]);
+    // The name in a row opens the note, and the sheet stays as it was.
+    const saltwick = pane.withClass('spellbook-world-table-entity').find((candidate) => candidate.getAttr('data-path') === SALTWICK) as FakeElement;
+    const name = one(saltwick.withClass('spellbook-world-table-name')[0] as FakeElement, 'spellbook-world-table-text');
+    expect(name.tag).toBe('button');
+    name.fire('click');
+    await calm(s);
+    expect(s.opened.slice(1)).toEqual([{ path: inNovel(SALTWICK), where: false }]);
+    expect(one(one(pane, 'spellbook-world-detail'), 'spellbook-world-detail-name').text).toBe(MARA_HE);
   });
 
   it('remembers cards or list on this device, and nowhere else', async () => {

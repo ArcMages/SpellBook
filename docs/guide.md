@@ -454,7 +454,7 @@ At the top of the screen:
 - **Cards** and **List**, under "Show as". Cards show each entity's picture or icon, its name, one or two key facts and its summary, in a group for each type. The list is one table of them all with the columns **Name**, **Type**, **Kind** and **Scenes**; tap a heading to sort by it, and again to turn the order round.
 - **New**, and the button for **Entity types**.
 
-On a card, tap the card to open the entity's note. **Sheet**, or the number of scenes, opens its sheet. In the list, tap a row to open its sheet. Each card has a menu: **Open**, **Open in new tab**, **Open sheet**, **Rename**, **Delete** (to the trash).
+Tap a card to open the entity's sheet; the number of scenes on the card does the same. Tap the entity's name on the card to open its note instead (on a computer the name shows as a link under the pointer). In the list it is the same: tap a row to open the sheet, tap the name to open the note. With a keyboard, Enter on a card or a row opens the sheet. Each card has a menu: **Open note**, **Open note in new tab**, **Open sheet**, **Rename**, **Delete** (to the trash).
 
 ### The entity sheet
 

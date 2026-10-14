@@ -202,7 +202,7 @@ The world is everything the story is about that is not a scene: its people, its 
 
 *A character's sheet: the picture, the summary, the fields, then the people and places she is related to and the scenes she is in.*
 
-4. On the character's card, press **Sheet**. The sheet opens beside the cards.
+4. Tap the character's card. The sheet opens beside the cards. (A tap on the name on the card opens the note itself instead.)
 5. Type a line in **Summary**, then fill in the fields you know: tap a field, type, and press Enter or tap elsewhere. Each is saved as you leave it. Leave empty what you do not know yet.
 6. If you have a picture of the character in your vault, press **Choose picture** and tap it. If not, skip this: the sheet shows the type's icon.
 7. Press **Open note** when you want to write at length. The note's text is yours; the sheet only changes its properties.
