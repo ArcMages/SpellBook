@@ -53,7 +53,6 @@ import { MemoryVault } from './memoryVault';
 import { binderOnDisk, draw, makeStore, project, seedProject, settle, TODAY, valueOf } from './storeHarness';
 
 const HEBREW_LETTER = /[א-ת]/;
-const LATIN_LETTER = /[A-Za-z]/;
 
 const seed = sampleProject(TODAY);
 
@@ -63,8 +62,10 @@ function scenesOf(items: readonly BinderSeed[]): SceneSeed[] {
 
 const allScenes = scenesOf(seed.binder);
 const folders = seed.binder.filter(isFolderSeed);
-const hebrewScenes = allScenes.filter((scene) => HEBREW_LETTER.test(scene.title));
-const englishScenes = allScenes.filter((scene) => !HEBREW_LETTER.test(scene.title));
+/** The two scenes Noa tells herself, written out in full rather than put together from the sentence bank. */
+const OWN_TEXT_TITLES = ['A Letter to My Sister', 'The Night Before the Storm'];
+const ownTextScenes = allScenes.filter((scene) => OWN_TEXT_TITLES.includes(scene.title));
+const bankScenes = allScenes.filter((scene) => !OWN_TEXT_TITLES.includes(scene.title));
 const wordsOf = (scene: SceneSeed): number => countWords(scene.body ?? '');
 
 const BANK = [...SETTING_SENTENCES, ...ACTION_SENTENCES, ...SHARED_SENTENCES, ...DIALOGUE_LINES, ...REFLECTION_SENTENCES];
@@ -155,25 +156,26 @@ describe('the sample project, as described', () => {
     expect(total).toBeLessThan(40000);
   });
 
-  it('has two scenes with a Hebrew title, Hebrew synopsis and Hebrew text', () => {
-    expect(hebrewScenes.map((scene) => scene.title)).toEqual(['מכתב לאחותי', 'הלילה שלפני הסערה']);
-    for (const scene of hebrewScenes) {
-      expect(scene.title, scene.title).not.toMatch(LATIN_LETTER);
-      expect(scene.synopsis, scene.title).toMatch(HEBREW_LETTER);
-      expect(scene.synopsis, scene.title).not.toMatch(LATIN_LETTER);
+  it('has two scenes of Noa\'s own, written out in full in her voice', () => {
+    expect(ownTextScenes.map((scene) => scene.title)).toEqual(OWN_TEXT_TITLES);
+    for (const scene of ownTextScenes) {
+      expect(scene.label, scene.title).toBe('Noa');
       const body = scene.body ?? '';
-      expect(body, scene.title).not.toMatch(LATIN_LETTER);
-      const letters = [...body].filter((character) => /\p{L}/u.test(character));
-      expect(letters.length).toBeGreaterThan(400);
-      expect(letters.every((character) => HEBREW_LETTER.test(character))).toBe(true);
+      expect(body, scene.title).toMatch(/\bI\b/); // told by Noa herself
+      expect(body, scene.title).not.toMatch(/[{}]/);
+      expect(bankUse(body).every((times) => times === 0), scene.title).toBe(true);
       expect(wordsOf(scene), scene.title).toBeGreaterThanOrEqual(100);
       // paragraphs, not one block
       expect(body.split('\n\n').length).toBeGreaterThanOrEqual(4);
     }
   });
 
-  it('writes the English scenes about their own character, with nothing left to fill in', () => {
-    for (const scene of englishScenes) {
+  it('is written in English throughout: no Hebrew letter anywhere in what it seeds', () => {
+    expect(JSON.stringify(seed)).not.toMatch(HEBREW_LETTER);
+  });
+
+  it('writes the other scenes about their own character, with nothing left to fill in', () => {
+    for (const scene of bankScenes) {
       const body = scene.body ?? '';
       expect(body, scene.title).not.toMatch(/[{}]/);
       expect(body, scene.title).not.toMatch(/undefined|null|\[object/);
@@ -191,7 +193,7 @@ describe('the sample project, as described', () => {
     const anyName = `(${SAMPLE_CHARACTERS.join('|')})`;
     const escape = (text: string): string => text.replace(/[.*+?^$()|[\]\\]/g, '\\$&');
     let checked = 0;
-    for (const scene of englishScenes) {
+    for (const scene of bankScenes) {
       for (const sentence of BANK) {
         const pieces = sentence.split(/(\{pov\}|\{other\})/);
         const slots = pieces.filter((piece) => piece === '{pov}' || piece === '{other}');
@@ -216,17 +218,17 @@ describe('the sample project, as described', () => {
   });
 
   it('does not start every scene the same way', () => {
-    const openings = englishScenes.map((scene) => (scene.body ?? '').replace(/^%%[^\n]*\n\n/, '').split('\n\n')[0]);
-    expect(new Set(openings).size).toBeGreaterThanOrEqual(englishScenes.length - 2);
+    const openings = bankScenes.map((scene) => (scene.body ?? '').replace(/^%%[^\n]*\n\n/, '').split('\n\n')[0]);
+    expect(new Set(openings).size).toBeGreaterThanOrEqual(bankScenes.length - 2);
     // both of the other two characters turn up across the book, not always the same one
     for (const name of SAMPLE_CHARACTERS) {
-      const elsewhere = englishScenes.filter((scene) => scene.label !== name && (scene.body ?? '').includes(name));
+      const elsewhere = bankScenes.filter((scene) => scene.label !== name && (scene.body ?? '').includes(name));
       expect(elsewhere.length, name).toBeGreaterThan(15);
     }
   });
 
   it('never uses a sentence twice in one scene', () => {
-    for (const scene of englishScenes) {
+    for (const scene of bankScenes) {
       const use = bankUse(scene.body ?? '');
       expect(use.filter((times) => times > 0).length, scene.title).toBeGreaterThan(4);
       const repeated = BANK.filter((_, index) => (use[index] as number) > 1);
@@ -234,8 +236,8 @@ describe('the sample project, as described', () => {
     }
   });
 
-  it('writes the English scenes out of the sentence bank and nothing else', () => {
-    for (const scene of englishScenes) {
+  it('writes the other scenes out of the sentence bank and nothing else', () => {
+    for (const scene of bankScenes) {
       let rest = scene.body ?? '';
       const anyName = `(?:${SAMPLE_CHARACTERS.join('|')})`;
       for (const sentence of BANK) {
@@ -374,7 +376,7 @@ describe('the sample project, for the screens besides the binder', () => {
       ['The winter storm', '1923-10-12', undefined, ['Main plot']],
       ['Mara arrives in Saltwick', '1923-10-14', undefined, ['Main plot', "Mara's survey"]],
       ['The survey of the bay', '1923-10-20', '1923-12-01', ["Mara's survey"]],
-      ['נועה מוצאת את המפה הישנה', '1923-11-05', undefined, ['Main plot']],
+      ['Noa finds the old map', '1923-11-05', undefined, ['Main plot']],
       ['The lowest tide of the month', '1923-11-08', undefined, ["Mara's survey"]],
       ['The missing boat is found', '1923-11-19', undefined, ['Main plot']],
       ['The second storm', '1923-12-03', undefined, ['Main plot']],
@@ -392,7 +394,7 @@ describe('the sample project, for the screens besides the binder', () => {
     expect(SAMPLE_EVENTS).toHaveLength(10);
   });
 
-  it('has one event that lasts six weeks, one in two timelines and one with a Hebrew title', () => {
+  it('has one event that lasts six weeks, one in two timelines and one with a tag of its own', () => {
     const model = readTimeline(eventNotes, []);
     expect(model.undated).toEqual([]);
     expect(model.dated).toHaveLength(10);
@@ -410,11 +412,10 @@ describe('the sample project, for the screens besides the binder', () => {
       ['Mara arrives in Saltwick', ['Main plot', "Mara's survey"]],
     ]);
 
-    const hebrew = model.dated.filter((event) => HEBREW_LETTER.test(event.title));
-    expect(hebrew.map((event) => event.title)).toEqual(['נועה מוצאת את המפה הישנה']);
-    expect(LATIN_LETTER.test(hebrew[0]?.title ?? 'x')).toBe(false);
-    expect(hebrew[0]?.tags).toEqual(['ארכיון']);
-    expect(HEBREW_LETTER.test(events.find((event) => event.title === hebrew[0]?.title)?.body ?? '')).toBe(true);
+    const archive = model.dated.filter((event) => event.tags.includes('archive'));
+    expect(archive.map((event) => event.title)).toEqual(['Noa finds the old map']);
+    expect(archive[0]?.tags).toEqual(['archive']);
+    expect(events.find((event) => event.title === archive[0]?.title)?.body).toContain('In the archive');
   });
 
   it('puts every event in a timeline the project lists, and links only scenes that exist', () => {
@@ -443,11 +444,11 @@ describe('the sample project, for the screens besides the binder', () => {
       ['Prologue', '1923-10-12'],
       ['The Last Ferry', '1923-10-14'],
       ['Low Water', '1923-11-08'],
-      ['הלילה שלפני הסערה', '1923-12-02'],
+      ['The Night Before the Storm', '1923-12-02'],
     ]);
     const model = readTimeline(eventNotes, sceneNotes);
     const scenes = model.dated.filter((event) => event.source === 'scene');
-    expect(scenes.map((event) => event.title)).toEqual(['Prologue', 'The Last Ferry', 'Low Water', 'הלילה שלפני הסערה']);
+    expect(scenes.map((event) => event.title)).toEqual(['Prologue', 'The Last Ferry', 'Low Water', 'The Night Before the Storm']);
     expect(scenes.flatMap((event) => event.problems)).toEqual([]);
     // Everything together sits within a year and a half, so "Fit" shows cards, not dots.
     const all = model.dated.map((event) => (event.start ? storyDateToDayNumber(event.start) : 0));
@@ -468,14 +469,14 @@ describe('the sample project, for the screens besides the binder', () => {
       ['First Soundings', 1200, 1051, '87%', 'near'],
       ['Lamp in the Empty House', 554, 554, '100%', 'done'],
       ['Low Water', 1400, 1210, '86%', 'near'],
-      ['מכתב לאחותי', 159, 159, '100%', 'done'],
+      ['A Letter to My Sister', 159, 159, '100%', 'done'],
       ['The Village on the Old Map', 900, 995, '110%', 'done'],
       ['An Argument About North', 1000, 577, '57%', 'mid'],
       ['Triangles', 800, 303, '37%', 'low'],
       ['The Drowned Lane', 1109, 1109, '100%', 'done'],
       ['Mending Nets', 900, 530, '58%', 'mid'],
       ['The Missing Boat', 800, 957, '119%', 'done'],
-      ['הלילה שלפני הסערה', 250, 143, '57%', 'mid'],
+      ['The Night Before the Storm', 250, 143, '57%', 'mid'],
       ['What the Keeper Wrote', 1300, 1160, '89%', 'near'],
       ['Adrift', 900, 193, '21%', 'low'],
       ['Starting Over', 600, 509, '84%', 'near'],
@@ -493,9 +494,9 @@ describe('the sample project, for the screens besides the binder', () => {
     );
     expect(targeted.filter((scene) => wordsOf(scene) === aimOf(scene))).toHaveLength(4);
     expect(targeted.filter((scene) => wordsOf(scene) < aimOf(scene))).toHaveLength(10);
-    // Every band of the Target column is on show, and both languages.
+    // Every band of the Target column is on show, and both of Noa's own scenes.
     expect(new Set(shown.map((row) => row[4]))).toEqual(new Set(TARGET_BANDS));
-    expect(targeted.filter((scene) => HEBREW_LETTER.test(scene.title))).toHaveLength(2);
+    expect(targeted.filter((scene) => OWN_TEXT_TITLES.includes(scene.title))).toHaveLength(2);
     // A target is a whole number of words; a scene without one has no such entry at all.
     for (const scene of targeted) expect(Number.isInteger(scene.target) && aimOf(scene) > 0, scene.title).toBe(true);
     for (const scene of allScenes) expect('target' in scene, scene.title).toBe(scene.target !== undefined);
@@ -546,7 +547,7 @@ describe('the sample project, its world', () => {
       'Characters/Noa',
       'Characters/The Harbour Master',
       'Characters/The Keeper',
-      'Characters/תמר',
+      'Characters/Ellen',
       'Places/Saltwick',
       'Places/The Archive',
       'Places/The Old Lighthouse',
@@ -556,7 +557,7 @@ describe('the sample project, its world', () => {
       'Items/The Logbook',
       'Lore/The Legend of the Drowned Village',
       'Lore/The Bell in the Fog',
-      'Lore/הים מחזיר',
+      'Lore/What the Sea Gives Back',
       'Creatures/The Tide Hound',
       'Cultures/The Bay Fishers',
     ]);
@@ -622,7 +623,7 @@ describe('the sample project, its world', () => {
     };
     for (const title of ['Mara', 'Tobias', 'Noa', 'The Harbour Master']) filled(title, ['occupation', 'personality', 'voice', 'arc']);
     filled('The Keeper', ['occupation', 'personality', 'voice']);
-    filled('תמר', ['personality', 'voice']);
+    filled('Ellen', ['personality', 'voice']);
     for (const place of world.filter((entity) => entity.folder === 'Places')) filled(place.title, ['atmosphere', 'landmarks']);
     for (const lore of world.filter((entity) => entity.folder === 'Lore')) {
       for (const field of ['kind', 'period', 'told-by']) expect(String(lore.frontmatter[field]).length, `${lore.title}: ${field}`).toBeGreaterThan(3);
@@ -648,13 +649,13 @@ describe('the sample project, its world', () => {
     }
     expect(count).toBeGreaterThanOrEqual(18);
     const of = (name: string): string[] => (relations.get(name) ?? []).map(({ entry }) => entry);
-    expect(of('Noa')).toEqual(['[[תמר|sister]]', '[[The Archive|keeps]]']);
+    expect(of('Noa')).toEqual(['[[Ellen|sister]]', '[[The Archive|keeps]]']);
     expect(of('The Keeper')).toEqual(['[[The Old Lighthouse|kept it for thirty years]]', '[[The Logbook|wrote]]']);
     expect(of('The Harbour Master')).toEqual(['[[The Harbour Office|runs]]']);
     // Who tells which tale.
     expect(of('The Legend of the Drowned Village')).toContain('[[The Bay Fishers|told by]]');
     expect(of('The Bell in the Fog')).toContain('[[Tobias|told by]]');
-    expect(of('הים מחזיר').map((entry) => parseRelation(entry)?.target)).toEqual(['The Keeper', 'The Logbook']);
+    expect(of('What the Sea Gives Back').map((entry) => parseRelation(entry)?.target)).toEqual(['The Keeper', 'The Logbook']);
     // A relation is written on one side only: the other side shows it as "mentioned by".
     for (const [from, entries] of relations) {
       for (const { written } of entries) {
@@ -662,44 +663,42 @@ describe('the sample project, its world', () => {
         expect(back, `${from} and ${written?.target ?? ''}`).not.toContain(from);
       }
     }
-    expect(of('תמר')).toEqual([]);
+    expect(of('Ellen')).toEqual([]);
   });
 
   it('links the lore, the creature and the people to the scenes and the events where they matter', () => {
     const scenesOf = (name: string): string[] => allScenes.filter((scene) => (scene.entities ?? []).includes(`[[${name}]]`)).map((scene) => scene.title);
     const eventsOf = (name: string): string[] => events.filter((event) => linked(event.frontmatter).includes(name)).map((event) => event.title);
     expect(scenesOf('The Legend of the Drowned Village')).toEqual(['The Village on the Old Map', 'Mending Nets', 'Epilogue']);
-    expect(eventsOf('The Legend of the Drowned Village')).toEqual(['נועה מוצאת את המפה הישנה', 'The new chart is published']);
+    expect(eventsOf('The Legend of the Drowned Village')).toEqual(['Noa finds the old map', 'The new chart is published']);
     expect(scenesOf('The Bell in the Fog')).toEqual(['Fog on the Crossing', 'The Bell Stops']);
     expect(eventsOf('The Bell in the Fog')).toEqual(['The second storm']);
-    expect(scenesOf('הים מחזיר')).toEqual(['הלילה שלפני הסערה', 'What the Keeper Wrote']);
+    expect(scenesOf('What the Sea Gives Back')).toEqual(['The Night Before the Storm', 'What the Keeper Wrote']);
     expect(scenesOf('The Tide Hound')).toEqual(['Low Water', 'Between Two Bars']);
     expect(scenesOf('The Bay Fishers')).toEqual(['Names of the Rocks', 'Mending Nets']);
   });
 
-  it('has a character and a piece of lore with a Hebrew name, a Hebrew summary and Hebrew text', () => {
-    const hebrew = world.filter((entity) => HEBREW_LETTER.test(entity.title));
-    expect(hebrew.map((entity) => entity.title)).toEqual(['תמר', 'הים מחזיר']);
-    const [tamar, saying] = hebrew;
+  it('has Noa\'s sister, met only in the letter, and the keeper\'s saying as a third piece of lore', () => {
+    const ellen = world.find((entity) => entity.title === 'Ellen');
+    const saying = world.find((entity) => entity.title === 'What the Sea Gives Back');
     expect(saying?.folder).toBe('Lore');
+    expect(saying?.frontmatter['kind']).toBe('Saying');
     const told = (saying?.body ?? '').split('\n\n').filter((piece) => piece !== '' && !piece.startsWith('## '));
-    for (const text of [saying?.frontmatter['summary'], saying?.frontmatter['kind'], saying?.frontmatter['period'], saying?.frontmatter['told-by'], ...told]) {
-      expect(HEBREW_LETTER.test(String(text))).toBe(true);
-      expect(LATIN_LETTER.test(String(text))).toBe(false);
-    }
-    // Its labels are Hebrew too; the links lead to notes with English names.
-    for (const entry of readRelationEntries(saying?.frontmatter ?? {})) expect(HEBREW_LETTER.test(parseRelation(entry)?.label ?? '')).toBe(true);
-    expect(tamar?.folder).toBe('Characters');
-    expect(tamar?.frontmatter['type']).toBe('character');
-    for (const text of [tamar?.frontmatter['summary'], tamar?.frontmatter['role'], (tamar?.body ?? '').split('\n\n')[1]]) {
-      expect(HEBREW_LETTER.test(String(text))).toBe(true);
-      expect(LATIN_LETTER.test(String(text))).toBe(false);
-    }
-    expect(tamar?.frontmatter['aliases']).toEqual(['אחותי']);
-    // Noa goes by her Hebrew name too, which is how the Hebrew scenes and the Hebrew event call her.
-    expect(world.find((entity) => entity.title === 'Noa')?.frontmatter['aliases']).toEqual(['נועה']);
-    // And the letter to her sister lists the sister.
-    expect(allScenes.find((scene) => scene.title === 'מכתב לאחותי')?.entities).toContain('[[תמר]]');
+    expect(told).toHaveLength(3);
+    expect(told[0]).toContain('the sea always gives back what it took');
+    // The same words Noa reads in the log on the night before the storm.
+    const night = allScenes.find((scene) => scene.title === 'The Night Before the Storm');
+    expect(night?.body).toContain('the sea always gives back what it took, only not in the same place and not in the same shape');
+    expect(readRelationEntries(saying?.frontmatter ?? {})).toEqual(['[[The Keeper|written by]]', '[[The Logbook|written on the last page of]]']);
+    expect(ellen?.folder).toBe('Characters');
+    expect(ellen?.frontmatter['type']).toBe('character');
+    expect(ellen?.frontmatter['role']).toBe("Noa's sister");
+    expect(ellen?.frontmatter['aliases']).toEqual(['Nell']);
+    expect(world.find((entity) => entity.title === 'Noa')?.frontmatter['aliases']).toEqual(['The archivist']);
+    // The letter is to her, by name, and lists her.
+    const letter = allScenes.find((scene) => scene.title === 'A Letter to My Sister');
+    expect(letter?.body?.startsWith('Dear Ellen,')).toBe(true);
+    expect(letter?.entities).toContain('[[Ellen]]');
   });
 
   it('gives every entity a name no other note of the sample has, so that a link by name leads to it', () => {
@@ -942,8 +941,8 @@ describe('the sample project, created in a vault', () => {
       expect(part.children.every((child) => typeof child === 'string' && /^Manuscript\/[^/]+\.md$/.test(child))).toBe(true);
     }
     expect(new Set(ids).size).toBe(5);
-    expect(parts[1]?.children).toContain('Manuscript/מכתב לאחותי.md');
-    expect(parts[3]?.children).toContain('Manuscript/הלילה שלפני הסערה.md');
+    expect(parts[1]?.children).toContain('Manuscript/A Letter to My Sister.md');
+    expect(parts[3]?.children).toContain('Manuscript/The Night Before the Storm.md');
 
     const listed = [binder[0] as string, ...parts.flatMap((part) => part.children), binder[6] as string];
     expect(listed).toEqual(made.project.scenes);
@@ -1035,13 +1034,13 @@ describe('the sample project, created in a vault', () => {
     expect(entities.every((entity) => entity.typeId !== null && entity.summary !== '')).toBe(true);
     const count = (typeId: string): number => entities.filter((entity) => entity.typeId === typeId).length;
     expect(BUILT_IN_TYPES.map((type) => count(type.id))).toEqual([6, 4, 1, 2, 3, 1, 1]);
-    const tamar = entities.find((entity) => entity.name === 'תמר');
-    expect(tamar).toMatchObject({ path: 'World/Characters/תמר.md', typeId: 'character', aliases: ['אחותי'] });
-    expect(tamar?.summary).toMatch(HEBREW_LETTER);
-    expect(entityFields(tamar ?? (entities[0] as (typeof entities)[number]), findType(types, 'character'))).toEqual([
-      { name: 'role', value: 'אחותה של נועה' },
-      { name: 'personality', value: 'סקרנית וחמה, ודואגת יותר ממה שהיא מודה.' },
-      { name: 'voice', value: 'נשמעת רק דרך מה שנועה עונה לה במכתבים.' },
+    const ellen = entities.find((entity) => entity.name === 'Ellen');
+    expect(ellen).toMatchObject({ path: 'World/Characters/Ellen.md', typeId: 'character', aliases: ['Nell'] });
+    expect(ellen?.summary).toMatch(/^Noa's younger sister\./);
+    expect(entityFields(ellen ?? (entities[0] as (typeof entities)[number]), findType(types, 'character'))).toEqual([
+      { name: 'role', value: "Noa's sister" },
+      { name: 'personality', value: 'Curious and warm, and more worried than she admits.' },
+      { name: 'voice', value: 'Heard only through what Noa writes back to her.' },
     ]);
 
     // The relations, as the vault holds them: every one leads to an entity, and both sides see it.
@@ -1050,10 +1049,10 @@ describe('the sample project, created in a vault', () => {
       for (const relation of relations.of(entity.path)) expect(relation.entity, `${entity.name}: ${relation.raw}`).not.toBeNull();
     }
     expect(relations.of('World/Characters/Noa.md').map((relation) => [relation.name, relation.label])).toEqual([
-      ['תמר', 'sister'],
+      ['Ellen', 'sister'],
       ['The Archive', 'keeps'],
     ]);
-    expect(relations.mentionedBy('World/Characters/תמר.md').map((relation) => [relation.entity.name, relation.label])).toEqual([['Noa', 'sister']]);
+    expect(relations.mentionedBy('World/Characters/Ellen.md').map((relation) => [relation.entity.name, relation.label])).toEqual([['Noa', 'sister']]);
     expect(relations.mentionedBy('World/Places/The Old Lighthouse.md').map((relation) => relation.entity.name)).toEqual(['The Keeper']);
     expect(relations.mentionedBy('World/Factions/The Harbour Office.md').map((relation) => relation.entity.name)).toEqual(['The Harbour Master', 'The Old Chart']);
     // No sample entity has a picture, and none is missed: the sheet shows the type's icon.
@@ -1103,7 +1102,7 @@ describe('the sample project, created in a vault', () => {
     }
     expect(links.scenesOf('World/Characters/Mara.md').length).toBeGreaterThan(15);
     expect(links.eventsOf('World/Characters/Mara.md').map((event) => event.path)).toHaveLength(3);
-    expect(links.scenesOf('World/Characters/תמר.md').map((scene) => scene.path)).toEqual(['Manuscript/מכתב לאחותי.md']);
+    expect(links.scenesOf('World/Characters/Ellen.md').map((scene) => scene.path)).toEqual(['Manuscript/A Letter to My Sister.md']);
   });
 
   it('counts the same words in the notes as were described, properties not included', async () => {

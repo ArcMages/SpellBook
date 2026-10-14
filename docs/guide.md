@@ -62,7 +62,7 @@ After an update, a short note **What is new in** the new version shows once, wit
 
 ### Try the sample project
 
-Run the command **Create sample project**. Spellbook makes a folder called "Sample Novel" (or "Sample Novel 2", and so on, if there is one already) with a made-up novel of about fifty scenes in English and Hebrew, with characters, places, timeline events and to-dos. It has no writing history, so the calendar's word counts start empty. It is there so that every screen has something to show. It is an ordinary folder; delete it when you are done.
+Run the command **Create sample project**. Spellbook makes a folder called "Sample Novel" (or "Sample Novel 2", and so on, if there is one already) with a made-up novel of about fifty scenes in English, with characters, places, timeline events and to-dos. It has no writing history, so the calendar's word counts start empty. It is there so that every screen has something to show. It is an ordinary folder; delete it when you are done.
 
 ### Create your own project
 
@@ -505,10 +505,6 @@ The sheet is one entity laid out to read and to fill in. It opens beside the lis
 
 *The sheet of a legend: its kind, its period, who tells it, and the scenes and events it touches.*
 
-![The sheet of a saying written in Hebrew, reading right to left](images/lore-sheet-hebrew.png)
-
-*A piece of lore written in Hebrew: the name, the fields and the Hebrew scene titles read right to left.*
-
 **Other names.** Under the picture, **Other names** lists the other names the entity goes by, each in a small box of its own. Type in **Add a name** and press Enter, or tap elsewhere, to add one; tap a name to change it; press the button beside a name, or empty its box, to remove it. They are saved as Obsidian's own `aliases` property of the note, as a list, so Obsidian's links and search know them as well, and "Find mentions" looks for them too. A Hebrew name reads right to left in its box.
 
 **Linking to scenes and events.** In the [inspector](#inspector), under **In this scene**, press **Add**. On the timeline, use **Entities** in an event's menu.
@@ -726,7 +722,7 @@ A scene is a note in the Manuscript folder. Spellbook reads and writes these pro
 
 Spellbook also reads `date` (a scene with a date shows in the timeline's Manuscript lane) and `tags` (shown in the outliner). Any other property is yours, and is left alone.
 
-Timeline events carry `date`, an optional `end`, `timelines` (their lanes), `scenes`, `entities` and `tags`. World notes carry `type`, the fields of their type (a character's `role`, a place's `kind` and so on), `summary`, `aliases` (other names) and whatever properties you give them. Two more are only there once you use them: `image`, a link to the entity's picture, and `related`, a list of links to other entities in which each link's display text is the label, for example `[[Tamar|sister]]`.
+Timeline events carry `date`, an optional `end`, `timelines` (their lanes), `scenes`, `entities` and `tags`. World notes carry `type`, the fields of their type (a character's `role`, a place's `kind` and so on), `summary`, `aliases` (other names) and whatever properties you give them. Two more are only there once you use them: `image`, a link to the entity's picture, and `related`, a list of links to other entities in which each link's display text is the label, for example `[[Ellen|sister]]`.
 
 ### What Spellbook changes, and what it never does
 

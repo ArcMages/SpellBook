@@ -46,7 +46,7 @@ In a vault with no Spellbook project, a page called **Welcome to Spellbook** ope
 
 ## 2. Look around the sample project
 
-The sample project is a made-up novel of about fifty scenes, in English and Hebrew, with characters, places, timeline events and to-dos. It is there so that every screen has something to show.
+The sample project is a made-up novel of about fifty scenes, in English, with characters, places, timeline events and to-dos. It is there so that every screen has something to show.
 
 1. Run the command **Create sample project**. A folder called "Sample Novel" appears in the vault.
 2. Run **Open binder**. The left sidebar shows the novel as a tree of folders and scenes, each with its word count.
@@ -410,11 +410,7 @@ If you write on more than one device, let the vault finish syncing before you st
 
 ## Writing in Hebrew
 
-![A Hebrew scene open in the editor, reading right to left, with the binder showing Hebrew titles](images/hebrew-scene.png)
-
-*A Hebrew scene: the text reads right to left, and Hebrew titles in the binder take their own direction.*
-
-Spellbook's menus and buttons are in English. Everything you write yourself can be in Hebrew, English or both.
+Spellbook supports Hebrew and English, including right-to-left text. Its menus and buttons are in English. Everything you write yourself can be in Hebrew, English or both.
 
 **Right-to-left scenes.** There is nothing to switch on. Write a scene in Hebrew and it reads right to left. Titles, synopses, labels, statuses, character names, lane names, to-dos and day marks each take the direction of their own language wherever they are shown: in the binder, on cards, in the outliner, on the timeline and in the World screen.
 

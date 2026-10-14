@@ -342,7 +342,7 @@ describe('the command "Create sample project"', () => {
     // and the 18 notes of the world.
     expect(notesUnder(fake, 'Sample Novel')).toHaveLength(85);
     expect(notesUnder(fake, 'Sample Novel/World')).toHaveLength(18);
-    expect(fake.textOf('Sample Novel/World/Characters/תמר.md')).toContain('"type": "character"');
+    expect(fake.textOf('Sample Novel/World/Characters/Ellen.md')).toContain('"type": "character"');
     expect(notesUnder(fake, 'Sample Novel/Manuscript')).toHaveLength(53);
     expect(notesUnder(fake, 'Sample Novel/Timeline')).toHaveLength(10);
     expect(notesUnder(fake, 'Sample Novel/Stats')).toEqual([]); // no writing history is made up
@@ -357,10 +357,10 @@ describe('the command "Create sample project"', () => {
     expect(storeOf(plugin).listProjects().map((p) => p.title)).toEqual(['My Novel', 'Sample Novel']);
 
     // a scene note: properties first, then the text
-    const letter = fake.textOf('Sample Novel/Manuscript/מכתב לאחותי.md');
+    const letter = fake.textOf('Sample Novel/Manuscript/A Letter to My Sister.md');
     expect(letter.startsWith('---\n')).toBe(true);
     expect(letter).toContain('"label": "Noa"');
-    expect(letter).toContain('אחותי היקרה');
+    expect(letter).toContain('Dear Ellen,');
     expect(fake.textOf('Sample Novel/To-do.md').split('\n').filter((line) => line.startsWith('- ['))).toHaveLength(3);
 
     // only safe doorways, nothing trashed, nothing that was already there changed

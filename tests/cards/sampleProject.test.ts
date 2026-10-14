@@ -1,5 +1,6 @@
-// The corkboard of the sample novel: the engine run on the same scenes,
-// English and Hebrew, that the "Create sample project" command writes.
+// The corkboard of the sample novel: the engine run on the same scenes that
+// the "Create sample project" command writes. The sample is in English; a
+// Hebrew scene of the test's own shows that Hebrew is cut the same way.
 
 import { describe, expect, it } from 'vitest';
 import { addTag, buildBoard, buildInspector, readTagLists, unlistedTags } from '../../src/core/cards';
@@ -70,9 +71,8 @@ function proseOf(scene: SceneSeed): string {
 }
 
 describe('the corkboard of the sample novel', () => {
-  it('has scenes in both languages to work with', () => {
+  it('has scenes of every kind to work with', () => {
     expect(scenes.length).toBeGreaterThan(20);
-    expect(scenes.filter((scene) => HEBREW_LETTER.test(scene.body ?? '')).length).toBeGreaterThanOrEqual(2);
     expect(scenes.filter((scene) => (scene.body ?? '').startsWith(ROUGH_NOTES_COMMENT)).length).toBeGreaterThan(0);
   });
 
@@ -147,19 +147,38 @@ describe('the corkboard of the sample novel', () => {
     });
   });
 
-  it('cuts the Hebrew scenes between words like the English ones', () => {
-    const hebrew = allSceneCards(withoutSynopsis).filter((card) => HEBREW_LETTER.test(card.synopsis));
-    expect(hebrew.length).toBeGreaterThanOrEqual(2);
-    for (const card of hebrew) {
-      const scene = scenes.find((candidate) => pathOf(candidate) === card.path) as SceneSeed;
-      const prose = proseOf(scene);
-      expect(prose.length).toBeGreaterThan(200);
-      const body = card.synopsis.slice(0, -1);
-      expect(card.synopsis.endsWith(ELLIPSIS)).toBe(true);
-      expect(prose.startsWith(body)).toBe(true);
-      expect(prose.slice(body.length)).toMatch(/^[,;:-]* /);
-      expect(HEBREW_LETTER.test(body.charAt(body.length - 1)) || /[.!?"']/.test(body.charAt(body.length - 1))).toBe(true);
-    }
+  it('cuts a Hebrew scene between words like the English ones', () => {
+    // A Hebrew scene of the test's own, on a board of its own, with its synopsis taken away.
+    const hebrewScene: SceneSeed = {
+      title: 'מכתב לאחותי',
+      synopsis: '',
+      status: 'Revised',
+      label: 'Noa',
+      body: [
+        'אחותי היקרה,',
+        'אני כותבת לך מהחדר הקטן שמעל הארכיון, ליד חלון שפונה אל הנמל. הים כאן אפור בבוקר וכחול רק לקראת הצהריים, ובערב הוא נעשה כהה כמו דיו. כבר שלושה שבועות אני בעיירה הזאת, ועדיין אינני יודעת אם היא מקבלת אותי.',
+        'מצאתי בארכיון מפה ישנה. מצויר בה כפר קטן, עם כנסייה ושבעה בתים, במקום שיש בו היום רק מים.',
+      ].join('\n\n'),
+    };
+    const path = pathOf(hebrewScene);
+    const text = `---\nstatus: Revised\nlabel: Noa\n---\n${hebrewScene.body ?? ''}`;
+    const frontmatter = { ...newSceneFrontmatter(1, '2026-10-01', { status: 'Revised', label: 'Noa' }), synopsis: '' };
+    const known = new Map<string, SceneData>([[path, { frontmatter, text, words: countWords(text) }]]);
+    const hebrewTree: TreeNode[] = [{ kind: 'scene', path, title: hebrewScene.title, missing: false }];
+    const [card] = buildBoard({ tree: hebrewTree, sceneOf: (at) => known.get(at), lists }).cards;
+    if (card?.kind !== 'scene') throw new Error('no scene card');
+    expect(card.title).toBe('מכתב לאחותי');
+    expect(card.synopsisDerived).toBe(true);
+    const prose = proseOf(hebrewScene);
+    expect(prose.length).toBeGreaterThan(200);
+    const body = card.synopsis.slice(0, -1);
+    expect(card.synopsis.endsWith(ELLIPSIS)).toBe(true);
+    expect(HEBREW_LETTER.test(body)).toBe(true);
+    expect(prose.startsWith(body)).toBe(true);
+    expect(body.length).toBeLessThanOrEqual(200);
+    expect(body.length).toBeGreaterThan(150);
+    expect(prose.slice(body.length)).toMatch(/^[,;:-]* /);
+    expect(HEBREW_LETTER.test(body.charAt(body.length - 1)) || /[.!?"']/.test(body.charAt(body.length - 1))).toBe(true);
   });
 
   it('reports the three characters as labels the project has not listed yet, and colours them once added', () => {
