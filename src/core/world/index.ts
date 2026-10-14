@@ -13,6 +13,7 @@
 //   browse.ts    the browser's search, filter, groups, cards and table
 //   mentions.ts  "Find mentions": a name standing in a scene's text
 //   time.ts      when an entity begins and ends, its moments, its history
+//   age.ts       a character's age: at death, at the story's present, in a scene
 //   timeLanes.ts the world on the timeline: a lane per type, a row per entity
 //   services.ts  what the inspector is offered, and under which name
 //
@@ -146,6 +147,22 @@ export {
   usualDateWords,
 } from './time';
 export type { EntityHistory, EntityTime, HistoryKind, HistoryLine, HistoryNote, HistorySources, Moment, ReadDate, TimeChange } from './time';
+
+export {
+  STORY_PRESENT_KEY,
+  ageAt,
+  compareKnown,
+  latestDate,
+  lifeAge,
+  lifeYears,
+  readStoryPresent,
+  showsAge,
+  storyPresent,
+  storyPresentValue,
+  typedAgeShown,
+  yearsBetween,
+} from './age';
+export type { AgeAt, LifeAge, StoryPresent } from './age';
 
 export {
   WORLD_LANE_PREFIX,
