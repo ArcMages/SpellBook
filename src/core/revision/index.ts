@@ -19,6 +19,7 @@ export {
   renameScenes,
   sceneNotes,
   serialiseNotesFile,
+  takeCopiedAt,
   takeEntriesAt,
 } from './notesFile';
 export type { IdAt, NotesFile, SceneKey } from './notesFile';

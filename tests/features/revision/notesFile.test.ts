@@ -422,3 +422,51 @@ describe('the book of a second screen', () => {
     expect(vault.has(NOTES)).toBe(true);
   });
 });
+
+describe('review: notes that arrive or change while the plugin works', () => {
+  it('a scene moved into another project leaves behind no note it did not take along (one that arrived by sync is kept)', async () => {
+    const { keeper, vault, rest } = await stage(secondProject(novelVault()));
+    await keeper.addNote(OPENING, 'dark night', 'Colder.');
+    await rest();
+    // Another device adds a note to the scene; this device has not read the file again yet.
+    const data = fileOf(vault);
+    (data.scenes[0]!['notes'] as unknown[]).push(note('walked alone', 'from the phone'));
+    vault.external.write(NOTES, { body: JSON.stringify(data) }, { silent: true });
+    vault.external.rename(inNovel(OPENING), 'Second/Manuscript/Opening.md');
+    await rest();
+    const there = passagesIn(vault, 'Second/Revision notes.json')['Manuscript/Opening.md'] ?? [];
+    const left = vault.has(NOTES) ? (passagesIn(vault)[OPENING] ?? []) : [];
+    expect([...there, ...left].sort()).toEqual(['dark night', 'walked alone']);
+  });
+
+  it('a note ticked done where it was still kept the old way stays done once it is moved into the file', () => {
+    const file = emptyNotesFile();
+    const noIds: IdAt = () => undefined;
+    mergeIntoScene(file, { path: OPENING, id: null }, noIds, [note('dark night', 'Colder.')]);
+    expect(mergeIntoScene(file, { path: OPENING, id: null }, noIds, [note('dark night', 'Colder.', true)])).toBe(true);
+    expect(sceneNotes(file, { path: OPENING, id: null }, noIds).map((item) => item.done)).toEqual([true]);
+    // Not done in the property does not take away a tick made in the file.
+    expect(mergeIntoScene(file, { path: OPENING, id: null }, noIds, [note('dark night', 'Colder.', false)])).toBe(false);
+    expect(sceneNotes(file, { path: OPENING, id: null }, noIds).map((item) => item.done)).toEqual([true]);
+  });
+
+  it('the file as another device wrote it just after a save is what is shown, not the save', async () => {
+    const { keeper, vault, rest } = await stage();
+    await keeper.addNote(OPENING, 'dark night', 'Colder.');
+    await rest();
+    let arrived = false;
+    stops.push(
+      vault.on((event) => {
+        if (arrived || event.type !== 'modify' || event.path !== NOTES) return;
+        arrived = true;
+        const data = fileOf(vault);
+        (data.scenes[0]!['notes'] as unknown[]).push(note('from the phone', 'Phone.'));
+        vault.external.write(NOTES, { body: JSON.stringify(data) });
+      }),
+    );
+    await keeper.addNote(OPENING, 'walked alone', 'Why?');
+    await rest();
+    expect(passagesIn(vault)).toEqual({ [OPENING]: ['dark night', 'walked alone', 'from the phone'] });
+    expect(keeper.notesOf(OPENING).map((item) => item.passage)).toEqual(['dark night', 'walked alone', 'from the phone']);
+  });
+});
