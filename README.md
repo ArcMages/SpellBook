@@ -86,6 +86,10 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 
 ## Features
 
+### Get started
+
+- **Welcome page.** The first time Spellbook runs in a vault with no project, a page offers the sample novel, a new project or the tutorial, with a short tour of the screen and a list of where things are. A **Help** pane lists every command, and a short note shows what is new after each update.
+
 ### Organise
 
 - **Binder.** The project as a tree in the sidebar: scenes and folders, each with its word count. Add, rename, nest, reorder by dragging or with "Move up" and "Move down", and delete to the trash.
@@ -185,7 +189,7 @@ npm test
 
 Spellbook makes no network requests and collects nothing: no telemetry, no analytics, no accounts. Everything is worked out on your device, and everything it saves goes into your vault or into Obsidian's own storage on the device.
 
-What was checked to say this: the whole of `src/` was searched for `fetch`, `XMLHttpRequest`, Obsidian's `requestUrl`, `WebSocket`, `sendBeacon`, `eval`, `new Function`, dynamic `import()`, `require()`, web addresses, and imports of Node.js or Electron modules. The only matches are the fixed format names that a Word file must carry inside it (they look like web addresses but are never contacted). The stylesheets load no remote fonts or images, and the plugin has no runtime dependencies beyond Obsidian itself.
+What was checked to say this: the whole of `src/` was searched for `fetch`, `XMLHttpRequest`, Obsidian's `requestUrl`, `WebSocket`, `sendBeacon`, `eval`, `new Function`, dynamic `import()`, `require()`, web addresses, and imports of Node.js or Electron modules. The only matches are the fixed format names that a Word file must carry inside it (they look like web addresses but are never contacted), and the addresses of the guide and the tutorial, which the Help pane shows as text to copy and never opens. The "What is new" note after an update is bundled in the plugin; nothing is fetched. The stylesheets load no remote fonts or images, and the plugin has no runtime dependencies beyond Obsidian itself.
 
 ## Licence
 

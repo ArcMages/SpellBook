@@ -1,0 +1,282 @@
+/*
+ * The welcome page, the Help pane, the "What is new" note and the tour's
+ * bubble. The choices of the welcome page sit side by side where the pane is
+ * wide, and one under the other where it is narrow: the grid decides by the
+ * pane's own width, not by the kind of device.
+ */
+
+.spellbook-welcome,
+.spellbook-help {
+  max-width: 46em;
+  margin-inline: auto;
+  padding-block: var(--size-4-4) var(--size-4-8);
+  padding-inline: var(--size-4-4);
+  text-align: start;
+}
+
+.spellbook-welcome.spellbook-is-phone,
+.spellbook-help.spellbook-is-phone {
+  padding-inline: var(--size-4-2);
+  padding-block-end: calc(var(--size-4-8) + var(--mobile-navbar-height, 0px) + var(--safe-area-inset-bottom, 0px));
+}
+
+.spellbook-welcome .spellbook-welcome-title,
+.spellbook-help .spellbook-help-title {
+  margin-block: 0 var(--size-4-3);
+  font-size: var(--h1-size);
+}
+
+.spellbook-welcome .spellbook-welcome-heading,
+.spellbook-help .spellbook-help-heading {
+  margin-block: var(--size-4-8) var(--size-4-2);
+  font-size: var(--h3-size);
+}
+
+.spellbook-welcome .spellbook-welcome-text {
+  margin-block: 0 var(--size-4-6);
+  line-height: var(--line-height-normal);
+}
+
+.spellbook-welcome .spellbook-welcome-note,
+.spellbook-help .spellbook-help-note {
+  margin-block: 0 var(--size-4-3);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.spellbook-welcome .spellbook-welcome-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12em, 1fr));
+  gap: var(--size-4-3);
+}
+
+.spellbook-welcome .spellbook-welcome-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--size-2-3);
+  height: auto;
+  min-height: 9em;
+  padding: var(--size-4-4);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-l);
+  background-color: var(--background-secondary);
+  color: var(--text-normal);
+  text-align: start;
+  white-space: normal;
+  cursor: pointer;
+}
+
+.spellbook-welcome .spellbook-welcome-choice:hover {
+  border-color: var(--interactive-accent);
+}
+
+.spellbook-welcome .spellbook-welcome-choice:focus-visible {
+  box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+
+.spellbook-welcome .spellbook-welcome-choice-icon {
+  color: var(--interactive-accent);
+}
+
+.spellbook-welcome .spellbook-welcome-choice-icon .svg-icon {
+  width: var(--icon-l);
+  height: var(--icon-l);
+}
+
+.spellbook-welcome .spellbook-welcome-choice-title {
+  font-size: var(--font-ui-large);
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-welcome .spellbook-welcome-choice-text {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+}
+
+.spellbook-welcome .spellbook-welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+  margin-block-start: var(--size-4-4);
+}
+
+.spellbook-welcome .spellbook-welcome-places,
+.spellbook-help .spellbook-help-commands {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.spellbook-welcome .spellbook-welcome-place,
+.spellbook-help .spellbook-help-command {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--size-2-1) var(--size-4-2);
+  padding-block: var(--size-4-2);
+  border-block-end: 1px solid var(--background-modifier-border);
+}
+
+.spellbook-welcome .spellbook-welcome-place-name,
+.spellbook-help .spellbook-help-command-name {
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-welcome .spellbook-welcome-place-text {
+  flex: 1 1 14em;
+  color: var(--text-muted);
+}
+
+.spellbook-welcome .spellbook-welcome-place-command {
+  flex: 0 0 auto;
+  color: var(--text-accent);
+  font-size: var(--font-ui-small);
+}
+
+.spellbook-help .spellbook-help-command-text {
+  flex: 1 1 14em;
+  color: var(--text-muted);
+}
+
+.spellbook-help .spellbook-help-steps {
+  margin: 0;
+  padding-inline-start: var(--size-4-6);
+}
+
+.spellbook-help .spellbook-help-step {
+  padding-block: var(--size-2-2);
+}
+
+.spellbook-help .spellbook-help-step-title {
+  display: block;
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-help .spellbook-help-step-text {
+  display: block;
+  color: var(--text-muted);
+}
+
+.spellbook-help .spellbook-help-address {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-2-3) var(--size-4-2);
+  margin-block-end: var(--size-4-3);
+}
+
+.spellbook-help .spellbook-help-address-label {
+  flex: 0 0 6em;
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-help .spellbook-help-address-text {
+  flex: 1 1 16em;
+  min-width: 0;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.spellbook-help .spellbook-help-copy-status {
+  flex: 1 0 100%;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.spellbook-help .spellbook-help-copy-status:empty {
+  display: none;
+}
+
+.spellbook-whats-new .spellbook-whats-new-date {
+  margin-block-end: var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.spellbook-whats-new .spellbook-whats-new-heading {
+  margin-block: var(--size-4-4) var(--size-2-2);
+}
+
+.spellbook-whats-new .spellbook-whats-new-list {
+  padding-inline-start: var(--size-4-6);
+  text-align: start;
+}
+
+.spellbook-whats-new .spellbook-whats-new-text {
+  text-align: start;
+}
+
+.spellbook-whats-new .spellbook-whats-new-foot {
+  margin-block-start: var(--size-4-4);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+/* The tour: a ring around the part it points at, which lets every tap
+   through, and a small bubble beside it. Placed by the plugin in pixels from
+   the window's corner. */
+.spellbook-tour-ring {
+  position: fixed;
+  z-index: var(--layer-tooltip);
+  border: 2px solid var(--interactive-accent);
+  border-radius: var(--radius-m);
+  box-shadow: 0 0 0 4px var(--background-modifier-border-focus);
+  pointer-events: none;
+}
+
+.spellbook-tour-ring.spellbook-is-hidden {
+  display: none;
+}
+
+.spellbook-tour-bubble {
+  position: fixed;
+  z-index: var(--layer-tooltip);
+  box-sizing: border-box;
+  width: min(20em, calc(100vw - 16px));
+  padding: var(--size-4-3);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-l);
+  background-color: var(--background-primary);
+  box-shadow: var(--shadow-l);
+  color: var(--text-normal);
+  text-align: start;
+}
+
+.spellbook-tour-bubble .spellbook-tour-count {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-tour-bubble .spellbook-tour-title {
+  margin-block: var(--size-2-1) var(--size-2-2);
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-tour-bubble .spellbook-tour-text {
+  margin-block: 0 var(--size-4-3);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+}
+
+.spellbook-tour-bubble .spellbook-tour-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--size-2-3);
+}
+
+.spellbook-tour-bubble .spellbook-tour-back {
+  margin-inline-end: auto;
+}
+
+.spellbook-welcome.spellbook-is-mobile .spellbook-welcome-action,
+.spellbook-help.spellbook-is-mobile .spellbook-help-welcome,
+.spellbook-help.spellbook-is-mobile .spellbook-help-copy,
+.spellbook-tour-bubble.spellbook-is-mobile .spellbook-tour-buttons button {
+  min-height: var(--spellbook-touch-target);
+}
