@@ -38,7 +38,9 @@ import {
   DATE_KEY,
   END_KEY,
   ENTITY_TYPES_KEY,
+  STORY_PRESENT_KEY,
   addEntityLink,
+  ageAt,
   addMoment,
   addRelation,
   buildRelations,
@@ -50,6 +52,8 @@ import {
   fieldText,
   findType,
   imageLink,
+  latestDate,
+  lifeAge,
   linkTo,
   mentionNames,
   newEntityBody,
@@ -60,6 +64,7 @@ import {
   readEntityTime,
   readEntityTypes,
   readLayout,
+  readStoryPresent,
   relabelRelation,
   relationTo,
   removeEntityLink,
@@ -71,9 +76,13 @@ import {
   setEntityDate,
   setEntityField,
   setImage,
+  showsAge,
+  storyPresent,
+  storyPresentValue,
   writeEntityTypes,
 } from '../../core/world';
 import type {
+  AgeAt,
   AliasEdit,
   Entity,
   EntityHistory,
@@ -84,7 +93,9 @@ import type {
   LinkChange,
   LinkingNote,
   MentionSnippet,
+  LifeAge,
   Moment,
+  StoryPresent,
   TimeChange,
   TypeEdit,
   WorldLayout,
@@ -122,6 +133,8 @@ export interface SheetAppearance {
   readonly title: string;
   /** A scene's synopsis, or an event's date in the story, on one line; "" for none. */
   readonly note: string;
+  /** For a scene with a date, of an entity that has an age: its age then, or that it is not born yet or already dead. */
+  readonly age?: AgeAt | null;
 }
 
 /** The open project, as the world-building screen needs it. */
@@ -165,6 +178,8 @@ interface Model {
   readonly calendar: StoryCalendar | null;
   /** When each entity is, by its path: worked out the first time it is asked for. */
   readonly times: Map<string, EntityTime>;
+  /** The story's present, once it has been worked out (null: the story has none). */
+  present?: StoryPresent | null;
 }
 
 const NO_LINKS: WorldLinks = { linksOf: () => [], scenesOf: () => [], eventsOf: () => [] };
@@ -372,10 +387,12 @@ export class WorldHost {
   sceneRows(entityPath: string): SheetAppearance[] {
     const model = this.current();
     if (!model) return [];
+    const entity = model.byPath.get(pathKey(entityPath)) ?? null;
     return model.links.scenesOf(entityPath).map((scene) => ({
       path: scene.path,
       title: scene.title,
       note: fieldText(model.indexed.get(pathKey(scene.path))?.['synopsis']),
+      age: entity === null ? null : this.ageInScene(entity, scene.path),
     }));
   }
 
@@ -805,6 +822,55 @@ export class WorldHost {
   /** The project's invented calendar; null for the real-world one (and when no project is open). */
   get calendar(): StoryCalendar | null {
     return this.current()?.calendar ?? null;
+  }
+
+  /**
+   * The story's present: the date the project index names under
+   * "storyPresent", or else the latest date of any scene or timeline event
+   * (the later of its start and its end). Null when there is neither.
+   */
+  get storyPresent(): StoryPresent | null {
+    const model = this.current();
+    if (!model) return null;
+    if (model.present === undefined) {
+      const set = readStoryPresent(this.context.store.projectData(STORY_PRESENT_KEY), model.calendar);
+      const notes = [...model.scenes.map((scene) => scene.path), ...this.context.store.timelineNotes().map((note) => note.path)];
+      const latest = latestDate(
+        notes.map((path) => {
+          const time = readEntityTime(model.indexed.get(pathKey(path)) ?? null, model.calendar);
+          return time.end ?? time.start;
+        }),
+      );
+      model.present = storyPresent(set, latest);
+    }
+    return model.present;
+  }
+
+  /** Name the story's present in the project index, or take it away (null): ages are then worked out at the latest date in the story. */
+  async setStoryPresent(date: StoryDate | null): Promise<string | null> {
+    const project = this.writable();
+    if (typeof project === 'string') return project;
+    const result = await this.context.store.updateProjectData(STORY_PRESENT_KEY, () => storyPresentValue(date), project.id);
+    this.changed();
+    return answerOf(result);
+  }
+
+  /** An entity's age, at its death or at the story's present; null for an entity of a type that has no age. */
+  ageOf(entity: Entity): LifeAge | null {
+    if (!showsAge(this.typeOf(entity))) return null;
+    return lifeAge(this.timeOf(entity), this.storyPresent);
+  }
+
+  /**
+   * An entity in a scene: its age at the scene's date, or that it is not
+   * born yet or already dead then. Null when the entity's type has no age,
+   * the scene has no date, or nothing can be said.
+   */
+  ageInScene(entity: Entity, scenePath: string): AgeAt | null {
+    const model = this.current();
+    if (!model || !showsAge(this.typeOf(entity))) return null;
+    const when = readEntityTime(model.indexed.get(pathKey(scenePath)) ?? null, model.calendar).start;
+    return when === null ? null : ageAt(this.timeOf(entity), when);
   }
 
   /** When an entity is: its two dates and its moments, read in the project's calendar. */

@@ -623,8 +623,8 @@ describe('who is in a scene (what the inspector is offered)', () => {
   it('gives a scene\'s entities as chips, in the order written, with the colour of each type', async () => {
     const s = await stage();
     expect(service(s).of(OPENING)).toEqual([
-      { key: '[[Mara]]', name: 'Mara', typeName: 'Character', color: 'blue', icon: 'user', found: true },
-      { key: '[[Saltwick]]', name: 'Saltwick', typeName: 'Place', color: 'green', icon: 'map-pin', found: true },
+      { key: '[[Mara]]', name: 'Mara', typeName: 'Character', color: 'blue', icon: 'user', found: true, age: null, warning: null },
+      { key: '[[Saltwick]]', name: 'Saltwick', typeName: 'Place', color: 'green', icon: 'map-pin', found: true, age: null, warning: null },
     ]);
     expect(service(s).of(CLOSING).map((chip) => [chip.name, chip.found])).toEqual([['Saltwick', true], ['Nobody', false]]);
     expect(service(s).of(LETTER)).toEqual([]);

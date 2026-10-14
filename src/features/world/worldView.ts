@@ -74,6 +74,7 @@ import {
   typeTitle,
 } from './parts';
 import { EntitySheet, OPEN_NOTE_TEXT, RENAME_EVERYWHERE_TEXT } from './sheet';
+import { STORY_PRESENT_TEXT, openStoryPresent, storyPresentText } from './timePart';
 import { openEntityTypes } from './typesModal';
 
 export const WORLD_VIEW_TYPE = 'spellbook-world';
@@ -125,6 +126,8 @@ interface Elements {
   readonly order: HTMLSelectElement;
   /** The button that opens the world's history on the timeline. */
   readonly history: HTMLButtonElement;
+  /** Names the story's present, at which the characters' ages are worked out. */
+  readonly present: HTMLElement;
   readonly types: HTMLElement;
   readonly list: HTMLElement;
   readonly detail: HTMLElement;
@@ -251,6 +254,10 @@ export class WorldView extends ItemView {
       if (this.host.showWorldHistory?.() !== true) new Notice(NO_TIMELINE_TEXT);
     });
     history.setAttr('aria-label', HISTORY_LABEL);
+    // The date the characters' ages are worked out at.
+    const present = iconButton(bar, 'spellbook-world-present', STORY_PRESENT_TEXT, WORLD_ICONS.present, () => {
+      openStoryPresent(this.app, this.host);
+    });
     const add = textButton(bar, 'mod-cta spellbook-world-new', NEW_TEXT, (button) => {
       this.showNewMenu(button);
     });
@@ -261,7 +268,7 @@ export class WorldView extends ItemView {
     const body = root.createDiv({ cls: 'spellbook-world-body' });
     const list = body.createDiv({ cls: 'spellbook-world-list' });
     const detail = body.createDiv({ cls: 'spellbook-world-detail' });
-    this.els = { root, search, filter, layouts, add, order, history, types, list, detail };
+    this.els = { root, search, filter, layouts, add, order, history, present, types, list, detail };
 
     if (typeof ResizeObserver === 'function') {
       this.observer = new ResizeObserver(() => {
@@ -329,6 +336,9 @@ export class WorldView extends ItemView {
     els.order.disabled = !usable;
     setShown(els.order, layout !== 'list');
     els.history.disabled = !usable;
+    setShown(els.present, usable && !project.readOnly);
+    const present = usable ? this.host.storyPresent : null;
+    els.present.setAttr('aria-label', present === null ? STORY_PRESENT_TEXT : `${STORY_PRESENT_TEXT}: ${storyPresentText(present)}`);
     this.drawFilter();
     if (this.selected !== null && this.host.entity(this.selected) === null) this.select(null, false);
     this.drawList();

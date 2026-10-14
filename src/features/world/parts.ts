@@ -53,6 +53,7 @@ export const WORLD_ICONS = {
   sortDown: ['arrow-down', 'chevron-down'],
   dates: ['calendar', 'calendar-days'],
   history: ['calendar-range', 'calendar-clock', 'calendar'],
+  present: ['calendar-clock', 'clock', 'calendar'],
 } as const satisfies Record<string, readonly string[]>;
 
 /**

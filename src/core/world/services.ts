@@ -26,6 +26,10 @@ export interface SceneEntityChip {
   readonly icon: string | null;
   /** False for a link that leads to no entity of the project: it can be removed, not opened. */
   readonly found: boolean;
+  /** Its age at the scene's date, for a scene with a date and an entity born before it; absent or null otherwise. */
+  readonly age?: number | null;
+  /** A continuity warning, in plain English: "not born yet in this scene", "died before this scene"; absent or null for none. */
+  readonly warning?: string | null;
 }
 
 /** Who and what is in a scene, and the ways to change that. */

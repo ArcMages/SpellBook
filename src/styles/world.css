@@ -1439,3 +1439,83 @@
 .spellbook-world-time-unread .spellbook-world-time-problem {
   margin-inline-start: var(--size-2-2);
 }
+
+/* A character's life, near the top of its sheet: "Born", "Died" and "Age"
+   together in a quiet box, the age worked out from the dates. */
+.spellbook-world-life {
+  margin-block-start: var(--size-4-3);
+  padding-block: var(--size-2-3);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+}
+
+.spellbook-world-life:empty {
+  display: none;
+}
+
+.spellbook-world-age-row {
+  padding-inline-start: var(--size-4-2);
+}
+
+.spellbook-world-age-value {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--size-4-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.spellbook-world-age-years {
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-world-age-when {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-world-age-row .spellbook-world-age-present {
+  flex: 0 0 auto;
+  height: auto;
+  padding: var(--size-2-1) var(--size-4-2);
+  font-size: var(--font-ui-smaller);
+}
+
+/* In the sheet's list of scenes: the age at the scene's date, or a mark
+   when the character is not born yet or already dead then. */
+.spellbook-world-row .spellbook-world-row-age {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+}
+
+.spellbook-world-row .spellbook-world-row-warning {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--size-2-1);
+  color: var(--text-warning);
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-world-row-warning .svg-icon {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+/* On a chip of "In this scene": the age after the name, and the warning mark. */
+.spellbook-entity-chip-age {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.spellbook-entity-chip-warning {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--text-warning);
+}
