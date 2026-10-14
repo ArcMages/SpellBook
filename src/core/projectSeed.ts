@@ -35,6 +35,11 @@ export interface SceneSeed {
    * note ("[[Mara]]"), exactly as they are to be written. Default: none.
    */
   readonly entities?: readonly string[];
+  /**
+   * The timelines (lanes) the scene is in besides Manuscript, by name, as
+   * the timeline and the plot grid write them. Default: none.
+   */
+  readonly timelines?: readonly string[];
 }
 
 /** An event of the story to create: a note in the Timeline folder. Its file name is made from the title. */
@@ -202,6 +207,8 @@ export async function plantSeed(
         const frontmatter = newSceneFrontmatter(order, context.today, item);
         // A scene's place in the story's time is not one of the standard properties: only a scene that has one gets it.
         if (item.date !== undefined && item.date !== '') frontmatter['date'] = item.date;
+        // Nor are the lanes it is in besides Manuscript: only a scene that is in some gets the list.
+        if (item.timelines !== undefined && item.timelines.length > 0) frontmatter['timelines'] = [...item.timelines];
         // Nor is who and what is in it: a list of links, for a scene that has any.
         if (item.entities !== undefined && item.entities.length > 0) frontmatter[ENTITIES_KEY] = [...item.entities];
         const path = await createNote(MANUSCRIPT_FOLDER, item.title, DEFAULT_SCENE_NAME, item.body ?? '', frontmatter);

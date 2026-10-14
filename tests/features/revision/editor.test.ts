@@ -6,23 +6,15 @@ import type { TransactionSpec } from '@codemirror/state';
 import type { DecorationSet, EditorView, ViewUpdate } from '@codemirror/view';
 import { editorInfoField } from 'obsidian';
 import { describe, expect, it } from 'vitest';
-import { NotesReader, PASSAGE_NOTE, RevisionMarksView, notesAt } from '../../../src/features/revision/index';
+import { PASSAGE_NOTE, RevisionMarksView, notesAt } from '../../../src/features/revision/index';
+import { readNoteList } from '../../../src/core/revision/index';
 import { markLineAt, tipPlace } from '../../../src/features/revision/editor';
 import type { RevisionEditorHost } from '../../../src/features/revision/editor';
 import { ManualTimers } from '../../memoryVault';
 import { FakeElement } from '../../obsidianStub';
 
-/** The properties as the memory vault writes them: one "key: JSON" line each. */
-function parse(yaml: string): unknown {
-  const out: Record<string, unknown> = {};
-  for (const line of yaml.split('\n')) {
-    const colon = line.indexOf(':');
-    if (colon > 0) out[line.slice(0, colon).trim()] = JSON.parse(line.slice(colon + 1).trim()) as unknown;
-  }
-  return out;
-}
-
-const notes = (list: unknown[]): string => `---\norder: 1\nrevision-notes: ${JSON.stringify(list)}\n---\n`;
+/** A text with properties at the top, as a scene has them (the notes are not among them). */
+const HEAD = '---\norder: 1\n---\n';
 
 function marked(decorations: DecorationSet, state: EditorState): string[] {
   const found: string[] = [];
@@ -67,8 +59,40 @@ class FakeEditor {
   }
 }
 
-function hostOf(timers: ManualTimers, touch = false): RevisionEditorHost {
-  return { covers: (path) => path !== null && path.startsWith('Novel/'), parseProperties: parse, touch, setTimer: timers.set };
+/** A host whose notes are kept in a map by vault path, as the book of notes keeps them. */
+class NotesHost implements RevisionEditorHost {
+  readonly byPath = new Map<string, unknown[]>();
+  readonly listeners = new Set<() => void>();
+  constructor(
+    readonly timers: ManualTimers,
+    readonly touch = false,
+  ) {}
+  covers(path: string | null): boolean {
+    return path !== null && path.startsWith('Novel/');
+  }
+  notesOf(path: string) {
+    return readNoteList(this.byPath.get(path) ?? []);
+  }
+  onNotesChange(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+  readonly setTimer = (callback: () => void, ms: number) => this.timers.set(callback, ms);
+  set(path: string, list: unknown[]): void {
+    this.byPath.set(path, list);
+    for (const listener of this.listeners) listener();
+  }
+}
+
+const OPENING_PATH = 'Novel/Manuscript/Opening.md';
+
+function hostOf(timers: ManualTimers, touch = false, list: unknown[] | null = null): NotesHost {
+  const host = new NotesHost(timers, touch);
+  if (list) {
+    host.byPath.set(OPENING_PATH, list);
+    host.byPath.set('Elsewhere/Note.md', list);
+  }
+  return host;
 }
 
 describe('the underlined passages', () => {
@@ -81,18 +105,18 @@ describe('the underlined passages', () => {
   ];
 
   it('mark the open notes whose words are in the text, in English and Hebrew, with their notes', () => {
-    const editor = new FakeEditor('Novel/Manuscript/Opening.md', notes(list) + body, hostOf(new ManualTimers()));
+    const editor = new FakeEditor('Novel/Manuscript/Opening.md', HEAD + body, hostOf(new ManualTimers(), false, list));
     expect(editor.picture).toEqual(['harbour was empty = Say what she hears.', 'הים שקט = למה?']);
   });
 
   it('mark nothing outside a Spellbook project, and nothing in a note without notes', () => {
-    expect(new FakeEditor('Elsewhere/Note.md', notes(list) + body, hostOf(new ManualTimers())).picture).toEqual([]);
+    expect(new FakeEditor('Elsewhere/Note.md', HEAD + body, hostOf(new ManualTimers(), false, list)).picture).toEqual([]);
     expect(new FakeEditor('Novel/Manuscript/Opening.md', body, hostOf(new ManualTimers())).picture).toEqual([]);
   });
 
   it('move with the text at once, and are worked out again after a pause', () => {
     const timers = new ManualTimers();
-    const editor = new FakeEditor('Novel/Manuscript/Opening.md', notes(list) + body, hostOf(timers));
+    const editor = new FakeEditor('Novel/Manuscript/Opening.md', HEAD + body, hostOf(timers, false, list));
     const start = editor.state.doc.toString().indexOf('The harbour');
     editor.dispatch({ changes: { from: start, insert: 'Look. ' }, userEvent: 'input.type' });
     expect(editor.picture[0]).toBe('harbour was empty = Say what she hears.');
@@ -103,20 +127,19 @@ describe('the underlined passages', () => {
     expect(editor.picture).toEqual(['הים שקט = למה?']);
   });
 
-  it('show a note added to the properties straight away, without waiting for the vault', () => {
+  it('show a note added (here or on another device) a moment later, without the text changing', () => {
     const timers = new ManualTimers();
-    const editor = new FakeEditor('Novel/Manuscript/Opening.md', notes([]) + body, hostOf(timers));
+    const host = hostOf(timers);
+    const editor = new FakeEditor(OPENING_PATH, HEAD + body, host);
     expect(editor.picture).toEqual([]);
-    const text = editor.state.doc.toString();
-    const head = text.indexOf('revision-notes: []') + 'revision-notes: '.length;
-    editor.dispatch({ changes: { from: head, to: head + 2, insert: JSON.stringify(list.slice(0, 1)) } });
+    host.set(OPENING_PATH, list.slice(0, 1));
     timers.advance(1000);
     expect(editor.picture).toEqual(['harbour was empty = Say what she hears.']);
   });
 
   it('on a touch screen leave the marks of the line being typed alone until the caret leaves it', () => {
     const timers = new ManualTimers();
-    const editor = new FakeEditor('Novel/Manuscript/Opening.md', notes(list) + body, hostOf(timers, true));
+    const editor = new FakeEditor('Novel/Manuscript/Opening.md', HEAD + body, hostOf(timers, true, list));
     const at = editor.state.doc.toString().indexOf('empty.');
     editor.dispatch({ changes: { from: at, to: at + 5, insert: 'full' }, selection: { anchor: at + 4 }, userEvent: 'input.type' });
     timers.advance(1000);
@@ -125,19 +148,12 @@ describe('the underlined passages', () => {
     expect(editor.picture).toEqual(['הים שקט = למה?']);
   });
 
-  it('read the properties only when they change, and survive properties that cannot be read', () => {
-    let parsed = 0;
-    const reader = new NotesReader((yaml) => {
-      parsed++;
-      return parse(yaml);
-    });
-    const text = notes(list) + body;
-    expect(reader.read(text)).toHaveLength(4);
-    reader.read(`${text}more`);
-    expect(parsed).toBe(1);
-    expect(new NotesReader(() => {
-      throw new Error('bad yaml');
-    }).read(text)).toEqual([]);
+  it('stop following the notes once the editor is closed', () => {
+    const host = hostOf(new ManualTimers(), false, list);
+    const editor = new FakeEditor(OPENING_PATH, HEAD + body, host);
+    expect(host.listeners.size).toBe(1);
+    editor.marks.destroy();
+    expect(host.listeners.size).toBe(0);
   });
 
   it('give the bubble the notes of the marks under the pointer, the innermost first', () => {

@@ -163,16 +163,16 @@ describe('an entity on its lane', () => {
     await settle(s);
     // Only "date": a point has no end, and the entity stays in the lane of its type.
     expect(s.host.changes[0]?.map((change) => [change.path, change.patch])).toEqual([[SALTWICK, { date: '1923-06-20' }]]);
-    // A span keeps its length; its moments stay where they are.
+    // A span keeps its length, and its moments move with it by the same amount.
     const mara = cardOf(s, 'Mara');
     drag(mara, grip(s, mara), { x: grip(s, mara).x - 31 * day, y: grip(s, mara).y });
     await settle(s);
-    expect(s.host.changes[1]?.[0]?.patch).toEqual({ date: '1923-01-29', end: '1923-08-01' });
+    expect(s.host.changes[1]?.[0]?.patch).toEqual({ date: '1923-01-29', end: '1923-08-01', moments: ['1923-04-14 | sails'] });
     expect(s.host.data?.worldNotes?.find((entry) => entry.path === MARA)?.frontmatter).toEqual({
       type: 'character',
       date: '1923-01-29',
       end: '1923-08-01',
-      moments: ['1923-05-15 | sails'],
+      moments: ['1923-04-14 | sails'],
     });
   });
 

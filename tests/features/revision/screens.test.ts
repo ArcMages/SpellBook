@@ -101,6 +101,9 @@ describe('the Revision pane', () => {
     const leaf = s.fake.workspace.getLeavesOfType(REVISION_VIEW_TYPE)[0];
     const view = leaf?.view as unknown as RevisionView & { contentEl: FakeElement };
     expect(view).toBeTruthy();
+    // The notes kept the old way in the scene's properties move to the project's file first.
+    s.timers.advance(1000);
+    await calm(s);
     s.timers.advance(1000);
     await calm(s);
     const pane = view.contentEl;

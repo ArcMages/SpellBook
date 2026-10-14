@@ -4,7 +4,8 @@
 //
 // This file plugs it into the plugin: it adds the command that opens the
 // export window. The window asks the exporter (exporter.ts), which reads the
-// scenes and saves the new file through the project store. The command is
+// scenes and saves the new file through the project store; once it is saved,
+// a small window (doneModal.ts) says what the file is called and where it is. The command is
 // registered through the plugin, so Obsidian takes it away again when the
 // plugin is switched off; a window that is still open then is closed by hand.
 
@@ -14,6 +15,7 @@ import { ExportModal, PROBLEM_NOTICE_MS } from './exportModal';
 import { Exporter, NO_PROJECT_TEXT } from './exporter';
 
 export { ExportModal } from './exportModal';
+export { ExportDoneModal } from './doneModal';
 export { Exporter } from './exporter';
 export type { ExportCount, ExportOutcome, ExportProject } from './exporter';
 
@@ -31,7 +33,7 @@ export const exportFeature: Feature = {
     let released = false;
     context.onUnload(() => {
       released = true;
-      shown?.close();
+      shown?.release();
       shown = null;
     });
 
@@ -45,7 +47,7 @@ export const exportFeature: Feature = {
           return;
         }
         // One window at a time: asking again brings a fresh one.
-        shown?.close();
+        shown?.release();
         shown = new ExportModal(app, exporter, project);
         shown.open();
       },

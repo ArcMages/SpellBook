@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { STYLE_FILES } from '../../../scripts/styles.mjs';
-import { ExportModal, exportFeature } from '../../../src/features/export/index';
+import { ExportDoneModal, ExportModal, exportFeature } from '../../../src/features/export/index';
 import { FEATURES } from '../../../src/features/registry';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -36,7 +36,7 @@ function importsOf(source: string): string[] {
 
 describe('the source of the export', () => {
   it('is made of the expected files', () => {
-    expect(files).toEqual(['exportModal.ts', 'exporter.ts', 'index.ts']);
+    expect(files).toEqual(['doneModal.ts', 'exportModal.ts', 'exporter.ts', 'index.ts']);
     expect(readdirSync(coreDir).sort()).toEqual([
       'direction.ts',
       'fileName.ts',
@@ -58,16 +58,18 @@ describe('the source of the export', () => {
     expect(FEATURES.filter((feature) => feature.id === 'export')).toEqual([exportFeature]);
   });
 
-  it('lets the window know the project only through the exporter: no store, no vault, no device storage', () => {
-    const code = codeOf('exportModal.ts');
-    const allowed = [/^obsidian$/, /^\.\/exporter$/, /^\.\.\/\.\.\/core\/export$/, /^\.\.\/\.\.\/ui\/safely$/];
-    for (const target of importsOf(code)) {
-      expect(allowed.some((pattern) => pattern.test(target)), `exportModal.ts imports ${target}`).toBe(true);
+  it('lets the windows know the project only through the exporter: no store, no vault, no device storage', () => {
+    const allowed = [/^obsidian$/, /^\.\/exporter$/, /^\.\/doneModal$/, /^\.\.\/\.\.\/core\/export$/, /^\.\.\/\.\.\/ui\/safely$/];
+    for (const name of ['exportModal.ts', 'doneModal.ts']) {
+      const code = codeOf(name);
+      for (const target of importsOf(code)) {
+        expect(allowed.some((pattern) => pattern.test(target)), `${name} imports ${target}`).toBe(true);
+      }
+      expect(/\b(ProjectStore|VaultPort|DeviceStorage|FeatureContext)\b/.test(code)).toBe(false);
+      expect(/\b(store|vault|storage|context)\s*\.\s*\w+/.test(code)).toBe(false);
+      // The exporter is taken by its type only: the windows make none of their own.
+      expect(code).toMatch(/import type \{[^}]*\bExporter\b[^}]*\} from '\.\/exporter'/);
     }
-    expect(/\b(ProjectStore|VaultPort|DeviceStorage|FeatureContext)\b/.test(code)).toBe(false);
-    expect(/\b(store|vault|storage|context)\s*\.\s*\w+/.test(code)).toBe(false);
-    // The exporter is taken by its type only: the window makes none of its own.
-    expect(code).toMatch(/import type \{[^}]*\bExporter\b[^}]*\} from '\.\/exporter'/);
   });
 
   it('reaches nothing outside its own folder but the core, the shared pieces of screen and the registry', () => {
@@ -114,18 +116,20 @@ describe('the source of the export', () => {
 
   it('marks the writer\'s own text so that it chooses its own direction', () => {
     // The project's title, a folder's name, the author, the path of the new file, the titles of scenes left out.
-    const code = codeOf('exportModal.ts');
-    expect((code.match(/dir: 'auto'|'dir', 'auto'/g) ?? []).length).toBeGreaterThanOrEqual(5);
+    const code = codeOf('exportModal.ts') + codeOf('doneModal.ts');
+    expect((code.match(/dir: 'auto'|'dir', 'auto'/g) ?? []).length).toBeGreaterThanOrEqual(8);
   });
 
   it('gives no method of the window a name that Obsidian uses for its own work on windows', () => {
     const taken = new Set(['open', 'close', 'setTitle', 'setContent', 'onEscapeKey', 'onWindowClose', 'load', 'unload', 'scope', 'app']);
-    const own = Object.getOwnPropertyNames(ExportModal.prototype).filter((name) => name !== 'constructor' && name !== 'onOpen' && name !== 'onClose');
-    expect(own.length).toBeGreaterThan(3);
-    expect(own.filter((member) => taken.has(member))).toEqual([]);
-    const fields = [...codeOf('exportModal.ts').matchAll(/^ {2}private (?:readonly )?(\w+)[:=?! ]/gm)].map((match) => match[1] ?? '');
     const reserved = ['scope', 'app', 'containerEl', 'modalEl', 'titleEl', 'contentEl', 'shouldRestoreSelection', 'selection', 'bgEl', 'dimBackground'];
-    expect(fields.filter((field) => taken.has(field) || reserved.includes(field))).toEqual([]);
+    for (const [window, file] of [[ExportModal, 'exportModal.ts'], [ExportDoneModal, 'doneModal.ts']] as const) {
+      const own = Object.getOwnPropertyNames(window.prototype).filter((name) => name !== 'constructor' && name !== 'onOpen' && name !== 'onClose');
+      expect(own.length).toBeGreaterThan(2);
+      expect(own.filter((member) => taken.has(member))).toEqual([]);
+      const fields = [...codeOf(file).matchAll(/^ {2}private (?:readonly )?(\w+)[:=?! ]/gm)].map((match) => match[1] ?? '');
+      expect(fields.filter((field) => taken.has(field) || reserved.includes(field))).toEqual([]);
+    }
   });
 
   it('puts nothing into an exported file that could fetch or run anything', () => {

@@ -295,6 +295,13 @@ describe('changing a note from the timeline', () => {
     expect(heard.told).toBe(1); // shown whole, not note by note
   });
 
+  it('takes a property away when the change says so: no "timelines: []" is left behind', async () => {
+    const { w, host } = await opened();
+    await host.applyNoteChanges([set(event('Siege'), { timelines: undefined })]);
+    expect(w.vault.frontmatterOf(onDisk('Siege'))).toEqual({ spellbook: 'event', date: '1923-06-01', end: '1923-08-01' });
+    expect('timelines' in shown(host, event('Siege'))).toBe(false);
+  });
+
   it('writes nothing for a change that has nothing left to change', async () => {
     const { w, host, heard } = await opened();
     await host.applyNoteChanges([{ path: event('Siege'), patch: { date: '1923-06-01' }, remake: () => ({}) }]);

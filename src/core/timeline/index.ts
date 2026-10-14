@@ -40,6 +40,8 @@ export { daysInMonth } from './storyDate';
 export { storyDate } from './storyDate';
 /** Read a story date from a property value (a number, text, or a date and time); null means undated. */
 export { readStoryDate } from './storyDate';
+/** A date taken along by the same amount, in its own units, while another date moves. */
+export { carryStoryDate } from './storyDate';
 /** A story date as "1923", "1923-04" or "1923-04-12". */
 export { storyDateToText } from './storyDate';
 /** A story date as the value to store in a note: 1923, "1923-04" or "1923-04-12". */

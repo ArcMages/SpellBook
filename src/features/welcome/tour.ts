@@ -8,14 +8,25 @@
 // a new tour starts and when the plugin is switched off. Nothing in it
 // catches a tap meant for the page: the ring lets taps through, and the
 // bubble is small.
+//
+// On a phone the binder and the inspector live in sidebars that are drawers,
+// closed most of the time. Before a stop inside one, the tour slides that
+// drawer out (and the other one away); when the pane is not open anywhere,
+// the stop is a card in the middle of the screen saying where to find it.
+// A stop that is not in a drawer slides both away again, and so does the end
+// of the tour, when the tour opened one.
 
+import type { Workspace } from 'obsidian';
 import type { Box, Size } from '../../core/welcome/index';
 import { isOnScreen, nextStep, placeBubble } from '../../core/welcome/index';
 import { BACK_BUTTON, DONE_BUTTON, NEXT_BUTTON, TOUR_LABEL, stepCount } from './texts';
-import type { TourStop } from './texts';
+import type { TourSidebar, TourStop } from './texts';
 
 /** How far the ring stands out around the part it marks, in pixels. */
 const RING_ROOM = 4;
+
+/** How long a phone's drawer is given to slide out before the ring is put around what is in it, in milliseconds. */
+export const DRAWER_SETTLE_MS = 350;
 
 /** The page, as the tour sees it. */
 export interface TourScreen {
@@ -31,10 +42,20 @@ export interface TourScreen {
   readonly isPhone: boolean;
   /** Whether this is a phone or a tablet: the buttons are made large enough for a finger. */
   readonly isMobile: boolean;
+  /**
+   * On a phone: slide out the sidebar that holds a pane of this kind, and
+   * slide the other one away. Returns false when no such pane is open in a
+   * sidebar (then both are slid away).
+   */
+  openSidebar?(where: TourSidebar): boolean;
+  /** On a phone: slide both sidebars away. */
+  closeSidebars?(): void;
+  /** Run a handler once, after a while. Returns a function that cancels it. */
+  later?(handler: () => void, ms: number): () => void;
 }
 
 /** The page of a document, for the tour. */
-export function pageScreen(doc: Document, isPhone: boolean, isMobile: boolean): TourScreen {
+export function pageScreen(doc: Document, isPhone: boolean, isMobile: boolean, workspace?: Workspace): TourScreen {
   const win = doc.defaultView;
   const viewport = (): Size => ({
     width: doc.documentElement.clientWidth || win?.innerWidth || 0,
@@ -67,6 +88,33 @@ export function pageScreen(doc: Document, isPhone: boolean, isMobile: boolean): 
     },
     isPhone,
     isMobile,
+    openSidebar(where) {
+      if (!workspace) return false;
+      const leaf = workspace.getLeavesOfType(where.view)[0];
+      const root = leaf?.getRoot();
+      const side = root === workspace.leftSplit ? 'left' : root === workspace.rightSplit ? 'right' : null;
+      if (!leaf || side === null) {
+        workspace.leftSplit.collapse();
+        workspace.rightSplit.collapse();
+        return false;
+      }
+      (side === 'left' ? workspace.rightSplit : workspace.leftSplit).collapse();
+      (side === 'left' ? workspace.leftSplit : workspace.rightSplit).expand();
+      void Promise.resolve(workspace.revealLeaf(leaf)).catch(() => undefined);
+      return true;
+    },
+    closeSidebars() {
+      if (!workspace) return;
+      workspace.leftSplit.collapse();
+      workspace.rightSplit.collapse();
+    },
+    later(handler, ms) {
+      if (!win) return () => undefined;
+      const id = win.setTimeout(handler, ms);
+      return () => {
+        win.clearTimeout(id);
+      };
+    },
   };
 }
 
@@ -85,6 +133,9 @@ export class Tour {
   private stopListening: Array<() => void> = [];
   private at = -1;
   private ended = false;
+  /** Whether the tour slid a phone's sidebar out (it slides it away again at the end). */
+  private openedSidebar = false;
+  private cancelSettle: (() => void) | null = null;
 
   constructor(screen: TourScreen, stops: readonly TourStop[], onEnd: () => void = () => undefined) {
     this.screen = screen;
@@ -148,6 +199,10 @@ export class Tour {
   end(): void {
     if (this.ended) return;
     this.ended = true;
+    this.cancelSettle?.();
+    this.cancelSettle = null;
+    if (this.openedSidebar) this.screen.closeSidebars?.();
+    this.openedSidebar = false;
     for (const stop of this.stopListening.splice(0)) stop();
     this.ring?.remove();
     this.bubble?.remove();
@@ -160,6 +215,9 @@ export class Tour {
     const stop = this.stops[index];
     if (!stop) return false;
     if (stop.phone !== undefined && stop.phone !== this.screen.isPhone) return false;
+    // On a phone a stop in a sidebar is always shown: its drawer is slid out
+    // first, or else it is a card saying where to find the thing.
+    if (this.screen.isPhone && stop.sidebar) return true;
     return stop.selectors.length === 0 || this.screen.find(stop.selectors) !== null;
   }
 
@@ -168,6 +226,15 @@ export class Tour {
     const stop = this.stops[index];
     if (!bubble || !stop) return;
     this.at = index;
+    this.cancelSettle?.();
+    this.cancelSettle = null;
+    const phone = this.screen.isPhone;
+    if (phone && stop.sidebar && this.screen.openSidebar) {
+      if (this.screen.openSidebar(stop.sidebar)) this.openedSidebar = true;
+    } else if (phone && this.openedSidebar) {
+      this.screen.closeSidebars?.();
+      this.openedSidebar = false;
+    }
     const shown = this.stops.map((_, step) => step).filter((step) => step === index || this.canShow(step));
     const before = nextStep(this.stops.length, index, -1, (step) => this.canShow(step));
     const after = nextStep(this.stops.length, index, 1, (step) => this.canShow(step));
@@ -176,7 +243,7 @@ export class Tour {
     bubble.setAttr('data-stop', stop.id);
     bubble.createDiv({ cls: 'spellbook-tour-count', text: stepCount(shown.indexOf(index) + 1, shown.length) });
     bubble.createDiv({ cls: 'spellbook-tour-title', text: stop.title });
-    bubble.createEl('p', { cls: 'spellbook-tour-text', text: stop.text });
+    bubble.createEl('p', { cls: 'spellbook-tour-text', text: phone ? (stop.phoneText ?? stop.text) : stop.text });
     const buttons = bubble.createDiv({ cls: 'spellbook-tour-buttons' });
     const back = buttons.createEl('button', { cls: 'spellbook-tour-back', text: BACK_BUTTON, attr: { type: 'button' } });
     back.disabled = before === null;
@@ -200,6 +267,13 @@ export class Tour {
     });
     this.place();
     (next ?? done).focus();
+    // A drawer takes a moment to slide out: put the ring around what is in it once it has.
+    if (phone && stop.sidebar && this.screen.later) {
+      this.cancelSettle = this.screen.later(() => {
+        this.cancelSettle = null;
+        this.place();
+      }, DRAWER_SETTLE_MS);
+    }
   }
 
   /** Put the ring around the part on show and the bubble next to it. */

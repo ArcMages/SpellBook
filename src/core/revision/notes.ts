@@ -1,15 +1,12 @@
 // Revision notes: a note the writer pins to a passage of a scene ("say what
-// she hears instead"), kept in the scene's own properties so that it travels
-// with the scene and syncs with it. The scene's text is never changed.
+// she hears instead"). The scene's text is never changed.
 //
-// On disk, in the scene's frontmatter, a list under "revision-notes", one
-// entry per note, each with four plain fields:
+// The notes are kept outside the scenes, in one file per project (see
+// notesFile.ts). This file is about the notes themselves: one entry per
+// note, each with four plain fields:
 //
-//   revision-notes:
-//     - passage: The harbour was empty
-//       note: Say what she hears instead.
-//       created: 2026-10-14
-//       done: false
+//   { "passage": "The harbour was empty", "note": "Say what she hears instead.",
+//     "created": "2026-10-14", "done": false }
 //
 //   passage  the exact words the note is about, as they were selected
 //   note     what the writer wrote
@@ -19,6 +16,10 @@
 // An entry may hold other fields (written by hand, or by a newer version):
 // they are kept as they are whenever the entry is changed.
 //
+// Earlier versions kept the same list in the scene's own properties, under
+// "revision-notes". readNotes still reads that list, so that the notes can be
+// moved out of the scene (see the migration in src/features/revision/book.ts).
+//
 // A note is found again in the text by its passage: the first place where
 // the exact words stand. When they are gone (the passage was rewritten), the
 // note says "passage changed" and stays in the list until it is ticked done
@@ -27,7 +28,7 @@
 import type { Frontmatter } from '../types';
 import { stripFrontmatter } from '../wordCount';
 
-/** The property the notes are kept under. */
+/** The property earlier versions kept a scene's notes under. */
 export const REVISION_NOTES_KEY = 'revision-notes';
 
 /** The longest passage a note keeps, in characters. A longer selection is cut there. */
@@ -45,7 +46,7 @@ export interface RevisionNote {
 
 /** A note together with its place in the scene's list, which is what changes it. */
 export interface PlacedNote extends RevisionNote {
-  /** Its position in the "revision-notes" list as it was read. */
+  /** Its position in the scene's list as it was read. */
   readonly index: number;
 }
 
@@ -77,9 +78,8 @@ export function readNote(entry: unknown): RevisionNote | null {
   return { passage, note: textOf(fields['note']), created: dayOf(fields['created']), done: doneOf(fields['done']) };
 }
 
-/** The notes of a scene, from its properties, in the order they are written. Entries that are not notes are skipped. */
-export function readNotes(frontmatter: Readonly<Frontmatter> | null | undefined): PlacedNote[] {
-  const list = frontmatter?.[REVISION_NOTES_KEY];
+/** The notes in a list of entries, in the order they are written. Entries that are not notes are skipped. */
+export function readNoteList(list: unknown): PlacedNote[] {
   if (!Array.isArray(list)) return [];
   const notes: PlacedNote[] = [];
   list.forEach((entry, index) => {
@@ -87,6 +87,11 @@ export function readNotes(frontmatter: Readonly<Frontmatter> | null | undefined)
     if (note) notes.push({ ...note, index });
   });
   return notes;
+}
+
+/** The notes an earlier version kept in a scene's properties, under "revision-notes". */
+export function readNotes(frontmatter: Readonly<Frontmatter> | null | undefined): PlacedNote[] {
+  return readNoteList(frontmatter?.[REVISION_NOTES_KEY]);
 }
 
 /** A note as it is written into the list: the four fields, in this order. */
@@ -127,23 +132,18 @@ export function findNote(list: readonly unknown[], wanted: PlacedNote | Revision
   });
 }
 
-/** Add a note at the end of a scene's list, in the properties handed in. Returns true (they changed). */
-export function addNoteTo(frontmatter: Frontmatter, note: RevisionNote): boolean {
-  const list = frontmatter[REVISION_NOTES_KEY];
-  const entry = entryOf(note);
-  if (Array.isArray(list)) list.push(entry);
-  else frontmatter[REVISION_NOTES_KEY] = [entry];
+/** Add a note at the end of a scene's list. Returns true (the list changed). */
+export function addToList(list: unknown[], note: RevisionNote): boolean {
+  list.push(entryOf(note));
   return true;
 }
 
 /**
- * Change one note in the properties handed in: its words, or whether it is
- * done. Other fields of the entry are kept. Returns false when the note is
- * no longer there or nothing would change.
+ * Change one note in a scene's list: its words, or whether it is done.
+ * Other fields of the entry are kept. Returns false when the note is no
+ * longer there or nothing would change.
  */
-export function changeNoteIn(frontmatter: Frontmatter, wanted: PlacedNote | RevisionNote, change: { readonly note?: string; readonly done?: boolean }): boolean {
-  const list = frontmatter[REVISION_NOTES_KEY];
-  if (!Array.isArray(list)) return false;
+export function changeInList(list: unknown[], wanted: PlacedNote | RevisionNote, change: { readonly note?: string; readonly done?: boolean }): boolean {
   const at = findNote(list, wanted);
   if (at < 0) return false;
   const entry = list[at] as Record<string, unknown>;
@@ -159,17 +159,11 @@ export function changeNoteIn(frontmatter: Frontmatter, wanted: PlacedNote | Revi
   return changed;
 }
 
-/**
- * Take one note out of the properties handed in. A list left empty goes as a
- * whole. Returns false when the note is no longer there.
- */
-export function removeNoteFrom(frontmatter: Frontmatter, wanted: PlacedNote | RevisionNote): boolean {
-  const list = frontmatter[REVISION_NOTES_KEY];
-  if (!Array.isArray(list)) return false;
+/** Take one note out of a scene's list. Returns false when the note is no longer there. */
+export function removeFromList(list: unknown[], wanted: PlacedNote | RevisionNote): boolean {
   const at = findNote(list, wanted);
   if (at < 0) return false;
   list.splice(at, 1);
-  if (list.length === 0) delete frontmatter[REVISION_NOTES_KEY];
   return true;
 }
 

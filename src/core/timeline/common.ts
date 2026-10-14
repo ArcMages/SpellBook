@@ -11,8 +11,10 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * A change to a note's properties: the properties to set, with their new
- * values. Every property that is not named stays exactly as it is, and an
- * empty patch means there is nothing to write.
+ * values. A property named with the value undefined is taken away, key and
+ * all (a list Spellbook emptied is not left behind as "[]"). Every property
+ * that is not named stays exactly as it is, and an empty patch means there
+ * is nothing to write.
  */
 export type FrontmatterPatch = Readonly<Record<string, unknown>>;
 
@@ -26,7 +28,11 @@ export function isEmptyPatch(patch: FrontmatterPatch): boolean {
  * writing: work the patch out from the properties as they are right then.
  */
 export function applyFrontmatterPatch(frontmatter: Record<string, unknown>, patch: FrontmatterPatch): void {
-  for (const key of Object.keys(patch)) frontmatter[key] = patch[key];
+  for (const key of Object.keys(patch)) {
+    const value = patch[key];
+    if (value === undefined) delete frontmatter[key];
+    else frontmatter[key] = value;
+  }
 }
 
 /** The colours a lane can have. On screen each maps to one of Obsidian's own colour variables. */

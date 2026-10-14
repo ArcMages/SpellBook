@@ -43,6 +43,8 @@ export interface GridColumn extends PlotColumn {
   readonly segments: readonly BarSegment[];
   /** The long stretches between two of its scenes that it is missing from. */
   readonly gaps: readonly SceneStretch[];
+  /** Its span: from its first scene to its last, by their places in the book; null when it is in no scene. */
+  readonly span: SceneStretch | null;
 }
 
 export interface GridSceneRow {
@@ -60,6 +62,12 @@ export interface GridSceneRow {
   readonly cells: readonly boolean[];
   /** For each column: whether the scene lies in a long stretch the column is missing from. */
   readonly gaps: readonly boolean[];
+  /**
+   * For each column: whether the scene comes before the column's first scene
+   * or after its last, so outside the stretch where it is in the story.
+   * All false when the shading is turned off, and for a column in no scene.
+   */
+  readonly outside: readonly boolean[];
 }
 
 export interface GridFolderRow {
@@ -93,6 +101,8 @@ export interface PlotGridInput {
   readonly folded?: ReadonlySet<string>;
   /** How many scenes in a row make a gap worth marking; 0 for no marks. */
   readonly gapLength?: number;
+  /** Whether to mark the scenes before a column's first scene and after its last; true unless said otherwise. */
+  readonly shadeOutside?: boolean;
 }
 
 interface Scene {
@@ -142,21 +152,34 @@ export function findGaps(filled: readonly boolean[], length: number): SceneStret
   return gaps;
 }
 
+/** From the first filled place to the last, both included; null when none is filled. */
+export function spanOf(filled: readonly boolean[]): SceneStretch | null {
+  const from = filled.indexOf(true);
+  if (from < 0) return null;
+  return { from, to: filled.lastIndexOf(true) };
+}
+
 /** Work the grid out. */
 export function buildPlotGrid(input: PlotGridInput): PlotGrid {
   const { tree, columns, isIn } = input;
   const folded = input.folded ?? new Set<string>();
   const gapLength = input.gapLength ?? DEFAULT_GAP_LENGTH;
+  const shadeOutside = input.shadeOutside !== false;
 
   const scenes = scenesOf(tree);
   const filled: boolean[][] = scenes.map((scene) => columns.map((column) => !scene.missing && isIn(scene.path, column)));
   const byColumn = columns.map((_, at) => filled.map((row) => row[at] === true));
   const gaps = byColumn.map((column) => findGaps(column, gapLength));
   const inGap = (index: number, at: number): boolean => (gaps[at] ?? []).some((gap) => index >= gap.from && index <= gap.to);
+  const spans = byColumn.map((column) => spanOf(column));
+  const isOutside = (index: number, at: number): boolean => {
+    const span = spans[at] ?? null;
+    return shadeOutside && span !== null && (index < span.from || index > span.to);
+  };
 
   const gridColumns: GridColumn[] = columns.map((column, at) => {
     const own = byColumn[at] ?? [];
-    return { ...column, count: own.filter(Boolean).length, segments: barSegments(own), gaps: gaps[at] ?? [] };
+    return { ...column, count: own.filter(Boolean).length, segments: barSegments(own), gaps: gaps[at] ?? [], span: spans[at] ?? null };
   });
 
   const rows: GridRow[] = [];
@@ -175,6 +198,7 @@ export function buildPlotGrid(input: PlotGridInput): PlotGrid {
           missing: node.missing,
           cells: filled[index] ?? [],
           gaps: columns.map((_, at) => !(filled[index]?.[at] ?? false) && inGap(index, at)),
+          outside: columns.map((_, at) => isOutside(index, at)),
         });
         continue;
       }

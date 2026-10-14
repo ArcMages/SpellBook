@@ -42,10 +42,15 @@ function knownKeys(lanes: readonly Lane[]): Set<string> {
   return known;
 }
 
-/** The patch for a new list, or an empty patch when nothing would change. */
+/**
+ * The patch for a new list, or an empty patch when nothing would change. A
+ * list that comes out empty takes the property away, rather than leave
+ * "timelines: []" in the note.
+ */
 function patchFor(before: readonly Entry[], after: readonly unknown[]): FrontmatterPatch {
   const same = before.length === after.length && before.every((entry, index) => entry.raw === after[index]);
-  return same ? {} : { timelines: [...after] };
+  if (same) return {};
+  return after.length === 0 ? { timelines: undefined } : { timelines: [...after] };
 }
 
 /**

@@ -30,6 +30,7 @@ import {
   SHARED_SENTENCES,
 } from '../src/core/sampleText';
 import { SCENE_STATUSES } from '../src/core/scene';
+import { laneColumns, sceneInLane } from '../src/core/plotgrid';
 import { displayLanes, eventLaneKeys, readLanes, readTimeline, storyDateToDayNumber } from '../src/core/timeline';
 import { TIMELINES_KEY } from '../src/features/timeline/timelineWiring';
 import { countWords } from '../src/core/wordCount';
@@ -453,6 +454,48 @@ describe('the sample project, for the screens besides the binder', () => {
     // Everything together sits within a year and a half, so "Fit" shows cards, not dots.
     const all = model.dated.map((event) => (event.start ? storyDateToDayNumber(event.start) : 0));
     expect(Math.max(...all) - Math.min(...all)).toBeLessThan(550);
+  });
+
+  it('puts twenty-five scenes in the three timelines, so the plot grid\'s lanes view shows how the threads run through the book', () => {
+    const lanes = readLanes(data['timelines']).lanes;
+    const columns = laneColumns(data['timelines']);
+    const inLane = (name: string): string[] =>
+      allScenes.filter((scene) => sceneInLane(scene.timelines === undefined ? {} : { timelines: [...scene.timelines] }, name, lanes)).map((scene) => scene.title);
+    expect(allScenes.filter((scene) => scene.timelines !== undefined)).toHaveLength(25);
+    // Every name a scene gives is a lane the project lists, written as the project spells it.
+    const listed = lanes.map((lane) => lane.name);
+    for (const scene of allScenes) for (const name of scene.timelines ?? []) expect(listed, scene.title).toContain(name);
+    expect(columns.map((column) => column.name)).toEqual(expect.arrayContaining(listed));
+    expect(inLane('Main plot')).toEqual([
+      'Prologue',
+      'The Last Ferry',
+      'Tobias Counts the Boats',
+      'Lamp in the Empty House',
+      'The Village on the Old Map',
+      'What Tobias Did Not Say',
+      'The Missing Boat',
+      'A Second Lamp',
+      'The Bell Stops',
+      'What the Keeper Wrote',
+      'The Light',
+      'Tobias Tells It',
+    ]);
+    expect(inLane("Mara's survey")).toHaveLength(10);
+    expect(inLane('Backstory')).toHaveLength(6);
+    expect(allScenes.filter((scene) => (scene.timelines?.length ?? 0) > 1).map((scene) => scene.title)).toEqual([
+      'The Last Ferry',
+      'The Village on the Old Map',
+      'What the Keeper Wrote',
+    ]);
+    // A scene that tells an event is in that event's timelines.
+    for (const event of events) {
+      for (const link of (event.frontmatter['scenes'] as string[] | undefined) ?? []) {
+        const scene = allScenes.find((candidate) => `[[${candidate.title}]]` === link);
+        expect(scene?.timelines ?? [], link).toEqual(expect.arrayContaining(event.frontmatter['timelines'] as string[]));
+      }
+    }
+    // English only: the sample is the same for every writer.
+    for (const scene of allScenes) for (const name of scene.timelines ?? []) expect(name, scene.title).toMatch(/^[\x20-\x7e]+$/);
   });
 
   it('gives eighteen scenes a word target, so the Target column has every kind of row to show', () => {
@@ -964,8 +1007,10 @@ describe('the sample project, created in a vault', () => {
       expect(Object.keys(frontmatter), path).toEqual([
         ...standard,
         ...(described.date === undefined ? [] : ['date']),
+        ...(described.timelines === undefined ? [] : ['timelines']),
         ...(described.entities === undefined ? [] : ['entities']),
       ]);
+      expect(frontmatter['timelines'], path).toEqual(described.timelines);
       expect(frontmatter['entities'], path).toEqual(described.entities);
       expect(frontmatter['target'], path).toBe(described.target);
       expect(frontmatter['date'], path).toBe(described.date);

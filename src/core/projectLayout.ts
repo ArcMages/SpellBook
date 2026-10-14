@@ -55,3 +55,12 @@ export const AI_HELPER_FOLDER = 'AI helper';
 
 /** The reference for AI assistants: what a Spellbook project is and how to help with one without breaking it. */
 export const AI_HELPER_FILE = 'Spellbook for AI assistants.md';
+
+/**
+ * The project's revision notes: the notes the writer pins to passages of
+ * scenes, for every scene of the project, in one file at the top of the
+ * project folder. A JSON file, so that Obsidian lists it nowhere (not in the
+ * file list, the search, the graph or the quick switcher), and no screen of
+ * Spellbook counts or shows it as a note. Spellbook alone writes it.
+ */
+export const REVISION_NOTES_FILE = 'Revision notes.json';

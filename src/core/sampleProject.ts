@@ -28,6 +28,7 @@ import {
   SAMPLE_SCENE_DATES,
   SAMPLE_SCENE_ENTITIES,
   SAMPLE_SCENE_TARGETS,
+  SAMPLE_SCENE_TIMELINES,
   SAMPLE_STATUS_COLORS,
   SAMPLE_TARGETS,
   SAMPLE_TIMELINES,
@@ -193,12 +194,15 @@ function sceneSeed(scene: SampleScene, position: number): SceneSeed {
   const target = wanted === 'reached' ? countWords(body) : wanted;
   // A few scenes have a date in the story, so that the timeline's Manuscript lane has something to show.
   const date = Object.prototype.hasOwnProperty.call(SAMPLE_SCENE_DATES, scene.title) ? SAMPLE_SCENE_DATES[scene.title] : undefined;
+  // Some scenes are in the timelines too, so that the plot grid's lanes view has something to show.
+  const lanes = Object.prototype.hasOwnProperty.call(SAMPLE_SCENE_TIMELINES, scene.title) ? SAMPLE_SCENE_TIMELINES[scene.title] : undefined;
   // Most scenes say who and what is in them, so that "In this scene" and the World browser have something to show.
   const entities = Object.prototype.hasOwnProperty.call(SAMPLE_SCENE_ENTITIES, scene.title) ? SAMPLE_SCENE_ENTITIES[scene.title] : undefined;
   return {
     ...seed,
     ...(target === undefined ? {} : { target }),
     ...(date === undefined ? {} : { date }),
+    ...(lanes === undefined ? {} : { timelines: lanes.map((index) => (SAMPLE_TIMELINES[index] as { name: string }).name) }),
     // An entity is named the way a link to its note is written.
     ...(entities === undefined ? {} : { entities: entities.map(nameLink) }),
   };
@@ -295,9 +299,9 @@ function todoText(today: string): string {
  * epilogue) around five binder folders of scenes, a note left out of the
  * binder on purpose, two research notes and three to-dos; and, so that every
  * screen has something to show, statuses and labels with colours, three
- * timelines with ten events, four scenes with a date in the story, eighteen
- * scenes with a word target (some short of it, some exactly at it, some past
- * it), two marks on the calendar and the writing targets; and a world of
+ * timelines with ten events and twenty-five scenes in them, four scenes
+ * with a date in the story, eighteen scenes with a word target (some short
+ * of it, some exactly at it, some past it), two marks on the calendar and the writing targets; and a world of
  * eighteen characters, places, groups, things, tales, creatures and peoples,
  * at least one of every type a project has, which most scenes and events
  * link to and which are related to each other, each with a place in time

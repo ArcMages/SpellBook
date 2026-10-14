@@ -18,6 +18,7 @@ import {
   movePrefs,
   projectFirstResolver,
   readGapLength,
+  spanOf,
   readPrefs,
   renameChosen,
   sceneHasEntity,
@@ -210,6 +211,36 @@ describe('the grid', () => {
     expect(buildPlotGrid({ tree, columns, isIn, gapLength: 3 }).columns[0]?.gaps).toEqual([]);
   });
 
+  it('marks the scenes before a column\'s first scene and after its last, unless told not to', () => {
+    const grid = buildPlotGrid({ tree, columns, isIn, gapLength: 0 });
+    expect(grid.columns.map((column) => column.span)).toEqual([
+      { from: 0, to: 5 },
+      { from: 2, to: 2 },
+    ]);
+    const outside = Object.fromEntries(grid.rows.flatMap((row) => (row.kind === 'scene' ? [[row.title, row.outside]] : [])));
+    expect(outside).toEqual({
+      A: [false, true],
+      B: [false, true],
+      C: [false, false],
+      D: [false, true],
+      Gone: [false, true],
+      E: [false, true],
+    });
+    const off = buildPlotGrid({ tree, columns, isIn, gapLength: 0, shadeOutside: false });
+    expect(off.rows.flatMap((row) => (row.kind === 'scene' ? row.outside : [])).some(Boolean)).toBe(false);
+    // A column in no scene has no span, and nothing of it is shaded.
+    const empty = buildPlotGrid({ tree, columns, isIn: () => false, gapLength: 0 });
+    expect(empty.columns.map((column) => column.span)).toEqual([null, null]);
+    expect(empty.rows.flatMap((row) => (row.kind === 'scene' ? row.outside : [])).some(Boolean)).toBe(false);
+  });
+
+  it('finds the span from the first filled place to the last', () => {
+    expect(spanOf([false, true, false, true, false])).toEqual({ from: 1, to: 3 });
+    expect(spanOf([true])).toEqual({ from: 0, to: 0 });
+    expect(spanOf([false, false])).toBeNull();
+    expect(spanOf([])).toBeNull();
+  });
+
   it('finds gaps only between two filled places, of at least the length asked for', () => {
     const f = false;
     const t = true;
@@ -252,6 +283,9 @@ describe('what the device remembers', () => {
       chosen: { a: ['x'] },
       folded: {},
     });
+    expect(readPrefs(JSON.stringify({ shadeOutside: false })).shadeOutside).toBe(false);
+    expect(readPrefs(JSON.stringify({ shadeOutside: 'no' })).shadeOutside).toBe(true);
+    expect(DEFAULT_PREFS.shadeOutside).toBe(true);
   });
 
   it('forgets a project\'s list when it is emptied, and moves it with the project', () => {

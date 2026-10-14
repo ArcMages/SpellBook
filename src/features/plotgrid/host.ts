@@ -355,6 +355,7 @@ export class PlotGridHost {
       isIn: (path, column) => this.isIn(model, kind, path, column),
       folded: foldedOf(prefs, model.project.id),
       gapLength: prefs.gapLength,
+      shadeOutside: prefs.shadeOutside,
     });
   }
 
@@ -411,6 +412,10 @@ export class PlotGridHost {
 
   setGapLength(length: number): void {
     this.savePrefs({ ...this.prefs, gapLength: length });
+  }
+
+  setShadeOutside(on: boolean): void {
+    this.savePrefs({ ...this.prefs, shadeOutside: on });
   }
 
   /** The entities chosen for the open project. */

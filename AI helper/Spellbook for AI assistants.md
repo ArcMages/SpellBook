@@ -66,9 +66,10 @@ A second note next to the index with the same marker and a name such as `My Nove
   Snapshots/       saved versions of scenes, one folder per scene
   Exports/         exported manuscripts
   AI helper/       this file
+  Revision notes.json   the writer's revision notes, by scene
 ```
 
-The index, `To-do.md`, `Manuscript/`, `Timeline/`, `Research/` and `Stats/` are made with the project. `World/`, `Snapshots/`, `Exports/` and `AI helper/` appear the first time they are needed, so a project may lack them.
+The index, `To-do.md`, `Manuscript/`, `Timeline/`, `Research/` and `Stats/` are made with the project. `World/`, `Snapshots/`, `Exports/`, `AI helper/` and `Revision notes.json` appear the first time they are needed, so a project may lack them.
 
 | Place | What lives there | Who writes it | What you may do |
 | --- | --- | --- | --- |
@@ -82,6 +83,7 @@ The index, `To-do.md`, `Manuscript/`, `Timeline/`, `Research/` and `Stats/` are 
 | `Snapshots/` | Saved versions of scenes. | Spellbook only. | Read only. Never edit, create, rename or delete. |
 | `Exports/` | Exported files (`.docx`, `.epub`, `.html`, `.md`). | Spellbook only. | Read. Never edit. They are copies, not the manuscript. |
 | `AI helper/` | This file. | Spellbook only. | Read. |
+| `Revision notes.json` | The revision notes, by scene (section 5, "Revision notes"). | Spellbook only. | Read only. Never edit, rename or delete. |
 
 Spellbook never looks at notes outside project folders. Neither should you, unless the writer asks.
 
@@ -314,7 +316,7 @@ created: 2026-10-14
 | `end` | story date | Later than `date`. | Makes a dated scene a span on the timeline. | Yes. |
 | `tags` | list of text | Obsidian's own tags property. | Shown in the outliner and on the timeline. | Yes. |
 | `snapshot-id` | text | Written by Spellbook. | Ties the scene to its snapshots. Only there after the first snapshot. | **Never.** |
-| `revision-notes` | list of entries | Written by Spellbook. Each entry has `passage` (the exact words of the scene it is about), `note` (the writer's note), `created` (`YYYY-MM-DD`) and `done` (`true` or `false`). Absent for none. | The writer's revision notes, pinned to passages of the scene. See "Revision notes" below. | Only as described below. |
+| `revision-notes` | list of entries | Written by earlier versions of Spellbook only. | Where revision notes used to be kept. Spellbook moves them into `Revision notes.json` and takes the property out of the scene. See "Revision notes" below. | **Never.** |
 
 Any other property is the writer's own. The outliner can show it as a column. Leave it alone unless asked.
 
@@ -322,19 +324,29 @@ Reading is forgiving: a missing property takes its usual value (no synopsis, no 
 
 ### Revision notes
 
-A scene's `revision-notes` property holds the notes the writer pinned to passages while revising. Spellbook underlines each passage that still stands in the scene, and lists every note in its Revision pane. An example:
+The notes the writer pinned to passages while revising are not in the scenes. They are all in one file at the top of the project folder, `Revision notes.json`, grouped by scene. Spellbook underlines each passage that still stands in its scene, and lists every note in its Revision pane. An example:
 
-```yaml
-revision-notes:
-  - passage: The harbour was empty
-    note: Say what she hears instead.
-    created: 2026-10-14
-    done: false
+```json
+{
+  "spellbook-revision-notes": 1,
+  "about": "The revision notes of this Spellbook project, by scene. ...",
+  "scenes": [
+    {
+      "scene": "Manuscript/Harbour.md",
+      "scene-id": "m2k9x1ab",
+      "notes": [
+        { "passage": "The harbour was empty", "note": "Say what she hears instead.", "created": "2026-10-14", "done": false }
+      ]
+    }
+  ]
+}
 ```
 
+- `scene` is the scene's path relative to the project folder. Spellbook keeps it up to date when the scene is renamed or moved in Obsidian. `scene-id` is the scene's `snapshot-id`, when it has one.
 - A note is found again by its `passage`: the first place where those exact words stand in the body. Rewriting the body so that the words are gone leaves the note in place; Spellbook then shows it as "passage changed". That is expected; do not "repair" passages.
-- Do not edit `revision-notes` by hand. The writer adds, edits, ticks and deletes notes in Spellbook. The one exception: when the writer asks you to, you may set one entry's `done` to `true` (after you made the change it asks for), or add one new entry at the end with all four fields, `passage` copied exactly from the body, `created` set to today and `done: false`. Never change or remove another entry, never reorder the list, and keep any field you do not know.
-- Reading the notes is always fine, for example to list what is left to revise.
+- The notes of a deleted scene stay in the file, so that they are back if the scene is put back.
+- Reading the file is always fine, for example to list what is left to revise. Never write it: the writer adds, edits, ticks and deletes notes in Spellbook. A file you rename, break or rewrite can lose every note of the book.
+- Older versions kept the same list in each scene's `revision-notes` property. Spellbook moves those notes into the file by itself. Do not move them yourself, and do not add a `revision-notes` property.
 
 ### What counts as manuscript words
 
@@ -1144,7 +1156,7 @@ Never do by hand, even when asked, without first explaining the risk: adding, re
 - **`Snapshots/`**: read only. No edits, no new files, no renames, no deletes.
 - **`order`** on any scene: never write, change, remove or "tidy" it.
 - **`snapshot-id`** on any scene: never write, change or remove it.
-- **`revision-notes`** on any scene, except as section 5 ("Revision notes") allows.
+- **`Revision notes.json`**: read only. And never add a `revision-notes` property to a scene.
 - **`created` and `edited`** on an existing scene.
 - **The index's structure** beyond the edits in section 14: no folder ids, no reordering, no `version`, no `spellbook`, no `entityTypes`, no `calendar`, no unknown keys. Never the index's body.
 - **`Exports/`** and **`AI helper/`**.

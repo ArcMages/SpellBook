@@ -35,6 +35,7 @@ import {
   readEntityTypes,
   readFields,
   readMoments,
+  redateEntityPatch,
   removeMoment,
   setEntityDate,
   setEntityField,
@@ -488,5 +489,38 @@ describe('the browser by date', () => {
     expect(nextSort({ column: 'from', descending: false }, 'from')).toEqual({ column: 'from', descending: true });
     // Without the dates the table is as it was: no row has one.
     expect(tableRows(entities, BUILT_IN_TYPES, '', '', DEFAULT_SORT, () => 0).every((row) => row.from === null && row.fromText === '')).toBe(true);
+  });
+});
+
+describe('moving an entity on the timeline takes its moments along', () => {
+  it('moves every moment by the same amount as the date, each in its own units, in the real-world calendar', () => {
+    const frontmatter: Frontmatter = {
+      date: '1923-03-01',
+      end: '1923-09-01',
+      moments: ['1923-05-15 | sails', '1923-07 | the storm', 1924, 'not a date at all', '1923-06-01'],
+      title: 'kept',
+    };
+    const patch = redateEntityPatch(frontmatter, date(1923, 1, 29));
+    expect(patch).toEqual({
+      date: '1923-01-29',
+      end: '1923-08-01',
+      // A year moves by whole years: the start stays in 1923, so 1924 stays.
+      moments: ['1923-04-14 | sails', '1923-05 | the storm', 1924, 'not a date at all', '1923-05-01'],
+    });
+    expect(frontmatter['moments']).toEqual(['1923-05-15 | sails', '1923-07 | the storm', 1924, 'not a date at all', '1923-06-01']); // untouched
+  });
+
+  it('moves them in an invented calendar too, writing the calendar\'s own form', () => {
+    const frontmatter: Frontmatter = { date: '1203-04-17 AE', end: '1203-06-02 AE', moments: ['1203-05-01 AE | the flood', '1204 AE | הנבואה'] };
+    const patch = redateEntityPatch(frontmatter, ember('1205-04-17 AE'));
+    expect(patch['date']).toBe('1205-04-17 AE');
+    expect(patch['moments']).toEqual(['1205-05-01 AE | the flood', '1206 AE | הנבואה']);
+  });
+
+  it('gives an event without moments, an unmoved note, or a "moments" that is not a list exactly what an event gets', () => {
+    expect(redateEntityPatch({ date: '1923-03-01' }, date(1923, 3, 5))).toEqual({ date: '1923-03-05' });
+    expect(redateEntityPatch({ date: '1923-03-01', moments: ['1923-04-01'] }, date(1923, 3, 1))).toEqual({});
+    expect(redateEntityPatch({ date: '1923-03-01', moments: { odd: true } }, date(1923, 3, 5))).toEqual({ date: '1923-03-05' });
+    expect(redateEntityPatch({ date: '1923-03-01', moments: ['nothing to read'] }, date(1923, 3, 5))).toEqual({ date: '1923-03-05' });
   });
 });

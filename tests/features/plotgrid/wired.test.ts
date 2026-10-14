@@ -6,8 +6,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readLanes } from '../../../src/core/timeline';
 import { readPrefs, sceneInLane } from '../../../src/core/plotgrid';
 import { PREFS_KEY } from '../../../src/features/plotgrid/host';
+import { OUTSIDE_SETTING_NAME } from '../../../src/features/plotgrid';
 import { EntityPickerModal } from '../../../src/features/plotgrid/pickerModal';
-import { GAP_CLASS, NO_COLUMNS_TEXT, NO_PROJECT_TEXT, PLOT_GRID_VIEW_TYPE } from '../../../src/features/plotgrid/plotGridView';
+import { GAP_CLASS, NO_COLUMNS_TEXT, OUTSIDE_CLASS, NO_PROJECT_TEXT, PLOT_GRID_VIEW_TYPE } from '../../../src/features/plotgrid/plotGridView';
 import {
   Menu as StubMenu,
   Modal as StubModal,
@@ -191,7 +192,8 @@ describe('timeline lanes', () => {
     expect(props(s, LETTER)['label']).toBe(DANIEL);
     // A lane written as one name on its own is taken out all the same.
     await tap(s, pane, 'Closing', MAIN);
-    expect(props(s, CLOSING)['timelines']).toEqual([]);
+    // The last lane taken out takes the property away: no "timelines: []" is left in the scene.
+    expect('timelines' in props(s, CLOSING)).toBe(false);
     expect(props(s, CLOSING)['date']).toBe('1923-04-12');
     expect(pictureOf(pane)).toEqual({ Opening: 'x.', 'The Letter': '..', [NIGHT_TITLE]: '..', Middle: '..', Ghost: '..', Closing: '..' });
   });
@@ -369,6 +371,39 @@ describe('reading the grid', () => {
     expect(readPrefs(storage.load(PREFS_KEY)).gapLength).toBe(4);
     text?.type('1'); // out of bounds: not taken
     expect(readPrefs(storage.load(PREFS_KEY)).gapLength).toBe(4);
+  });
+
+  it('shades a plotline\'s cells before its first scene and after its last, until the setting turns it off', async () => {
+    const storage = new MemoryDeviceStorage();
+    const s = await stage(undefined, { storage });
+    const { pane } = await openGrid(s);
+    /** Each scene's cells as "o" for shaded outside the span, "." for not. */
+    const outside = (): Record<string, string> => {
+      const picture: Record<string, string> = {};
+      for (const row of pane.withClass('spellbook-plotgrid-scene')) {
+        const title = row.withClass('spellbook-plotgrid-title')[0]?.text ?? '';
+        picture[title] = row
+          .withClass('spellbook-plotgrid-cell')
+          .map((cell) => (cell.hasClass(OUTSIDE_CLASS) ? 'o' : '.'))
+          .join('');
+      }
+      return picture;
+    };
+    // Main plot runs from the first scene to the last; Revenge is only in The Letter.
+    expect(outside()).toEqual({ Opening: '.o', 'The Letter': '..', [NIGHT_TITLE]: '.o', Middle: '.o', Ghost: '.o', Closing: '.o' });
+    const section = s.features.settingsSections[0];
+    const container = new FakeElement();
+    section?.render(container as unknown as HTMLElement);
+    const setting = container.settings.find((candidate) => candidate.nameEl.text === OUTSIDE_SETTING_NAME);
+    const toggle = setting?.toggles[0];
+    expect(toggle?.getValue()).toBe(true);
+    toggle?.flip();
+    await calm(s);
+    expect(pane.withClass(OUTSIDE_CLASS)).toEqual([]);
+    expect(readPrefs(storage.load(PREFS_KEY)).shadeOutside).toBe(false);
+    toggle?.flip();
+    await calm(s);
+    expect(pane.withClass(OUTSIDE_CLASS)).toHaveLength(5);
   });
 
   it('says so in a read-only project', async () => {

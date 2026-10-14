@@ -36,6 +36,7 @@ export {
   buildPlotGrid,
   findGaps,
   readGapLength,
+  spanOf,
 } from './grid';
 export type { BarSegment, GridColumn, GridFolderRow, GridRow, GridSceneRow, PlotGrid, PlotGridInput, SceneStretch } from './grid';
 

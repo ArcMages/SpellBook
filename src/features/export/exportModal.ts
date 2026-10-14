@@ -1,7 +1,8 @@
 // The export window: the writer chooses a format, a preset, what to include
 // and a few options (and, folded away, the pages before and after the text),
-// and presses Export. When the file is saved the window says where
-// it is and offers to open it, and (on a desktop) to show it in the file list.
+// and presses Export. When the file is saved the window makes way for a small
+// one (doneModal.ts) that says the manuscript was exported, the file's name
+// and folder, and offers to show it in the file list or to open it.
 //
 // The window knows the project only through the exporter (exporter.ts). It
 // is made of Obsidian's own rows, which are large enough for a finger and
@@ -12,13 +13,12 @@ import type { App } from 'obsidian';
 import { MATTER_KINDS, MAX_MATTER_TEXT, PRESET_IDS, withPreset } from '../../core/export';
 import type { ExportFormat, ExportOptions, MatterChoice, MatterKind, PaperId, PresetId } from '../../core/export';
 import { safely } from '../../ui/safely';
+import { ExportDoneModal, PROBLEM_NOTICE_MS } from './doneModal';
 import { MATTER_NAMES } from './exporter';
 import type { ExportCount, ExportOutcome, Exporter, ExportProject } from './exporter';
 
 export const EXPORT_WINDOW_TITLE = 'Export manuscript';
 export const EXPORT_BUTTON_TEXT = 'Export';
-export const OPEN_BUTTON_TEXT = 'Open';
-export const SHOW_IN_FOLDER_TEXT = 'Show in folder';
 export const WHOLE_MANUSCRIPT_TEXT = 'Whole manuscript';
 
 export const FORMAT_NAMES: Readonly<Record<ExportFormat, string>> = {
@@ -71,20 +71,7 @@ export const MATTER_NOTE =
 export const MOBILE_PDF_NOTE =
   'For a PDF on a phone or tablet: export the web page, open it in the browser or the Files app, and print it from the share menu. Printing offers to save it as a PDF.';
 
-export const COULD_NOT_OPEN_TEXT = 'The file could not be opened from here. You will find it in the Exports folder of the project.';
-
-export const COULD_NOT_SHOW_TEXT = 'The file list could not be shown from here. You will find the file in the Exports folder of the project.';
-
-/** Under the path of a Word file or a web page: why Obsidian's file list may not show it. */
-export const HIDDEN_FILE_NOTE =
-  'Obsidian\'s file list only shows Word and web-page files when "Detect all file extensions" is switched on, in Obsidian\'s settings under "Files and links".';
-
-/** Shown on a phone or a tablet, where there is no "Show in folder": where the file is. */
-export const MOBILE_WHERE_NOTE =
-  'The file is in the Exports folder inside the project\'s folder. You can reach it from Obsidian\'s file list, or from the Files app.';
-
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-export const PROBLEM_NOTICE_MS = 10000;
+export { COULD_NOT_OPEN_TEXT, COULD_NOT_SHOW_TEXT, HIDDEN_FILE_NOTE, MOBILE_WHERE_NOTE, PROBLEM_NOTICE_MS } from './doneModal';
 
 const NO_BREAK_SPACE = String.fromCharCode(0xa0);
 
@@ -111,14 +98,6 @@ export function canPrintHere(): boolean {
   return !Platform.isMobile;
 }
 
-/**
- * Whether "Show in folder" is offered. A desktop has the file list beside the
- * window; on a phone or a tablet the window says in words where the file is.
- */
-export function canShowInFolderHere(): boolean {
-  return canPrintHere();
-}
-
 /** The formats on offer on this device. */
 export function formatsHere(): ExportFormat[] {
   return canPrintHere() ? ['docx', 'epub', 'html', 'markdown', 'print'] : ['docx', 'epub', 'html', 'markdown'];
@@ -137,6 +116,10 @@ export class ExportModal extends Modal {
   private shut = false;
   /** Whether the pages before and after the text are unfolded. */
   private matterOpen = false;
+  /** The small window that says the export is saved, once it is. */
+  private done: ExportDoneModal | null = null;
+  /** Set when the plugin is switched off: nothing more is opened. */
+  private released = false;
 
   constructor(app: App, exporter: Exporter, project: ExportProject) {
     super(app);
@@ -157,6 +140,14 @@ export class ExportModal extends Modal {
   override onClose(): void {
     this.shut = true;
     this.contentEl.empty();
+  }
+
+  /** Close this window and the one that says the export is saved, and open neither again. */
+  release(): void {
+    this.released = true;
+    this.close();
+    this.done?.close();
+    this.done = null;
   }
 
   private change(changed: Partial<ExportOptions>): void {
@@ -361,70 +352,13 @@ export class ExportModal extends Modal {
       if (!this.shut) this.drawForm();
       return;
     }
-    new Notice(`Exported to ${outcome.rel}`);
-    if (this.shut) return;
-    this.drawResult(outcome);
+    if (this.released) return;
+    // The form makes way for a small window that stays until the writer closes it.
+    this.close();
+    const done = new ExportDoneModal(this.app, this.exporter, outcome, !canPrintHere());
+    this.done = done;
+    done.open();
     // The page for printing is made to be opened: it goes to the browser at once.
-    if (outcome.format === 'print') await this.openFile(outcome);
-  }
-
-  private drawResult(outcome: Extract<ExportOutcome, { status: 'done' }>): void {
-    const { contentEl } = this;
-    contentEl.empty();
-    const result = contentEl.createDiv({ cls: 'spellbook-export-result' });
-    result.createEl('p', { text: `Saved ${plural(outcome.scenes, 'scene', 'scenes')}, ${plural(outcome.words, 'word', 'words')}, as a new file in the project:` });
-    result.createEl('p', { cls: 'spellbook-export-path', text: outcome.rel, attr: { dir: 'auto' } });
-    const showsInFolder = canShowInFolderHere();
-    if (!showsInFolder) result.createEl('p', { cls: 'spellbook-export-note', text: MOBILE_WHERE_NOTE });
-    // A Markdown export is a note, which the file list always shows.
-    if (outcome.format !== 'markdown') result.createEl('p', { cls: 'spellbook-export-note', text: HIDDEN_FILE_NOTE });
-    this.listLeftOut(result, 'Left out, because the "compile" switch is off:', outcome.switchedOff);
-    this.listLeftOut(result, 'Left out, because the note is missing or could not be read:', outcome.unread);
-    for (const warning of outcome.warnings) result.createEl('p', { cls: 'spellbook-export-note', text: warning, attr: { dir: 'auto' } });
-
-    const buttons = new Setting(contentEl).addButton((button) => {
-      button.setButtonText('Done').onClick(() => {
-        this.close();
-      });
-    });
-    if (showsInFolder) {
-      buttons.addButton((button) => {
-        button.setButtonText(SHOW_IN_FOLDER_TEXT).onClick(() => {
-          safely(SHOW_IN_FOLDER_TEXT, () => this.showFile(outcome));
-        });
-        // The folder is shown in Obsidian's own file list, in the sidebar.
-        button.buttonEl.setAttr('aria-label', 'Show the file in Obsidian\'s file list');
-      });
-    }
-    buttons
-      .addButton((button) => {
-        button
-          .setButtonText(OPEN_BUTTON_TEXT)
-          .setCta()
-          .onClick(() => {
-            safely(OPEN_BUTTON_TEXT, () => this.openFile(outcome));
-          });
-      });
-  }
-
-  private listLeftOut(parent: HTMLElement, heading: string, titles: readonly string[]): void {
-    if (titles.length === 0) return;
-    parent.createEl('p', { cls: 'spellbook-export-note', text: heading });
-    const list = parent.createEl('ul', { cls: 'spellbook-export-left-out' });
-    // Scene titles are the writer's own text.
-    for (const title of titles) list.createEl('li', { text: title, attr: { dir: 'auto' } });
-  }
-
-  private async openFile(outcome: Extract<ExportOutcome, { status: 'done' }>): Promise<void> {
-    const opened = await this.exporter.open(outcome);
-    if (!opened) new Notice(COULD_NOT_OPEN_TEXT, PROBLEM_NOTICE_MS);
-    else if (outcome.format === 'markdown' && !this.shut) this.close();
-  }
-
-  private async showFile(outcome: Extract<ExportOutcome, { status: 'done' }>): Promise<void> {
-    const shown = await this.exporter.showInFolder(outcome);
-    if (!shown) new Notice(COULD_NOT_SHOW_TEXT, PROBLEM_NOTICE_MS);
-    // The file list is on show: the window is out of its way.
-    else if (!this.shut) this.close();
+    if (outcome.format === 'print') await done.openFile();
   }
 }

@@ -15,11 +15,12 @@
 //   details  the entity sheet (sheet.ts): one entity as a card to read and
 //            to fill in
 //
-// A tap on a card shows the entity's sheet, and so does the number of scenes
-// on it; a tap on the name on the card opens the entity's note. In the table
-// it is the same: a row shows the sheet, the name opens the note. With the
-// usual key held, either opens the note in a new tab. The card's menu has
-// both, and Rename and Delete (to the trash).
+// A tap anywhere on a card, its name included, shows the entity's sheet, and
+// so does the number of scenes on it; in the table a tap on a row does the
+// same. The sheet has "Open note". With the usual key held (Cmd or Ctrl), or
+// with the middle mouse button, a card or a row opens the note in a new tab,
+// as links do elsewhere in Obsidian. The card's menu has Open note, Open note
+// in new tab and Open sheet, and Rename and Delete (to the trash).
 //
 // How many columns of cards fit is the stylesheet's business; whether the
 // pane is narrow is measured here, from the pane itself and not from the
@@ -414,7 +415,7 @@ export class WorldView extends ItemView {
     // The picture, cropped to a small square; the type's icon for an entity without one.
     entityPicture(head, this.host.imageOf(entity), group.type, 'spellbook-world-card-picture');
     const words = head.createDiv({ cls: 'spellbook-world-card-words' });
-    this.nameButton(words, 'spellbook-world-card-name', entity);
+    this.nameText(words, 'spellbook-world-card-name', entity);
     // One or two key facts: a character's role, a place's kind and region.
     const facts = cardFacts(entity, group.type);
     if (facts.length > 0) {
@@ -444,11 +445,25 @@ export class WorldView extends ItemView {
     count.setAttr('dir', 'ltr');
     count.setAttr('aria-label', `${sceneCountText(scenes)}: show the sheet`);
 
-    // A tap anywhere else on the card shows the entity's sheet.
+    // A tap anywhere else on the card, the name included, shows the entity's sheet.
+    this.answerTaps(card, entity);
+  }
+
+  /**
+   * A card or a row: a tap or Enter shows the entity's sheet; with the usual
+   * key held, or with the middle mouse button, the note opens in a new tab.
+   */
+  private answerTaps(element: HTMLElement, entity: Entity): void {
     const show = this.sheetOpener(entity);
-    card.addEventListener('click', show);
-    card.addEventListener('keydown', (event) => {
-      if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
+    element.addEventListener('click', show);
+    element.addEventListener('auxclick', (event) => {
+      // The middle button (the wheel) opens the note in a new tab, as elsewhere in Obsidian.
+      if (event.button !== 1) return;
+      event.preventDefault();
+      safely(OPEN_IN_NEW_TAB_TEXT, () => this.host.open(entity.path, 'tab'));
+    });
+    element.addEventListener('keydown', (event) => {
+      if (event.target !== element || (event.key !== 'Enter' && event.key !== ' ')) return;
       event.preventDefault();
       show(event);
     });
@@ -465,23 +480,10 @@ export class WorldView extends ItemView {
     };
   }
 
-  /** An entity's name, as a button that opens its note. The card or row around it shows the sheet instead. */
-  private nameButton(parent: HTMLElement, cls: string, entity: Entity): HTMLButtonElement {
-    const button = parent.createEl('button', {
-      cls: `spellbook-world-name-open ${cls}`,
-      text: entity.name,
-      // A name is the writer's own text.
-      attr: { type: 'button', dir: 'auto', 'aria-label': `${OPEN_NOTE_TEXT}: ${entity.name}` },
-    });
-    button.addEventListener('click', (event) => {
-      event.stopPropagation();
-      safely(OPEN_NOTE_TEXT, () => this.host.open(entity.path, Keymap.isModEvent(event)));
-    });
-    button.addEventListener('keydown', (event) => {
-      // Enter on the name is the name's own: the card does not answer it as well.
-      if (event.key === 'Enter' || event.key === ' ') event.stopPropagation();
-    });
-    return button;
+  /** An entity's name. It is part of the card or row around it: a tap on it shows the sheet too. */
+  private nameText(parent: HTMLElement, cls: string, entity: Entity): HTMLElement {
+    // A name is the writer's own text.
+    return parent.createSpan({ cls: `spellbook-world-name ${cls}`, text: entity.name, attr: { dir: 'auto' } });
   }
 
   // -------------------------------------------------------------------- table
@@ -534,7 +536,7 @@ export class WorldView extends ItemView {
       line.createDiv({ cls: `spellbook-world-table-cell spellbook-world-table-${column}`, attr: { role: 'cell' } });
     const name = cell('name');
     typeBadge(name, row.type);
-    this.nameButton(name, 'spellbook-world-table-text', entity);
+    this.nameText(name, 'spellbook-world-table-text', entity);
     // The name of a type of the writer's own, and what a field holds, are the writer's text.
     cell('type').createSpan({ cls: 'spellbook-world-table-text', text: row.typeName, attr: { dir: 'auto' } });
     cell('kind').createSpan({ cls: 'spellbook-world-table-text', text: row.kind, attr: { dir: 'auto' } });
@@ -543,14 +545,8 @@ export class WorldView extends ItemView {
     cell('from').createSpan({ cls: 'spellbook-world-table-text', text: row.fromText, attr: { dir: dateDir } });
     cell('until').createSpan({ cls: 'spellbook-world-table-text', text: row.untilText, attr: { dir: dateDir } });
     cell('scenes').createSpan({ cls: 'spellbook-world-table-text', text: String(row.scenes), attr: { dir: 'ltr' } });
-    // A tap on a row shows the entity's sheet; a tap on the name opens the note.
-    const show = this.sheetOpener(entity);
-    line.addEventListener('click', show);
-    line.addEventListener('keydown', (event) => {
-      if (event.target !== line || (event.key !== 'Enter' && event.key !== ' ')) return;
-      event.preventDefault();
-      show(event);
-    });
+    // A tap on a row, its name included, shows the entity's sheet.
+    this.answerTaps(line, entity);
   }
 
   // -------------------------------------------------------------------- sheet

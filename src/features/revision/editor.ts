@@ -3,8 +3,9 @@
 // the note in a small bubble.
 //
 // It only decorates. It never changes the text, the selection or the scroll
-// position. The notes are read from the properties at the top of the note
-// being edited, so a note that was just added shows at once.
+// position. The notes come from the project's revision notes file (through
+// the host), and the marks are worked out again a moment after they change,
+// so a note that was just added shows straight away.
 //
 // The marks are moved along with the text at every key and worked out again
 // a moment after the typing pauses. On a phone or a tablet the line that is
@@ -17,7 +18,7 @@ import type { Extension, Range } from '@codemirror/state';
 import { Decoration, ViewPlugin } from '@codemirror/view';
 import type { DecorationSet, EditorView, ViewUpdate } from '@codemirror/view';
 import { editorInfoField } from 'obsidian';
-import { passageMarks, propertiesOf, readNotes } from '../../core/revision/index';
+import { passageMarks } from '../../core/revision/index';
 import type { PassageMark, RevisionNote } from '../../core/revision/index';
 
 /** The class of an underlined passage, and the attribute that holds its note. */
@@ -33,8 +34,10 @@ export const PAUSE_MS = 400;
 export interface RevisionEditorHost {
   /** Whether the note at this vault path is a note of a Spellbook project. */
   covers(path: string | null): boolean;
-  /** The properties in a block of YAML, as Obsidian reads them; null when they cannot be read. */
-  parseProperties(yaml: string): unknown;
+  /** The revision notes of the note at this vault path. */
+  notesOf(path: string): readonly RevisionNote[];
+  /** Be told when the revision notes change. Returns a function that stops it. */
+  onNotesChange(listener: () => void): () => void;
   /** Whether this is a phone or a tablet. */
   readonly touch: boolean;
   /** Call `callback` once after `ms` milliseconds. Returns a function that cancels it. */
@@ -68,35 +71,11 @@ export function rangesOf(marks: readonly PassageMark[], length: number): Array<R
   return ranges;
 }
 
-/** The notes the properties at the top of a text hold, read anew only when the properties change. */
-export class NotesReader {
-  private yaml: string | null = null;
-  private notes: RevisionNote[] = [];
-
-  constructor(private readonly parse: (yaml: string) => unknown) {}
-
-  read(text: string): RevisionNote[] {
-    const yaml = propertiesOf(text);
-    if (yaml === this.yaml) return this.notes;
-    this.yaml = yaml;
-    let parsed: unknown = null;
-    if (yaml !== null && yaml.includes('revision-notes')) {
-      try {
-        parsed = this.parse(yaml);
-      } catch {
-        parsed = null; // properties being typed by hand may be half written
-      }
-    }
-    this.notes = parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? readNotes(parsed as Record<string, unknown>) : [];
-    return this.notes;
-  }
-}
-
 /** The marks of one editor. (Exported for the tests; the plugin reaches it through revisionEditor.) */
 export class RevisionMarksView {
   decorations: DecorationSet = Decoration.none;
   readonly tip = new RevisionTip();
-  private readonly reader: NotesReader;
+  private readonly stopFollowing: () => void;
   /** On a touch screen: the number of the line being typed, whose marks are left as they are; 0 for none. */
   private held = 0;
   private cancelRefresh: (() => void) | null = null;
@@ -105,8 +84,11 @@ export class RevisionMarksView {
     private readonly view: EditorView,
     private readonly host: RevisionEditorHost,
   ) {
-    this.reader = new NotesReader((yaml) => host.parseProperties(yaml));
     this.decorations = this.build(0);
+    // Notes added, changed or ticked elsewhere (or on another device) show a moment later.
+    this.stopFollowing = host.onNotesChange(() => {
+      this.refreshSoon();
+    });
   }
 
   update(update: ViewUpdate): void {
@@ -150,7 +132,7 @@ export class RevisionMarksView {
     const path = state.field(editorInfoField, false)?.file?.path ?? null;
     if (!this.host.covers(path)) return Decoration.none;
     const text = state.doc.toString();
-    const marks = passageMarks(text, this.reader.read(text));
+    const marks = passageMarks(text, path === null ? [] : this.host.notesOf(path));
     if (keep < 1 || keep > state.doc.lines) return Decoration.set(rangesOf(marks, state.doc.length), true);
     const line = state.doc.line(keep);
     const kept = this.decorations.update({ filter: (from, to) => from >= line.from && to <= line.to });
@@ -174,6 +156,7 @@ export class RevisionMarksView {
   }
 
   destroy(): void {
+    this.stopFollowing();
     this.cancelRefresh?.();
     this.cancelRefresh = null;
     this.tip.hide();
