@@ -235,7 +235,7 @@ binder:
     id: f-8m2tq0
     children:
       - Manuscript/Low Water.md
-      - Manuscript/מכתב לאחותי.md
+      - Manuscript/A Letter to My Sister.md
   - Manuscript/Epilogue.md
 statuses:
   - name: To do
@@ -470,7 +470,7 @@ aliases:
   - The surveyor
 image: "[[mara.png]]"
 related:
-  - "[[Tamar|sister]]"
+  - "[[Ellen|sister]]"
   - "[[Saltwick|lives in]]"
 date: 1889-04-17
 moments:
@@ -538,7 +538,7 @@ An entity lists the entities it has to do with in its own `related` property. Ea
 
 ```yaml
 related:
-  - "[[Tamar|sister]]"
+  - "[[Ellen|sister]]"
   - "[[The Archive|keeps]]"
   - "[[Saltwick]]"
 ```
@@ -668,7 +668,7 @@ The same works for `label`.
 1. Find the entity's note under `World/` and take its name (the file name) and its `aliases`.
 2. For each scene in binder order, read `entities`. Take each entry's target: the text between `[[` and `]]`, up to a `|` or a `#` if there is one. The entry leads to the entity when the target is its name, or a path that ends with its name (with or without `.md`). Compare without regard to capitals.
 3. Those scenes are the ones the entity **is in**.
-4. Separately, and only if asked for mentions: search each scene's body for the name or an alias as a whole word. Report these as "mentioned but not listed". Do not add them to `entities` without asking. In Hebrew, a name may have one or two joined letters in front of it (ו, ה, ב, ל, מ, ש, כ) and still be the name.
+4. Separately, and only if asked for mentions: search each scene's body for the name or an alias as a whole word. Report these as "mentioned but not listed". Do not add them to `entities` without asking. In Hebrew, a name may have one or two of the joined prefix letters in front of it (vav, he, bet, lamed, mem, shin, kaf) and still be the name.
 
 ### Build a character's timeline
 
@@ -944,7 +944,7 @@ aliases: []
 
 ```
 
-A name, a field or a whole note may be in Hebrew: `World/Lore/הים מחזיר.md` with `kind: אמרה` is as valid as any of the above.
+A name, a field or a whole note may be in Hebrew: a Hebrew file name in `World/Lore/` with a Hebrew `kind` and Hebrew text is as valid as any of the above.
 
 ### Give an entity a date or a moment
 

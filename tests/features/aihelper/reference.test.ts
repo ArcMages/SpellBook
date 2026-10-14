@@ -127,7 +127,7 @@ describe('the reference says what the code does', () => {
     says(`| \`${RELATED_KEY}\` | list of links |`);
     says(`| \`${IMAGE_KEY}\` | link |`);
     says(`| \`${ALIASES_KEY}\` | list of text |`);
-    says('"[[Tamar|sister]]"');
+    says('"[[Ellen|sister]]"');
     says(`${RELATION_LABEL_MAX} characters at most`);
   });
 });

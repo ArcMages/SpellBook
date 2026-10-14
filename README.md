@@ -58,10 +58,6 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 
 *Lore has its own type: legends, tales, history and customs, linked to the scenes and events where they matter.*
 
-![The sheet of a saying written in Hebrew, reading right to left beside English cards](docs/images/lore-sheet-hebrew.png)
-
-*A piece of lore written in Hebrew: its name, fields and scenes read right to left, beside English cards that read left to right.*
-
 ### World history
 
 ![The timeline with world lanes: lives and histories as bars and points beside the story's events](docs/images/world-history-timeline.png)
@@ -156,7 +152,7 @@ Spellbook itself contains no AI and sends nothing anywhere. The file is only tex
 
 ## Hebrew and English
 
-Menus and buttons are in English. Your own text (titles, synopses, names, labels) can be in Hebrew, English or both: each piece of text takes the direction of its own language, so Hebrew reads right to left next to English that reads left to right. Word counts handle both languages. The Word and web-page exports mark Hebrew text as right to left.
+Spellbook supports Hebrew and English, including right-to-left text. Menus and buttons are in English. Your own text (titles, synopses, names, labels) can be in Hebrew, English or both: each piece of text takes the direction of its own language, so Hebrew reads right to left next to English that reads left to right. Word counts handle both languages. The Word and web-page exports mark Hebrew text as right to left.
 
 ## Desktop, iPad and iPhone
 
