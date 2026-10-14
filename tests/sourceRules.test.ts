@@ -112,6 +112,8 @@ describe('source layout', () => {
       'features/snapshots/index.ts',
       'features/world/index.ts',
       'features/aihelper/index.ts',
+      'features/boards/index.ts',
+      'core/boards/index.ts',
     ]) {
       expect(names, expected).toContain(expected);
     }
@@ -377,6 +379,44 @@ describe('the whole plugin', () => {
     expect(users).toEqual(['features/snapshots/keeper.ts']);
   });
 
+  it('writes, changes and trashes idea boards in one folder only, through the store, and never a note', () => {
+    const store = codeOf(path.join(srcDir, 'core', 'projectStore.ts'));
+    const check = /\n  private boardFilePath\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
+    expect(check).toMatch(/parts\.length !== 2 \|\| parts\[0\] !== BOARDS_FOLDER \|\| !isSafeRelativePath\(path\)\) return no;/);
+    expect(check).toMatch(/if \(!file\.endsWith\(ending\)\) return no;/);
+    expect(check).toMatch(/sanitiseFileName\(name, ''\) !== name\) return no;/);
+    const writes: Record<string, string> = {
+      createBoardFile: 'this.vault.createFile(',
+      updateBoardFile: 'this.vault.updateBoardText(',
+      renameBoardFile: 'this.vault.rename(',
+      trashBoardFile: 'this.vault.trash(',
+    };
+    for (const [name, write] of Object.entries(writes)) {
+      const method = new RegExp(`\\n  ${name}\\([\\s\\S]*?\\n  \\}\\n`).exec(store)?.[0] ?? '';
+      // The path is checked, and its refusal returned, before anything is written.
+      expect(method, name).toMatch(/const rel = this\.boardFilePath\(active, [^;]*\);\s*if \(typeof rel !== 'string'\) return rel;/);
+      expect(method.indexOf(write), name).toBeGreaterThan(method.indexOf("if (typeof rel !== 'string') return rel;"));
+      expect(method, name).toMatch(/const blocked = this\.whyNotWritable\(active\);/);
+    }
+    // A new board never lands where something is.
+    const create = /\n  createBoardFile\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
+    expect(create).toMatch(/if \(this\.vault\.exists\(target\)\) \{\s*return refused\('exists'/);
+    // The doorway's method for a board's text is reached from the store alone, once, and it never creates a file.
+    const callers = allFiles.filter((file) => /\.\s*updateBoardText\s*\(/.test(codeOf(file))).map(relative);
+    expect(callers).toEqual(['core/projectStore.ts']);
+    expect((store.match(/\.\s*updateBoardText\s*\(/g) ?? []).length).toBe(1);
+    const doorway = codeOf(path.join(srcDir, 'obsidian', 'obsidianVault.ts'));
+    const method = /\n  async updateBoardText\([\s\S]*?\n  \}\n/.exec(doorway)?.[0] ?? '';
+    expect(method).toMatch(/const file = this\.requireFile\(path\);\s*if \(file\.extension\.toLowerCase\(\) !== 'canvas'\) throw/);
+    expect(method).toMatch(/return this\.changeText\(file, /);
+    expect(method).not.toMatch(/\.create\(/);
+    // Only the idea boards use the board methods.
+    const users = allFiles
+      .filter((file) => /\.\s*(createBoardFile|updateBoardFile|renameBoardFile|trashBoardFile|readBoardFile)\s*\(/.test(codeOf(file)))
+      .map(relative);
+    expect(users).toEqual(['features/boards/keeper.ts']);
+  });
+
   it('declares what the writing progress offers the other screens once, in the core', () => {
     // The two services are looked up by name. The names, and the shapes of
     // what is found under them, are written down in one file that every
@@ -411,6 +451,7 @@ describe('the whole plugin', () => {
     const folders = new Set(featureFiles.map((file) => relative(file).split('/').slice(0, 2).join('/')));
     expect([...folders].sort()).toEqual([
       'features/aihelper',
+      'features/boards',
       'features/corkboard',
       'features/export',
       'features/modes',
@@ -574,6 +615,7 @@ describe('the stylesheet is put together from one file per screen', () => {
       'scrivenings.css',
       'snapshots.css',
       'world.css',
+      'boards.css',
     ]);
     // No stylesheet is left out, and none is listed that is not there.
     expect(readdirSync(stylesDir).filter((name) => name.endsWith('.css')).sort()).toEqual([...STYLE_FILES].sort());
@@ -611,7 +653,7 @@ describe('the stylesheet is put together from one file per screen', () => {
   });
 
   it('gives each screen a stylesheet of its own, so that screens built side by side never share a file', () => {
-    for (const feature of ['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world']) {
+    for (const feature of ['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world', 'boards']) {
       expect(STYLE_FILES, feature).toContain(`${feature}.css`);
     }
   });

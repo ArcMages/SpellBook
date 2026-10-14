@@ -21,7 +21,7 @@ import type { Frontmatter } from '../src/core/types';
 import { VaultFileMissingError } from '../src/core/vaultPort';
 import type { MarkdownFileInfo, VaultEvent, VaultListener, VaultPort } from '../src/core/vaultPort';
 
-export type WriteOp = 'createFile' | 'createBinary' | 'createFolder' | 'rename' | 'trash' | 'updateFrontmatter' | 'updateText' | 'replaceText';
+export type WriteOp = 'createFile' | 'createBinary' | 'createFolder' | 'rename' | 'trash' | 'updateFrontmatter' | 'updateText' | 'replaceText' | 'updateBoardText';
 
 export interface WriteRecord {
   readonly op: WriteOp;
@@ -450,6 +450,22 @@ export class MemoryVault implements VaultPort {
     delete file.raw;
     this.emit({ type: 'modify', path });
     this.index(path);
+    return true;
+  }
+
+  async updateBoardText(path: string, change: (current: string) => string | null): Promise<boolean> {
+    const file = this.files.get(path);
+    if (!file) throw new VaultFileMissingError(path);
+    if (!path.toLowerCase().endsWith('.canvas')) throw new Error(`"${path}" is not a board.`);
+    // The callback always sees the file as it is on disk right now.
+    const current = this.compose(file);
+    const text = change(current);
+    if (text === null || text === current) return false;
+    // The save itself can fail after the callback has run, as on a real disk.
+    this.maybeFail('updateBoardText', path);
+    this.writes.push({ op: 'updateBoardText', path });
+    Object.assign(file, { ...takeApart(text), corrupt: false, raw: text });
+    this.emit({ type: 'modify', path });
     return true;
   }
 

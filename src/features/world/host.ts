@@ -24,6 +24,7 @@
 
 import { Notice } from 'obsidian';
 import type { PaneType } from 'obsidian';
+import type { EntityBoardService } from '../../core/boards';
 import { sanitiseFileName } from '../../core/names';
 import { isImagePath, noteTitle, pathKey, relativeTo } from '../../core/paths';
 import { CALENDAR_KEY, readCalendar } from '../../core/timeline';
@@ -855,6 +856,9 @@ export class WorldHost {
 
   /** Set by the feature: opens the timeline as the history of the world. Null while no timeline offers it. */
   showWorldHistory: (() => boolean) | null = null;
+
+  /** Set by the feature: what draws a board around an entity, asked for each time; null while no feature offers it. */
+  entityBoard: () => EntityBoardService | null = () => null;
 
   // ----------------------------------------------------------------- mentions
 

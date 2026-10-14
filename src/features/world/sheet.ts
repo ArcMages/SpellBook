@@ -41,6 +41,7 @@ import { openRelationPicker } from './relationModal';
 import { drawHistoryPart, drawTimePart } from './timePart';
 
 export const OPEN_NOTE_TEXT = 'Open note';
+export const BOARD_AROUND_TEXT = 'Board around it';
 export const BACK_LABEL = 'Back to the list';
 export const CLOSE_LABEL = 'Close the sheet';
 export const CHOOSE_PICTURE_TEXT = 'Choose picture';
@@ -224,6 +225,13 @@ export class EntitySheet {
     const actions = words.createDiv({ cls: 'spellbook-world-detail-actions' });
     textButton(actions, 'mod-cta spellbook-world-open', OPEN_NOTE_TEXT, () => this.host.open(entity.path, false));
     if (!canChange) return;
+    // A board with this entity in the middle, when the idea boards offer one.
+    const boards = this.host.entityBoard();
+    if (boards !== null) {
+      textButton(actions, 'spellbook-world-board', BOARD_AROUND_TEXT, () => {
+        boards.draw(entity.path);
+      });
+    }
     textButton(actions, 'spellbook-world-choose-picture', CHOOSE_PICTURE_TEXT, () => {
       openImagePicker(this.app, this.host, entity.path);
     });
