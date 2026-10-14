@@ -12,6 +12,7 @@ import { ImagePickerModal, NO_IMAGES_TEXT } from '../../../src/features/world/im
 import { NOT_AN_ENTITY_TEXT } from '../../../src/features/world/index';
 import { NO_PICTURE_CLASS, NO_PROJECT_TEXT } from '../../../src/features/world/parts';
 import { RelationPickerModal } from '../../../src/features/world/relationModal';
+import { fittedHeight } from '../../../src/features/world/sheet';
 import { MemoryVault } from '../../memoryVault';
 import { Menu as StubMenu, Modal as StubModal, Notice as StubNotice, Platform, resetFakeDocument, resetPlatform } from '../../obsidianStub';
 import type { FakeElement } from '../../obsidianStub';
@@ -772,3 +773,15 @@ describe('cards and list', () => {
 function tableOf(pane: FakeElement): string[][] {
   return pane.withClass('spellbook-world-table-entity').map((row) => row.withClass('spellbook-world-table-text').map((cell) => cell.text));
 }
+
+describe('how tall a box of the sheet is made', () => {
+  it('adds the border to what the box holds, so that no scrollbar hides the last words', () => {
+    // Seen in Obsidian: 57 pixels of text in a box with a one-pixel border all round was given 57 pixels, two short.
+    expect(fittedHeight({ scrollHeight: 57, offsetHeight: 44, clientHeight: 42 })).toBe(59);
+    expect(fittedHeight({ scrollHeight: 25, offsetHeight: 25, clientHeight: 25 })).toBe(25);
+  });
+
+  it('has nothing to say for a box that is not on the screen yet', () => {
+    expect(fittedHeight({ scrollHeight: 0, offsetHeight: 0, clientHeight: 0 })).toBeNull();
+  });
+});

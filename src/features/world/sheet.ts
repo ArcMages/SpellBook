@@ -481,14 +481,44 @@ export class EntitySheet {
 }
 
 /**
+ * How tall a box has to be to show all it holds, in pixels, or null where
+ * there is nothing to measure (a box that is not on the screen yet).
+ *
+ * What a box holds is measured inside its border, and its height is set
+ * with the border: the border is added, or the box comes out a little too
+ * short, grows a scrollbar, and the scrollbar pushes the last words out of
+ * sight.
+ */
+export function fittedHeight(box: { readonly scrollHeight: number; readonly offsetHeight: number; readonly clientHeight: number }): number | null {
+  const needed = box.scrollHeight;
+  if (typeof needed !== 'number' || !(needed > 0)) return null;
+  const border = box.offsetHeight - box.clientHeight;
+  return needed + (typeof border === 'number' && border > 0 ? border : 0);
+}
+
+/** Whether the app makes a box as tall as what it holds by itself, as the stylesheet asks. */
+function sizesItself(): boolean {
+  try {
+    return typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('field-sizing', 'content');
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Make a box as tall as what it holds, so that a long line is read whole.
- * (Where the app can do that by itself the stylesheet asks for it; this is
- * for where it cannot. A box that is not on the screen yet has no height to
- * measure, and keeps its rows.)
+ * (Where the app can do that by itself the stylesheet asks for it, and the
+ * box is left to it: a height set here would also stay behind when the pane
+ * changes its width. This is for where it cannot. A box that is not on the
+ * screen yet has no height to measure, and keeps its rows.)
  */
 function fit(box: HTMLTextAreaElement): void {
-  const needed = box.scrollHeight;
-  if (typeof needed !== 'number' || !(needed > 0)) return;
+  if (sizesItself()) {
+    if (box.style.height !== '') box.style.height = '';
+    return;
+  }
+  if (fittedHeight(box) === null) return;
   box.style.height = 'auto';
-  if (box.scrollHeight > 0) box.style.height = `${box.scrollHeight}px`;
+  const height = fittedHeight(box);
+  if (height !== null) box.style.height = `${height}px`;
 }
