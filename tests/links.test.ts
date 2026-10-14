@@ -105,3 +105,20 @@ describe('movedPaths', () => {
     ]);
   });
 });
+
+describe('links the vault would not read as a link to the renamed note', () => {
+  it('leaves a markdown link whose address holds a bare space, unless what follows is a title', () => {
+    // "Mara notes.md" is one name; the link is not to "Mara", and must not become "Mara%20Voss notes.md".
+    expect(retargetLinks('[see](Mara notes.md)', toVoss)).toEqual({ text: '[see](Mara notes.md)', count: 0 });
+    expect(linkPlaces('[see](Mara notes.md)')).toEqual([]);
+    // A title after the address, in any of its three forms, is still a link.
+    for (const title of ['"her"', "'her'", '(her)']) {
+      expect(linkPlaces(`[a](Mara.md ${title})`).map((place) => place.path)).toEqual(['Mara.md']);
+    }
+  });
+
+  it('skips links between ~~~ lines, as between ``` lines', () => {
+    const text = '~~~\n[[Mara]]\n~~~\n[[Mara]]\n';
+    expect(retargetLinks(text, toVoss)).toEqual({ text: '~~~\n[[Mara]]\n~~~\n[[Mara Voss]]\n', count: 1 });
+  });
+});
