@@ -1,9 +1,11 @@
 // Links in a note's text, and pointing them at a renamed note (src/core/links.ts).
 
 import { describe, expect, it } from 'vitest';
-import { linkPlaces, movedLinkPath, movedPaths, renamedLinkPath, retargetLinks, retargetLinksInValue } from '../src/core/links';
+import { linkPlaces, movedLinkPath, movedPaths, retargetLinks, retargetLinksInValue } from '../src/core/links';
 
-const toVoss = (path: string): string | null => (path === 'Mara' || path === 'Mara.md' || path === 'World/Mara' ? renamedLinkPath(path, 'Mara Voss') : null);
+/** Mara's links, pointed at her new name: the last part changes, a ".md" ending stays. */
+const VOSS: Readonly<Record<string, string>> = { Mara: 'Mara Voss', 'Mara.md': 'Mara Voss.md', 'World/Mara': 'World/Mara Voss' };
+const toVoss = (path: string): string | null => VOSS[path] ?? null;
 
 describe('linkPlaces', () => {
   it('finds the part of each link that names its note', () => {
@@ -27,14 +29,6 @@ describe('linkPlaces', () => {
 
   it('finds Hebrew names too', () => {
     expect(linkPlaces('ראו [[מארה|אותה]].').map((place) => place.path)).toEqual(['מארה']);
-  });
-});
-
-describe('renamedLinkPath', () => {
-  it('changes the last part only, and keeps a ".md" ending', () => {
-    expect(renamedLinkPath('Mara', 'Mara Voss')).toBe('Mara Voss');
-    expect(renamedLinkPath('World/Characters/Mara', 'Mara Voss')).toBe('World/Characters/Mara Voss');
-    expect(renamedLinkPath('Mara.md', 'Mara Voss')).toBe('Mara Voss.md');
   });
 });
 

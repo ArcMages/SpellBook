@@ -119,15 +119,6 @@ export function linkPlaces(text: string): LinkPlace[] {
   return places.sort((a, b) => a.from - b.from);
 }
 
-/** A note's path as a link names it, with its last part (the note's name) changed: "World/Mara" -> "World/Mara Voss". A ".md" ending is kept. */
-export function renamedLinkPath(path: string, newName: string): string {
-  const slash = path.lastIndexOf('/');
-  const folder = slash < 0 ? '' : path.slice(0, slash + 1);
-  const last = path.slice(slash + 1);
-  const ending = /\.md$/i.exec(last)?.[0] ?? '';
-  return `${folder}${newName}${ending}`;
-}
-
 /** How a path is written in a markdown link: spaces as "%20", unless the address is between "<" and ">". */
 function writtenFor(place: LinkPlace, path: string): string {
   if (place.kind === 'wiki' || place.angle) return path;

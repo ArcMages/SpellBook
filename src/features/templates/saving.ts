@@ -25,8 +25,6 @@ import type { FeatureContext } from '../registry';
 
 export const NO_PROJECT_TEXT = 'Open a Spellbook project first.';
 export const READ_ONLY_TEXT = 'This project is read-only because its index could not be understood. Nothing was saved.';
-export const NOT_A_SCENE_TEXT = 'The note open in the editor is not a scene of the open project.';
-export const NOT_AN_ENTRY_TEXT = 'The note open in the editor is not an entry of the World of the open project.';
 export const NO_NAME_TEXT = 'Give the template a name.';
 export const BAD_NAME_TEXT = 'That name has no characters that can be used in a file name.';
 export const NO_TYPE_FOLDER_TEXT = 'This entry has no type, so it is not known which entries the template is for. Give it a type first.';

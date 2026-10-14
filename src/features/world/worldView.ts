@@ -92,7 +92,6 @@ export const NONE_OF_TYPE_TEXT = 'None yet.';
 export const CARDS_TEXT = 'Cards';
 export const LIST_TEXT = 'List';
 export const LAYOUT_LABEL = 'Show as';
-export const SHEET_TEXT = 'Sheet';
 export const HISTORY_TEXT = 'History';
 export const HISTORY_LABEL = 'Open world history: the world on the timeline';
 export const NO_TIMELINE_TEXT = 'The timeline is not available.';
