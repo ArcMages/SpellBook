@@ -42,6 +42,12 @@ export interface SnapshotsService {
   take(scenePath: string): void;
   /** Show the snapshots of a scene in the Snapshots pane. */
   show(scenePath: string): void;
+  /**
+   * Take a snapshot of a scene as it is on disk now (what is typed in an open
+   * editor is saved first), under the name given, without asking. Resolves
+   * with null once it is saved, or with why it was not.
+   */
+  takeNamed(scenePath: string, name: string): Promise<string | null>;
 }
 
 export const COULD_NOT_OPEN_TEXT = 'The snapshots could not be opened.';
@@ -161,6 +167,11 @@ export const snapshotsFeature: Feature = {
       show: (scenePath) => {
         const scene = released ? null : keeper.scene(scenePath);
         if (scene) void pane.reveal(scene.path);
+      },
+      takeNamed: async (scenePath, name) => {
+        if (released) return NO_PROJECT_TEXT;
+        const taken = await keeper.take(scenePath, { name });
+        return taken.ok ? null : taken.message;
       },
     };
     context.services.provide(SNAPSHOTS_SERVICE, service);

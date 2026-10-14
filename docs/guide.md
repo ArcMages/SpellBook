@@ -42,6 +42,7 @@ In this guide:
 - [World](#world)
 - [Idea boards](#idea-boards)
 - [Snapshots](#snapshots)
+- [Revision](#revision)
 - [Export](#export)
 - [For AI assistants](#for-ai-assistants)
 - [Settings](#settings)
@@ -701,6 +702,39 @@ Command **Board: around this entity** (for the World entry open in the editor, o
 
 **Limits.** The first snapshot of a scene writes a `snapshot-id` property into that scene, so that its snapshots follow it when it is renamed. Deleting a scene leaves its snapshots in place. Automatic snapshots have not been tried on screen.
 
+## Revision
+
+**What it is for.** Tools for the rewriting, once a draft is down: notes pinned to the passages you want to come back to, one list of all of them, finding and replacing words across the whole manuscript, and renaming a character or a place everywhere at once.
+
+**Notes on a passage.**
+
+- Select some words in a scene and run **Add revision note** (command, or the editor's right-click menu; on a phone or tablet, the menu that opens when you press and hold a selection). A small window shows the words you chose; type your note and press **Add note**. Ctrl+Enter or Cmd+Enter saves too.
+- The words stay exactly as they are: the note is kept in the scene's properties, not in its text. In the editor, passages with an open note get a light dotted underline. Point at one, or tap it, to read its note.
+- When you rewrite a passage so that its exact words are no longer in the scene, its note stays, and the Revision pane marks it **Passage changed**.
+
+**The Revision pane.** **Open revision notes** (command, or the ribbon button "Open Spellbook revision notes") shows the pane in the right sidebar. It lists the notes of the whole manuscript, grouped by scene in binder order.
+
+- **Open**, **Done** and **All** choose which notes are shown; the list beside them narrows it to one binder folder.
+- Tap a scene's title to open the scene; tap a quoted passage to open the scene with those words selected.
+- Tick **Done** when you have dealt with a note. **Edit** changes its words; **Delete** takes it away (it asks first). Neither touches the scene's text.
+
+**Find and replace.** **Find and replace in the manuscript** (command, or the button at the top of the Revision pane) opens a window. Words you had selected on one line are looked for straight away.
+
+- Type what to find and what to put in its place. **Match case** makes capitals count. **Whole words** finds "art" but not "start" or "artist"; in Hebrew, a word with a letter joined to its front is another word, so "house" with "the" joined to it is not found when you look for "house" alone. **Wildcards** lets `?` stand for any one character and `*` for any characters on the same line; a `*` at the start or end stands for the rest of the word, so `walk*` finds "walked" and "walking". No other character is special.
+- **Look in** chooses all scenes or one binder folder (with the folders inside it).
+- **Search** lists every place found, by scene, with its line around it. Each place has a tick, and all are ticked to begin with; a scene's tick ticks or unticks all its places. Only the text of scenes is searched, never their properties or any other note.
+- **Replace** asks first, with the number of changes and scenes. Then, for each scene: a snapshot is taken, called "Before replace: *what you found* → *what you put in*", and only then are the ticked places changed. If a scene was changed after you searched (by you, or by a sync), it is left exactly as it is and the window says so: search again to see it as it is now. Each scene can be put back as it was with **Restore** in its snapshots.
+
+**Rename everywhere.** For a character, a place or any other World entry: **Rename everywhere** in its menu (the "…" button of its card or row), on its sheet, or as a command while its note is open. The window shows what will change before anything does:
+
+- the note gets the new name, through Obsidian's own rename, so links to it follow;
+- **Keep the old name as another name** (ticked to begin with) adds the old name to its other names (aliases);
+- every place in the manuscript's text where the old name stands, as a whole word with its capitals, each with a tick. A Hebrew name is also found with letters joined to its front; only the name is changed there, and those places start unticked, so look at them first. The name inside a link is left to Obsidian's rename.
+
+**Rename** asks once more, then does it with the same protection as Find and replace: a "Before rename" snapshot of each scene first, and a scene changed since the window opened is left alone.
+
+**Limits.** A note is found again by the first place where its exact words stand in the scene; if the same words appear twice, the first is underlined. Notes are read from the scene's properties as the editor shows them, so a note added on another device appears once that device's change has synced. The underline and the bubble, the jump to a passage and the windows on a phone have not yet been looked at on screen.
+
 ## Export
 
 ![The export window with "E-book (.epub)" chosen as the format, the "Manuscript for an agent" preset, and the choice of a cover](images/export-ebook.png)
@@ -832,6 +866,10 @@ Obsidian shows each of these with "Spellbook:" in front.
 | Open entity sheet | Shows the sheet of the entity whose note is open. |
 | Take snapshot | Saves the open scene as it is now. |
 | Snapshots of this scene | Shows the saved versions of the open scene. |
+| Add revision note | Pins a note to the words selected in a scene. |
+| Open revision notes | Shows every revision note of the manuscript, by scene, in the right sidebar. |
+| Find and replace in the manuscript | Finds words in all scenes or one folder and replaces the places you tick, after a snapshot of each scene. |
+| Rename everywhere | Renames the open World entry, keeps its old name as another name, and changes its name in the manuscript's text where you tick. |
 | Export manuscript | Opens the export window. |
 | Create AI helper note | Writes the reference for AI assistants into the open project. |
 | Open welcome page | Shows the welcome page again. |
@@ -839,7 +877,7 @@ Obsidian shows each of these with "Spellbook:" in front.
 | Show me around | A short tour of the screen: the binder, the inspector, the bottom bar and the ribbon buttons. |
 | Show what is new | Shows what changed in the version you have. |
 
-Ribbon buttons: "Open Spellbook binder", "Open Spellbook corkboard", "Open Spellbook planner", "Open Spellbook timeline", "Open Spellbook outliner", "Open Spellbook writing report", "Open Spellbook novel view", "Open Spellbook world", "Open Spellbook plot grid" and "Open Spellbook idea boards".
+Ribbon buttons: "Open Spellbook binder", "Open Spellbook corkboard", "Open Spellbook planner", "Open Spellbook timeline", "Open Spellbook outliner", "Open Spellbook writing report", "Open Spellbook novel view", "Open Spellbook world", "Open Spellbook plot grid", "Open Spellbook idea boards" and "Open Spellbook revision notes".
 
 ## How your writing is stored
 
@@ -887,6 +925,7 @@ A scene is a note in the Manuscript folder. Spellbook reads and writes these pro
 | `edited` | The date the scene was last edited. |
 | `entities` | Links to the characters, places and other entities in the scene. Only there once you add one. |
 | `snapshot-id` | A short id that ties the scene to its snapshots. Only there after the first snapshot. |
+| `revision-notes` | The scene's revision notes: a list in which each entry holds `passage` (the exact words), `note`, `created` (the day, YYYY-MM-DD) and `done` (`true` or `false`). Only there once you add one. |
 
 Spellbook also reads `date` (a scene with a date shows in the timeline's Manuscript lane) and `tags` (shown in the outliner). Any other property is yours, and is left alone.
 
@@ -894,7 +933,7 @@ Timeline events carry `date`, an optional `end`, `timelines` (their lanes), `sce
 
 ### What Spellbook changes, and what it never does
 
-- **The text of a scene is yours.** Spellbook changes a scene's properties, and never its text, with one exception: when you press **Restore** on a snapshot and confirm, the scene's text is replaced by the snapshot's, after the current text has been saved as a "Before restore" snapshot.
+- **The text of a scene is yours.** Spellbook changes a scene's properties, and never its text, with two exceptions, both after you confirm and both after a snapshot of the scene: when you press **Restore** on a snapshot (the scene's text is replaced by the snapshot's, after a "Before restore" snapshot), and when you **Replace** in Find and replace or **Rename** in Rename everywhere (only the places you ticked are changed, after a "Before replace" or "Before rename" snapshot, and never in a scene that changed since the search). The properties are never changed by a replace.
 - **The same goes for your event, world and research notes**: Spellbook changes their properties only.
 - **`To-do.md` is the one note whose lines Spellbook edits**, and only the line you acted on: ticking, adding, re-dating, moving or removing a to-do in the planner. Every other line is kept exactly as it was.
 - **The word logs, the snapshots, the exports, the AI helper note, the idea boards and the templates** are files Spellbook writes for itself. Turning a board's cards into notes changes that board's file: each card is swapped for one that shows its new note. An export is always a new file. The AI helper note is only written when you run its command, and a copy you changed is not replaced without asking.

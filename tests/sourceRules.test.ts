@@ -119,6 +119,8 @@ describe('source layout', () => {
       'core/templates/index.ts',
       'features/boards/index.ts',
       'core/boards/index.ts',
+      'features/revision/index.ts',
+      'core/revision/index.ts',
     ]) {
       expect(names, expected).toContain(expected);
     }
@@ -338,33 +340,57 @@ describe('the whole plugin', () => {
     expect(check).toMatch(/EXPORT_EXTENSIONS\.includes\(/);
   });
 
-  it('replaces the text of a note the writer writes in through one path only: restoring a scene from a snapshot', () => {
+  it('changes the text of a note the writer writes in through two paths only: restoring a snapshot, and replacing ticked words', () => {
     // Obsidian's vault.process is still used in one place (the rule above).
     // A second method of the vault doorway reaches it, replaceText, which
-    // never creates a file. Only the project store calls that, once, in
-    // replaceSceneText: no screen and no feature can.
+    // never creates a file. Only the project store calls that, twice: in
+    // replaceSceneText (restoring a snapshot) and in replaceInSceneBody
+    // (Find and replace, Rename everywhere). No screen and no feature can.
     const callers = allFiles.filter((file) => /\.\s*replaceText\s*\(/.test(codeOf(file))).map(relative);
     expect(callers).toEqual(['core/projectStore.ts']);
     const store = codeOf(path.join(srcDir, 'core', 'projectStore.ts'));
-    expect((store.match(/\.\s*replaceText\s*\(/g) ?? []).length).toBe(1);
-    const method = /\n  replaceSceneText\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
-    expect(method).toMatch(/saved = await this\.vault\.replaceText\(file\.path, change\);/);
-    // Before it: the project can be written, the path stays inside it, the
+    expect((store.match(/\.\s*replaceText\s*\(/g) ?? []).length).toBe(2);
+    const restore = /\n  replaceSceneText\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
+    const replace = /\n  replaceInSceneBody\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
+    expect(restore).toMatch(/saved = await this\.vault\.replaceText\(file\.path, change\);/);
+    expect(replace).toMatch(/saved = await this\.vault\.replaceText\(file\.path, \(current\) => \{/);
+    // The one call in each method, and in no other.
+    for (const method of [restore, replace]) expect((method.match(/\.\s*replaceText\s*\(/g) ?? []).length).toBe(1);
+    // Before each: the project can be written, the path stays inside it, the
     // note is a scene (and not a snapshot), it is there, and it is no index.
-    const before = method.split('this.vault.replaceText(')[0] ?? '';
-    expect(before).toMatch(/const blocked = this\.whyNotWritable\(active\);\s*if \(blocked \|\| !active\) return /);
-    expect(before).toMatch(/const rel = this\.checkedPath\(active, path, true\);\s*if \(typeof rel !== 'string'\) return rel;/);
-    expect(before).toMatch(/if \(!this\.isSceneNote\(active, rel\) \|\| isInside\(SNAPSHOTS_FOLDER, rel\)\) \{\s*return refused\('invalid-path'/);
-    expect(before).toMatch(/const file = this\.projectFiles\(active\)\.get\(pathKey\(rel\)\);\s*if \(!file\) \{\s*return refused\('missing-file'/);
-    expect(before).toMatch(/if \(this\.projects\.has\(file\.path\)\) \{\s*return refused\('invalid-path'/);
+    for (const method of [restore, replace]) {
+      const before = method.split('this.vault.replaceText(')[0] ?? '';
+      expect(before).toMatch(/const blocked = this\.whyNotWritable\(active\);\s*if \(blocked \|\| !active\) return /);
+      expect(before).toMatch(/const rel = this\.checkedPath\(active, path, true\);\s*if \(typeof rel !== 'string'\) return rel;/);
+      expect(before).toMatch(/if \(!this\.isSceneNote\(active, rel\) \|\| isInside\(SNAPSHOTS_FOLDER, rel\)\) \{\s*return refused\('invalid-path'/);
+      expect(before).toMatch(/const file = this\.projectFiles\(active\)\.get\(pathKey\(rel\)\);\s*if \(!file\) \{\s*return refused\('missing-file'/);
+      expect(before).toMatch(/if \(this\.projects\.has\(file\.path\)\) \{\s*return refused\('invalid-path'/);
+    }
+    // Replacing ticked words decides on the text as it is on disk at the
+    // moment of writing, through one pure routine (src/core/revision/edits.ts):
+    // the text without its properties must still be the one searched, every
+    // change must find its words, and the properties are kept as they are.
+    expect(replace).toMatch(/const next = applyToNote\(current, expectedBody, wanted\);/);
+    expect(replace).toMatch(/return refused\('scene-changed'/);
+    const edits = codeOf(path.join(srcDir, 'core', 'revision', 'edits.ts'));
+    expect(edits).toMatch(/if \(body !== expectedBody\) return null;/);
+    expect(edits).toMatch(/if \(splitBody\(result\)\.head !== head\) return null;/);
     // In the doorway it goes through the same routine as the plugin's own files, for a file that is there.
     const doorway = codeOf(path.join(srcDir, 'obsidian', 'obsidianVault.ts'));
-    const replace = /\n  async replaceText\([\s\S]*?\n  \}\n/.exec(doorway)?.[0] ?? '';
-    expect(replace).toMatch(/return this\.changeText\(this\.requireFile\(path\), /);
-    expect(replace).not.toMatch(/\.create\(/);
-    // A feature reaches it through the store alone, and only the snapshots do.
-    const users = allFiles.filter((file) => /\.\s*replaceSceneText\s*\(/.test(codeOf(file))).map(relative);
-    expect(users).toEqual(['features/snapshots/keeper.ts']);
+    const replaceText = /\n  async replaceText\([\s\S]*?\n  \}\n/.exec(doorway)?.[0] ?? '';
+    expect(replaceText).toMatch(/return this\.changeText\(this\.requireFile\(path\), /);
+    expect(replaceText).not.toMatch(/\.create\(/);
+    // A feature reaches each through the store alone: the snapshots restore,
+    // and the revision tools replace (after a snapshot, through the snapshots' service).
+    const restorers = allFiles.filter((file) => /\.\s*replaceSceneText\s*\(/.test(codeOf(file))).map(relative);
+    expect(restorers).toEqual(['features/snapshots/keeper.ts']);
+    const replacers = allFiles.filter((file) => /\.\s*replaceInSceneBody\s*\(/.test(codeOf(file))).map(relative);
+    expect(replacers).toEqual(['features/revision/keeper.ts']);
+    const keeper = codeOf(path.join(srcDir, 'features', 'revision', 'keeper.ts'));
+    const replaceRun = /\n  async replace\([\s\S]*?\n  \}\n/.exec(keeper)?.[0] ?? '';
+    expect(replaceRun.indexOf('taker.takeNamed(')).toBeGreaterThan(0);
+    expect(replaceRun.indexOf('this.context.store.replaceInSceneBody(')).toBeGreaterThan(replaceRun.indexOf('taker.takeNamed('));
+    expect(replaceRun).toMatch(/if \(snapshot !== null\) \{\s*problems\.push\([^;]*\);\s*continue;\s*\}/);
   });
 
   it('writes and trashes snapshots in one folder only, through the store', () => {
@@ -466,6 +492,7 @@ describe('the whole plugin', () => {
       'features/progress',
       'features/prose',
       'features/report',
+      'features/revision',
       'features/schemes',
       'features/scrivenings',
       'features/snapshots',
@@ -627,6 +654,7 @@ describe('the stylesheet is put together from one file per screen', () => {
       'welcome.css',
       'templates.css',
       'boards.css',
+      'revision.css',
     ]);
     // No stylesheet is left out, and none is listed that is not there.
     expect(readdirSync(stylesDir).filter((name) => name.endsWith('.css')).sort()).toEqual([...STYLE_FILES].sort());
@@ -664,7 +692,7 @@ describe('the stylesheet is put together from one file per screen', () => {
   });
 
   it('gives each screen a stylesheet of its own, so that screens built side by side never share a file', () => {
-    for (const feature of ['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world', 'plotgrid', 'welcome', 'templates', 'boards']) {
+    for (const feature of ['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world', 'plotgrid', 'welcome', 'templates', 'boards', 'revision']) {
       expect(STYLE_FILES, feature).toContain(`${feature}.css`);
     }
   });

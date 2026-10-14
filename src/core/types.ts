@@ -131,7 +131,8 @@ export type RefusalReason =
   | 'not-a-project'
   | 'not-a-copy'
   | 'unreadable-copy'
-  | 'not-found';
+  | 'not-found'
+  | 'scene-changed';
 
 /**
  * What happened to an intent.

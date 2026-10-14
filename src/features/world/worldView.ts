@@ -71,7 +71,7 @@ import {
   typeBadge,
   typeTitle,
 } from './parts';
-import { EntitySheet, OPEN_NOTE_TEXT } from './sheet';
+import { EntitySheet, OPEN_NOTE_TEXT, RENAME_EVERYWHERE_TEXT } from './sheet';
 import { openEntityTypes } from './typesModal';
 
 export const WORLD_VIEW_TYPE = 'spellbook-world';
@@ -612,6 +612,12 @@ export class WorldView extends ItemView {
       item('Rename', WORLD_ICONS.rename, () => {
         this.askRename(entity);
       });
+      const everywhere = this.host.renameEverywhere();
+      if (everywhere !== null) {
+        item(RENAME_EVERYWHERE_TEXT, WORLD_ICONS.rename, () => {
+          everywhere.open(entity.path);
+        });
+      }
       item('Delete', WORLD_ICONS.remove, () => {
         this.askDelete(entity);
       }, true);

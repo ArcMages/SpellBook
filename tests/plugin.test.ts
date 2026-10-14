@@ -220,7 +220,7 @@ describe('loading and unloading', () => {
     expect(plugin.features).toBeNull(); // not before Obsidian has finished starting
 
     fake.finishStartup();
-    expect(plugin.features?.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'modes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world', 'aihelper', 'plotgrid', 'welcome', 'templates', 'boards']);
+    expect(plugin.features?.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'modes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world', 'aihelper', 'plotgrid', 'welcome', 'templates', 'boards', 'revision']);
     // Every screen's kind of pane is known to Obsidian, after the binder's own.
     expect(stub.viewTypes).toEqual([
       'spellbook-binder',
@@ -237,6 +237,7 @@ describe('loading and unloading', () => {
       'spellbook-welcome',
       'spellbook-help',
       'spellbook-boards',
+      'spellbook-revision',
     ]);
     // The outliner, the screen added last, has its command and its ribbon button.
     expect(stub.commands.map((command) => [command.id, command.name])).toContainEqual(['open-outliner', 'Open outliner']);
@@ -255,7 +256,7 @@ describe('loading and unloading', () => {
       ['templates', 'Templates'],
     ]);
     // It watches the editor, has its place in the bottom bar, and listens to the workspace.
-    expect(stub.editorExtensions).toHaveLength(1);
+    expect(stub.editorExtensions).toHaveLength(2); // and the revision tools underline passages with notes
     expect(stub.statusBar.children).toHaveLength(1);
     expect(['file-open', 'layout-change', 'quit'].map((name) => fake.workspace.listenerCount(name))).toEqual([1, 1, 1]);
     // Plugging them in leaves no trace on the device: no id was made for it yet.
@@ -695,8 +696,9 @@ describe('the binder', () => {
   it('is emptied, not removed, when the plugin is switched off, and nothing is left listening', async () => {
     const { fake, plugin, stub, pane, leaf } = await withBinder();
     // The binder's one listener, next to the three of the writing progress
-    // (which note is in front, a tab closing, Obsidian quitting).
-    expect(fake.workspace.listenerCount()).toBe(4);
+    // (which note is in front, a tab closing, Obsidian quitting) and the
+    // revision tools' item in the editor's menu.
+    expect(fake.workspace.listenerCount()).toBe(5);
     expect(fake.workspace.listenerCount('file-open')).toBe(2);
 
     plugin.unload();

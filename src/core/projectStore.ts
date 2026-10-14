@@ -83,6 +83,8 @@ import {
 } from './projectLayout';
 import { BOARDS_FOLDER, BOARD_EXTENSION, readBoard } from './boards/index';
 import { plantSeed } from './projectSeed';
+import { applyToNote } from './revision/edits';
+import type { BodyEdit } from './revision/edits';
 import type { PlantedSeed, ProjectSeed } from './projectSeed';
 import { DEFAULT_SCENE_NAME, newSceneFrontmatter } from './scene';
 import type {
@@ -1778,6 +1780,72 @@ export class ProjectStore {
           return noop('not-found', 'That scene is no longer in the project.');
         }
         return failed(`The text of "${noteTitle(file.rel)}" could not be replaced: ${messageOf(error)}`);
+      }
+      return saved ? done(undefined) : noop('unchanged', 'Nothing needed to change.');
+    }, inProject);
+  }
+
+  /**
+   * Change the text of a scene of the open project in a few exact places:
+   * what "Replace" and "Rename everywhere" do once the writer has ticked the
+   * changes. Beside restoring a snapshot (replaceSceneText), this is the only
+   * place where the plugin changes the text of a note the writer writes in,
+   * and it is narrower still:
+   *  - only a scene is accepted, as for replaceSceneText;
+   *  - nothing is ever created;
+   *  - the scene is read again at the very moment of writing, and changed
+   *    only if its text (without its properties) is still, letter for letter,
+   *    `expectedBody`, the text the search was made on, and every change
+   *    finds the words it expects at its place. Otherwise nothing is changed
+   *    and the request is refused ('scene-changed');
+   *  - only the ticked changes are made, at their places; the properties at
+   *    the top of the note are kept exactly as they are on disk.
+   *
+   * Refused as well for a read-only project and when no project is open.
+   *
+   * @param path         the scene's path relative to the project folder
+   * @param expectedBody the scene's text without its properties, as it was searched
+   * @param edits        the changes, by their places in that text
+   */
+  replaceInSceneBody(
+    path: string,
+    expectedBody: string,
+    edits: readonly BodyEdit[],
+    inProject?: string,
+  ): Promise<IntentResult> {
+    return this.run(async (): Promise<IntentResult> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = this.checkedPath(active, path, true);
+      if (typeof rel !== 'string') return rel;
+      if (!this.isSceneNote(active, rel) || isInside(SNAPSHOTS_FOLDER, rel)) {
+        return refused('invalid-path', `"${path}" is not a scene of this project.`);
+      }
+      const file = this.projectFiles(active).get(pathKey(rel));
+      if (!file) {
+        return refused('missing-file', `"${rel}" has no note in this project (it may still be syncing).`);
+      }
+      if (this.projects.has(file.path)) {
+        return refused('invalid-path', `"${rel}" is a project index, not a scene of this project.`);
+      }
+      const wanted = [...edits];
+      let moved = false;
+      let saved: boolean;
+      try {
+        saved = await this.vault.replaceText(file.path, (current) => {
+          const next = applyToNote(current, expectedBody, wanted);
+          moved = next === null;
+          return next;
+        });
+      } catch (error) {
+        if (error instanceof VaultFileMissingError) {
+          return noop('not-found', 'That scene is no longer in the project.');
+        }
+        return failed(`The text of "${noteTitle(file.rel)}" could not be changed: ${messageOf(error)}`);
+      }
+      if (moved) {
+        return refused('scene-changed', `"${noteTitle(file.rel)}" was changed since the search, so nothing in it was replaced.`);
       }
       return saved ? done(undefined) : noop('unchanged', 'Nothing needed to change.');
     }, inProject);
