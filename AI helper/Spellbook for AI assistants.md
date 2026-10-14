@@ -80,7 +80,7 @@ The index, `To-do.md`, `Manuscript/`, `Timeline/`, `Research/` and `Stats/` are 
 | `Stats/` | Word logs. | Spellbook only. | Read only. Never edit, create, rename or delete. |
 | `World/` | Entities. | The writer and Spellbook. | Read. Add entities, edit their frontmatter. Body as for scenes. |
 | `Snapshots/` | Saved versions of scenes. | Spellbook only. | Read only. Never edit, create, rename or delete. |
-| `Exports/` | Exported files (`.docx`, `.html`, `.md`). | Spellbook only. | Read. Never edit. They are copies, not the manuscript. |
+| `Exports/` | Exported files (`.docx`, `.epub`, `.html`, `.md`). | Spellbook only. | Read. Never edit. They are copies, not the manuscript. |
 | `AI helper/` | This file. | Spellbook only. | Read. |
 
 Spellbook never looks at notes outside project folders. Neither should you, unless the writer asks.
@@ -304,6 +304,8 @@ created: 2026-10-14
 | `label` | text | The name of a label in the index's `labels`. Empty for none. | The scene's coloured label (often the point-of-view character). | Yes. |
 | `target` | whole number | 1 to 10000000. Absent for no target. | The words the scene should come to. | Yes. |
 | `compile` | true or false | `true`, `false`. Absent means true. | Whether the scene is included in an export. | Yes. |
+| `export-page-break` | true or false | `true`, `false`. Absent means false. | In an export, start this scene on a new page (a new file part in an e-book). Ignored for the first scene under a chapter heading, which already starts a page. Not shown in the inspector. | Yes, when asked. |
+| `export-title` | true or false | `true`, `false`. Absent means the export window decides. | In an export, print this scene's title above it (`true`) or never (`false`), whatever the window's "Scene titles" switch says. Not shown in the inspector. | Yes, when asked. |
 | `order` | whole number | Written by Spellbook. | A copy of the scene's place in the binder. See section 4. | **Never.** |
 | `created` | date | `YYYY-MM-DD`. | The day the scene was started. | No. Set it once on a scene you create. |
 | `edited` | date | `YYYY-MM-DD`. | The day the scene was last typed in, in Obsidian. | No. |
@@ -632,9 +634,9 @@ Each device writes its own file for each month, so that two devices never write 
 
 ## 12. Exports
 
-`Exports/` holds files Spellbook made with **Export manuscript**: a Word document (`.docx`), a web page (`.html`) or one Markdown note (`.md`), named with the project's title and the day, for example `My Novel 2026-10-13.docx`. Every export is a new file; none is ever replaced.
+`Exports/` holds files Spellbook made with **Export manuscript**: a Word document (`.docx`), an e-book (`.epub`), a web page (`.html`) or one Markdown note (`.md`), named with the project's title and the day, for example `My Novel 2026-10-13.docx`. Every export is a new file; none is ever replaced.
 
-An export holds the scenes of the binder in order, with folders as chapters, without the scenes whose `compile` is `false`, and without frontmatter or `%%` comments.
+An export holds the scenes of the binder in order, with folders as chapters, without the scenes whose `compile` is `false`, and without frontmatter or `%%` comments. Two scene properties change how a scene goes out: `export-page-break: true` starts it on a new page, and `export-title: true` or `false` prints or hides its title whatever the window says (see section 5). An export may also carry a dedication, an epigraph, acknowledgements and an about-the-author page; the writer types them in the export window or picks a note of the project for each. If the writer asks you to draft one, write it as a note in `Research/` (a heading on its first line becomes the page's title) and tell them to pick it in the window. The window's choices are kept on the device, not in the project.
 
 Exports are **copies**. Editing one changes nothing in the manuscript. If the writer asks you to change the book, change the scenes; if they need a fresh file, ask them to export again. Do not write in `Exports/`.
 
