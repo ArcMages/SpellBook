@@ -6,6 +6,7 @@
 // places are ever changed.
 
 import { formatCount } from '../../core/binderModel';
+import { directionOf } from '../../core/export/direction';
 import { contextOf } from '../../core/revision/index';
 import type { BodyEdit, TextMatch } from '../../core/revision/index';
 import type { SceneMatches, ScenePlan } from './keeper';
@@ -98,8 +99,10 @@ export class TickedResults<M extends TextMatch = TextMatch> {
     this.groups.forEach((group, at) => {
       const scene = into.createDiv({ cls: 'spellbook-revision-result-scene' });
       // A row takes the direction of its own words, so that in a right-to-left
-      // scene the tick stands at their start, on the right, beside them.
-      const head = scene.createEl('label', { cls: 'spellbook-revision-result-head', attr: { dir: 'auto' } });
+      // scene the tick stands at their start, on the right, beside them. The
+      // browser's own "auto" cannot see words inside parts that have a
+      // direction of their own, so the row is told outright.
+      const head = scene.createEl('label', { cls: 'spellbook-revision-result-head', attr: { dir: directionOf(group.scene.title) ?? 'auto' } });
       const all = head.createEl('input', { attr: { type: 'checkbox', 'aria-label': `All places in ${group.scene.title}` } });
       head.createSpan({ cls: 'spellbook-revision-result-title', text: group.scene.title, attr: { dir: 'auto' } });
       const count = head.createSpan({ cls: 'spellbook-revision-result-count' });
@@ -123,7 +126,8 @@ export class TickedResults<M extends TextMatch = TextMatch> {
       group.matches.forEach((match, index) => {
         if (drawn >= MOST_DRAWN) return;
         drawn++;
-        const row = list.createEl('label', { cls: 'spellbook-revision-result', attr: { dir: 'auto' } });
+        const context = contextOf(group.body, match.from, match.to);
+        const row = list.createEl('label', { cls: 'spellbook-revision-result', attr: { dir: directionOf(`${context.before}${context.match}${context.after}`) ?? 'auto' } });
         const box = row.createEl('input', { attr: { type: 'checkbox' } });
         boxes.push(box);
         box.addEventListener('change', () => {
@@ -131,7 +135,6 @@ export class TickedResults<M extends TextMatch = TextMatch> {
           showScene();
           this.onTicked?.();
         });
-        const context = contextOf(group.body, match.from, match.to);
         const line = row.createSpan({ cls: 'spellbook-revision-result-line', attr: { dir: 'auto' } });
         line.createSpan({ text: `${context.cutBefore ? '…' : ''}${context.before}` });
         line.createEl('mark', { cls: 'spellbook-revision-result-match', text: context.match });

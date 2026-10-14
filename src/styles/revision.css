@@ -200,6 +200,10 @@
   color: var(--text-error);
 }
 
+.spellbook-revision {
+  --spellbook-touch-target: 44px;
+}
+
 .spellbook-revision.spellbook-is-mobile .spellbook-revision-button,
 .spellbook-revision.spellbook-is-mobile .spellbook-revision-segment,
 .spellbook-revision.spellbook-is-mobile .spellbook-revision-done {
