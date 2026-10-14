@@ -35,6 +35,7 @@ export const NO_SELECTION_TEXT = 'Select the words the note is about first.';
 export const SCENE_GONE_TEXT = 'That scene is no longer in the project.';
 export const NOTE_GONE_TEXT = 'That note is no longer in the scene. It may have been changed on another device.';
 export const CHANGED_SINCE_TEXT = 'It was changed since the search, so nothing in it was replaced. Search again to see it as it is now.';
+export const OTHER_PROJECT_TEXT = 'Another project was opened meanwhile, so nothing more was changed.';
 export const NO_SNAPSHOTS_TEXT = 'Snapshots are not available, so nothing was replaced: every scene is saved as a snapshot before its words are changed.';
 
 /**
@@ -515,7 +516,7 @@ export class RevisionKeeper {
    *  3. the changes are made through the store, which reads the scene once
    *     more at the very moment of writing and refuses if it changed.
    */
-  async replace(plans: readonly ScenePlan[], snapshotName: string): Promise<ReplaceReport> {
+  async replace(plans: readonly ScenePlan[], snapshotName: string, inProject: string | undefined = this.projectId()): Promise<ReplaceReport> {
     let scenes = 0;
     let changes = 0;
     const problems: Array<{ title: string; message: string }> = [];
@@ -526,6 +527,11 @@ export class RevisionKeeper {
       const title = plan.scene.title;
       if (this.disposed) {
         problems.push({ title, message: NO_PROJECT_TEXT });
+        continue;
+      }
+      // Another project was opened meanwhile: its scenes are not these.
+      if (this.projectId() !== inProject) {
+        problems.push({ title, message: OTHER_PROJECT_TEXT });
         continue;
       }
       const taker = this.context.services.get<SnapshotTaker>(SNAPSHOTS_SERVICE_NAME);
@@ -542,12 +548,17 @@ export class RevisionKeeper {
         problems.push({ title, message: CHANGED_SINCE_TEXT });
         continue;
       }
-      const snapshot = await taker.takeNamed(plan.scene.path, snapshotName);
+      let snapshot: string | null;
+      try {
+        snapshot = await taker.takeNamed(plan.scene.path, snapshotName);
+      } catch (error) {
+        snapshot = error instanceof Error ? error.message : String(error);
+      }
       if (snapshot !== null) {
         problems.push({ title, message: `No snapshot could be taken, so nothing was replaced. ${snapshot}` });
         continue;
       }
-      const result = await this.context.store.replaceInSceneBody(plan.scene.path, plan.body, plan.edits, this.projectId());
+      const result = await this.context.store.replaceInSceneBody(plan.scene.path, plan.body, plan.edits, inProject);
       if (result.status === 'done') {
         scenes++;
         changes += plan.edits.length;
@@ -601,6 +612,8 @@ export class RevisionKeeper {
   async renameEverywhere(entityPath: string, newName: string, keepOldName: boolean, plans: readonly ScenePlan[]): Promise<RenameReport | string> {
     const blocked = this.whyNotWritable();
     if (blocked) return blocked;
+    // Every step is done in this project, even if another is opened meanwhile.
+    const inProject = this.projectId();
     const entity = this.entity(entityPath);
     if (!entity) return 'That entity is no longer in the project.';
     const name = newName.trim();
@@ -622,13 +635,13 @@ export class RevisionKeeper {
           unreadable = change === 'unreadable';
           return change === 'changed';
         },
-        this.projectId(),
+        inProject,
       );
       aliasProblem = unreadable ? 'The old name could not be added to its other names: its "aliases" property holds something else.' : problemOf(result);
     }
 
-    const replaced = await this.replace(plans, `Before rename: ${entity.name} → ${name}`);
-    const renamed = await this.context.store.renameWorldNote(entity.path, name, this.projectId());
+    const replaced = await this.replace(plans, `Before rename: ${entity.name} → ${name}`, inProject);
+    const renamed = await this.context.store.renameWorldNote(entity.path, name, inProject);
     this.emit({ type: 'notes' });
     if (renamed.status !== 'done') {
       const parts = [renamed.message];

@@ -27,6 +27,9 @@ import { isInputMethodKey } from '../../ui/keys';
 import type { RevisionKeeper } from './keeper';
 import { JOINED_TEXT, TickedResults, changesText } from './results';
 import { reportText } from './reports';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
+
+const STOPPED_TEXT = 'The replace stopped part way. Search again to see what was changed; each changed scene has a snapshot.';
 
 export const FIND_TITLE = 'Find and replace';
 export const FIND_LABEL = 'Find';
@@ -228,6 +231,10 @@ export class FindReplaceModal extends Modal {
       this.busy = false;
       await this.search();
       this.say(text);
+    } catch (error) {
+      console.error('Spellbook: the replace stopped', error);
+      new Notice(STOPPED_TEXT, PROBLEM_NOTICE_MS);
+      if (!this.closed) this.say(STOPPED_TEXT);
     } finally {
       this.busy = false;
       this.showButton();
