@@ -549,6 +549,13 @@
   margin-block-start: var(--size-4-3);
 }
 
+.spellbook-world-aliases-hint {
+  padding-inline: var(--size-2-3);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-align: start;
+}
+
 .spellbook-world-aliases-list {
   display: flex;
   flex-wrap: wrap;
@@ -591,8 +598,13 @@
 }
 
 .spellbook-world-detail .spellbook-world-alias-add {
+  min-width: 10em;
   border-style: dashed;
-  border-color: var(--background-modifier-border);
+  border-color: var(--interactive-accent);
+}
+
+.spellbook-world-detail .spellbook-world-alias-add::placeholder {
+  color: var(--text-accent);
 }
 
 .spellbook-world-detail .spellbook-world-alias-add:focus {

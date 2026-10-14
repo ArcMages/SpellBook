@@ -12,7 +12,7 @@ import { ImagePickerModal, NO_IMAGES_TEXT } from '../../../src/features/world/im
 import { NOT_AN_ENTITY_TEXT } from '../../../src/features/world/index';
 import { NO_PICTURE_CLASS, NO_PROJECT_TEXT } from '../../../src/features/world/parts';
 import { RelationPickerModal } from '../../../src/features/world/relationModal';
-import { fittedHeight } from '../../../src/features/world/sheet';
+import { ADD_ALIAS_PLACEHOLDER, ALIASES_HEADING, ALIASES_HINT, fittedHeight } from '../../../src/features/world/sheet';
 import { MemoryVault } from '../../memoryVault';
 import { Menu as StubMenu, Modal as StubModal, Notice as StubNotice, Platform, resetFakeDocument, resetPlatform } from '../../obsidianStub';
 import type { FakeElement } from '../../obsidianStub';
@@ -412,6 +412,40 @@ describe('changing a field on the sheet', () => {
 });
 
 describe('the other names on the sheet', () => {
+  /** The classes of the sheet's parts, top to bottom. */
+  const partsOf = (sheet: FakeElement): string[] => sheet.children.map((child) => [...child.classes].join(' '));
+
+  it('stand under the name and the picture, before the summary and the fields, for every type, with a hint and a box to add a nickname', async () => {
+    const s = await stage();
+    for (const name of ['Mara', 'Saltwick', 'Lamp']) {
+      const { sheet } = await sheetOf(s, name);
+      const parts = partsOf(sheet());
+      const at = (cls: string): number => parts.findIndex((part) => part.split(' ').includes(cls));
+      expect(at('spellbook-world-detail-head'), name).toBe(0);
+      expect(at('spellbook-world-sheet-hero'), name).toBe(1);
+      expect(at('spellbook-world-aliases'), name).toBe(2);
+      expect(at('spellbook-world-detail-summary'), name).toBeGreaterThan(2);
+      expect(one(sheet(), 'spellbook-world-aliases-head').text).toBe(ALIASES_HEADING);
+      expect(one(sheet(), 'spellbook-world-aliases-hint').text).toBe(ALIASES_HINT);
+      expect(one(sheet(), 'spellbook-world-alias-add').getAttr('placeholder')).toBe('Add a nickname');
+    }
+  });
+
+  it('are on the sheet on a phone too, ready to take a nickname', async () => {
+    Platform.isMobile = true;
+    Platform.isPhone = true;
+    const s = await stage();
+    const { sheet, root } = await sheetOf(s, 'Mara', 380);
+    expect(root.hasClass('spellbook-world-narrow')).toBe(true);
+    expect(one(sheet(), 'spellbook-world-aliases-head').text).toBe(ALIASES_HEADING);
+    expect(one(sheet(), 'spellbook-world-aliases-hint').text).toBe(ALIASES_HINT);
+    const add = one(sheet(), 'spellbook-world-alias-add');
+    expect(add.getAttr('placeholder')).toBe(ADD_ALIAS_PLACEHOLDER);
+    await fill(s, add, 'Mo');
+    expect(s.vault.frontmatterOf(inNovel(MARA))?.['aliases']).toEqual(['the keeper', 'Mo']);
+    expect(aliasesOn(sheet())).toEqual(['the keeper', 'Mo']);
+  });
+
   const MARA_BODY = '## Description\n\nHer story so far.\n';
   const namesOf = (s: Wired, path = MARA): unknown => s.vault.frontmatterOf(inNovel(path))?.['aliases'];
   const addBox = (sheet: FakeElement): FakeElement => one(sheet, 'spellbook-world-alias-add');
@@ -419,7 +453,7 @@ describe('the other names on the sheet', () => {
   it('adds a name from the box at the end, as one more entry of the note\'s "aliases" list and nothing else', async () => {
     const s = await stage();
     const { sheet } = await sheetOf(s, 'Mara');
-    expect(one(sheet(), 'spellbook-world-aliases-head').text).toBe('Other names');
+    expect(one(sheet(), 'spellbook-world-aliases-head').text).toBe('Nicknames and other names');
     const before = { ...s.vault.frontmatterOf(inNovel(MARA)) };
     await fill(s, addBox(sheet()), '  Mara   of the light ');
     expect(s.vault.writes).toEqual([{ op: 'updateFrontmatter', path: inNovel(MARA) }]);
@@ -439,7 +473,7 @@ describe('the other names on the sheet', () => {
     const name = one(one(sheet(), 'spellbook-world-alias'), 'spellbook-world-alias-box');
     expect(name.value).toBe('המנורה');
     expect(name.getAttr('dir')).toBe('auto');
-    expect(name.getAttr('aria-label')).toBe('Other name: המנורה');
+    expect(name.getAttr('aria-label')).toBe('Nickname or other name: המנורה');
   });
 
   it('changes a name in its own box, on Enter or when the box is left; Escape puts back what the note says', async () => {

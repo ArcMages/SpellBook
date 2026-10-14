@@ -6,9 +6,10 @@
 //   head     the button that leads back, and the name
 //   hero     the picture (or the type's icon), the type, "Open note",
 //            "Choose picture" and "Remove picture"
-//   names    the other names it goes by (Obsidian's "aliases"): each in a
-//            box of its own to be changed, with a button that takes it
-//            away, and a box to add one more
+//   names    "Nicknames and other names", the names it goes by besides its
+//            own (Obsidian's "aliases"), straight under the picture for
+//            every type: each in a box of its own to be changed, with a
+//            button that takes it away, and a box to add one more
 //   form     the summary, then the fields of the type and whatever else the
 //            writer added to the note, each to be changed in place
 //   rest     "Time": when it begins and ends, and its moments (timePart.ts);
@@ -47,10 +48,11 @@ export const BACK_LABEL = 'Back to the list';
 export const CLOSE_LABEL = 'Close the sheet';
 export const CHOOSE_PICTURE_TEXT = 'Choose picture';
 export const REMOVE_PICTURE_TEXT = 'Remove picture';
-export const ALIASES_HEADING = 'Other names';
-export const ALIAS_LABEL = 'Other name';
-export const ADD_ALIAS_PLACEHOLDER = 'Add a name';
-export const ADD_ALIAS_LABEL = 'Add another name';
+export const ALIASES_HEADING = 'Nicknames and other names';
+export const ALIASES_HINT = 'Spellbook finds these in your scenes too.';
+export const ALIAS_LABEL = 'Nickname or other name';
+export const ADD_ALIAS_PLACEHOLDER = 'Add a nickname';
+export const ADD_ALIAS_LABEL = 'Add a nickname or other name';
 export const REMOVE_ALIAS_LABEL = 'Remove the name';
 /** What "the box being typed in" is called while it is one of the other names, or the box that adds one. */
 const TYPING_ALIAS = '\u0000alias';
@@ -261,6 +263,7 @@ export class EntitySheet {
   private buildAliases(detail: HTMLElement, entityPath: string): AliasParts {
     const into = detail.createDiv({ cls: 'spellbook-world-aliases', attr: { role: 'group', 'aria-label': ALIASES_HEADING } });
     into.createDiv({ cls: 'spellbook-world-aliases-head', text: ALIASES_HEADING });
+    into.createDiv({ cls: 'spellbook-world-aliases-hint', text: ALIASES_HINT });
     const row = into.createDiv({ cls: 'spellbook-world-aliases-list' });
     const list = row.createSpan({ cls: 'spellbook-world-aliases-names', attr: { role: 'list' } });
     const add = row.createEl('input', {

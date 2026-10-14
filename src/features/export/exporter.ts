@@ -19,6 +19,7 @@ import {
   MAX_NAME_TRIES,
   buildManuscript,
   exportFileName,
+  guessBookLanguage,
   isCoverPath,
   readExportOptions,
   readSceneExportChoices,
@@ -31,10 +32,10 @@ import {
   toMarkdown,
   utf8,
 } from '../../core/export';
-import type { EpubCover, ExportFormat, ExportOptions, Manuscript, MatterKind, SceneSource, ScopeChoice } from '../../core/export';
+import type { BookLanguage, EpubCover, ExportFormat, ExportOptions, Manuscript, MatterKind, SceneSource, ScopeChoice } from '../../core/export';
 import { isInside, joinPath, noteTitle, pathKey } from '../../core/paths';
 import { AI_HELPER_FOLDER, EXPORTS_FOLDER, SNAPSHOTS_FOLDER, STATS_FOLDER } from '../../core/projectLayout';
-import type { Frontmatter } from '../../core/types';
+import type { Frontmatter, TreeNode } from '../../core/types';
 import { showInFileList } from '../../obsidian/fileList';
 import type { FeatureContext } from '../registry';
 
@@ -131,8 +132,8 @@ export class Exporter {
   /**
    * The choices to start from: those of the last export of this project on
    * this device. A project not exported here before starts from the last
-   * export of any project, without its folder, cover and pages before and
-   * after the text, and with the author from the project's own "author"
+   * export of any project, without its folder, cover, pages before and
+   * after the text and headings, and with the author from the project's own "author"
    * property when it has one. A folder, a cover or a note that is no longer
    * there is forgotten.
    */
@@ -150,7 +151,7 @@ export class Exporter {
         const stored = this.context.storage.load(OPTIONS_KEY);
         known = stored !== null && stored !== undefined;
         const last = readExportOptions(stored);
-        saved = { ...last, scope: null, cover: null, matter: DEFAULT_EXPORT_OPTIONS.matter };
+        saved = { ...last, scope: null, cover: null, matter: DEFAULT_EXPORT_OPTIONS.matter, headings: DEFAULT_EXPORT_OPTIONS.headings };
       }
     } catch {
       // A storage that fails is ignored: the export starts from the defaults.
@@ -209,6 +210,27 @@ export class Exporter {
       .projectNotes()
       .filter((note) => !own.some((folder) => isInside(folder, note.path)))
       .map((note) => ({ path: note.path, title: noteTitle(note.path) }));
+  }
+
+  /**
+   * The language the book's usual headings are likely in, guessed from the
+   * names of the project, its chapters and its scenes. Reads no files: the
+   * export itself decides from the text.
+   */
+  language(): BookLanguage {
+    const project = this.context.store.project;
+    if (!project) return 'en';
+    const names: string[] = [project.title];
+    const walk = (nodes: readonly TreeNode[]): void => {
+      for (const node of nodes) {
+        if (node.kind === 'folder') {
+          names.push(node.name);
+          walk(node.children);
+        } else names.push(node.title);
+      }
+    };
+    walk(project.tree);
+    return guessBookLanguage(names);
   }
 
   /** The choices of every project, as they were saved on this device. */

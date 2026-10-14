@@ -604,7 +604,7 @@ Tap a card, anywhere on it, its name included, to open the entity's sheet; the n
 The sheet is one entity laid out to read and to fill in. It opens beside the list in a wide pane. The command **Open entity sheet** opens the sheet of the entity whose note is open in the editor.
 
 - **Picture.** **Choose picture** lists the image files in your vault; tap one. **Remove picture** takes it off again. The picture file itself is never moved or changed. An entity without a picture shows its type's icon.
-- **Other names.** See below.
+- **Nicknames and other names.** Straight under the picture, for every type. See below.
 - **Summary and fields.** Type in a field and press Enter, or tap elsewhere, to save it. Each field is one property of the note; the note's text is never touched. A property that holds a list is shown but is changed in the note itself.
 - **Open note** opens the note, where you write as much as you like under its headings.
 - **Related.** Press **Add**, type how the two have to do with each other ("sister", "keeps", "born there"; you may leave it empty), and tap the other entity. Relations are grouped by type. Each has a button to change its label and one to remove it. A relation is written in one note only; the other entity's sheet shows it by itself under **Mentioned by**.
@@ -618,7 +618,7 @@ The sheet is one entity laid out to read and to fill in. It opens beside the lis
 
 *The sheet of a legend: its kind, its period, who tells it, and the scenes and events it touches.*
 
-**Other names.** Under the picture, **Other names** lists the other names the entity goes by, each in a small box of its own. Type in **Add a name** and press Enter, or tap elsewhere, to add one; tap a name to change it; press the button beside a name, or empty its box, to remove it. They are saved as Obsidian's own `aliases` property of the note, as a list, so Obsidian's links and search know them as well, and "Find mentions" looks for them too. A Hebrew name reads right to left in its box.
+**Nicknames and other names.** Straight under the name and the picture, before the summary and the fields, **Nicknames and other names** lists what else the entity is called: a character's nickname, a title, a short name, the name in another language. It is there for every type, on a phone as well. Each name is in a small box of its own. Type in **Add a nickname** and press Enter, or tap elsewhere, to add one; tap a name to change it; press the button beside a name, or empty its box, to remove it. They are saved as Obsidian's own `aliases` property of the note, as a list, so Obsidian's links and search know them as well, and "Find mentions" looks for them too. A Hebrew name reads right to left in its box.
 
 **Linking to scenes and events.** In the [inspector](#inspector), under **In this scene**, press **Add**. On the timeline, use **Entities** in an event's menu.
 
@@ -767,8 +767,9 @@ Command **Board: around this entity** (for the World entry open in the editor, o
 - **Author**, and switches for **Title page**, **Line at the top of each page**, **List of contents** and **Scene titles**.
 - **Paper**: A4 or US Letter.
 - **Front and back matter** (folded away; tap to open): a **Dedication**, an **Epigraph**, **Acknowledgements** and **About the author**. For each, choose **None**, **Write it here** (a box to type in) or **From a note** (any note of the project, for example one in Research). The dedication and the epigraph come after the title page, each on a page of its own; the acknowledgements and about the author come at the end, with headings. A heading on the first line of the text (`# With thanks`) becomes the page's heading; otherwise the acknowledgements are headed "Acknowledgements" and about the author "About the Author", or their Hebrew words in a Hebrew book. In an e-book each is a part of its own; in Markdown the epigraph is a quote.
+- **Headings** (folded away; tap to open): the headings the book writes by itself, each in a box of its own: **List of contents**, **Dedication**, **Epigraph**, **Acknowledgements** and **About the author**, and for an e-book also **Cover**, **Title page** and **Start of the text**, the entries of an e-book reader's menu. An empty box keeps the usual word, shown in grey, in the language of the book (English, or Hebrew for a Hebrew book). Type your own to use it instead, for example a different wording of "About the Author". A dedication and an epigraph have no heading unless you type one here. A heading on the first line of a page's own text still comes first.
 
-The window remembers your last choices for each project, on this device, typed front and back matter included.
+The window remembers your last choices for each project, on this device, typed front and back matter and headings included.
 
 **Per-scene choices.** Two scene properties change how one scene goes out. The inspector does not show them: add them in Obsidian's properties of the scene note.
 

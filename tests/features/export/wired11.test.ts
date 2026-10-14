@@ -4,11 +4,11 @@
 // real feature runs on a vault in memory (stage.ts).
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { fromUtf8, unzipStored } from '../../../src/core/export';
-import { MATTER_HEADING, NO_COVER_TEXT } from '../../../src/features/export/exportModal';
+import { BOOK_WORDS, fromUtf8, unzipStored } from '../../../src/core/export';
+import { HEADINGS_HEADING, HEADING_NAMES, MATTER_HEADING, NO_COVER_TEXT, NO_HEADING_TEXT } from '../../../src/features/export/exportModal';
 import { PROJECT_OPTIONS_KEY } from '../../../src/features/export/exporter';
 import { Modal as StubModal, Notice as StubNotice, resetPlatform } from '../../obsidianStub';
-import type { DropdownComponent, FakeElement, Setting } from '../../obsidianStub';
+import type { DropdownComponent, FakeElement, Setting, TextComponent } from '../../obsidianStub';
 import { TODAY } from '../../storeHarness';
 import {
   CLOSING,
@@ -193,6 +193,60 @@ describe('the pages before and after the text', () => {
     expect(deepDropdown(again, 'Dedication').getValue()).toBe('typed');
     expect((again.content.withClass('spellbook-export-matter-text')[0] as FakeElement).value).toBe('לאחותי');
     expect(deepDropdown(again, 'Note').getValue()).toBe('Research/Thanks.md');
+  });
+});
+
+describe('the book\'s own headings', () => {
+  /** The box for one heading, inside the folded Headings section. */
+  function headingBox(window: Window, key: keyof typeof HEADING_NAMES): TextComponent {
+    const section = window.content.withClass('spellbook-export-headings')[0] as FakeElement;
+    const found = section.all().flatMap((element: FakeElement) => element.settings).find((setting) => setting.nameEl.text === HEADING_NAMES[key]);
+    if (!found) throw new Error(`no heading box for "${key}"`);
+    return found.components[0] as TextComponent;
+  }
+
+  it('are folded away, show the usual words, and what the writer types goes into the book and is remembered for the project', async () => {
+    const stage = await wire();
+    const window = openWindow(stage);
+    const section = window.content.withClass('spellbook-export-headings')[0] as FakeElement & { open?: boolean };
+    expect(section.children[0]?.text).toBe(HEADINGS_HEADING);
+    expect(section.open).toBe(false);
+    // An English project: the usual English words, shown in grey in empty boxes.
+    expect(headingBox(window, 'about').inputEl.getAttr('placeholder')).toBe(BOOK_WORDS.en.about);
+    expect(headingBox(window, 'contents').inputEl.getAttr('placeholder')).toBe(BOOK_WORDS.en.contents);
+    expect(headingBox(window, 'dedication').inputEl.getAttr('placeholder')).toBe(NO_HEADING_TEXT);
+    expect(headingBox(window, 'about').inputEl.getAttr('dir')).toBe('auto');
+    // The e-book's menu entries only for an e-book.
+    expect(() => headingBox(window, 'start')).toThrow();
+    dropdown(window, 'Format').choose('epub');
+    expect(headingBox(window, 'start').inputEl.getAttr('placeholder')).toBe(BOOK_WORDS.en.start);
+
+    dropdown(window, 'Format').choose('html');
+    if (!toggle(window, 'List of contents').getValue()) toggle(window, 'List of contents').flip();
+    headingBox(window, 'contents').type('  The Chapters ');
+    headingBox(window, 'acknowledgements').type('With thanks');
+    deepDropdown(window, 'Acknowledgements').choose('typed');
+    const area = window.content.withClass('spellbook-export-matter-text')[0] as FakeElement;
+    area.value = 'To the harbour master.';
+    area.dispatch('input');
+    const path = await exportNow(stage, window);
+    const html = await stage.vault.readText(path);
+    expect(html).toContain('>The Chapters</h2>');
+    expect(html).toContain('With thanks');
+    expect(html).not.toContain('Acknowledgements');
+
+    // Remembered for this project, with the count on the folded heading.
+    const again = openWindow(stage);
+    expect(headingBox(again, 'contents').getValue()).toBe('The Chapters');
+    expect(headingBox(again, 'about').getValue()).toBe('');
+    expect((again.content.withClass('spellbook-export-headings')[0] as FakeElement).children[0]?.text).toBe(`${HEADINGS_HEADING} (2)`);
+    // Emptying a box brings back the usual word.
+    headingBox(again, 'contents').type('');
+    expect(headingBox(again, 'contents').inputEl.getAttr('placeholder')).toBe(BOOK_WORDS.en.contents);
+
+    // Another project does not take this one's headings.
+    expect((await stage.store.openProject(SECOND_INDEX)).status).toBe('done');
+    expect(headingBox(openWindow(stage), 'contents').getValue()).toBe('');
   });
 });
 
