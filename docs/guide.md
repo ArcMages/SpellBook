@@ -591,7 +591,7 @@ At the top of the screen:
 
 - **New**, and the button for **Entity types**.
 
-Tap a card to open the entity's sheet; the number of scenes on the card does the same. Tap the entity's name on the card to open its note instead (on a computer the name shows as a link under the pointer). In the list it is the same: tap a row to open the sheet, tap the name to open the note. With a keyboard, Enter on a card or a row opens the sheet. Each card has a menu: **Open note**, **Open note in new tab**, **Open sheet**, **Rename**, **Delete** (to the trash).
+Tap a card, anywhere on it, its name included, to open the entity's sheet; the number of scenes on the card does the same. In the list it is the same: tap a row to open the sheet. The sheet's **Open note** opens the note itself. On a computer, Cmd-click (Ctrl-click on Windows and Linux) or a middle click on a card or a row opens the note in a new tab. With a keyboard, Enter on a card or a row opens the sheet. Each card has a menu: **Open note**, **Open note in new tab**, **Open sheet**, **Rename**, **Delete** (to the trash).
 
 ### The entity sheet
 

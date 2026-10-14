@@ -208,7 +208,7 @@ describe('the browser', () => {
     expect(groupsOf(pane)).toEqual([['Factions', '0', []]]);
   });
 
-  it('shows the sheet on a tap of the card or Enter on it, and opens the note on a tap of the name', async () => {
+  it('shows the sheet on a tap of the card, its name included, or Enter on it; the note opens in a new tab with the usual key or the middle button', async () => {
     const s = await stage();
     const { pane } = await openWorld(s);
     const shown = (): string | null => pane.withClass('spellbook-world-detail-name')[0]?.text ?? null;
@@ -223,29 +223,41 @@ describe('the browser', () => {
     // No button "Sheet" any more: the card is the button.
     expect(pane.withClass('spellbook-world-card-sheet')).toEqual([]);
 
-    // The name: the note, and the sheet stays as it was.
+    // The name is part of the card: a tap on it shows the sheet too, and opens no note.
     const name = one(cardNamed(pane, 'Saltwick'), 'spellbook-world-card-name');
-    expect(name.tag).toBe('button');
+    expect(name.tag).not.toBe('button');
     expect(name.getAttr('dir')).toBe('auto');
-    expect(name.getAttr('aria-label')).toBe('Open note: Saltwick');
     name.fire('click');
     await calm(s);
-    expect(s.opened).toEqual([{ path: inNovel(SALTWICK), where: false }]);
-    expect(shown()).toBe(MARA_HE);
-    // Enter on the name is the name's own: the card does not show the sheet as well.
-    one(cardNamed(pane, 'Saltwick'), 'spellbook-world-card-name').fire('keydown', { key: 'Enter' });
-    expect(shown()).toBe(MARA_HE);
+    expect(shown()).toBe('Saltwick');
+    expect(s.opened).toEqual([]);
 
-    // With the usual key held, either opens the note in a new tab.
+    // With the usual key held, or with the middle button, the note opens in a new tab; the sheet stays as it was.
     cardNamed(pane, 'Lamp').fire('click', { metaKey: true });
     one(cardNamed(pane, 'Mara'), 'spellbook-world-card-name').fire('click', { metaKey: true });
+    let prevented = 0;
+    cardNamed(pane, 'Mara').fire('auxclick', { button: 1, preventDefault: () => prevented++ });
+    cardNamed(pane, 'Mara').fire('auxclick', { button: 2 }); // the right button: not ours
     await calm(s);
-    expect(s.opened.slice(1)).toEqual([
+    expect(s.opened).toEqual([
       { path: inNovel(LAMP), where: 'tab' },
       { path: inNovel(MARA), where: 'tab' },
+      { path: inNovel(MARA), where: 'tab' },
     ]);
-    expect(shown()).toBe(MARA_HE);
+    expect(prevented).toBe(1);
+    expect(shown()).toBe('Saltwick');
     expect(s.vault.writes).toEqual([]);
+  });
+
+  it('shows the sheet on a tap of a card on a phone, as a page of its own', async () => {
+    Platform.isMobile = true;
+    Platform.isPhone = true;
+    const s = await stage();
+    const { pane } = await openWorld(s);
+    one(cardNamed(pane, 'Mara'), 'spellbook-world-card-name').fire('click');
+    await calm(s);
+    expect(pane.withClass('spellbook-world-detail-name')[0]?.text).toBe('Mara');
+    expect(s.opened).toEqual([]);
   });
 
   it('says so when no project is open, and when the world is still empty', async () => {
