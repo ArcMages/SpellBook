@@ -1,6 +1,6 @@
 # Spellbook user guide
 
-This guide explains every screen and tool of Spellbook, a plugin for Obsidian for planning and writing novels. It describes version 0.9.0.
+This guide explains every screen and tool of Spellbook, a plugin for Obsidian for planning and writing novels. It describes version 0.10.0.
 
 This is the reference: one section per screen. If you are new to Spellbook, start with the [tutorial](tutorial.md), which walks through a first novel step by step. To change colours, keys, bars and lists, see [Making Spellbook your own](customising.md).
 
@@ -21,11 +21,14 @@ Other pages:
 In this guide:
 
 - [Getting started](#getting-started)
+- [Welcome and help](#welcome-and-help)
+- [Templates](#templates)
 - [Binder](#binder)
 - [Corkboard](#corkboard)
 - [Inspector](#inspector)
 - [Statuses and labels](#statuses-and-labels)
 - [Outliner](#outliner)
+- [Plot grid](#plot-grid)
 - [Novel view](#novel-view)
 - [Writing modes](#writing-modes)
 - [Prose checks](#prose-checks)
@@ -37,6 +40,7 @@ In this guide:
 - [Timeline](#timeline)
 - [Story calendar](#story-calendar)
 - [World](#world)
+- [Idea boards](#idea-boards)
 - [Snapshots](#snapshots)
 - [Export](#export)
 - [For AI assistants](#for-ai-assistants)
@@ -48,17 +52,7 @@ In this guide:
 
 ## Getting started
 
-### The welcome page
-
-The first time Spellbook runs on a device whose vault has no Spellbook project, it opens a page called **Welcome to Spellbook**. It says in a paragraph what Spellbook is and offers three ways to begin: **Try the sample novel**, **Start my own project** and **Read the tutorial**. Under them, **Show me around** starts a short tour, **Help** opens the Help pane, and **Where things are** lists the main screens with the command that opens each.
-
-It opens once per device, and never on a device whose vault already holds a project. On a phone or tablet it waits until Obsidian has finished reading the vault. To see it again, run **Open welcome page**, or press **Show** next to "Show the welcome page again" in Spellbook's settings.
-
-**Show me around** opens the binder and the inspector (not on a phone), then puts a small bubble next to each of the binder, the inspector, the bottom bar (on a phone, the word figures at the top of the inspector), the ribbon buttons and the command palette in turn, with **Back**, **Next** and **Done**. A part that is not on the screen is passed over. Press **Done** or Escape to end it; nothing is left behind.
-
-**Help** (also the command **Help**) lists the tutorial's steps in short, every Spellbook command with what it does, and the web addresses of this guide and the tutorial, as text to copy. Spellbook never opens them itself.
-
-After an update, a short note **What is new in** the new version shows once, with what changed. It is bundled in the plugin; nothing is fetched. Turn it off with "Show what is new after updates" in Spellbook's settings, and read it again with the command **Show what is new**.
+The first time Spellbook runs on a device whose vault has no Spellbook project, it opens a page called **Welcome to Spellbook** with buttons for the two ways to begin described here. See [Welcome and help](#welcome-and-help).
 
 ### Try the sample project
 
@@ -69,13 +63,91 @@ Run the command **Create sample project**. Spellbook makes a folder called "Samp
 1. Run the command **Create project**.
 2. In the window, type a **Name**. The project gets its own folder with this name.
 3. Choose a **Location**: the folder to create the project in.
-4. Press **Create**.
+4. Choose a **Structure** if you like (see [Templates](#templates)). **Blank**, the first choice, gives one empty scene.
+5. Press **Create**.
 
-Spellbook makes the folder with a first scene in it, and opens that scene. To see the project as a tree, open the binder with the command **Open binder** or the ribbon button "Open Spellbook binder".
+Spellbook makes the folder with its first scene, or with the folders and scenes of the structure you chose, and opens the first scene. To see the project as a tree, open the binder with the command **Open binder** or the ribbon button "Open Spellbook binder".
 
 A vault can hold several projects. One of them is "the open project" on each device, and every screen shows that one. Switch between them from the project's name at the top of the binder.
 
 Loading the plugin changes nothing in your vault. Notes are only made when you run a command.
+
+## Welcome and help
+
+**What it is for.** A first page for someone who has just switched Spellbook on, a short tour of the screen, and a help pane that lists every command, all without leaving Obsidian.
+
+### The welcome page
+
+![The welcome page, with three ways to begin, the buttons "Show me around" and "Help", and the list "Where things are"](images/welcome.png)
+
+*The welcome page: three ways to begin, then the main screens with the command that opens each.*
+
+**How to open it.** It opens by itself the first time Spellbook runs on a device whose vault has no Spellbook project: once per device, and never on a device whose vault already holds a project. On a phone or tablet it waits until Obsidian has finished reading the vault. To see it again, run **Open welcome page**, or press **Show** next to "Show the welcome page again" in Spellbook's settings.
+
+**What you can do.** The page says in a paragraph what Spellbook is and offers three ways to begin: **Try the sample novel**, **Start my own project** and **Read the tutorial**. Under them, **Show me around** starts the tour and **Help** opens the Help pane. **Where things are** lists the main screens, each with the name of the command that opens it, to type in the command palette.
+
+### The tour
+
+![The tour's first bubble, "1 of 5", pointing at the binder, with the buttons Back, Next and Done](images/tour.png)
+
+*The tour: a small bubble next to each main part of the screen in turn, here the binder.*
+
+**How to open it.** **Show me around** on the welcome page, or the command **Show me around**.
+
+**What it does.** It opens the binder and the inspector (not on a phone), then puts a small bubble next to each of the binder, the inspector, the bottom bar (on a phone, the word figures at the top of the inspector), the ribbon buttons and the command palette in turn, with **Back**, **Next** and **Done**. A part that is not on the screen is passed over. Press **Done** or Escape to end it; nothing is left behind.
+
+### The Help pane
+
+![The "Spellbook help" pane, with the tutorial's steps in short](images/help.png)
+
+*The Help pane: the tutorial in short, then every command, then the addresses of the guide and the tutorial.*
+
+**How to open it.** **Help** on the welcome page, or the command **Help**. It opens as a tab called "Spellbook help".
+
+**What is in it.** **Open the welcome page**; **The tutorial in short**, the tutorial's steps in a line each; **Every command**, with what each does; and **The full guide**, the web addresses of this guide and the tutorial with a **Copy** button each. Spellbook never opens them itself: paste an address into your browser.
+
+### What is new
+
+After an update, a short note **What is new in** the new version shows once, with what changed. It is bundled in the plugin; nothing is fetched. Turn it off with "Show what is new after updates" in Spellbook's settings, and read it again with the command **Show what is new**.
+
+**On a phone.** The tour does not open the sidebars, and points at the word figures at the top of the inspector instead of the bottom bar. The command palette opens with a swipe down.
+
+**Limits.** Whether the welcome page and the note after an update have been shown is remembered on each device separately. The Help pane lists the commands of the version you have; the addresses lead to the newest guide online, which may describe a later version.
+
+## Templates
+
+![The "Create project" window with "The hero's journey" chosen under Structure, and the list of folders and scenes it will make](images/create-project-structures.png)
+
+*Choosing a structure in the "Create project" window: the list below shows the folders and scenes it will make.*
+
+**What it is for.** Not starting from nothing. A new project can start from a ready-made structure or from the shape of a project of your own, and a new scene or World entry can start from a template note.
+
+**Structures for a new project.** In the **Create project** window, **Structure** offers:
+
+| Structure | What it makes |
+| --- | --- |
+| **Blank** | One empty scene. |
+| **Three acts** | Three folders (setup, struggle, resolution) with ten scenes. |
+| **A fifteen-beat outline** | Three folders (Beginning, Middle, End) with fifteen scenes. |
+| **The hero's journey** | Three folders (Leaving, The unknown, Coming home) with twelve scenes. |
+| **Chapter by chapter** | One folder per chapter, each with a first scene. It asks how many **Chapters** (12 to begin with, at most 100). |
+
+Each scene of a structure comes with a title and a synopsis that says what it is for; the scenes themselves are empty. Under the choice, the window lists the folders and scenes it will make. Project templates you saved yourself are offered in the same list, after the structures.
+
+**Templates for new scenes and World entries.**
+
+- **Save scene as template** (command, offered while a scene of the open project is in the editor) saves the scene's properties and text as a template. Give it a name and press **Save**. It goes in the project's `Templates/Scenes` folder.
+- **Save as World template** does the same for the World entry in the editor. It goes in `Templates/World/` and the folder of the entry's type, and is offered for new entries of that type.
+- From then on, the **New scene** window has a **Start from** list: **Empty scene** or one of your templates. **New character** and the other World commands have the same list: **Plain** or one of the type's templates.
+- You can also write a template by hand: any note in those folders is one. In a template, `{{title}}` is replaced by the name of the new scene or entry, `{{date}}` by today's date (year-month-day) and `{{project}}` by the project's title. Any other word in double braces is left as it is.
+
+**Templates for new projects.** **Save project as template** (command, offered while a project is open) opens a window with a **Name** (what "Create project" will call it), a **Description** (one line), and the switch **Include the text of the scenes**. Off, only the binder's folders and each scene's title and synopsis are saved. Press **Save**. The template is one note in the folder "Spellbook templates" at the top of the vault, and **Create project** offers it from then on, in this vault, in every project.
+
+**The list of templates.** In Spellbook's settings, the section **Templates** lists **In this project** (the scene and World templates) and **For new projects**, each with **Open** and **Delete**. Delete asks first and moves the template's note to the trash; scenes, entries and projects made from it are not changed.
+
+**On a phone.** It works the same. The **Create project** window lists the structure's folders and scenes in a box that scrolls.
+
+**Limits.** Saving a template never replaces a note: a name already in use is refused. A template note is not a scene and not a World entry; it has no place in the binder, is not exported, and its words are not counted. The project templates' folder is the one thing Spellbook writes outside a project folder, and only when you run "Save project as template".
 
 ## Binder
 
@@ -194,6 +266,44 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 **On a phone.** A narrow pane shows a shorter list of columns. Long-press a row to pick it up; "Move up" and "Move down" do the same.
 
 **Limits.** Tags come from a note's properties, not from #tags written in the text. Columns, sorting and filters are remembered on each device separately.
+
+## Plot grid
+
+![The plot grid: scenes down the side, characters across the top, a tick where each appears and grey stretches where one goes missing](images/plot-grid.png)
+
+*The plot grid with a column for each character: a tick where the character is in the scene, and a grey stretch where one has been missing for a while.*
+
+**What it is for.** Seeing which scene carries which plotline, and where a plotline or a character drops out of the book for too long.
+
+**How to open it.** Command **Open plot grid**, or the ribbon button "Open Spellbook plot grid". It opens as a tab in the main area.
+
+**What you see.** One row per scene, in binder order, under a row for each folder of the binder. One column per plotline. Each column's heading shows its name, how many scenes it is in, and a thin bar of where in the book those scenes are. A tick marks a scene that belongs to the column. A long run of scenes a column is missing from is shaded grey. A folder's row shows, for each column, how many of its scenes are in it.
+
+**What the columns are.** Press **Columns** and choose:
+
+| Columns | One column for each | A tick means the scene |
+| --- | --- | --- |
+| **Timeline lanes** | lane of the [timeline](#timeline) | is in that lane (its `timelines` property). |
+| **Labels** | label (see [Statuses and labels](#statuses-and-labels)) | has that label. |
+| **Characters** | character of the [World](#world) | lists that character under "In this scene". |
+| **Places** | place of the World | lists that place under "In this scene". |
+| **Chosen entities** | entity you pick | lists that entity under "In this scene". |
+
+With **Chosen entities**, press **Choose** to open the "Choose entities" window, and tick the entities to follow; each becomes a column, the newest last. Press **Done**.
+
+**What you can do.**
+
+- Tap an empty cell to put the scene in that column, and a ticked cell to take it out. Each tap changes one property of one scene and nothing else. A scene has one label, so ticking another label moves the scene to it.
+- Tap a scene's name to open it. With the middle mouse button, or Ctrl or Cmd held, it opens in a new tab.
+- Tap a folder's arrow to fold it shut or open it again.
+- **Synopsis line** shows each scene's synopsis on a line under its name. On a computer the synopsis also shows when the pointer rests on the name.
+- A label that scenes use but that is missing from the project's list shows as a column with its name in italics.
+
+**Settings** (under "Plot grid"): **Mark long gaps** says how many scenes in a row a column can be missing from before the stretch is shaded: any whole number from 2 to 99, 5 to begin with. 0 turns the shading off.
+
+**On a phone.** The pane decides its layout by its own width. A narrow pane keeps the scene names in a narrower column at the side while the columns scroll sideways, with larger cells to tap.
+
+**Limits.** The kind of columns, the chosen entities, the folded folders, the synopsis line and the gap length are remembered on each device separately. Columns of characters and places only show entities of the built-in Character and Place types; use **Chosen entities** for any other. A read-only project, and a scene whose note is missing, show the grid but cannot be changed from it.
 
 ## Novel view
 
@@ -515,6 +625,56 @@ The sheet is one entity laid out to read and to fill in. It opens beside the lis
 
 **Limits.** Cards or list is remembered on each device separately. A picture must already be a file in the vault. If two projects in one vault have an entity with the same name, Spellbook's own screens lead to the right project's note, but a click on the link in Obsidian's Properties panel may still open the other one. Rename, delete, "Find mentions" and types of your own have not been tried on screen.
 
+## Idea boards
+
+![The Idea boards pane on the right, with "New board", "Draw" and one board listed, beside a board open in Obsidian's Canvas](images/idea-boards.png)
+
+*The Idea boards pane in the right sidebar: each board of the project with the number of cards on it.*
+
+**What it is for.** A free surface for loose ideas: notes, scraps and arrows that do not yet belong anywhere in the binder. Spellbook can also lay out a board for you from the World or from the binder.
+
+**What a board is.** An Obsidian Canvas file in the project's Boards folder. It opens in Obsidian's own Canvas, on a computer, an iPhone and an iPad, and stays usable without Spellbook. You add, move, colour and join cards with Canvas's own tools.
+
+**How to open it.** Command **Open idea boards**, or the ribbon button "Open Spellbook idea boards", shows the **Idea boards** pane in the right sidebar. Command **New idea board** asks for a **Name** and makes an empty board.
+
+**What you can do in the pane.**
+
+- **New board**: the same as the command.
+- **Draw**: a menu of the three boards Spellbook lays out for you, **Relationship map**, **Chapter as cards** and **Around an entity** (see below).
+- Tap a board to open it. Its "More options" menu, or a right-click, has **Open**, **Open in new tab**, **Turn cards into notes**, **Rename** and **Delete**. Delete asks first and moves the board to the trash; the notes its cards show stay where they are.
+
+**Turning cards into notes.** Command **Turn board cards into notes** (for the board that is open, or one you pick), or **Turn cards into notes** in a board's menu. The window lists the board's text cards. For each, choose **Leave as a card**, **Scene** or a World type; **All scenes** and **Leave all** choose for every card at once. **New scenes go to** says which folder of the binder new scenes go in. Press **Make notes**. The first line of a card becomes the title; the rest becomes the synopsis of a scene or the summary of a World entry. On the board, each card is then replaced, in the same place, by a card that shows the new note.
+
+A board that is drawn again is a new board: drawing never changes one you already have. A second one of the same name gets a number, for example "Relationship map 2".
+
+### Relationship map
+
+![A relationship map: characters, places and tales as coloured cards, joined by labelled arrows such as "sister", "keeps" and "hired by"](images/board-relationship-map.png)
+
+*A relationship map of the sample novel: each entity a card in its type's colour, each relation a labelled arrow.*
+
+Command **Board: relationship map**, or **Draw** then **Relationship map** in the pane. The window asks which types of entity go on the map, with a switch for each (characters to begin with). Press **Draw board**. Each entity becomes a card that shows its note, in its type's colour, and each relation between two of them becomes one arrow, labelled as the World says ("sister", "keeps"). Relations are made on an entity's sheet; see [The entity sheet](#the-entity-sheet).
+
+### Chapter as cards
+
+![A chapter drawn as cards: the scenes of one folder in reading order, in a box for each status](images/board-chapter-cards.png)
+
+*Part one of the sample novel as cards, grouped by status: a box for "Revised" and one for "Final".*
+
+Command **Board: chapter as cards**, or **Draw** then **Chapter as cards**. Choose **Scenes from** (**Whole manuscript** or a folder) and **Group by** (**Status**, **Label** or **No grouping**), and press **Draw board**. Each scene becomes a card that shows its note, in reading order, four to a row; with grouping, each status or label is a labelled box of its own, and scenes without one come last. Moving the cards on the board does not change the order of the book.
+
+### Around an entity
+
+![A board around one character: her card in the middle, related entities above and below, and boxes of her scenes and events at the sides](images/board-around-entity.png)
+
+*A board around Noa: her relations above and below, her events on one side and her scenes on the other.*
+
+Command **Board: around this entity** (for the World entry open in the editor, or one you pick from a list), **Draw** then **Around an entity**, or the **Board around it** button on an entity's sheet in the World screen. The entity's card stands in the middle; the entities it has to do with stand round it with labelled arrows; its scenes and its timeline events stand in two boxes beside it, **Scenes** and **Events**.
+
+**On a phone.** The pane opens in the right-hand drawer. Opening a board slides the drawers away so that the board can be seen. Boards are edited with Obsidian's Canvas, as it works on a phone.
+
+**Limits.** Obsidian gives plugins no supported way to add to a card's own menu on a Canvas, so "turn into a note" is a command and an entry in the pane's menu, not an entry on the card. Canvas has six colours: a blue status, label or type is drawn as cyan, and pink as purple. A drawn board is a picture of the moment it was drawn: it does not follow later changes to the World or the binder; draw it again for a fresh one. Boards have been looked at on a Mac only, not in Canvas on an iPhone or iPad.
+
 ## Snapshots
 
 ![The Snapshots screen comparing a saved version of a scene with the scene as it is now](images/snapshots-compare.png)
@@ -543,9 +703,13 @@ The sheet is one entity laid out to read and to fill in. It opens beside the lis
 
 ## Export
 
+![The export window with "E-book (.epub)" chosen as the format, the "Manuscript for an agent" preset, and the choice of a cover](images/export-ebook.png)
+
+*The export window set for an e-book: the format, the preset, what to include, the switches, and the choice of a cover.*
+
 ![The export window with the format, what to include and the title page options](images/export.png)
 
-*The export window.*
+*The export window for a web page, which also offers the line at the top of each page.*
 
 **What it is for.** Putting the manuscript into one file to send or print, with the scenes in binder order. Scenes whose "Include in compile" switch is off are left out.
 
@@ -598,7 +762,7 @@ Press **Export**. The file is saved as a new file in the project's Exports folde
 
 ## Settings
 
-Open Obsidian's Settings and choose **Spellbook**. The page shows the installed version, the **Projects in this vault**, and these sections, each described above: **Writing progress** (with the bottom bar), **Colour scheme**, **Writing modes**, **Prose checks**, **Snapshots** and **Welcome and help** ("Show the welcome page again" and "Show what is new after updates"), and a row for the writing report's words on a page.
+Open Obsidian's Settings and choose **Spellbook**. The page shows the installed version, the **Projects in this vault**, and these sections, each described above: **Writing progress** (with the bottom bar), **Colour scheme**, **Writing modes**, **Prose checks**, **Snapshots**, **Plot grid** ("Mark long gaps"), **Welcome and help** ("Show the welcome page again" and "Show what is new after updates") and **Templates** (the list of templates, with **Open** and **Delete**), and a row for the writing report's words on a page.
 
 [Making Spellbook your own](customising.md) goes through these settings one by one, and ends with a table of where each setting lives.
 
@@ -675,7 +839,7 @@ Obsidian shows each of these with "Spellbook:" in front.
 | Show me around | A short tour of the screen: the binder, the inspector, the bottom bar and the ribbon buttons. |
 | Show what is new | Shows what changed in the version you have. |
 
-Ribbon buttons: "Open Spellbook binder", "Open Spellbook corkboard", "Open Spellbook planner", "Open Spellbook timeline", "Open Spellbook outliner", "Open Spellbook writing report", "Open Spellbook novel view" and "Open Spellbook world".
+Ribbon buttons: "Open Spellbook binder", "Open Spellbook corkboard", "Open Spellbook planner", "Open Spellbook timeline", "Open Spellbook outliner", "Open Spellbook writing report", "Open Spellbook novel view", "Open Spellbook world", "Open Spellbook plot grid" and "Open Spellbook idea boards".
 
 ## How your writing is stored
 
@@ -695,9 +859,13 @@ A project is an ordinary folder of Markdown notes. You can read and edit all of 
   Snapshots/     saved versions of scenes, one folder per scene
   Exports/       exported manuscripts
   AI helper/     the reference for AI assistants
+  Boards/        idea boards, as Obsidian Canvas files
+  Templates/     templates for new scenes (Scenes/) and World entries (World/)
 ```
 
-The first six are made with the project. World, Snapshots, Exports and AI helper are made the first time you use them.
+The first six are made with the project. World, Snapshots, Exports, AI helper, Boards and Templates are made the first time you use them.
+
+Project templates are kept apart from any project, in a folder called "Spellbook templates" at the top of the vault, made the first time you save one.
 
 The **project index** is the note named after the project. Its properties hold the order of the binder, the lists of statuses and labels, the targets, the timeline lanes, the story calendar, the day marks, the entity types and the author's name for exports.
 
@@ -729,9 +897,9 @@ Timeline events carry `date`, an optional `end`, `timelines` (their lanes), `sce
 - **The text of a scene is yours.** Spellbook changes a scene's properties, and never its text, with one exception: when you press **Restore** on a snapshot and confirm, the scene's text is replaced by the snapshot's, after the current text has been saved as a "Before restore" snapshot.
 - **The same goes for your event, world and research notes**: Spellbook changes their properties only.
 - **`To-do.md` is the one note whose lines Spellbook edits**, and only the line you acted on: ticking, adding, re-dating, moving or removing a to-do in the planner. Every other line is kept exactly as it was.
-- **The word logs, the snapshots, the exports and the AI helper note** are files Spellbook writes for itself. An export is always a new file. The AI helper note is only written when you run its command, and a copy you changed is not replaced without asking.
+- **The word logs, the snapshots, the exports, the AI helper note, the idea boards and the templates** are files Spellbook writes for itself. Turning a board's cards into notes changes that board's file: each card is swapped for one that shows its new note. An export is always a new file. The AI helper note is only written when you run its command, and a copy you changed is not replaced without asking.
 - **Nothing is deleted outright.** Scenes, world notes and snapshots you delete go to the trash (Obsidian's or the system's, as your Obsidian settings say).
-- **Notes outside a project folder are never changed.**
+- **Notes outside a project folder are never changed.** The one thing Spellbook writes outside a project folder is a new note in "Spellbook templates", when you run **Save project as template**.
 
 ## Sync and several devices
 
@@ -739,7 +907,7 @@ Spellbook saves nothing outside your vault except small per-device choices, so i
 
 ### What syncs
 
-Everything inside the project folder, because it is all notes: scenes and their properties, the binder order, statuses and labels, targets, to-dos, day marks, timeline lanes and events, the story calendar, the world with its pictures' links and relations, snapshots, exports and the AI helper note.
+Everything inside the project folder, because it is all notes: scenes and their properties, the binder order, statuses and labels, targets, to-dos, day marks, timeline lanes and events, the story calendar, the world with its pictures' links and relations, snapshots, exports, idea boards, templates and the AI helper note. The "Spellbook templates" folder syncs with the vault too.
 
 The **word logs** sync too. Each device writes its own file for each month (in the Stats folder, named with the month and a short id of the device), so two devices never write the same file. The calendar adds all the devices' logs together.
 
@@ -755,6 +923,8 @@ These are remembered separately on every device and do not sync:
 - the snapshot settings (automatic snapshots, and how many to keep);
 - the corkboard's card size, and the outliner's columns, sorting and filters;
 - whether the World screen shows cards or a list;
+- the plot grid's kind of columns, chosen entities, folded folders, synopsis line and gap length;
+- whether the welcome page and the note after an update have been shown;
 - which timeline lanes are hidden;
 - the place you were reading in the novel view;
 - the last choices in the export window, and "Words on a page" in the writing report;
@@ -775,7 +945,7 @@ Let iCloud finish syncing before you start writing on another device, especially
 
 ## Known limits
 
-Spellbook is at version 0.9.0 and has not been used for real writing yet. This list is taken from the project's status notes of 14 October 2026.
+Spellbook is at version 0.10.0 and has not been used for real writing yet. This list is taken from the project's status notes of 14 October 2026.
 
 **How far it has been checked**
 
@@ -787,6 +957,21 @@ Spellbook is at version 0.9.0 and has not been used for real writing yet. This l
 **Novel view**
 
 - Read and tap, not edit in place.
+
+**Plot grid**
+
+- The Characters and Places columns show only the built-in Character and Place types; other types need "Chosen entities".
+
+**Idea boards**
+
+- Turning a card into a note is a command and a menu entry in the pane, not an entry in the card's own menu on the Canvas.
+- Canvas has six colours, so blue is drawn as cyan and pink as purple.
+- A drawn board does not follow later changes; draw it again.
+- Not tried in Canvas on an iPhone or iPad.
+
+**Templates**
+
+- Saving refuses a name already in use; it never replaces a template.
 
 **Snapshots**
 

@@ -38,7 +38,7 @@ Use a spare vault for this tutorial, not the one your real writing is in.
 2. In Obsidian, open **Settings**, then **Community plugins**, and switch on **Spellbook**.
 3. Close the settings.
 
-You should now see new buttons in the ribbon (the strip of icons at the side of the window). Point at them to read their names: "Open Spellbook binder", "Open Spellbook corkboard", "Open Spellbook planner", "Open Spellbook timeline", "Open Spellbook outliner", "Open Spellbook writing report", "Open Spellbook novel view" and "Open Spellbook world".
+You should now see new buttons in the ribbon (the strip of icons at the side of the window). Point at them to read their names: "Open Spellbook binder", "Open Spellbook corkboard", "Open Spellbook planner", "Open Spellbook timeline", "Open Spellbook outliner", "Open Spellbook writing report", "Open Spellbook novel view", "Open Spellbook world", "Open Spellbook plot grid" and "Open Spellbook idea boards".
 
 Switching the plugin on changes nothing in your vault. Notes are only made when you run a command.
 
@@ -61,9 +61,12 @@ The sample has no writing history, so the calendar's word counts start empty. Wh
 1. Run the command **Create project**.
 2. In the window, type a **Name**, for example "The Lighthouse". The project gets its own folder with this name.
 3. Choose a **Location**: the folder to create the project in.
-4. Press **Create**.
+4. Leave **Structure** at **Blank** for this tutorial, so that you build the chapters yourself in the next step.
+5. Press **Create**.
 
 You should see the new project's first scene open in the editor. In Obsidian's file list there is now a folder named after your book, with the folders Manuscript, Timeline, Research and Stats inside it, a note named after the project, and a note called `To-do.md`.
+
+**Optional: start from a structure.** For a real book you may want a shape to start from. In the same window, choose a **Structure** instead of Blank: **Three acts**, **A fifteen-beat outline**, **The hero's journey** or **Chapter by chapter** (which asks how many chapters). The window lists the folders and scenes it will make; each scene has a synopsis that says what it is for. See [Templates](guide.md#templates).
 
 A vault can hold several projects, and all the screens show one of them at a time. You now have two, the sample and your own. To switch, press the project's name at the top of the binder and choose the other.
 
@@ -237,6 +240,17 @@ The world is everything the story is about that is not a scene: its people, its 
 18. Under **History** the sheet now lists the birth, the moment and every dated scene or event the character is in, in order of time. On the timeline, press **World** to see a lane for each type, or run **Open world history** to see the whole world's past at once.
 
 To tie an entity to a timeline event, open the event's menu on the timeline and choose **Entities**. The timeline's **Only events with** button then narrows the timeline to the events that involve the people, places and tales you choose.
+
+**Optional: draw a relationship map**
+
+19. Run **Board: relationship map**. In the window, leave **Character** on, switch on **Place** and **Lore** as well, and press **Draw board**.
+20. A board opens in Obsidian's Canvas, with a card for each entity and an arrow for each relation, labelled "lives in" and so on. Move the cards about as you like; the board is yours, and the World does not change. Run **Open idea boards** to see it listed with your other boards. See [Idea boards](guide.md#idea-boards).
+
+**Optional: check the plot grid**
+
+21. Run **Open plot grid**, press **Columns** and choose **Characters**. Each scene is a row and each character a column, with a tick where the character is in the scene. "Arrival" has a tick under your character.
+22. Tap an empty cell to put that character in that scene, and tap the tick again to take them out. It is the same as **In this scene** in the inspector.
+23. In a longer book, a grey stretch in a column shows where a character has been missing for many scenes in a row. Choose **Timeline lanes** or **Labels** under **Columns** to follow plot lines the same way. See [Plot grid](guide.md#plot-grid).
 
 Besides characters, places and lore there are factions, items, creatures and cultures, each with its own command (**New faction**, **New item**, **New creature**, **New culture**), and you can add types of your own. See [Entity types of your own](customising.md#entity-types-of-your-own).
 
