@@ -2,7 +2,9 @@
 
 Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writing novels. It gives a vault the tools of a dedicated novel-writing app: a binder of scenes, a corkboard, word targets, a story timeline, notes on characters and places, saved versions of a scene and a manuscript export. It is for writers who want those tools and still want their book to stay a folder of plain notes that they own. It was built for writing in Hebrew and English, on a computer, a tablet and a phone.
 
-**Status:** version 0.9.0, pre-release. Every screen has been looked at on a Mac in a test copy of Obsidian, and most of them in Obsidian's phone layout at phone size. Nothing has been tried on a real iPhone or iPad yet. Spellbook is not in Obsidian's community plugin list. See [Known limits](docs/guide.md#known-limits).
+Made by Daniel at DandiMage.
+
+**Status:** version 0.10.0, pre-release. Every screen has been looked at on a Mac in a test copy of Obsidian, and most of them in Obsidian's phone layout at phone size. Nothing has been tried on a real iPhone or iPad yet. Spellbook is not in Obsidian's community plugin list. See [Known limits](docs/guide.md#known-limits).
 
 ## Learn
 
@@ -64,6 +66,18 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 
 *Characters, places and legends can carry dates and moments. The timeline shows them as lanes beside the story's events, and each sheet lists its own history.*
 
+### Plot grid
+
+![The plot grid: scenes down the side, characters across the top, ticks where each appears and grey stretches where one goes missing](docs/images/plot-grid.png)
+
+*The plot grid with characters as columns. The bar under each name shows where in the book they appear; grey marks a long stretch without them.*
+
+### Idea boards
+
+![A relationship map drawn by Spellbook on an Obsidian Canvas board](docs/images/board-relationship-map.png)
+
+*A relationship map that Spellbook drew from the relations in World, on Obsidian's own Canvas.*
+
 ### Story graph
 
 ![Obsidian's graph view of a novel: scenes, characters, places, items and events as linked dots](docs/images/graph-view.png)
@@ -80,11 +94,18 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 
 *A character's sheet in phone layout: it takes the place of the list, with a button that leads back.*
 
+### Welcome
+
+![The welcome page: try the sample novel, start a project, or read the tutorial](docs/images/welcome.png)
+
+*The first time Spellbook runs it offers the sample novel, a new project or the tutorial, and a short tour.*
+
 ## Features
 
 ### Get started
 
 - **Welcome page.** The first time Spellbook runs in a vault with no project, a page offers the sample novel, a new project or the tutorial, with a short tour of the screen and a list of where things are. A **Help** pane lists every command, and a short note shows what is new after each update.
+- **Templates.** Start a project from a story structure (three acts, a fifteen-beat outline, the hero's journey, chapter by chapter), with placeholder scenes that say what belongs where. Save your own scenes, World entries and whole projects as templates.
 
 ### Organise
 
@@ -92,6 +113,7 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 - **Corkboard.** The scenes as index cards with title, synopsis, status, coloured label and word count. Drag to reorder; open a folder card to see what is inside it.
 - **Outliner.** The manuscript as a table: status, label, target, words, synopsis, tags, tasks, read time and dates, with a row of totals, sorting, filtering and columns of your own.
 - **Inspector.** A side panel for the open scene: synopsis, status, label, word target, whether it is included in the export, and who and what is in the scene.
+- **Plot grid.** Scenes down the side and plotlines across the top: timeline lanes, labels, characters, places or entities you choose. A tick where a scene belongs to one, a tap to change it, and grey stretches where a character or a plotline goes missing.
 
 ### Write
 
@@ -114,11 +136,12 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 - **Invented calendars.** Give a story its own months, week, eras and leap years, and the timeline counts in it.
 - **World.** Characters, places, factions, items, lore (legends, tales, history), creatures and cultures, plus types of your own. Each is a plain note with a sheet: a picture, fields you fill in place, when it begins and ends and the moments of its life, relations to other entities, the scenes and events it appears in, and its whole history in order of time. Browse them as cards or as a sortable list, link them to scenes and timeline events, and find scenes that mention one without listing it.
 - **Story graph.** Scenes and timeline events link to the characters, places, lore and other entities listed on them with ordinary Obsidian links, so Obsidian's own graph view and backlinks show who appears where, with no setup. Give each kind of note its own colour with the graph's Groups setting.
+- **Idea boards.** Free boards for loose ideas, on Obsidian's own Canvas. Turn a card into a scene or a World entry; have Spellbook draw a relationship map of your characters, a chapter as cards, or the web around one entity.
 
 ### Keep and share
 
 - **Snapshots.** Save a scene as it is now, list its earlier versions, compare two and restore one. The text from before a restore is always saved first.
-- **Export.** The manuscript as a Word document, a web page, one Markdown note, or a page laid out for printing and saving as a PDF.
+- **Export.** The manuscript as a Word document, an e-book (EPUB), a web page, one Markdown note, or a page laid out for printing and saving as a PDF. Presets for an agent, a reading copy and a proof; dedication, epigraph, acknowledgements and about the author; a new page or a title for any scene.
 
 ## How a project is stored
 
@@ -189,7 +212,7 @@ What was checked to say this: the whole of `src/` was searched for `fetch`, `XML
 
 ## Licence
 
-MIT. Copyright © 2026 Daniel | DandiMage. See [LICENSE](LICENSE).
+MIT. Copyright © 2026 DandiMage. See [LICENSE](LICENSE).
 
 ## Credits
 

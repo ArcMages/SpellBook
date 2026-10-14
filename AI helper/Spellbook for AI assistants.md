@@ -2,7 +2,7 @@
 
 You are reading this because a writer wants your help with a novel that is kept in a Spellbook project. This file tells you what the files of such a project mean, how to read them, which edits are safe, and which are not. Follow it exactly: the project is the writer's book, it syncs between their devices, and a wrong edit can lose work.
 
-Everything here describes Spellbook version 0.9.0 (project layout version 1). If the project index says `version: 2` or higher, read only, and tell the writer this file is out of date.
+Everything here describes Spellbook version 0.10.0 (project layout version 1). If the project index says `version: 2` or higher, read only, and tell the writer this file is out of date.
 
 ## Contents
 
