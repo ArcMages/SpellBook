@@ -213,7 +213,3 @@ What was checked to say this: the whole of `src/` was searched for `fetch`, `XML
 ## Licence
 
 MIT. Copyright © 2026 DandiMage. See [LICENSE](LICENSE).
-
-## Credits
-
-The writing tools added in the second stage (writing modes, the bottom bar, the writing report, prose checks and colour schemes) were modelled on ideas from the MIT-licensed Word-Smith plugin by Sadsnake1. No code, text or themes were copied from it.
