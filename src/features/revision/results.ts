@@ -105,7 +105,7 @@ export class TickedResults<M extends TextMatch = TextMatch> {
       const head = scene.createEl('label', { cls: 'spellbook-revision-result-head', attr: { dir: directionOf(group.scene.title) ?? 'auto' } });
       const all = head.createEl('input', { attr: { type: 'checkbox', 'aria-label': `All places in ${group.scene.title}` } });
       head.createSpan({ cls: 'spellbook-revision-result-title', text: group.scene.title, attr: { dir: 'auto' } });
-      const count = head.createSpan({ cls: 'spellbook-revision-result-count' });
+      const count = head.createSpan({ cls: 'spellbook-revision-result-count', attr: { dir: 'ltr' } });
       const boxes: HTMLInputElement[] = [];
       const showScene = (): void => {
         const row = this.ticks[at] ?? [];
