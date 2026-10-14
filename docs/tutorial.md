@@ -229,6 +229,11 @@ The world is everything the story is about that is not a scene: its people, its 
 15. Open its sheet and fill in **kind** ("Fishermen's tale"), **period** ("Told to this day") and **told-by** (who in the story tells it). Write the tale itself in the note, under the heading "The tale"; the other two headings are "Who tells it" and "What is true".
 16. Relate the legend to the place it is about, and add it to the scene where someone tells it, the same way as for the character.
 
+**Give it a place in time**
+
+17. On the character's sheet, find **Time**. Press **Set** beside **Born** and type a date, for example 1889 or 1889-04-17. A place says **Founded** instead, an item **Made**. Press **Add moment**, give the date 1923-10 and the words "comes to the town", and confirm.
+18. Under **History** the sheet now lists the birth, the moment and every dated scene or event the character is in, in order of time. On the timeline, press **World** to see a lane for each type, or run **Open world history** to see the whole world's past at once.
+
 To tie an entity to a timeline event, open the event's menu on the timeline and choose **Entities**. The timeline's **Only events with** button then narrows the timeline to the events that involve the people, places and tales you choose.
 
 Besides characters, places and lore there are factions, items, creatures and cultures, each with its own command (**New faction**, **New item**, **New creature**, **New culture**), and you can add types of your own. See [Entity types of your own](customising.md#entity-types-of-your-own).

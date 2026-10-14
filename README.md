@@ -104,8 +104,9 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 ### Plan the story
 
 - **Timelines.** Named, coloured lanes on one time axis. Events are notes; scenes that have a date appear too. Zoom, drag an event to change its date, and switch between date order and story order.
+- **World history.** Give characters, places and other entities dates and moments, and see them on the timeline: a lane for each type, spans from birth to death or founding to fall, with the world's history one command away.
 - **Invented calendars.** Give a story its own months, week, eras and leap years, and the timeline counts in it.
-- **World.** Characters, places, factions, items, lore (legends, tales, history), creatures and cultures, plus types of your own. Each is a plain note with a sheet: a picture, fields you fill in place, relations to other entities, and the scenes and events it appears in. Browse them as cards or as a sortable list, link them to scenes and timeline events, and find scenes that mention one without listing it.
+- **World.** Characters, places, factions, items, lore (legends, tales, history), creatures and cultures, plus types of your own. Each is a plain note with a sheet: a picture, fields you fill in place, when it begins and ends and the moments of its life, relations to other entities, the scenes and events it appears in, and its whole history in order of time. Browse them as cards or as a sortable list, link them to scenes and timeline events, and find scenes that mention one without listing it.
 - **Story graph.** Scenes and timeline events link to the characters, places, lore and other entities listed on them with ordinary Obsidian links, so Obsidian's own graph view and backlinks show who appears where, with no setup. Give each kind of note its own colour with the graph's Groups setting.
 
 ### Keep and share
