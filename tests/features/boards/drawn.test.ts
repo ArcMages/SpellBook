@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CARDS_PER_ROW,
   ENTITY_CARD,
+  LABEL_HEIGHT,
   SCENE_CARD,
   boardColor,
   boardProblems,
@@ -11,6 +12,7 @@ import {
   circle,
   entityWeb,
   force,
+  labelWidth,
   readBoard,
   relationMap,
   spread,
@@ -341,5 +343,82 @@ describe('boards that can be read at a glance', () => {
     const { width, height } = size(board);
     expect(width).toBeLessThan(4000);
     expect(height).toBeLessThan(1500);
+  });
+});
+
+describe('room for the labels of edges', () => {
+  // The sample novel's relations, with the labels it gives them: on 0.10.0 a long one was
+  // squeezed between two cards ("kept it for thirty years" between the lighthouse and its keeper).
+  const relations: Array<[string, string, string]> = [
+    ['Mara', 'HarbourMaster', 'hired by'],
+    ['Mara', 'Tobias', 'surveys the bay with'],
+    ['Noa', 'Ellen', 'sister'],
+    ['Noa', 'Archive', 'keeps'],
+    ['Archive', 'Saltwick', 'in'],
+    ['Bay', 'Saltwick', 'live in'],
+    ['Bell', 'Bay', 'told by'],
+    ['Bell', 'Saltwick', 'told in'],
+    ['HarbourMaster', 'HarbourOffice', 'runs'],
+    ['Keeper', 'Lighthouse', 'kept it for thirty years'],
+    ['Keeper', 'Logbook', 'wrote'],
+    ['Legend', 'Drowned', 'is about'],
+    ['Legend', 'Bay', 'told by'],
+    ['Logbook', 'Archive', 'kept in'],
+    ['Chart', 'HarbourOffice', 'belongs to'],
+    ['Lighthouse', 'Saltwick', 'on the point by'],
+    ['Hound', 'Bay', 'feared by'],
+    ['Tobias', 'Bay', 'born among'],
+    ['Sea', 'Keeper', 'written by'],
+    ['Sea', 'Logbook', 'written on the last page of'],
+  ];
+  const names = [...new Set(relations.flatMap(([a, b]) => [a, b]))];
+  const entities = names.map((name): MapEntity => ({ key: name, file: `Novel/World/${name}.md`, color: null }));
+
+  /** The cards, and the other labels, that a label, drawn in the middle between its two cards, would lie on. */
+  function underLabels(board: NewBoard): string[] {
+    const byId = new Map(board.nodes.map((node) => [node.id, node]));
+    const found: string[] = [];
+    const boxes: Array<[string, NewCard]> = [];
+    for (const edge of board.edges) {
+      if (!edge.label) continue;
+      const a = byId.get(edge.fromNode) as NewCard;
+      const b = byId.get(edge.toNode) as NewCard;
+      const cx = (a.x + a.width / 2 + b.x + b.width / 2) / 2;
+      const cy = (a.y + a.height / 2 + b.y + b.height / 2) / 2;
+      const width = labelWidth(edge.label);
+      const box = { x: cx - width / 2, y: cy - LABEL_HEIGHT / 2, width, height: LABEL_HEIGHT } as NewCard;
+      for (const node of board.nodes) if (node.type !== 'group' && overlaps(box, node)) found.push(`${edge.label} on ${node.type === 'file' ? node.file : node.id}`);
+      for (const [other, otherBox] of boxes) if (overlaps(box, otherBox)) found.push(`${edge.label} on the label ${other}`);
+      boxes.push([edge.label, box]);
+    }
+    return found;
+  }
+
+  it('takes a label to be as wide as Canvas draws it, and a little more', () => {
+    // Measured in Canvas: 151 units for "hired by", 358 for "kept it for thirty years", 436 for "written on the last page of".
+    expect(labelWidth('hired by')).toBeGreaterThanOrEqual(151);
+    expect(labelWidth('kept it for thirty years')).toBeGreaterThanOrEqual(358);
+    expect(labelWidth('written on the last page of')).toBeGreaterThanOrEqual(436);
+    expect(labelWidth('  ')).toBe(0);
+  });
+
+  it('leaves no label of the relationship map lying on a card or on another label', () => {
+    const board = relationMap(entities, relations.map(([from, to, label]) => ({ from, to, label })));
+    expectValid(board);
+    expect(underLabels(board)).toEqual([]);
+    expectNoOverlap(board.nodes);
+  });
+
+  it('leaves no label of the web around one entity lying on a card or on another label', () => {
+    const related = ['kept it for thirty years', 'wrote', 'written by', 'the one who rang the fog bell', 'lives in', 'sister'].map((label, index) => ({
+      file: `Novel/World/R${index}.md`,
+      color: null,
+      label,
+      way: 'out' as const,
+    }));
+    const board = entityWeb({ center: { file: 'Novel/World/Keeper.md', color: null }, related, scenes: [], events: [], sceneLabel: 'Scenes', eventLabel: 'Events' });
+    expectValid(board);
+    expect(underLabels(board)).toEqual([]);
+    expectNoOverlap(board.nodes);
   });
 });

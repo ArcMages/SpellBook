@@ -95,17 +95,37 @@ describe('reading a board', () => {
 });
 
 describe('turning text cards into file cards', () => {
-  it('keeps the id, the place, the size and the colour, and every edge with it', () => {
+  it('keeps the place, the size and the colour, and every edge with it, under a new id', () => {
     const swap = swapCards(WRITTEN, [{ id: 't1', file: 'Novel/Manuscript/The storm.md' }]);
     expect(swap.swapped).toEqual(['t1']);
     expect(swap.missing).toEqual([]);
-    const after = JSON.parse(swap.text ?? '') as { nodes: Array<Record<string, unknown>>; edges: unknown[]; metadata: unknown };
-    expect(after.nodes[1]).toEqual({ id: 't1', type: 'file', x: 0, y: 0, width: 250, height: 60, color: '1', file: 'Novel/Manuscript/The storm.md' });
-    // Everything else is as it was, the card and the key this version does not know included.
-    const before = JSON.parse(WRITTEN) as { nodes: unknown[]; edges: unknown[]; metadata: unknown };
+    const after = JSON.parse(swap.text ?? '') as { nodes: Array<Record<string, unknown>>; edges: Array<Record<string, unknown>>; metadata: unknown };
+    const id = swap.ids.get('t1') ?? '';
+    expect(id).toMatch(/^[0-9a-f]{16}$/);
+    expect(after.nodes[1]).toEqual({ id, type: 'file', x: 0, y: 0, width: 250, height: 60, color: '1', file: 'Novel/Manuscript/The storm.md' });
+    // The edges that joined the text card join the file card; everything else is as it was.
+    const before = JSON.parse(WRITTEN) as { nodes: unknown[]; edges: Array<Record<string, unknown>>; metadata: unknown };
+    expect(after.edges).toEqual([
+      { ...before.edges[0], fromNode: id },
+      { ...before.edges[1], toNode: id },
+    ]);
     expect(after.nodes.filter((_, index) => index !== 1)).toEqual(before.nodes.filter((_, index) => index !== 1));
-    expect(after.edges).toEqual(before.edges);
     expect(after.metadata).toEqual(before.metadata);
+  });
+
+  it('gives the file card an id no card or edge of the board has, so that an open Canvas draws it anew', () => {
+    // Canvas follows a changed file card by card, by id: a text card it shows under the
+    // same id stays a text card on screen, and its next save undoes the swap.
+    const swap = swapCards(WRITTEN, [
+      { id: 't1', file: 'Novel/Manuscript/The storm.md' },
+      { id: 't2', file: 'Novel/World/Places/נמל.md' },
+    ]);
+    const after = JSON.parse(swap.text ?? '') as { nodes: Array<{ id: string }>; edges: Array<{ id: string; fromNode: string; toNode: string }> };
+    const all = [...after.nodes.map((node) => node.id), ...after.edges.map((edge) => edge.id)];
+    expect(new Set(all).size).toBe(all.length);
+    expect(all).not.toContain('t1');
+    expect(all).not.toContain('t2');
+    expect(after.edges[0]).toMatchObject({ fromNode: swap.ids.get('t1'), toNode: swap.ids.get('t2') });
   });
 
   it('writes the file the way Canvas does: one card or edge to a line', () => {
@@ -113,7 +133,7 @@ describe('turning text cards into file cards', () => {
     const lines = (swap.text ?? '').split('\n');
     expect(lines[0]).toBe('{');
     expect(lines[1]).toBe('\t"nodes":[');
-    expect(lines).toContain('\t\t{"id":"t2","type":"file","x":300,"y":0,"width":250,"height":60,"file":"Novel/World/Places/נמל.md"},');
+    expect(lines).toContain(`\t\t{"id":"${swap.ids.get('t2') ?? ''}","type":"file","x":300,"y":0,"width":250,"height":60,"file":"Novel/World/Places/נמל.md"},`);
     expect(lines).toContain('\t"metadata":{"version":"1.0-1.0"}');
     expect(swap.text?.endsWith('}\n')).toBe(true);
   });
@@ -123,7 +143,7 @@ describe('turning text cards into file cards', () => {
       { id: 'f1', file: 'x.md' },
       { id: 'gone', file: 'y.md' },
     ]);
-    expect(swap).toEqual({ text: null, swapped: [], missing: ['f1', 'gone'] });
+    expect(swap).toEqual({ text: null, swapped: [], ids: new Map(), missing: ['f1', 'gone'] });
     expect(swapCards('not json', [{ id: 't1', file: 'x.md' }]).text).toBeNull();
   });
 

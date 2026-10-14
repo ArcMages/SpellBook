@@ -240,10 +240,16 @@ describe('turning board cards into notes', () => {
     // The board: the two cards now show the notes, in the same places; the rest is as it was.
     const board = canvasOf(wired.vault, BOARD);
     const before = JSON.parse(BOARD_TEXT) as Canvas;
-    expect(board.nodes[0]).toEqual({ id: 'c1', type: 'file', x: 0, y: 0, width: 250, height: 60, color: '2', file: 'Novel/Manuscript/The storm.md' });
-    expect(board.nodes[1]).toEqual({ id: 'c2', type: 'file', x: 300, y: 0, width: 250, height: 80, file: 'Novel/World/Characters/Old Tamar.md' });
+    // Each under a new id (an open Canvas only redraws a card as a file card when its id is new), with its edges joined to it.
+    const one = board.nodes[0]?.['id'] as string;
+    const two = board.nodes[1]?.['id'] as string;
+    expect([one, two]).not.toContain('c1');
+    expect([one, two]).not.toContain('c2');
+    expect(board.nodes[0]).toEqual({ id: one, type: 'file', x: 0, y: 0, width: 250, height: 60, color: '2', file: 'Novel/Manuscript/The storm.md' });
+    expect(board.nodes[1]).toEqual({ id: two, type: 'file', x: 300, y: 0, width: 250, height: 80, file: 'Novel/World/Characters/Old Tamar.md' });
     expect(board.nodes.slice(2)).toEqual(before.nodes.slice(2));
-    expect(board.edges).toEqual(before.edges);
+    const renamed = (id: unknown): unknown => (id === 'c1' ? one : id === 'c2' ? two : id);
+    expect(board.edges).toEqual(before.edges.map((edge) => ({ ...edge, fromNode: renamed(edge['fromNode']), toNode: renamed(edge['toNode']) })));
     // No other note's text was touched.
     expect(wired.vault.bodyOf('Novel/Manuscript/Opening.md')).toBe('It was a dark night.');
   });
@@ -273,7 +279,9 @@ describe('turning board cards into notes', () => {
     expect(wired.vault.has('Novel/World/Characters/Old Tamar 2.md')).toBe(true);
     expect(wired.vault.has('Novel/Manuscript/Maybe later.md')).toBe(true);
     expect(notices()[0]).toMatch(/2 notes made; 1 card changed on the board\. 1 card had already left the board/);
-    expect(canvasOf(wired.vault, BOARD).nodes.find((node) => node.id === 'c2')?.['file']).toBe('Novel/World/Characters/Old Tamar 2.md');
+    const after = canvasOf(wired.vault, BOARD);
+    expect(after.nodes.find((node) => node['x'] === 300)?.['file']).toBe('Novel/World/Characters/Old Tamar 2.md');
+    expect(after.nodes.some((node) => node.id === 'c2')).toBe(false);
   });
 
   it('asks which board when the one in front is no board', async () => {

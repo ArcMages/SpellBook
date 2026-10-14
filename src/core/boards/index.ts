@@ -31,8 +31,8 @@ export {
 } from './canvas';
 export type { BoardColor, BoardReading, BoardSide, CardPlace, CardSwap, NewBoard, NewCard, NewEdge, ReadCard, ReadEdge, SwapResult } from './canvas';
 
-export { circle, force, ringRadius, rows, spread, toCorner, web } from './layout';
-export type { ForceOptions, Point, Size } from './layout';
+export { LABEL_HEIGHT, circle, force, labelWidth, ringRadius, roomForLabels, rows, spread, toCorner, web } from './layout';
+export type { ForceOptions, LabelledEdge, Point, Size } from './layout';
 
 export { CARDS_PER_ROW, CARD_GAP, ENTITY_CARD, GROUP_PADDING, MAP_GAP, SCENE_CARD, boardColor, chapterCards, entityWeb, relationMap } from './drawn';
 export type { EntityWeb, MapEntity, MapRelation, SceneGroup, WebEntity } from './drawn';
