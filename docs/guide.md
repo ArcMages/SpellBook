@@ -48,6 +48,18 @@ In this guide:
 
 ## Getting started
 
+### The welcome page
+
+The first time Spellbook runs on a device whose vault has no Spellbook project, it opens a page called **Welcome to Spellbook**. It says in a paragraph what Spellbook is and offers three ways to begin: **Try the sample novel**, **Start my own project** and **Read the tutorial**. Under them, **Show me around** starts a short tour, **Help** opens the Help pane, and **Where things are** lists the main screens with the command that opens each.
+
+It opens once per device, and never on a device whose vault already holds a project. On a phone or tablet it waits until Obsidian has finished reading the vault. To see it again, run **Open welcome page**, or press **Show** next to "Show the welcome page again" in Spellbook's settings.
+
+**Show me around** opens the binder and the inspector (not on a phone), then puts a small bubble next to each of the binder, the inspector, the bottom bar (on a phone, the word figures at the top of the inspector), the ribbon buttons and the command palette in turn, with **Back**, **Next** and **Done**. A part that is not on the screen is passed over. Press **Done** or Escape to end it; nothing is left behind.
+
+**Help** (also the command **Help**) lists the tutorial's steps in short, every Spellbook command with what it does, and the web addresses of this guide and the tutorial, as text to copy. Spellbook never opens them itself.
+
+After an update, a short note **What is new in** the new version shows once, with what changed. It is bundled in the plugin; nothing is fetched. Turn it off with "Show what is new after updates" in Spellbook's settings, and read it again with the command **Show what is new**.
+
 ### Try the sample project
 
 Run the command **Create sample project**. Spellbook makes a folder called "Sample Novel" (or "Sample Novel 2", and so on, if there is one already) with a made-up novel of about fifty scenes in English and Hebrew, with characters, places, timeline events and to-dos. It has no writing history, so the calendar's word counts start empty. It is there so that every screen has something to show. It is an ordinary folder; delete it when you are done.
@@ -577,7 +589,7 @@ Press **Export**. The file is saved as a new file in the project's Exports folde
 
 ## Settings
 
-Open Obsidian's Settings and choose **Spellbook**. The page shows the installed version, the **Projects in this vault**, and these sections, each described above: **Writing progress** (with the bottom bar), **Colour scheme**, **Writing modes**, **Prose checks** and **Snapshots**, and a row for the writing report's words on a page.
+Open Obsidian's Settings and choose **Spellbook**. The page shows the installed version, the **Projects in this vault**, and these sections, each described above: **Writing progress** (with the bottom bar), **Colour scheme**, **Writing modes**, **Prose checks**, **Snapshots** and **Welcome and help** ("Show the welcome page again" and "Show what is new after updates"), and a row for the writing report's words on a page.
 
 [Making Spellbook your own](customising.md) goes through these settings one by one, and ends with a table of where each setting lives.
 
@@ -639,6 +651,10 @@ Obsidian shows each of these with "Spellbook:" in front.
 | Snapshots of this scene | Shows the saved versions of the open scene. |
 | Export manuscript | Opens the export window. |
 | Create AI helper note | Writes the reference for AI assistants into the open project. |
+| Open welcome page | Shows the welcome page again. |
+| Help | Shows the tutorial in short, every command, and the addresses of this guide and the tutorial. |
+| Show me around | A short tour of the screen: the binder, the inspector, the bottom bar and the ribbon buttons. |
+| Show what is new | Shows what changed in the version you have. |
 
 Ribbon buttons: "Open Spellbook binder", "Open Spellbook corkboard", "Open Spellbook planner", "Open Spellbook timeline", "Open Spellbook outliner", "Open Spellbook writing report", "Open Spellbook novel view" and "Open Spellbook world".
 

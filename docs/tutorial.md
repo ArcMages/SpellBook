@@ -42,6 +42,8 @@ You should now see new buttons in the ribbon (the strip of icons at the side of 
 
 Switching the plugin on changes nothing in your vault. Notes are only made when you run a command.
 
+In a vault with no Spellbook project, a page called **Welcome to Spellbook** opens by itself, once. Its buttons start the next two steps for you: **Try the sample novel** and **Start my own project**. **Show me around** points at the main parts of the screen one by one. You can open the page again at any time with the command **Open welcome page**, and the command **Help** lists every command.
+
 ## 2. Look around the sample project
 
 The sample project is a made-up novel of about fifty scenes, in English and Hebrew, with characters, places, timeline events and to-dos. It is there so that every screen has something to show.
