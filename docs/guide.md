@@ -773,7 +773,7 @@ The window remembers your last choices for each project, on this device, typed f
 - `export-page-break: true` starts the scene on a new page (in an e-book, a new part). A scene that is first under its chapter heading already starts a page.
 - `export-title: true` prints the scene's title above it even when **Scene titles** is off; `export-title: false` never prints it.
 
-Press **Export**. The file is saved as a new file in the project's Exports folder; an export never replaces an earlier one. The window then says how many scenes and words were saved and which scenes were left out, and offers **Open**. On a computer there is also a button that shows the file in its folder.
+Press **Export**. The file is saved as a new file in the project's Exports folder; an export never replaces an earlier one. A small window then says that the manuscript was exported, the name of the file and the folder of the vault it is in, how many scenes and words were saved and which scenes were left out. It stays until you close it. Its buttons: **Show in file list** brings Obsidian's file list to the front (on a phone, the drawer at the side) and points at the file; **Open** opens it; **OK** closes the window.
 
 **On a phone.** "Print / save as PDF" is not offered on a phone or tablet. Export the web page instead, open it in the browser or the Files app, and print it from the share menu, which offers to save it as a PDF.
 
@@ -1048,7 +1048,7 @@ Spellbook is at version 0.10.0 and has not been used for real writing yet. This 
 - The e-book has not been opened in Apple Books or another reader, nor run through the official EPUB checker.
 - The Word file was checked by converting it with macOS tools, not by opening it in Word, Pages or Google Docs.
 - Exported Word and web-page files only show in Obsidian's file list when "Detect all file extensions" is on.
-- The button that shows an exported file in its folder is on computers only.
+- "Show in file list" shows the file in Obsidian's own file list, not in Finder or another app of the device.
 
 **Writing report**
 

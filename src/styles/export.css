@@ -44,6 +44,50 @@
   -webkit-user-select: text;
 }
 
+/* The small window that says the export is saved: no wider than it needs to
+   be on a computer; on a phone Obsidian lays it out across the screen. */
+.spellbook-export-done.modal {
+  width: min(var(--dialog-width, 32rem), 32rem);
+  max-width: 100%;
+}
+
+.spellbook-export .spellbook-export-saved {
+  margin-block: 0 var(--size-4-3);
+  text-align: start;
+}
+
+/* The file's name and its folder, each under a small label. */
+.spellbook-export .spellbook-export-where {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  margin-block-end: var(--size-4-3);
+}
+
+.spellbook-export .spellbook-export-where-line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-1);
+  min-width: 0;
+}
+
+.spellbook-export .spellbook-export-where-label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-align: start;
+}
+
+.spellbook-export .spellbook-export-file {
+  font-weight: var(--font-semibold);
+}
+
+/* The buttons: a row on a computer, wrapping to the next line when there is no room. */
+.spellbook-export-done .setting-item-control {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--size-4-2);
+}
+
 /* The scenes that were left out. */
 .spellbook-export .spellbook-export-left-out {
   margin-block: 0 var(--size-4-3);

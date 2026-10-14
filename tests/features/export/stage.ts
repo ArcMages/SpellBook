@@ -200,6 +200,15 @@ export function openWindow(stage: Wired): Window {
   return { modal, content: modal.contentEl };
 }
 
+/** The small window that came up when the export was saved. */
+export function doneWindow(): Window {
+  const modal = [...StubModal.opened].reverse().find((candidate) => (candidate as unknown as Window['modal']).modalEl.hasClass('spellbook-export-done')) as
+    | Window['modal']
+    | undefined;
+  if (!modal) throw new Error('no window says the export is saved');
+  return { modal, content: modal.contentEl };
+}
+
 /** The row of the window with this name. */
 export function row(window: Window, name: string): Setting {
   const found = window.content.settings.find((setting) => setting.nameEl.text === name);

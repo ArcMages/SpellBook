@@ -9,6 +9,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fromUtf8, unzipStored } from '../../../src/core/export';
+import { EXPORTED_TITLE, VAULT_ROOT_TEXT, fileNameOf, folderOf } from '../../../src/features/export/doneModal';
 import {
   COULD_NOT_OPEN_TEXT,
   COULD_NOT_SHOW_TEXT,
@@ -44,6 +45,7 @@ import {
   button,
   calm,
   choicesOf,
+  doneWindow,
   dropdown,
   exportsOf,
   hasRow,
@@ -424,24 +426,61 @@ describe('saving an export', () => {
     expect(await exportAs(stage, 'html')).toBe(`Novel/Exports/My Novel ${TODAY}.html`);
   });
 
-  it('says where the file is, lists what was left out, and offers to open it', async () => {
+  it('makes way for a small window that says the file\'s name and folder, lists what was left out, and offers to open it', async () => {
     const stage = await wire();
     const window = openWindow(stage);
     await pressExport(stage, window);
-    expect(window.modal.isOpen).toBe(true);
-    expect(textsOf(window, 'spellbook-export-path')).toEqual([`Exports/My Novel ${TODAY}.docx`]);
-    expect(window.content.withClass('spellbook-export-path')[0]?.getAttr('dir')).toBe('auto');
-    expect(window.content.withClass('spellbook-export-result')[0]?.fullText).toContain('Saved 4 scenes, 26 words, as a new file in the project:');
-    const leftOut = window.content.withClass('spellbook-export-left-out').map((list) => list.children.map((item) => [item.text, item.getAttr('dir')]));
+    expect(window.modal.isOpen).toBe(false);
+    const done = doneWindow();
+    expect(done.modal.isOpen).toBe(true);
+    expect(done.modal.titleEl.text).toBe(EXPORTED_TITLE);
+    expect(done.modal.modalEl.hasClass('spellbook-export')).toBe(true);
+    expect(textsOf(done, 'spellbook-export-file')).toEqual([`My Novel ${TODAY}.docx`]);
+    expect(textsOf(done, 'spellbook-export-folder')).toEqual(['Novel/Exports']);
+    for (const cls of ['spellbook-export-file', 'spellbook-export-folder']) expect(done.content.withClass(cls)[0]?.getAttr('dir')).toBe('auto');
+    expect(textsOf(done, 'spellbook-export-where-label')).toEqual(['File', 'Folder']);
+    expect(done.content.withClass('spellbook-export-result')[0]?.fullText).toContain('Saved 4 scenes, 26 words, as a new file.');
+    const leftOut = done.content.withClass('spellbook-export-left-out').map((list) => list.children.map((item) => [item.text, item.getAttr('dir')]));
     expect(leftOut).toEqual([[['Draft', 'auto']], [['Ghost', 'auto']]]);
-    expect(notices()).toEqual([`Exported to Exports/My Novel ${TODAY}.docx`]);
+    // A window that stays, not a notice that fades.
+    expect(notices()).toEqual([]);
     expect(stage.opened).toEqual([]); // not opened until asked
+    expect(button(done, 'Show in file list')).toBeDefined();
 
-    button(window, 'Open').click();
+    button(done, 'Open').click();
     await calm(stage);
     expect(stage.opened).toEqual([{ path: `Novel/Exports/My Novel ${TODAY}.docx`, where: false }]);
-    button(window, 'Done').click();
-    expect(window.modal.isOpen).toBe(false);
+    expect(done.modal.isOpen).toBe(true);
+    button(done, 'OK').click();
+    expect(done.modal.isOpen).toBe(false);
+  });
+
+  it('names the file and the folder from the vault path', () => {
+    expect(fileNameOf('Novel/Exports/My Novel.docx')).toBe('My Novel.docx');
+    expect(folderOf('Novel/Exports/My Novel.docx')).toBe('Novel/Exports');
+    expect(fileNameOf('לילה.md')).toBe('לילה.md');
+    expect(folderOf('לילה.md')).toBe('');
+    expect(VAULT_ROOT_TEXT).toMatch(/top of the vault/);
+  });
+
+  it('still says the export is saved when the form was closed while it was being made, and nothing after the plugin is switched off', async () => {
+    const stage = await wire();
+    const window = openWindow(stage);
+    button(window, 'Export').click();
+    window.modal.close();
+    await calm(stage);
+    expect(doneWindow().modal.isOpen).toBe(true);
+    // Switching the plugin off closes it.
+    stage.switchOff();
+    expect(doneWindow().modal.isOpen).toBe(false);
+
+    const other = await wire();
+    const before = StubModal.opened.length;
+    const form = openWindow(other);
+    button(form, 'Export').click();
+    other.switchOff();
+    await calm(other);
+    expect(StubModal.opened).toHaveLength(before + 1); // the form only
   });
 
   it('opens a Markdown export as a note in a new tab, and says so when a file cannot be opened', async () => {
@@ -449,22 +488,24 @@ describe('saving an export', () => {
     const window = openWindow(stage);
     dropdown(window, 'Format').choose('markdown');
     await pressExport(stage, window);
-    button(window, 'Open').click();
+    const done = doneWindow();
+    button(done, 'Open').click();
     await calm(stage);
     expect(stage.opened).toEqual([{ path: `Novel/Exports/My Novel ${TODAY}.md`, where: 'tab' }]);
-    expect(window.modal.isOpen).toBe(false); // the note is on show: the window is out of its way
+    expect(done.modal.isOpen).toBe(false); // the note is on show: the window is out of its way
 
     stage.canOpen.value = false;
     const other = openWindow(stage);
     dropdown(other, 'Format').choose('docx');
     await pressExport(stage, other);
-    button(other, 'Open').click();
+    const second = doneWindow();
+    button(second, 'Open').click();
     await calm(stage);
     expect(notices()).toContain(COULD_NOT_OPEN_TEXT);
-    expect(other.modal.isOpen).toBe(true);
+    expect(second.modal.isOpen).toBe(true);
   });
 
-  describe('"Show in folder"', () => {
+  describe('"Show in file list"', () => {
     /** Obsidian's file list, standing in the sidebar; what it was asked to point at is kept. */
     function fileList(stage: Wired, view: Record<string, unknown> | null = null): string[] {
       const pointed: string[] = [];
@@ -478,22 +519,23 @@ describe('saving an export', () => {
       return pointed;
     }
 
-    it('on a desktop brings Obsidian\'s file list to the front, points at the file, and gets out of the way', async () => {
+    it('brings Obsidian\'s file list to the front, points at the file, and gets out of the way', async () => {
       const stage = await wire();
       const pointed = fileList(stage);
       const window = openWindow(stage);
       await pressExport(stage, window);
       const path = `Novel/Exports/My Novel ${TODAY}.docx`;
       stage.fake.vault.attachFile(path, '');
+      const done = doneWindow();
       // A Word file: the file list may be set not to show it, and the window says so.
-      expect(textsOf(window, 'spellbook-export-note')).toContain(HIDDEN_FILE_NOTE);
-      expect(textsOf(window, 'spellbook-export-note')).not.toContain(MOBILE_WHERE_NOTE);
+      expect(textsOf(done, 'spellbook-export-note')).toContain(HIDDEN_FILE_NOTE);
+      expect(textsOf(done, 'spellbook-export-note')).not.toContain(MOBILE_WHERE_NOTE);
 
-      button(window, 'Show in folder').click();
+      button(done, 'Show in file list').click();
       await calm(stage);
       expect(stage.fake.workspace.revealed.map((leaf) => leaf.type)).toEqual(['file-explorer']);
       expect(pointed).toEqual([path]);
-      expect(window.modal.isOpen).toBe(false);
+      expect(done.modal.isOpen).toBe(false);
       expect(stage.opened).toEqual([]);
       expect(notices()).not.toContain(COULD_NOT_SHOW_TEXT);
     });
@@ -510,10 +552,11 @@ describe('saving an export', () => {
       const window = openWindow(stage);
       await pressExport(stage, window);
       stage.fake.vault.attachFile(`Novel/Exports/My Novel ${TODAY}.docx`, '');
-      button(window, 'Show in folder').click();
+      const done = doneWindow();
+      button(done, 'Show in file list').click();
       await calm(stage);
       expect(pointed).toEqual(['Novel/Exports']);
-      expect(window.modal.isOpen).toBe(false);
+      expect(done.modal.isOpen).toBe(false);
     });
 
     it('still shows the file list when it has no way of pointing at a file', async () => {
@@ -522,20 +565,22 @@ describe('saving an export', () => {
       const window = openWindow(stage);
       await pressExport(stage, window);
       stage.fake.vault.attachFile(`Novel/Exports/My Novel ${TODAY}.docx`, '');
-      button(window, 'Show in folder').click();
+      const done = doneWindow();
+      button(done, 'Show in file list').click();
       await calm(stage);
       expect(stage.fake.workspace.revealed).toHaveLength(1);
-      expect(window.modal.isOpen).toBe(false);
+      expect(done.modal.isOpen).toBe(false);
     });
 
     it('says so when there is no file list to show, and stays open', async () => {
       const stage = await wire();
       const window = openWindow(stage);
       await pressExport(stage, window);
-      button(window, 'Show in folder').click();
+      const done = doneWindow();
+      button(done, 'Show in file list').click();
       await calm(stage);
       expect(notices()).toContain(COULD_NOT_SHOW_TEXT);
-      expect(window.modal.isOpen).toBe(true);
+      expect(done.modal.isOpen).toBe(true);
     });
 
     it('does not warn about hidden files for a Markdown export, which is a note', async () => {
@@ -543,23 +588,32 @@ describe('saving an export', () => {
       const window = openWindow(stage);
       dropdown(window, 'Format').choose('markdown');
       await pressExport(stage, window);
-      expect(textsOf(window, 'spellbook-export-note')).not.toContain(HIDDEN_FILE_NOTE);
-      expect(button(window, 'Show in folder')).toBeDefined();
+      const done = doneWindow();
+      expect(textsOf(done, 'spellbook-export-note')).not.toContain(HIDDEN_FILE_NOTE);
+      expect(button(done, 'Show in file list')).toBeDefined();
     });
 
-    it('on a phone or tablet is not offered: the window says where the file is instead', async () => {
+    it('is offered on a phone or tablet too, where the file list is the drawer at the side', async () => {
       Object.assign(StubPlatform, { isDesktop: false, isMobile: true, isPhone: true });
       const stage = await wire();
+      const pointed = fileList(stage);
       const window = openWindow(stage);
       dropdown(window, 'Format').choose('docx');
       await pressExport(stage, window);
-      expect(() => button(window, 'Show in folder')).toThrow();
-      expect(button(window, 'Open')).toBeDefined();
-      const notes = textsOf(window, 'spellbook-export-note');
+      const done = doneWindow();
+      expect(button(done, 'Open')).toBeDefined();
+      expect(button(done, 'OK')).toBeDefined();
+      const notes = textsOf(done, 'spellbook-export-note');
       expect(notes).toContain(MOBILE_WHERE_NOTE);
       expect(notes).toContain(HIDDEN_FILE_NOTE);
-      expect(MOBILE_WHERE_NOTE).toMatch(/Exports folder/);
+      expect(MOBILE_WHERE_NOTE).toMatch(/Files app/);
       expect(HIDDEN_FILE_NOTE).toMatch(/"Detect all file extensions"/);
+      const path = `Novel/Exports/My Novel ${TODAY}.docx`;
+      stage.fake.vault.attachFile(path, '');
+      button(done, 'Show in file list').click();
+      await calm(stage);
+      expect(pointed).toEqual([path]);
+      expect(done.modal.isOpen).toBe(false);
     });
   });
 
@@ -616,7 +670,7 @@ describe('saving an export', () => {
       const window = openWindow(stage);
       dropdown(window, 'Format').choose('markdown');
       await pressExport(stage, window);
-      const leftOut = window.content.withClass('spellbook-export-left-out').map((list) => list.children.map((item) => item.text));
+      const leftOut = doneWindow().content.withClass('spellbook-export-left-out').map((list) => list.children.map((item) => item.text));
       expect(leftOut).toEqual([['Draft'], ['The Letter', 'Ghost']]);
     } finally {
       console.error = log;

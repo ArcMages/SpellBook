@@ -19,6 +19,7 @@ import {
   NOVEL_INDEX,
   OPENING_LINE,
   SECOND_INDEX,
+  doneWindow,
   dropdown,
   exportsOf,
   inNovel,
@@ -111,7 +112,7 @@ describe('an e-book from the window', () => {
     stage.vault.external.delete('Novel/Research/cover.png');
     const path = await exportNow(stage, window);
     expect(unzipStored(stage.vault.bytesOf(path)).some((entry) => entry.name.includes('cover'))).toBe(false);
-    expect(window.content.fullText).toContain('The cover picture could not be read');
+    expect(doneWindow().content.fullText).toContain('The cover picture could not be read');
   });
 });
 
