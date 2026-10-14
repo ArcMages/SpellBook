@@ -515,19 +515,21 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 - **Lanes** opens the "Timeline lanes" window: **Add lane**, and for each lane **Rename**, **Colour**, **Move up**, **Move down**, **Remove**, and **Hide** or **Show**. Removing a lane keeps its events; they show in the Other lane.
 - **Calendar** opens the [story calendar](#story-calendar).
 - **Only events with** narrows the timeline to the events that involve chosen characters, places or other entities; **Show all events** undoes it. It narrows the world lanes too.
+- **Filter by tags** (the tag button) shows only what carries chosen tags: events (their `tags`), scenes (their `tags`) and entities (the `tags` of their note). Pick tags from those used in the project, each shown with how many things carry it. **Any tag** shows what has one of them, **All tags** what has every one; a tag also matches the tags nested under it, so `royalty` matches `royalty/king`. Under **Show only**, tick kinds to see just those, for example Characters and Events; ticking a type of entity turns the world lanes on. A "Filtered: ..." strip says what is shown; tap it to change the filter, or **Clear filter** to see everything. Lanes the filter leaves empty are not drawn. So a king who is a character tagged `royalty` shows on his lane beside the royal events.
+- **Views** (the first button, named after the view shown) switches between saved combinations of lanes shown or hidden, world lanes on or off, and the filter. Two are built in: **Story** (the manuscript and your lanes, no world lanes, no filter) and **World history** (the world lanes and the events, the Manuscript lane hidden). Neither touches a lane you hid yourself. **Save current view...** keeps what you see under a name; saving under the same name again replaces it, and each saved view has a **Delete** item.
 - **World** switches the world lanes on or off: one lane for each type of entity that has a date, after your own lanes. An entity with a date and an end is a bar between the two; one with only a date is a point; its moments are small points on the same row, and its name stands on it. Tap an entity to open its sheet in the World screen; its menu has **Open sheet**, **Open note**, **Open note in new tab**, **Move earlier** and **Move later**. Drag it along its lane to change its dates, as you would an event; it stays in the lane of its type. In the "Timeline lanes" window the part called **World** shows or hides all world lanes, and each type's lane on its own.
 
 ![The timeline with world lanes: characters' lives and places' histories as bars and points beside the story's events](images/world-history-timeline.png)
 
 *World history: the sample novel's characters and places on the timeline, from the drowned village of the 1600s to the story's 1923.*
 
-**World history.** Command **Open world history**, or the **History** button in the World screen, opens the timeline with the world lanes on and the Manuscript lane hidden, fitted to the range of the world's dates. Both are choices of this device: show the Manuscript lane again in the "Timeline lanes" window. The world lanes show in **By date** order only.
+**World history.** Command **Open world history**, or the **History** button in the World screen, switches the timeline to the **World history** view, fitted to the range of the world's dates. To get the scenes back, choose **Story** under **Views**, or turn **World** off. The world lanes show in **By date** order only.
 
 **Dates.** A date can be a year, a year and month, or a full date: 1923, 1923-04 or 1923-04-12.
 
 **On a phone.** A narrow pane shows one lane at a time, with time running from top to bottom and a row of buttons to switch lane. Slide with one finger to move along the timeline and pinch with two to zoom. Rest a finger on an event to pick it up; "Move earlier" and "Move later" do the same without dragging.
 
-**Limits.** Which lanes are hidden is remembered on each device separately. A narrow card shows as many whole entity chips as fit, then a "+N" chip for the rest.
+**Limits.** Which lanes are hidden, the filter by tags and the saved views are remembered on each device separately. The filter reads tags from the `tags` property only, not from tags written in a note's text. A narrow card shows as many whole entity chips as fit, then a "+N" chip for the rest.
 
 ## Story calendar
 
@@ -843,7 +845,7 @@ Obsidian shows each of these with "Spellbook:" in front.
 | Open writing report | Shows the writing report. |
 | Open timeline | Shows the timeline. |
 | Edit story calendar | Opens the window that defines the story's calendar. |
-| Open world history | Shows the timeline with the world lanes on and the Manuscript lane off, fitted to the world's dates. |
+| Open world history | Switches the timeline to the World history view: the world lanes on and the Manuscript lane off, fitted to the world's dates. |
 | Open plot grid | Shows the scenes in binder order against plotlines, labels, characters or places, with a tick where a scene belongs to one. |
 | New idea board | Makes an empty idea board in the project's Boards folder and opens it in Obsidian's Canvas. |
 | Open idea boards | Shows the project's idea boards, with what each holds. |
