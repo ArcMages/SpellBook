@@ -6,7 +6,9 @@
 //   whole words  "art" finds "art" and not "start" or "artist". A word is a
 //                run of letters, digits and marks, in any script: a Hebrew
 //                word with a letter joined to its front ("הבית", "the house")
-//                is another word than "בית" ("house"), and is not found.
+//                is another word than "בית" ("house"), and findInText does
+//                not find it ("Find and replace" and "Rename everywhere" still
+//                show it, unticked: see findWithJoined in rename.ts).
 //   wildcards    "?" stands for one character and "*" for any characters on
 //                the same line, as few as will do; a "*" at the start or the
 //                end of what is looked for stands for the rest of the word:

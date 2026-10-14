@@ -137,6 +137,40 @@ export interface VaultPort {
    */
   rename(from: string, to: string): Promise<string>;
 
+  /**
+   * Rename a file and nothing else: the links to it are left as they are,
+   * and the vault asks the writer nothing. Rejects when the file is missing
+   * or the new path is taken. Resolves with the file's new path.
+   *
+   * Only the project store calls it, for an entity's note, and brings the
+   * links to it up to date itself: see renameWorldNote there. (Obsidian's
+   * own rename stops to ask about links when the writer has not told it to
+   * "Always update internal links", and a rename waits until they answer.)
+   */
+  moveFile(from: string, to: string): Promise<string>;
+
+  /**
+   * The notes whose links the vault has found to lead to a file, as vault
+   * paths, sorted. Cheap; reads no files. It may lag a moment behind a note
+   * that was just changed.
+   */
+  linkSources(path: string): string[];
+
+  /**
+   * Read, change and save the text of a note that is there, in one step,
+   * against the file as it is on disk at that moment, so that its links lead
+   * to a note that was renamed. Nothing is ever created: rejects with
+   * VaultFileMissingError when there is no such file.
+   *
+   * The project store is the only caller, in renameWorldNote, and the change
+   * it hands in alters nothing but the stretches of links that name the
+   * renamed note (see retargetLinks in src/core/links.ts), and never the
+   * properties block.
+   *
+   * Resolves with whether the file was written. Rejects when the save fails.
+   */
+  updateLinks(path: string, change: (current: string) => string | null): Promise<boolean>;
+
   /** Move a file to the trash (never deletes it outright). */
   trash(path: string): Promise<void>;
 

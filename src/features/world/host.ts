@@ -535,7 +535,7 @@ export class WorldHost {
   }
 
   /**
-   * Rename an entity: its note is renamed, and Obsidian brings the links to it up to date.
+   * Rename an entity: its note is renamed, and the store brings the links to it in the project up to date.
    *
    * @returns the note's new path, or why it was not renamed
    */

@@ -169,7 +169,8 @@ export class RevisionMarksView {
   /** Show the notes under the pointer or the finger; nothing there takes the bubble away. */
   explain(event: MouseEvent): void {
     const notes = notesAt(event.target, this.view.contentDOM);
-    this.tip.show(this.view.dom.ownerDocument, notes, event.clientX, event.clientY);
+    const line = markLineAt(event.target, this.view.contentDOM, event.clientY);
+    this.tip.show(this.view.dom.ownerDocument, notes, event.clientX, event.clientY, line);
   }
 
   destroy(): void {
@@ -198,9 +199,55 @@ export function notesAt(target: unknown, within: unknown): string[] {
   return notes;
 }
 
+/**
+ * The top and bottom, on the screen, of the line of a marked passage under
+ * the pointer: the line of the mark at `target` (or around it) that holds
+ * `y`. Null when there is no mark there.
+ */
+export function markLineAt(target: unknown, within: unknown, y: number): { readonly top: number; readonly bottom: number } | null {
+  let element = target as (Markable & { getClientRects?: () => ArrayLike<{ top: number; bottom: number }> }) | null;
+  for (let steps = 0; element && element !== within && steps < 12; steps++) {
+    if (typeof element.getAttr !== 'function') return null;
+    if (element.getAttr(PASSAGE_NOTE) !== null && typeof element.getClientRects === 'function') {
+      const rects = Array.from(element.getClientRects());
+      const line = rects.find((rect) => y >= rect.top && y <= rect.bottom) ?? rects[0];
+      return line ? { top: line.top, bottom: line.bottom } : null;
+    }
+    element = element.parentElement as typeof element;
+  }
+  return null;
+}
+
 export const TIP_CLASS = 'spellbook-revision-tip';
+/** The room between the bubble and the line it is about. */
+const GAP = 6;
+/** Below the pointer, when the line it points at is not known. */
 const BELOW = 22;
 const EDGE = 8;
+
+/**
+ * Where the bubble goes: above the line of the passage, so that it covers
+ * neither the passage nor the line after it, or, with no room above, below
+ * the line. Across, it starts at the pointer and stays on the screen.
+ */
+export function tipPlace(
+  tip: { readonly width: number; readonly height: number },
+  screen: { readonly width: number; readonly height: number },
+  x: number,
+  y: number,
+  line: { readonly top: number; readonly bottom: number } | null,
+): { readonly left: number; readonly top: number } {
+  const roomAcross = screen.width - tip.width - EDGE;
+  const left = Math.max(EDGE, roomAcross > EDGE ? Math.min(x, roomAcross) : EDGE);
+  if (line) {
+    const above = line.top - GAP - tip.height;
+    if (above >= EDGE) return { left, top: above };
+    return { left, top: line.bottom + GAP };
+  }
+  const roomDown = screen.height - tip.height - EDGE;
+  const top = roomDown > 0 && y + BELOW > roomDown ? Math.max(EDGE, y - BELOW - tip.height) : y + BELOW;
+  return { left, top };
+}
 
 /** The bubble that shows a passage's note. One element at the end of the page, which never takes a tap or the keyboard. */
 export class RevisionTip {
@@ -211,7 +258,10 @@ export class RevisionTip {
     return this.element !== null;
   }
 
-  show(page: Document, notes: readonly string[], x: number, y: number): void {
+  /**
+   * @param line the top and bottom of the passage's line under the pointer, when known
+   */
+  show(page: Document, notes: readonly string[], x: number, y: number, line: { readonly top: number; readonly bottom: number } | null = null): void {
     if (notes.length === 0) {
       this.hide();
       return;
@@ -223,14 +273,15 @@ export class RevisionTip {
     // The writer's own words, in either language.
     for (const note of notes) tip.createDiv({ cls: `${TIP_CLASS}-line`, text: note, attr: { dir: 'auto' } });
     const view = page.defaultView;
-    const width = tip.offsetWidth || 0;
-    const height = tip.offsetHeight || 0;
-    const roomAcross = (view?.innerWidth ?? 0) - width - EDGE;
-    const roomDown = (view?.innerHeight ?? 0) - height - EDGE;
-    const across = Math.max(EDGE, roomAcross > EDGE ? Math.min(x, roomAcross) : EDGE);
-    const down = roomDown > 0 && y + BELOW > roomDown ? Math.max(EDGE, y - BELOW - height) : y + BELOW;
-    tip.style.left = `${Math.round(across)}px`;
-    tip.style.top = `${Math.round(down)}px`;
+    const place = tipPlace(
+      { width: tip.offsetWidth || 0, height: tip.offsetHeight || 0 },
+      { width: view?.innerWidth ?? 0, height: view?.innerHeight ?? 0 },
+      x,
+      y,
+      line,
+    );
+    tip.style.left = `${Math.round(place.left)}px`;
+    tip.style.top = `${Math.round(place.top)}px`;
     this.element = tip;
     this.showing = text;
   }

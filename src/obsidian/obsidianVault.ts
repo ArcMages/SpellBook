@@ -7,6 +7,8 @@
 //     text is never touched),
 //   - notes are removed with fileManager.trashFile (never deleted outright),
 //   - notes are renamed with fileManager.renameFile (links are kept working),
+//     except an entity's note, whose links the project store brings up to
+//     date itself: moveFile and updateLinks below,
 //   - a whole text is only ever replaced in the plugin's own files (the to-do
 //     list and the word logs), in one place: updateText below, which reads,
 //     changes and saves in one step with vault.process,
@@ -253,6 +255,39 @@ export class ObsidianVault implements VaultPort {
     const file = this.requireFile(from);
     await this.app.fileManager.renameFile(file, normalizePath(to));
     return file.path;
+  }
+
+  /**
+   * The one place in the plugin that renames a file without Obsidian's
+   * FileManager: the links to it are left as they are and nothing is asked.
+   * Only the project store calls it, in renameWorldNote, which brings the
+   * links to the note up to date itself (see moveFile in src/core/vaultPort.ts).
+   */
+  async moveFile(from: string, to: string): Promise<string> {
+    const file = this.requireFile(from);
+    const wanted = normalizePath(to);
+    await this.app.vault.rename(file, wanted);
+    return file.path;
+  }
+
+  linkSources(path: string): string[] {
+    const file = this.find(path);
+    if (!(file instanceof TFile)) return [];
+    const resolved = this.app.metadataCache.resolvedLinks;
+    const sources: string[] = [];
+    for (const [source, targets] of Object.entries(resolved)) {
+      if (targets && Object.prototype.hasOwnProperty.call(targets, file.path)) sources.push(source);
+    }
+    return sources.sort();
+  }
+
+  /**
+   * Changes a note's text so that its links lead to a renamed note; it never
+   * creates one. Only the project store calls it: see renameWorldNote in
+   * src/core/projectStore.ts.
+   */
+  async updateLinks(path: string, change: (current: string) => string | null): Promise<boolean> {
+    return this.changeText(this.requireFile(path), (current) => change(current ?? ''));
   }
 
   async trash(path: string): Promise<void> {

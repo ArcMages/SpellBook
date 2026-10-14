@@ -7,7 +7,7 @@
 // scene, index or other note is ever renamed or trashed through them.
 
 import { describe, expect, it } from 'vitest';
-import { PROJECT_FOLDERS, WORLD_FOLDER } from '../src/core/projectStore';
+import { PROJECT_FOLDERS, ProjectStore, WORLD_FOLDER } from '../src/core/projectStore';
 import { ObsidianVault } from '../src/obsidian/obsidianVault';
 import { FakeObsidian, note } from './fakeObsidianApp';
 import { MemoryVault } from './memoryVault';
@@ -153,19 +153,55 @@ describe('addWorldNote', () => {
 describe('renameWorldNote', () => {
   it('renames the note where it is, in one write, and leaves its text and properties alone', async () => {
     const { store, vault } = await openSeeded(scenes, withWorld());
-    expect(valueOf(await store.renameWorldNote('World/Characters/Mara.md', 'Mara Voss'))).toEqual({ path: 'World/Characters/Mara Voss.md' });
-    expect(vault.writes).toEqual([{ op: 'rename', path: 'Novel/World/Characters/Mara.md', to: 'Novel/World/Characters/Mara Voss.md' }]);
+    expect(valueOf(await store.renameWorldNote('World/Characters/Mara.md', 'Mara Voss'))).toEqual({ path: 'World/Characters/Mara Voss.md', links: 0, notes: 0, outside: [], missed: [] });
+    expect(vault.writes).toEqual([{ op: 'moveFile', path: 'Novel/World/Characters/Mara.md', to: 'Novel/World/Characters/Mara Voss.md' }]);
     expect(vault.bodyOf('Novel/World/Characters/Mara Voss.md')).toBe('Her story so far.');
     expect(vault.frontmatterOf('Novel/World/Characters/Mara Voss.md')).toEqual({ type: 'character', summary: 'Keeps the light.' });
     expect(store.vaultPathOf('World/Characters/Mara Voss.md')).toBe('Novel/World/Characters/Mara Voss.md');
     expect(binderOnDisk(vault, INDEX)).toEqual(['Manuscript/A.md', 'Manuscript/B.md']);
   });
 
+  it('brings every link to it in the project up to date itself, and asks the vault nothing', async () => {
+    const vault = withWorld()
+      .seed('Novel/Research/Lighthouse.md', {
+        frontmatter: { related: ['[[Mara]]', '[[Saltwick]]'], about: '[[Mara|the keeper]]' },
+        body: 'See [[Mara]], [[World/Characters/Mara|her]], ![[Mara#Youth]], [the keeper](Mara.md) and [[Saltwick]].\nIn code: `[[Mara]]`.',
+      })
+      .seed('Novel/World/Places/Harbour.md', { body: 'Kept by [[mara]] and [[Mara.md|Mara]].' })
+      .seed('Elsewhere/Diary.md', { body: 'Met [[Mara]] today.' });
+    // The entity's own note links to itself too.
+    vault.external.write('Novel/World/Characters/Mara.md', { frontmatter: { type: 'character' }, body: 'Her story: [[Mara#Youth]].' });
+    const { store } = await openSeeded(scenes, vault);
+    vault.writes.length = 0;
+    const result = valueOf(await store.renameWorldNote('World/Characters/Mara.md', 'Mara Voss'));
+    expect(result).toEqual({ path: 'World/Characters/Mara Voss.md', links: 9, notes: 3, outside: ['Elsewhere/Diary.md'], missed: [] });
+    expect(vault.bodyOf('Novel/Research/Lighthouse.md')).toBe(
+      'See [[Mara Voss]], [[World/Characters/Mara Voss|her]], ![[Mara Voss#Youth]], [the keeper](Mara%20Voss.md) and [[Saltwick]].\nIn code: `[[Mara]]`.',
+    );
+    expect(vault.frontmatterOf('Novel/Research/Lighthouse.md')).toEqual({ related: ['[[Mara Voss]]', '[[Saltwick]]'], about: '[[Mara Voss|the keeper]]' });
+    expect(vault.bodyOf('Novel/World/Places/Harbour.md')).toBe('Kept by [[Mara Voss]] and [[Mara Voss.md|Mara]].');
+    expect(vault.bodyOf('Novel/World/Characters/Mara Voss.md')).toBe('Her story: [[Mara Voss#Youth]].');
+    // Nothing outside the project is changed, and no rename that updates links was asked of the vault.
+    expect(vault.bodyOf('Elsewhere/Diary.md')).toBe('Met [[Mara]] today.');
+    expect(vault.writes.some((write) => write.op === 'rename')).toBe(false);
+    expect(vault.writes.every((write) => write.path.startsWith('Novel/'))).toBe(true);
+    expect(vault.writes[0]).toEqual({ op: 'moveFile', path: 'Novel/World/Characters/Mara.md', to: 'Novel/World/Characters/Mara Voss.md' });
+  });
+
+  it('names the whole path where another note of the new name would be found first', async () => {
+    const vault = withWorld()
+      .seed('Novel/World/Places/Joss.md', { body: 'A cove.' })
+      .seed('Novel/World/Places/Map.md', { body: 'Near [[Mara]].' });
+    const { store } = await openSeeded(scenes, vault);
+    valueOf(await store.renameWorldNote('World/Characters/Mara.md', 'Joss'));
+    expect(vault.bodyOf('Novel/World/Places/Map.md')).toBe('Near [[Novel/World/Characters/Joss]].');
+  });
+
   it('may change only the capitals of a name, and does nothing for the name it already has', async () => {
     const { store, vault } = await openSeeded(scenes, withWorld());
     expect(await store.renameWorldNote('World/Characters/Mara.md', 'Mara')).toMatchObject({ status: 'noop', reason: 'unchanged' });
     expect(vault.writes).toEqual([]);
-    expect(valueOf(await store.renameWorldNote('World/Characters/Mara.md', 'MARA'))).toEqual({ path: 'World/Characters/MARA.md' });
+    expect(valueOf(await store.renameWorldNote('World/Characters/Mara.md', 'MARA'))).toMatchObject({ path: 'World/Characters/MARA.md' });
   });
 
   it('REFUSES a name that is taken or untidy, and replaces nothing', async () => {
@@ -197,7 +233,7 @@ describe('renameWorldNote', () => {
 
   it('says so when the rename fails, and refuses a read-only project', async () => {
     const { store, vault } = await openSeeded(scenes, withWorld());
-    vault.failNext('rename', 'Novel/World/Characters/Mara.md');
+    vault.failNext('moveFile', 'Novel/World/Characters/Mara.md');
     expect((await store.renameWorldNote('World/Characters/Mara.md', 'Other')).status).toBe('failed');
     expect(vault.has('Novel/World/Characters/Mara.md')).toBe(true);
 
@@ -245,5 +281,26 @@ describe('the real vault doorway', () => {
     expect(vault.resolveLink('Novel/World/Characters/Mara', 'Novel/Manuscript/Opening.md')).toBe('Novel/World/Characters/Mara.md');
     expect(vault.resolveLink('Nobody', 'Novel/Manuscript/Opening.md')).toBeNull();
     expect(fake.calls).toEqual([]); // looking a link up writes nothing
+  });
+
+  it('renames an entity through the real doorway without asking the vault to update links, and the links follow', async () => {
+    const fake = new FakeObsidian();
+    fake.addNote('Novel/Novel.md', note({ spellbook: 'project', version: 1, binder: ['Manuscript/Opening.md'] }));
+    fake.addNote('Novel/Manuscript/Opening.md', note({ entities: ['[[Mara]]'] }, 'Text with [[Mara|her]] in it.\n'));
+    fake.addNote('Novel/World/Characters/Mara.md', note({ type: 'character' }));
+    fake.addNote('Diary.md', 'About [[Mara]].');
+    const vault = new ObsidianVault(fake.app);
+    vault.start();
+    fake.finishStartup();
+    const store = new ProjectStore({ vault, today: () => '2026-01-01', setTimer: () => () => undefined, random: () => 0.5 });
+    store.start();
+    valueOf(await store.openProject(INDEX));
+    const result = valueOf(await store.renameWorldNote('World/Characters/Mara.md', 'Mara Voss'));
+    expect(result).toMatchObject({ path: 'World/Characters/Mara Voss.md', links: 2, notes: 1, outside: ['Diary.md'] });
+    expect(fake.calls.some((call) => call.startsWith('renameFile'))).toBe(false);
+    const text = fake.vault.text.get('Novel/Manuscript/Opening.md') ?? '';
+    expect(text).toContain('Text with [[Mara Voss|her]] in it.');
+    expect(text).toContain('[[Mara Voss]]');
+    expect(fake.vault.text.get('Diary.md')).toBe('About [[Mara]].');
   });
 });

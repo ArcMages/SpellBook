@@ -9,6 +9,7 @@ import { WordCountCache } from '../../../src/core/wordCountCache';
 import { registerFeatures } from '../../../src/features/registry';
 import type { FeatureContext, FeatureServices } from '../../../src/features/registry';
 import { RevisionKeeper, SNAPSHOTS_SERVICE_NAME, TickedResults, replaceSnapshotName, revisionFeature } from '../../../src/features/revision/index';
+import { linksText } from '../../../src/features/revision/reports';
 import { SNAPSHOTS_SERVICE, snapshotsFeature } from '../../../src/features/snapshots/index';
 import { FakeObsidian } from '../../fakeObsidianApp';
 import { MemoryVault } from '../../memoryVault';
@@ -168,7 +169,9 @@ describe('find and replace across the manuscript', () => {
     // The synopsis in Opening's properties says "the old town": not found.
     expect((await keeper.search('old town', plain, null)).length).toBe(0);
     expect((await keeper.search('הנמל', { ...plain, wholeWords: true }, null)).map((entry) => entry.scene.path)).toEqual([NIGHT]);
-    expect((await keeper.search('נמל', { ...plain, wholeWords: true }, null)).length).toBe(0);
+    // With whole words, "הנמל" ("the harbour") is shown for "נמל" ("harbour"), marked as joined: it starts unticked.
+    const joined = await keeper.search('נמל', { ...plain, wholeWords: true }, null);
+    expect(joined.map((entry) => entry.matches.map((match) => [match.text, match.joined]))).toEqual([[['נמל', true]]]);
     expect((await keeper.search('נמל', plain, null))[0]?.matches.length).toBe(1);
   });
 
@@ -287,5 +290,56 @@ describe('rename everywhere', () => {
     expect(typeof report).toBe('string');
     expect(vault.bodyOf(inNovel(OPENING))).toContain('Anna walked alone');
     expect(snapshotsIn(vault)).toEqual([]);
+  });
+
+  it('keeps the old name first, then changes the text, then renames the note and points every link in the project at it, asking the vault nothing', async () => {
+    const vault = vaultWithWorld();
+    vault.seed(inNovel(CLOSING), { body: 'The end came quietly. [[Anna|She]] smiled. See [[Anna]].\n' });
+    vault.seed('Notes/Diary.md', { body: 'Met [[Anna]].' });
+    const { keeper, store, timers } = await stage({ vault });
+    expect(keeper.linksFromOutside(ANNA)).toEqual(['Notes/Diary.md']);
+    const found = await keeper.findName('Anna');
+    // The links are not places of the text: they follow the note.
+    expect(found.map((entry) => entry.scene.path)).toEqual([OPENING]);
+    vault.writes.length = 0;
+    const report = await keeper.renameEverywhere(ANNA, 'Dina', true, new TickedResults(found).plans('Dina'));
+    await calm({ store, timers });
+    if (typeof report === 'string') throw new Error(report);
+    expect(report.links).toEqual({ changed: 2, notes: 1, outside: ['Notes/Diary.md'], missed: [] });
+    expect(vault.bodyOf(inNovel(CLOSING))).toBe('The end came quietly. [[Dina|She]] smiled. See [[Dina]].\n');
+    expect(vault.bodyOf('Notes/Diary.md')).toBe('Met [[Anna]].');
+    expect(vault.frontmatterOf(inNovel('World/Characters/Dina.md'))?.['aliases']).toEqual(['Anna']);
+    const ops = vault.writes.map((write) => `${write.op} ${write.path}`);
+    expect(ops).not.toContain(`rename ${inNovel(ANNA)}`);
+    const alias = ops.indexOf(`updateFrontmatter ${inNovel(ANNA)}`);
+    const text = ops.indexOf(`replaceText ${inNovel(OPENING)}`);
+    const move = ops.indexOf(`moveFile ${inNovel(ANNA)}`);
+    const links = ops.indexOf(`updateLinks ${inNovel(CLOSING)}`);
+    expect(alias).toBeGreaterThanOrEqual(0);
+    expect(alias).toBeLessThan(text);
+    expect(text).toBeLessThan(move);
+    expect(move).toBeLessThan(links);
+  });
+
+  it('says what was done when the note itself cannot be renamed', async () => {
+    const { keeper, vault } = await stage();
+    const found = await keeper.findName('Anna');
+    vault.failNext('moveFile', inNovel(ANNA));
+    const report = await keeper.renameEverywhere(ANNA, 'Dina', true, new TickedResults(found).plans('Dina'));
+    expect(typeof report).toBe('string');
+    expect(report).toMatch(/could not be renamed/);
+    expect(report).toMatch(/The text was changed in 1 scene\./);
+    expect(report).toMatch(/"Anna" was added to its other names\./);
+    expect(vault.has(inNovel(ANNA))).toBe(true);
+  });
+});
+
+describe('what the writer is told about the links', () => {
+  it('counts the links changed, and says why links from outside the project keep the old name', () => {
+    expect(linksText({ changed: 0, notes: 0, outside: [], missed: [] })).toBeNull();
+    expect(linksText({ changed: 1, notes: 1, outside: [], missed: [] })).toBe('1 link in 1 note now leads to the new name.');
+    expect(linksText({ changed: 3, notes: 2, outside: ['a.md', 'b.md'], missed: ['Closing'] })).toBe(
+      '3 links in 2 notes now lead to the new name.\nThe links in these notes could not be changed: Closing.\n2 notes outside the project link to it. Spellbook changes nothing outside the project, so those links keep the old name.',
+    );
   });
 });

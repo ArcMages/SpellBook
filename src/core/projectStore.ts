@@ -83,7 +83,8 @@ import {
 } from './projectLayout';
 import { BOARDS_FOLDER, BOARD_EXTENSION, readBoard } from './boards/index';
 import { plantSeed } from './projectSeed';
-import { applyToNote } from './revision/edits';
+import { linkPlaces, renamedLinkPath, retargetLinks, retargetLinksInValue } from './links';
+import { applyToNote, splitBody } from './revision/edits';
 import type { BodyEdit } from './revision/edits';
 import type { PlantedSeed, ProjectSeed } from './projectSeed';
 import { DEFAULT_SCENE_NAME, newSceneFrontmatter } from './scene';
@@ -172,6 +173,22 @@ export interface ProjectNote {
 export interface DataFileWrite {
   /** True when the file did not exist before and was created. */
   readonly created: boolean;
+}
+
+/** What renaming an entity's note came to. */
+export interface RenamedNote {
+  /** The note's new path, relative to the project folder. */
+  readonly path: string;
+  /** How many links to it were brought up to date, and in how many notes. */
+  readonly links: number;
+  readonly notes: number;
+  /**
+   * Notes outside the project that link to it, as vault paths. Spellbook
+   * changes nothing outside a project, so their links still name the old note.
+   */
+  readonly outside: readonly string[];
+  /** The notes inside the project whose links could not be brought up to date, by title. */
+  readonly missed: readonly string[];
 }
 
 /** What deleting a scene came to. */
@@ -1928,19 +1945,47 @@ export class ProjectStore {
   }
 
   /**
-   * Rename a world-building note where it is: the note is renamed (links to
-   * it are updated by the vault) and stays in its folder. The name is used
-   * exactly as given or not at all, and nothing is replaced: refused for a
-   * name that is not a tidy file name as it stands and for one that is taken.
-   * Refused for every note outside the World folder, and for one the binder
-   * lists as a scene.
+   * The notes outside the open project that link to one of its notes, as
+   * vault paths, sorted: renameWorldNote leaves their links as they are,
+   * since nothing outside a project is changed. Cheap; reads no files.
+   *
+   * @param path the note's path relative to the project folder
+   */
+  linksFromOutside(path: string): string[] {
+    const active = this.active;
+    if (!active) return [];
+    const at = this.vaultPathOf(path);
+    if (at === null) return [];
+    return this.vault.linkSources(at).filter((source) => !isInside(active.folder, source));
+  }
+
+  /**
+   * Rename a world-building note where it is, and bring every link to it in
+   * the project up to date. The name is used exactly as given or not at all,
+   * and nothing is replaced: refused for a name that is not a tidy file name
+   * as it stands and for one that is taken. Refused for every note outside
+   * the World folder, and for one the binder lists as a scene.
+   *
+   * The links are not left to the vault: Obsidian updates them by itself only
+   * when the writer has told it to "Always update internal links", and
+   * otherwise stops to ask, holding the rename (and every save after it)
+   * until they answer. So:
+   *  1. the notes of the project that link to it are read, and the links in
+   *     them that lead to it are noted;
+   *  2. the note is renamed, and nothing else (moveFile);
+   *  3. in each of those notes, those links are pointed at the new name,
+   *     against the note as it is at that moment: in its text (updateLinks)
+   *     and in its properties (updateFrontmatter). Only the part of a link
+   *     that names the note changes.
+   * Notes outside the project are never changed: those that link to it are
+   * listed in the result instead.
    *
    * @param path the note's path relative to the project folder
    * @param name the new name, without ".md"
-   * @returns the note's new path relative to the project folder
+   * @returns the note's new path relative to the project folder, and what came of its links
    */
-  renameWorldNote(path: string, name: string, inProject?: string): Promise<IntentResult<{ path: string }>> {
-    return this.run(async (): Promise<IntentResult<{ path: string }>> => {
+  renameWorldNote(path: string, name: string, inProject?: string): Promise<IntentResult<RenamedNote>> {
+    return this.run(async (): Promise<IntentResult<RenamedNote>> => {
       const active = this.active;
       const blocked = this.whyNotWritable(active);
       if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
@@ -1955,14 +2000,88 @@ export class ProjectStore {
       if (clashKey(target) !== clashKey(file.path) && this.vault.exists(target)) {
         return refused('exists', `There is already a note called "${name}" in that folder.`);
       }
+
+      // 1. Which links in the project lead to it, note by note.
+      const oldPath = file.path;
+      const sources = this.vault.linkSources(oldPath);
+      const outside = sources.filter((source) => !isInside(active.folder, source));
+      const linking = new Map<string, Set<string>>();
+      for (const source of sources) {
+        if (!isInside(active.folder, source)) continue;
+        let text: string;
+        try {
+          text = await this.vault.readText(source);
+        } catch {
+          continue;
+        }
+        const named = new Set<string>();
+        for (const place of linkPlaces(text)) {
+          if (this.vault.resolveLink(place.path, source) === oldPath) named.add(place.path);
+        }
+        if (named.size > 0) linking.set(source, named);
+      }
+
+      // 2. The note itself.
       let newPath: string;
       try {
-        newPath = await this.vault.rename(file.path, target);
+        newPath = await this.vault.moveFile(oldPath, target);
       } catch (error) {
         if (error instanceof VaultFileMissingError) return noop('not-found', 'That note is no longer in the project.');
         return failed(`"${noteTitle(file.rel)}" could not be renamed: ${messageOf(error)}`);
       }
-      return done({ path: relativeTo(active.folder, newPath) ?? relativeTo(active.folder, target) ?? file.rel });
+
+      // 3. The links to it.
+      let links = 0;
+      let notes = 0;
+      const missed: string[] = [];
+      for (const [source, named] of linking) {
+        const at = source === oldPath ? newPath : source;
+        const chosen = new Map<string, string>();
+        const retarget = (linkPath: string): string | null => {
+          if (!named.has(linkPath)) return null;
+          let next = chosen.get(linkPath);
+          if (next === undefined) {
+            next = renamedLinkPath(linkPath, name);
+            // Where another note of the new name lies nearer, the link names the whole path.
+            if (this.vault.resolveLink(next, at) !== newPath) {
+              next = /\.md$/i.test(linkPath) ? newPath : newPath.replace(/\.md$/i, '');
+            }
+            chosen.set(linkPath, next);
+          }
+          return next;
+        };
+        let changed = 0;
+        try {
+          await this.vault.updateLinks(at, (current) => {
+            const { head, body } = splitBody(current);
+            const result = retargetLinks(body, retarget);
+            changed = result.count;
+            return result.count > 0 ? head + result.text : null;
+          });
+          const { head } = splitBody(await this.vault.readText(at));
+          if (linkPlaces(head).some((place) => named.has(place.path))) {
+            await this.vault.updateFrontmatter(at, (frontmatter) => {
+              let count = 0;
+              for (const key of Object.keys(frontmatter)) {
+                const result = retargetLinksInValue(frontmatter[key], retarget);
+                if (result.count === 0) continue;
+                frontmatter[key] = result.value;
+                count += result.count;
+              }
+              changed += count;
+              return count > 0;
+            });
+          }
+        } catch {
+          missed.push(noteTitle(at));
+        }
+        if (changed > 0) {
+          links += changed;
+          notes++;
+        }
+      }
+      const rel = relativeTo(active.folder, newPath) ?? relativeTo(active.folder, target) ?? file.rel;
+      return done({ path: rel, links, notes, outside, missed });
     }, inProject);
   }
 

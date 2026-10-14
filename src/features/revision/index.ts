@@ -36,7 +36,7 @@ import { RenameEverywhereModal } from './renameModal';
 import { REVISION_VIEW_TYPE, createRevisionView, revisionIcon } from './revisionView';
 
 export { RevisionKeeper, SNAPSHOTS_SERVICE_NAME } from './keeper';
-export type { ReplaceReport, SceneAt, SceneMatches, ScenePlan } from './keeper';
+export type { LinksReport, RenameReport, ReplaceReport, SceneAt, SceneMatches, ScenePlan } from './keeper';
 export { NotesReader, PASSAGE_CLASS, PASSAGE_NOTE, RevisionMarksView, notesAt, revisionEditor } from './editor';
 export { FindReplaceModal, replaceSnapshotName } from './findModal';
 export { RenameEverywhereModal } from './renameModal';

@@ -4,7 +4,12 @@
 //   Find, Replace with   two boxes, in any language
 //   Match case, Whole words, Wildcards
 //   Look in              all scenes, or one folder of the binder
-//   the places found     by scene, each with its line and a tick (all ticked)
+//   the places found     by scene, each with its line and a tick (all ticked,
+//                        but for Hebrew words with a letter joined to their
+//                        front, found with Whole words: those start unticked)
+//
+// Without Match case, each replacement takes the capitals of the words it
+// replaces: "Gulls" -> "Seabirds", "GULLS" -> "SEABIRDS" (see withCaseOf).
 //   Replace              asks first, with the number of changes and scenes
 //
 // Nothing is changed until the writer confirms. Then each scene is saved as
@@ -15,11 +20,12 @@
 
 import { Modal, Notice, Setting } from 'obsidian';
 import type { App, ButtonComponent } from 'obsidian';
-import type { SearchOptions } from '../../core/revision/index';
+import { withCaseOf } from '../../core/revision/index';
+import type { NameOccurrence, SearchOptions } from '../../core/revision/index';
 import { ConfirmModal } from '../../ui/confirmModal';
 import { isInputMethodKey } from '../../ui/keys';
 import type { RevisionKeeper } from './keeper';
-import { TickedResults, changesText } from './results';
+import { JOINED_TEXT, TickedResults, changesText } from './results';
 import { reportText } from './reports';
 
 export const FIND_TITLE = 'Find and replace';
@@ -49,7 +55,7 @@ export class FindReplaceModal extends Modal {
   private list: HTMLElement | null = null;
   private replaceButton: ButtonComponent | null = null;
   /** What was found, and the words that were looked for. */
-  private results: { find: string; ticked: TickedResults } | null = null;
+  private results: { find: string; matchCase: boolean; ticked: TickedResults<NameOccurrence> } | null = null;
   private searchCount = 0;
   private busy = false;
   private closed = false;
@@ -177,12 +183,12 @@ export class FindReplaceModal extends Modal {
     this.say(SEARCHING_TEXT);
     const found = await this.keeper.search(find, this.options, this.folder);
     if (this.closed || asked !== this.searchCount) return;
-    const ticked = new TickedResults(found);
+    const ticked = new TickedResults(found, (match) => !match.joined);
     ticked.onChange(() => {
       this.showButton();
     });
-    this.results = { find, ticked };
-    if (this.list) ticked.draw(this.list);
+    this.results = { find, matchCase: this.options.matchCase, ticked };
+    if (this.list) ticked.draw(this.list, (match) => (match.joined ? JOINED_TEXT : null));
     const { places, scenes } = ticked.found;
     this.say(places === 0 ? NOTHING_FOUND_TEXT : `Found ${places} ${places === 1 ? 'time' : 'times'} in ${scenes} ${scenes === 1 ? 'scene' : 'scenes'}.`);
     this.showButton();
@@ -198,21 +204,24 @@ export class FindReplaceModal extends Modal {
       title: `Replace ${changesText(changes, scenes)}?`,
       message:
         `"${results.find}" will be replaced by ${replace === '' ? 'nothing' : `"${replace}"`} in ${changesText(changes, scenes)}. ` +
+        (results.matchCase ? '' : 'Each replacement takes the capitals of the words it replaces. ') +
         'Each scene is saved as a snapshot first, so that it can be restored. A scene that was changed since the search is left as it is.',
       confirm: REPLACE_TEXT,
       onConfirm: () => {
-        void this.replace(results.find, replace, results.ticked);
+        void this.replace(results.find, replace, results.matchCase, results.ticked);
       },
     }).open();
   }
 
-  private async replace(find: string, replace: string, ticked: TickedResults): Promise<void> {
+  private async replace(find: string, replace: string, matchCase: boolean, ticked: TickedResults<NameOccurrence>): Promise<void> {
     if (this.busy) return;
     this.busy = true;
     this.showButton();
     this.say('Replacing…');
     try {
-      const report = await this.keeper.replace(ticked.plans(replace), replaceSnapshotName(find, replace));
+      // Without Match case, each place keeps the capitals it had.
+      const plans = ticked.plans(matchCase ? replace : (match) => withCaseOf(match.text, replace));
+      const report = await this.keeper.replace(plans, replaceSnapshotName(find, replace));
       const text = reportText(report);
       new Notice(text, 8000);
       if (this.closed) return;

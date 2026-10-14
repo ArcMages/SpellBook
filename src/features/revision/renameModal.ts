@@ -2,8 +2,9 @@
 // old name in the manuscript too.
 //
 // The window shows what will change before anything does:
-//   - the entity's note gets the new name (through Obsidian's rename, so the
-//     links to it follow);
+//   - the entity's note gets the new name, and every link to it in the
+//     project is pointed at the new name (by Spellbook itself, so that it
+//     never waits on Obsidian's question about updating links);
 //   - its old name can be kept as one of its other names (ticked at first);
 //   - the places in the manuscript's text where the old name stands, by
 //     scene, each with a tick. Places where Hebrew letters are joined to the
@@ -19,14 +20,17 @@ import type { NameOccurrence } from '../../core/revision/index';
 import { ConfirmModal } from '../../ui/confirmModal';
 import { isInputMethodKey } from '../../ui/keys';
 import type { RevisionKeeper } from './keeper';
-import { reportText } from './reports';
-import { TickedResults, changesText } from './results';
+import { linksText, outsideText, reportText } from './reports';
+import { JOINED_TEXT, TickedResults, changesText } from './results';
+
+export { JOINED_TEXT } from './results';
 
 export const RENAME_TEXT = 'Rename';
 export const KEEP_OLD_TEXT = 'Keep the old name as another name';
 export const KEEP_OLD_DESC = 'Added to the entity\'s other names (aliases), so that "Find mentions" and links by the old name still find it.';
-export const JOINED_TEXT = 'joined letter';
 export const NO_PLACES_TEXT = 'The old name does not stand anywhere in the text of the manuscript.';
+export const RENAMING_TEXT = 'Renaming…';
+export const BUSY_TEXT = 'Renaming: changing the manuscript, the note and the links to it. Please wait.';
 
 export class RenameEverywhereModal extends Modal {
   private readonly keeper: RevisionKeeper;
@@ -35,12 +39,16 @@ export class RenameEverywhereModal extends Modal {
   private nameBox: HTMLInputElement | null = null;
   private message: HTMLElement | null = null;
   private noteLine: HTMLElement | null = null;
+  private outsideLine: HTMLElement | null = null;
+  private busyLine: HTMLElement | null = null;
   private aliasLine: HTMLElement | null = null;
   private placesLine: HTMLElement | null = null;
   private list: HTMLElement | null = null;
   private button: ButtonComponent | null = null;
   private results: TickedResults<NameOccurrence> | null = null;
   private busy = false;
+  /** How many notes outside the project link to the entity (counted when the window opens). */
+  private outside = 0;
   private closed = false;
 
   constructor(app: App, keeper: RevisionKeeper, entityPath: string) {
@@ -61,6 +69,7 @@ export class RenameEverywhereModal extends Modal {
       return;
     }
     this.titleEl.setText(`Rename "${entity.name}" everywhere`);
+    this.outside = this.keeper.linksFromOutside(this.entityPath).length;
     this.titleEl.setAttr('dir', 'auto');
     const root = contentEl.createDiv({ cls: 'spellbook-revision-rename' });
     const field = root.createEl('label', { cls: 'spellbook-revision-find-field' });
@@ -90,10 +99,12 @@ export class RenameEverywhereModal extends Modal {
     const changes = root.createDiv({ cls: 'spellbook-revision-rename-changes' });
     changes.createDiv({ cls: 'spellbook-revision-rename-heading', text: 'What will change' });
     this.noteLine = changes.createDiv({ cls: 'spellbook-revision-rename-line', attr: { dir: 'auto' } });
+    this.outsideLine = changes.createDiv({ cls: 'spellbook-revision-rename-line', attr: { dir: 'auto' } });
     this.aliasLine = changes.createDiv({ cls: 'spellbook-revision-rename-line', attr: { dir: 'auto' } });
     this.placesLine = changes.createDiv({ cls: 'spellbook-revision-rename-line', attr: { 'aria-live': 'polite' } });
     this.placesLine.setText('Looking for the old name in the manuscript…');
     this.list = root.createDiv({ cls: 'spellbook-revision-results' });
+    this.busyLine = root.createDiv({ cls: 'spellbook-revision-rename-busy', attr: { role: 'status', 'aria-live': 'polite' } });
     new Setting(root.createDiv({ cls: 'spellbook-revision-find-actions' })).addButton((button) => {
       this.button = button;
       button
@@ -115,6 +126,8 @@ export class RenameEverywhereModal extends Modal {
     this.nameBox = null;
     this.message = null;
     this.noteLine = null;
+    this.outsideLine = null;
+    this.busyLine = null;
     this.aliasLine = null;
     this.placesLine = null;
     this.list = null;
@@ -148,7 +161,16 @@ export class RenameEverywhereModal extends Modal {
     const { name, problem } = this.wanted();
     const shownName = problem === null ? name : '…';
     this.message?.setText(problem !== null && name !== '' && name !== entity.name ? problem : '');
-    this.noteLine?.setText(`The note "${entity.name}" becomes "${shownName}". Links to it follow.`);
+    this.noteLine?.setText(`The note "${entity.name}" becomes "${shownName}". Every link to it in the project is changed to the new name.`);
+    const outside = this.outside;
+    this.outsideLine?.setText(outside > 0 ? outsideText(outside) : '');
+    this.outsideLine?.toggleClass('spellbook-is-hidden', outside === 0);
+    this.busyLine?.setText(this.busy ? BUSY_TEXT : '');
+    this.busyLine?.toggleClass('spellbook-is-hidden', !this.busy);
+    this.modalEl.toggleClass('spellbook-is-busy', this.busy);
+    this.contentEl.setAttr('aria-busy', this.busy ? 'true' : 'false');
+    if (this.nameBox) this.nameBox.disabled = this.busy;
+    this.button?.setButtonText(this.busy ? RENAMING_TEXT : RENAME_TEXT);
     const hasOld = entity.aliases.includes(entity.name);
     this.aliasLine?.setText(this.keepOld && !hasOld ? `"${entity.name}" is added to its other names.` : 'Its other names stay as they are.');
     if (this.results) {
@@ -171,7 +193,7 @@ export class RenameEverywhereModal extends Modal {
     new ConfirmModal(this.app, {
       title: `Rename "${entity.name}" to "${name}"?`,
       message:
-        `The note will be renamed${this.keepOld ? ', and the old name kept as another name' : ''}. ` +
+        `The note will be renamed${this.keepOld ? ', and the old name kept as another name' : ''}, and every link to it in the project changed to the new name. ` +
         (changes > 0
           ? `In the manuscript, ${changesText(changes, scenes)} will be made; each scene is saved as a snapshot first, so that it can be restored.`
           : 'The text of the manuscript is not changed.'),
@@ -195,6 +217,8 @@ export class RenameEverywhereModal extends Modal {
       }
       const lines = [`Renamed to "${name}".`];
       if (report.replaced.changes > 0 || report.replaced.problems.length > 0) lines.push(reportText(report.replaced));
+      const links = linksText(report.links);
+      if (links !== null) lines.push(links);
       if (report.aliasProblem !== null) lines.push(report.aliasProblem);
       new Notice(lines.join('\n'), 8000);
       this.close();

@@ -192,6 +192,27 @@ describe('ObsidianVault: writing', () => {
     await expect(vault.rename('Nowhere.md', 'X.md')).rejects.toBeInstanceOf(VaultFileMissingError);
   });
 
+  it('renames an entity\'s note without the file manager (nothing is asked) and finds and changes the notes that link to it', async () => {
+    const fake = novelVault();
+    fake.addNote('Novel/World/Characters/Mara.md', note({ type: 'character' }, 'Her story.'));
+    fake.addNote('Novel/Research/Light.md', 'See [[Mara]].');
+    const { vault, events } = started(fake);
+    expect(vault.linkSources('Novel/World/Characters/Mara.md')).toEqual(['Novel/Research/Light.md']);
+    expect(vault.linkSources('Nowhere.md')).toEqual([]);
+    const path = await vault.moveFile('Novel/World/Characters/Mara.md', 'Novel/World/Characters/Mara Voss.md');
+    expect(path).toBe('Novel/World/Characters/Mara Voss.md');
+    expect(fake.calls).toEqual(['vault.rename Novel/World/Characters/Mara.md -> Novel/World/Characters/Mara Voss.md']);
+    expect(events).toContainEqual({ type: 'rename', path: 'Novel/World/Characters/Mara Voss.md', oldPath: 'Novel/World/Characters/Mara.md', folder: false });
+    await expect(vault.moveFile('Nowhere.md', 'X.md')).rejects.toBeInstanceOf(VaultFileMissingError);
+    // The link is left as it was, until the store changes it.
+    expect(await vault.readText('Novel/Research/Light.md')).toBe('See [[Mara]].');
+    expect(await vault.updateLinks('Novel/Research/Light.md', (text) => text.replace('[[Mara]]', '[[Mara Voss]]'))).toBe(true);
+    expect(await vault.readText('Novel/Research/Light.md')).toBe('See [[Mara Voss]].');
+    expect(await vault.updateLinks('Novel/Research/Light.md', () => null)).toBe(false);
+    expect(fake.vault.processed).toEqual(['Novel/Research/Light.md']);
+    await expect(vault.updateLinks('Nowhere.md', () => 'x')).rejects.toBeInstanceOf(VaultFileMissingError);
+  });
+
   it('deletes by moving to the trash, never outright', async () => {
     const { vault, fake, events } = started();
     await vault.trash('Novel/Manuscript/Opening.md');

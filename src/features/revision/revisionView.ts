@@ -262,7 +262,9 @@ export class RevisionView extends ItemView {
       void this.settle(this.keeper.changeNote(scenePath, note, { done: tick.checked }));
     });
     if (note.created !== '') foot.createSpan({ cls: 'spellbook-revision-date', text: note.created });
-    const edit = foot.createEl('button', { cls: 'spellbook-revision-button', text: EDIT_TEXT, attr: { type: 'button' } });
+    // Edit and Delete stay together at the end of the row. Delete is quiet: red only when pointed at.
+    const actions = foot.createDiv({ cls: 'spellbook-revision-actions' });
+    const edit = actions.createEl('button', { cls: 'spellbook-revision-button spellbook-revision-small', text: EDIT_TEXT, attr: { type: 'button' } });
     edit.addEventListener('click', () => {
       new NoteModal(this.app, {
         title: 'Edit revision note',
@@ -272,7 +274,11 @@ export class RevisionView extends ItemView {
         submit: (words) => this.keeper.changeNote(scenePath, note, { note: words.trim() }),
       }).open();
     });
-    const remove = foot.createEl('button', { cls: 'spellbook-revision-button mod-warning', text: DELETE_TEXT, attr: { type: 'button' } });
+    const remove = actions.createEl('button', {
+      cls: 'spellbook-revision-button spellbook-revision-small spellbook-revision-delete',
+      text: DELETE_TEXT,
+      attr: { type: 'button', 'aria-label': DELETE_TEXT },
+    });
     remove.addEventListener('click', () => {
       new ConfirmModal(this.app, {
         title: 'Delete this revision note?',

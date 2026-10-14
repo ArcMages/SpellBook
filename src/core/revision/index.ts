@@ -6,9 +6,9 @@ export { addNoteTo, changeNoteIn, entryOf, findNote, locatePassage, MAX_PASSAGE_
 export type { PassageMark, PlacedNote, RevisionNote } from './notes';
 export { CONTEXT_REACH, contextOf, DEFAULT_SEARCH, findInText, isWholeWord, isWordChar, MAX_MATCHES_PER_TEXT, patternOf } from './search';
 export type { MatchContext, SearchOptions, TextMatch } from './search';
-export { applyBodyEdits, applyToNote, editsFit, splitBody } from './edits';
+export { applyBodyEdits, applyToNote, editsFit, splitBody, withCaseOf } from './edits';
 export type { BodyEdit } from './edits';
-export { linkTargets, nameOccurrences, newNameProblem } from './rename';
+export { findWithJoined, linkTargets, nameOccurrences, newNameProblem } from './rename';
 export type { NameOccurrence } from './rename';
 export { RENAME_EVERYWHERE_SERVICE } from './services';
 export type { RenameEverywhereService } from './services';
