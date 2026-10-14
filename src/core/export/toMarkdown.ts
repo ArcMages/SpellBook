@@ -5,9 +5,12 @@
 // Markdown has no pages, so there is no running header and a chapter does
 // not start a new page. Scenes are set apart by a line of three stars, which
 // every Markdown reader shows as a break.
+//
+// A dedication comes after the title, an epigraph after it as a quote, and
+// the acknowledgements and about the author at the end under their headings.
 
-import { contentsOf, wordsLine } from './manuscript';
-import type { ExportOptions, Manuscript } from './manuscript';
+import { PRESETS, contentsOf, titledMatter, wordsLine } from './manuscript';
+import type { ExportOptions, Manuscript, MatterPart } from './manuscript';
 import { demoteHeadings } from './markdown';
 
 /** The line between two scenes. */
@@ -22,21 +25,36 @@ function heading(level: number, title: string): string {
   return `${'#'.repeat(Math.min(6, Math.max(1, level)))} ${headingText(title)}`;
 }
 
-export function toMarkdown(manuscript: Manuscript, options: Pick<ExportOptions, 'titlePage' | 'contents' | 'sceneTitles'>): string {
+/** A page before or after the text: its heading at the top level of the chapters, an epigraph as a quote. */
+function matterMarkdown(part: MatterPart, shift: number): string[] {
   const pieces: string[] = [];
+  if (part.title !== null) pieces.push(heading(1 + shift, part.title));
+  const text = demoteHeadings(part.markdown, 1 + shift);
+  pieces.push(part.role === 'epigraph' ? text.split('\n').map((line) => (line === '' ? '>' : `> ${line}`)).join('\n') : text);
+  return pieces;
+}
+
+export function toMarkdown(
+  manuscript: Manuscript,
+  options: Pick<ExportOptions, 'titlePage' | 'contents'> & Partial<Pick<ExportOptions, 'preset'>>,
+): string {
+  const pieces: string[] = [];
+  const preset = PRESETS[options.preset ?? 'manuscript'];
   // Under a title of its own, every chapter moves one level down.
   const shift = options.titlePage ? 1 : 0;
 
   if (options.titlePage) {
     pieces.push(heading(1, manuscript.title));
     if (manuscript.author !== '') pieces.push(headingText(manuscript.author));
-    pieces.push(wordsLine(manuscript.words));
+    if (preset.wordsOnTitlePage) pieces.push(wordsLine(manuscript.words));
   }
 
-  const entries = options.contents ? contentsOf(manuscript, options.sceneTitles) : [];
+  for (const part of manuscript.front) pieces.push(...matterMarkdown(part, shift));
+
+  const entries = options.contents ? [...contentsOf(manuscript), ...titledMatter(manuscript.back)] : [];
   if (entries.length > 0) {
     pieces.push(
-      entries.map((entry) => `${'  '.repeat(Math.max(0, entry.level - 1))}- ${headingText(entry.title)}`).join('\n'),
+      entries.map((entry) => `${'  '.repeat(entry.kind === 'matter' ? 0 : Math.max(0, entry.level - 1))}- ${headingText(entry.title ?? '')}`).join('\n'),
     );
   }
 
@@ -45,11 +63,12 @@ export function toMarkdown(manuscript: Manuscript, options: Pick<ExportOptions, 
       pieces.push(heading(part.level + shift, part.title));
       continue;
     }
-    if (options.sceneTitles) pieces.push(heading(part.level + shift, part.title));
+    if (part.titled) pieces.push(heading(part.level + shift, part.title));
     else if (part.opens !== 'first') pieces.push(MARKDOWN_SCENE_BREAK);
     // The scene's own headings sit below the chapter's (and below its own title).
-    const above = part.level + shift - (options.sceneTitles ? 0 : 1);
+    const above = part.level + shift - (part.titled ? 0 : 1);
     if (part.markdown !== '') pieces.push(demoteHeadings(part.markdown, above));
   }
+  for (const part of manuscript.back) pieces.push(...matterMarkdown(part, shift));
   return `${pieces.join('\n\n')}\n`;
 }

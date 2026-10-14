@@ -15,8 +15,10 @@ import {
   EXPORT_WINDOW_TITLE,
   FORMAT_NOTES,
   HIDDEN_FILE_NOTE,
+  MATTER_NOTE,
   MOBILE_PDF_NOTE,
   MOBILE_WHERE_NOTE,
+  PRESET_NOTES,
   WHOLE_MANUSCRIPT_TEXT,
 } from '../../../src/features/export/exportModal';
 import { NOTHING_TEXT, NO_PROJECT_TEXT, OPTIONS_KEY } from '../../../src/features/export/exporter';
@@ -158,6 +160,7 @@ describe('the export window', () => {
     const window = openWindow(stage);
     expect(choicesOf(window, 'Format')).toEqual([
       ['docx', 'Word (.docx)'],
+      ['epub', 'E-book (.epub)'],
       ['html', 'Web page (.html)'],
       ['markdown', 'Markdown (.md)'],
       ['print', 'Print / save as PDF'],
@@ -179,7 +182,8 @@ describe('the export window', () => {
       ['letter', 'US Letter'],
     ]);
     expect(textField(window, 'Author').inputEl.getAttr('dir')).toBe('auto');
-    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.docx]);
+    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.docx, PRESET_NOTES.manuscript, MATTER_NOTE]);
+    expect(dropdown(window, 'Preset').getValue()).toBe('manuscript');
   });
 
   it('says what an export would take: how many scenes, how many are switched off, how many have no note', async () => {
@@ -200,10 +204,17 @@ describe('the export window', () => {
     expect(hasRow(window, 'Paper')).toBe(false);
     expect(hasRow(window, 'Line at the top of each page')).toBe(false);
     expect(hasRow(window, 'Title page')).toBe(true);
-    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.markdown]);
+    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.markdown, PRESET_NOTES.manuscript, MATTER_NOTE]);
     dropdown(window, 'Format').choose('print');
     expect(hasRow(window, 'Paper')).toBe(true);
-    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.print]);
+    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.print, PRESET_NOTES.manuscript, MATTER_NOTE]);
+    expect(hasRow(window, 'Cover')).toBe(false);
+    dropdown(window, 'Format').choose('epub');
+    // An e-book has no pages of a fixed size: no paper, no line at the top; it may have a cover.
+    expect(hasRow(window, 'Paper')).toBe(false);
+    expect(hasRow(window, 'Line at the top of each page')).toBe(false);
+    expect(hasRow(window, 'Cover')).toBe(true);
+    dropdown(window, 'Format').choose('print');
     expect(dropdown(window, 'Format').getValue()).toBe('print');
   });
 
@@ -214,9 +225,9 @@ describe('the export window', () => {
     storage.save(OPTIONS_KEY, JSON.stringify({ format: 'print' }));
     const stage = await wire(novelVault(), { storage });
     const window = openWindow(stage);
-    expect(choicesOf(window, 'Format').map(([value]) => value)).toEqual(['docx', 'html', 'markdown']);
+    expect(choicesOf(window, 'Format').map(([value]) => value)).toEqual(['docx', 'epub', 'html', 'markdown']);
     expect(dropdown(window, 'Format').getValue()).toBe('html');
-    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.html, MOBILE_PDF_NOTE]);
+    expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.html, MOBILE_PDF_NOTE, PRESET_NOTES.manuscript, MATTER_NOTE]);
     expect(MOBILE_PDF_NOTE).toMatch(/export the web page/);
   });
 

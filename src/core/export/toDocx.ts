@@ -14,13 +14,18 @@
 // from there), and every stretch of Hebrew letters is marked as
 // right-to-left script, which is what makes Word use the right font and keep
 // bold and italics for it. A mixed manuscript has both kinds of paragraph.
+//
+// The preset changes the look: a reading copy has book-like spacing, lines
+// set flush with both margins and three stars between scenes; a proof has
+// two inches of margin at the sides and numbered lines. A dedication and an
+// epigraph follow the title page, each on a page of its own; the
+// acknowledgements and about the author close the book.
 
 import { directionOf, splitByScript } from './direction';
 import type { Direction } from './direction';
-import { MARGIN_TWIPS, PAPER_SIZES, SCENE_BREAK_MARK, contentsOf, headerText, wordsLine } from './manuscript';
-import type { ExportOptions, Manuscript } from './manuscript';
+import { MARGIN_TWIPS, PAPER_SIZES, PRESETS, bookWords, contentsOf, headerText, titledMatter, wordsLine } from './manuscript';
+import type { ExportOptions, Manuscript, MatterPart, Preset } from './manuscript';
 import type { Block, Run } from './markdown';
-import { CONTENTS_TITLE } from './toHtml';
 import { utf8, zipStored } from './zip';
 import type { ZipEntry } from './zip';
 
@@ -55,6 +60,8 @@ export const DOCX_STYLES = {
   contentsTitle: 'ContentsTitle',
   contentsEntry: 'ContentsEntry',
   header: 'Header',
+  dedication: 'Dedication',
+  epigraph: 'Epigraph',
 } as const;
 
 /** Text made safe for XML: the five special characters, and nothing that XML does not allow at all. */
@@ -124,7 +131,7 @@ function paragraph(style: string, content: string, look: ParagraphLook): string 
 /**
  * @param newPage true when the first of these paragraphs has to start a new page
  */
-function blocksXml(blocks: readonly Block[], base: Direction, out: string[], newPage = false): void {
+function blocksXml(blocks: readonly Block[], base: Direction, out: string[], breakMark: string, newPage = false, textStyle?: string): void {
   // The first paragraph after a heading or a break is not set in.
   let first = true;
   let pageBreak = newPage;
@@ -134,7 +141,7 @@ function blocksXml(blocks: readonly Block[], base: Direction, out: string[], new
   };
   for (const block of blocks) {
     if (block.kind === 'break') {
-      add(DOCX_STYLES.sceneBreak, run(SCENE_BREAK_MARK, {}, false), { direction: 'ltr' });
+      add(DOCX_STYLES.sceneBreak, run(breakMark, {}, false), { direction: 'ltr' });
       first = true;
       continue;
     }
@@ -154,25 +161,52 @@ function blocksXml(blocks: readonly Block[], base: Direction, out: string[], new
       const marker = textRuns(`${block.marker} `, {}, direction);
       add(DOCX_STYLES.item, marker + content, { direction, indent: 360 + block.depth * 360 });
     } else {
-      add(first ? DOCX_STYLES.textFirst : DOCX_STYLES.text, content, { direction });
+      add(textStyle ?? (first ? DOCX_STYLES.textFirst : DOCX_STYLES.text), content, { direction });
       first = false;
     }
   }
 }
 
-function pageSetup(options: Pick<ExportOptions, 'paper'>): string {
+function pageSetup(options: Pick<ExportOptions, 'paper'>, preset: Preset): string {
   const paper = PAPER_SIZES[options.paper];
-  const m = MARGIN_TWIPS;
-  return `<w:pgSz w:w="${paper.width}" w:h="${paper.height}"/><w:pgMar w:top="${m}" w:right="${m}" w:bottom="${m}" w:left="${m}" w:header="720" w:footer="720" w:gutter="0"/>`;
+  const twips = (inches: number): number => Math.round(inches * MARGIN_TWIPS);
+  const top = twips(preset.margins.top);
+  const bottom = twips(preset.margins.bottom);
+  const side = twips(preset.margins.side);
+  return `<w:pgSz w:w="${paper.width}" w:h="${paper.height}"/><w:pgMar w:top="${top}" w:right="${side}" w:bottom="${bottom}" w:left="${side}" w:header="720" w:footer="720" w:gutter="0"/>`;
 }
 
-type DocxOptions = Pick<ExportOptions, 'titlePage' | 'header' | 'contents' | 'sceneTitles' | 'paper'>;
+type DocxOptions = Pick<ExportOptions, 'titlePage' | 'header' | 'contents' | 'paper'> & Partial<Pick<ExportOptions, 'preset'>>;
+
+function presetOf(options: DocxOptions): Preset {
+  return PRESETS[options.preset ?? 'manuscript'];
+}
+
+/** A page before or after the text. It starts a page of its own, unless the page it would start on is still empty. */
+function matterXml(part: MatterPart, base: Direction, out: string[], breakMark: string, newPage: boolean, bookmark: { id: number; name: string } | undefined): void {
+  let pageBreak = newPage;
+  if (part.title !== null) {
+    out.push(
+      paragraph(`${DOCX_STYLES.heading}1`, textRuns(part.title, {}, part.direction), {
+        direction: part.direction,
+        pageBreak,
+        ...(bookmark ? { bookmark } : {}),
+      }),
+    );
+    pageBreak = false;
+  }
+  const style = part.role === 'dedication' ? DOCX_STYLES.dedication : part.role === 'epigraph' ? DOCX_STYLES.epigraph : undefined;
+  blocksXml(part.blocks, base, out, breakMark, pageBreak, style);
+}
 
 function documentXml(manuscript: Manuscript, options: DocxOptions): string {
   const base = manuscript.direction;
+  const preset = presetOf(options);
+  const breakMark = preset.sceneBreak;
+  const words = bookWords(manuscript.language);
   const body: string[] = [];
   const bookmarks = new Map<string, { id: number; name: string }>();
-  const entries = options.contents ? contentsOf(manuscript, options.sceneTitles) : [];
+  const entries = options.contents ? [...contentsOf(manuscript), ...titledMatter(manuscript.back)] : [];
   entries.forEach((entry, index) => bookmarks.set(entry.id, { id: index + 1, name: `spellbook_${entry.id.replace(/-/g, '_')}` }));
   const linkTo = (id: string): { bookmark?: { id: number; name: string } } => {
     const bookmark = bookmarks.get(id);
@@ -185,21 +219,31 @@ function documentXml(manuscript: Manuscript, options: DocxOptions): string {
     if (manuscript.author !== '') {
       body.push(paragraph(DOCX_STYLES.title, textRuns(manuscript.author, {}, base), { direction: own(manuscript.author) }));
     }
-    body.push(paragraph(DOCX_STYLES.title, run(wordsLine(manuscript.words), {}, false), { direction: 'ltr' }));
+    if (preset.wordsOnTitlePage) body.push(paragraph(DOCX_STYLES.title, run(wordsLine(manuscript.words), {}, false), { direction: 'ltr' }));
     // The title page is a section of its own: centred on its page, without the line at the top.
     body.push(
-      `<w:p><w:pPr><w:pStyle w:val="${DOCX_STYLES.title}"/><w:sectPr>${pageSetup(options)}<w:vAlign w:val="center"/></w:sectPr></w:pPr></w:p>`,
+      `<w:p><w:pPr><w:pStyle w:val="${DOCX_STYLES.title}"/><w:sectPr>${pageSetup(options, preset)}<w:vAlign w:val="center"/></w:sectPr></w:pPr></w:p>`,
     );
   }
 
   // Nothing has been printed on the page the text starts on: its first heading needs no new page.
   let pageIsNew = true;
-  let afterContents = false;
+  for (const part of manuscript.front) {
+    matterXml(part, base, body, breakMark, !pageIsNew, undefined);
+    pageIsNew = false;
+  }
+  let afterContents = !pageIsNew;
   if (entries.length > 0) {
-    body.push(paragraph(DOCX_STYLES.contentsTitle, run(CONTENTS_TITLE, { bold: true }, false), { direction: 'ltr' }));
+    const contentsDirection: Direction = manuscript.language === 'he' ? 'rtl' : 'ltr';
+    body.push(
+      paragraph(DOCX_STYLES.contentsTitle, textRuns(words.contents, { bold: true }, contentsDirection), {
+        direction: contentsDirection,
+        pageBreak: !pageIsNew,
+      }),
+    );
     for (const entry of entries) {
-      const link = `<w:hyperlink w:anchor="${bookmarks.get(entry.id)?.name ?? ''}" w:history="1">${textRuns(entry.title, {}, entry.direction)}</w:hyperlink>`;
-      const style = `${DOCX_STYLES.contentsEntry}${Math.min(3, entry.level)}`;
+      const link = `<w:hyperlink w:anchor="${bookmarks.get(entry.id)?.name ?? ''}" w:history="1">${textRuns(entry.title ?? '', {}, entry.direction)}</w:hyperlink>`;
+      const style = `${DOCX_STYLES.contentsEntry}${entry.kind === 'matter' ? 1 : Math.min(3, entry.level)}`;
       body.push(paragraph(style, link, { direction: entry.direction }));
     }
     pageIsNew = false;
@@ -219,27 +263,34 @@ function documentXml(manuscript: Manuscript, options: DocxOptions): string {
     // After the list of contents the text starts on a page of its own, whatever it starts with.
     const newPage = (part.opens === 'page' || afterContents) && !pageIsNew;
     afterContents = false;
-    if (options.sceneTitles) {
+    if (part.titled) {
       const style = `${DOCX_STYLES.heading}${Math.min(3, part.level)}`;
-      // Under a chapter's heading the title is one level down; a new page is only for a scene that follows a chapter.
+      // Under a chapter's heading the title is one level down; a new page is only for a scene that follows a chapter or asks for one.
       body.push(
         paragraph(style, textRuns(part.title, {}, part.direction), { direction: part.direction, pageBreak: newPage, ...linkTo(part.id) }),
       );
-      blocksXml(part.blocks, base, body);
+      blocksXml(part.blocks, base, body, breakMark);
     } else {
-      if (part.opens === 'break') body.push(paragraph(DOCX_STYLES.sceneBreak, run(SCENE_BREAK_MARK, {}, false), { direction: 'ltr' }));
+      if (part.opens === 'break') body.push(paragraph(DOCX_STYLES.sceneBreak, run(breakMark, {}, false), { direction: 'ltr' }));
       // With no title to carry it, the new page is asked for by the scene's first paragraph.
-      blocksXml(part.blocks, base, body, newPage);
+      blocksXml(part.blocks, base, body, breakMark, newPage);
     }
     pageIsNew = false;
   }
 
+  for (const part of manuscript.back) {
+    matterXml(part, base, body, breakMark, !pageIsNew, bookmarks.get(part.id));
+    pageIsNew = false;
+  }
+
   const header = options.header ? '<w:headerReference w:type="default" r:id="rId3"/>' : '';
+  // Numbered lines, counted afresh on every page, for a proof.
+  const lines = preset.lineNumbers ? '<w:lnNumType w:countBy="1" w:distance="360" w:restart="newPage"/>' : '';
   const numbering = options.titlePage ? '<w:pgNumType w:start="1"/>' : '';
   const bidi = base === 'rtl' ? '<w:bidi/>' : '';
   // A file must hold at least one paragraph.
   if (body.length === 0) body.push(paragraph(DOCX_STYLES.textFirst, '', { direction: base }));
-  return `${XML_HEAD}<w:document xmlns:w="${W}" xmlns:r="${R}"><w:body>${body.join('')}<w:sectPr>${header}${pageSetup(options)}${numbering}${bidi}</w:sectPr></w:body></w:document>`;
+  return `${XML_HEAD}<w:document xmlns:w="${W}" xmlns:r="${R}"><w:body>${body.join('')}<w:sectPr>${header}${pageSetup(options, preset)}${lines}${numbering}${bidi}</w:sectPr></w:body></w:document>`;
 }
 
 function style(id: string, name: string, paragraphProps: string, runProps = '', extra = ''): string {
@@ -249,16 +300,19 @@ function style(id: string, name: string, paragraphProps: string, runProps = '', 
   );
 }
 
-function stylesXml(): string {
+function stylesXml(preset: Preset): string {
   const s = DOCX_STYLES;
   const next = `<w:next w:val="${s.textFirst}"/>`;
+  const line = Math.round(240 * preset.lineSpacing);
+  // "both" sets a line flush with both margins; it works the same in a right-to-left paragraph.
+  const justify = preset.justify ? '<w:jc w:val="both"/>' : '';
   const headings = [1, 2, 3]
     .map((level) =>
       style(
         `${s.heading}${level}`,
         `heading ${level}`,
         `<w:keepNext/><w:spacing w:before="${level === 1 ? 960 : 480}" w:after="480"/><w:jc w:val="center"/><w:outlineLvl w:val="${level - 1}"/>`,
-        '<w:b/><w:bCs/>',
+        preset.largeChapterTitles && level < 3 ? `<w:sz w:val="${level === 1 ? 36 : 32}"/><w:szCs w:val="${level === 1 ? 36 : 32}"/>` : '<w:b/><w:bCs/>',
         next,
       ),
     )
@@ -270,11 +324,11 @@ function stylesXml(): string {
     `${XML_HEAD}<w:styles xmlns:w="${W}">` +
     '<w:docDefaults>' +
     `<w:rPrDefault><w:rPr><w:rFonts w:ascii="${FONT}" w:eastAsia="${FONT}" w:hAnsi="${FONT}" w:cs="${FONT}"/><w:sz w:val="24"/><w:szCs w:val="24"/><w:lang w:val="en-US" w:eastAsia="en-US" w:bidi="he-IL"/></w:rPr></w:rPrDefault>` +
-    '<w:pPrDefault><w:pPr><w:widowControl/><w:spacing w:after="0" w:line="480" w:lineRule="auto"/></w:pPr></w:pPrDefault>' +
+    `<w:pPrDefault><w:pPr><w:widowControl/><w:spacing w:after="0" w:line="${line}" w:lineRule="auto"/></w:pPr></w:pPrDefault>` +
     '</w:docDefaults>' +
     '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>' +
-    style(s.text, 'Manuscript Text', '<w:ind w:firstLine="720"/>') +
-    style(s.textFirst, 'Manuscript Text First', '', '', `<w:next w:val="${s.text}"/>`) +
+    style(s.text, 'Manuscript Text', `<w:ind w:firstLine="720"/>${justify}`) +
+    style(s.textFirst, 'Manuscript Text First', justify, '', `<w:next w:val="${s.text}"/>`) +
     style(s.sceneBreak, 'Scene Break', '<w:keepNext/><w:jc w:val="center"/>', '', next) +
     headings +
     style(s.subheading, 'Manuscript Subheading', '<w:keepNext/><w:spacing w:before="480"/>', '<w:b/><w:bCs/>', next) +
@@ -285,6 +339,9 @@ function stylesXml(): string {
     style(s.contentsTitle, 'Contents Title', '<w:spacing w:after="480"/><w:jc w:val="center"/>') +
     contents +
     style(s.header, 'header', '<w:spacing w:line="240" w:lineRule="auto"/>') +
+    // Two inches down the page; between two of its own paragraphs no space is added (contextualSpacing).
+    style(s.dedication, 'Dedication', '<w:spacing w:before="2880"/><w:contextualSpacing/><w:jc w:val="center"/>') +
+    style(s.epigraph, 'Epigraph', '<w:spacing w:before="2880"/><w:ind w:left="1440" w:right="1440"/><w:contextualSpacing/>') +
     '</w:styles>'
   );
 }
@@ -355,7 +412,7 @@ export function docxParts(manuscript: Manuscript, options: DocxOptions): ZipEntr
         ...(options.header ? ([['rId3', `${R}/header`, 'header1.xml']] as const) : []),
       ]),
     ],
-    ['word/styles.xml', stylesXml()],
+    ['word/styles.xml', stylesXml(presetOf(options))],
     ['word/settings.xml', settingsXml()],
     ...(options.header ? ([['word/header1.xml', headerXml(manuscript)]] as Array<[string, string]>) : []),
     ['docProps/core.xml', corePropertiesXml(manuscript)],

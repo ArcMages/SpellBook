@@ -1472,7 +1472,7 @@ export class ProjectStore {
    * already holds something of that name, whatever its capitals, so that the
    * caller can try the next name. Refused as well for a name that is not a
    * tidy file name as it stands or that names a place (a slash, ".."), for a
-   * file that is not one of the kinds an export can be (.md, .html, .docx),
+   * file that is not one of the kinds an export can be (.md, .html, .docx, .epub),
    * for a name the binder lists as a scene, for a read-only project, and
    * when no project is open.
    *

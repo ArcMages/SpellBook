@@ -97,6 +97,13 @@ export interface VaultPort {
   readText(path: string): Promise<string>;
 
   /**
+   * The bytes of a file, of any kind: for a picture that goes into an
+   * exported book as its cover. Reads only; rejects with
+   * VaultFileMissingError when there is no such file.
+   */
+  readBinary(path: string): Promise<Uint8Array>;
+
+  /**
    * A note's properties, read from the file itself (not from the index, which
    * may lag behind). Null when the note has no properties block.
    * Rejects with VaultFileMissingError when there is no such file, and with

@@ -33,6 +33,8 @@ export interface WriteRecord {
 export interface FileContent {
   frontmatter?: Frontmatter | null;
   body?: string;
+  /** For a file that is not a note (a picture): its bytes. */
+  bytes?: Uint8Array;
 }
 
 interface StoredFile {
@@ -184,7 +186,7 @@ export class MemoryVault implements VaultPort {
   seed(path: string, content: FileContent = {}): this {
     this.ensureFolders(parentPath(path), true);
     const frontmatter = content.frontmatter === undefined ? null : clone(content.frontmatter);
-    this.files.set(path, { frontmatter, body: content.body ?? '', corrupt: false });
+    this.files.set(path, { frontmatter, body: content.body ?? '', corrupt: false, ...(content.bytes ? { bytes: content.bytes.slice() } : {}) });
     this.indexed.set(path, frontmatter === null ? null : clone(frontmatter));
     return this;
   }
@@ -360,6 +362,11 @@ export class MemoryVault implements VaultPort {
 
   resolveLink(link: string, from: string): string | null {
     return resolveLinkAmong([...this.files.keys()], link, from);
+  }
+
+  async readBinary(path: string): Promise<Uint8Array> {
+    const file = this.requireFile(path);
+    return file.bytes !== undefined ? file.bytes.slice() : new TextEncoder().encode(this.compose(file));
   }
 
   async readText(path: string): Promise<string> {

@@ -332,9 +332,9 @@ describe('toDocx', () => {
   });
 
   it('writes the elements of a paragraph and of a run in the order the format lays down', () => {
-    const paragraphOrder = ['w:pStyle', 'w:keepNext', 'w:pageBreakBefore', 'w:widowControl', 'w:bidi', 'w:spacing', 'w:ind', 'w:jc', 'w:outlineLvl', 'w:rPr', 'w:sectPr'];
+    const paragraphOrder = ['w:pStyle', 'w:keepNext', 'w:pageBreakBefore', 'w:widowControl', 'w:bidi', 'w:spacing', 'w:ind', 'w:contextualSpacing', 'w:jc', 'w:outlineLvl', 'w:rPr', 'w:sectPr'];
     const runOrder = ['w:rStyle', 'w:rFonts', 'w:b', 'w:bCs', 'w:i', 'w:iCs', 'w:strike', 'w:sz', 'w:szCs', 'w:rtl', 'w:lang'];
-    const sectionOrder = ['w:headerReference', 'w:pgSz', 'w:pgMar', 'w:pgNumType', 'w:vAlign', 'w:bidi'];
+    const sectionOrder = ['w:headerReference', 'w:pgSz', 'w:pgMar', 'w:lnNumType', 'w:pgNumType', 'w:vAlign', 'w:bidi'];
     const styleOrder = ['w:name', 'w:basedOn', 'w:next', 'w:qFormat', 'w:pPr', 'w:rPr'];
     const orders: Record<string, string[]> = { 'w:pPr': paragraphOrder, 'w:rPr': runOrder, 'w:sectPr': sectionOrder, 'w:style': styleOrder };
     let checked = 0;

@@ -205,6 +205,10 @@ export class ObsidianVault implements VaultPort {
     return this.app.vault.cachedRead(this.requireFile(path));
   }
 
+  async readBinary(path: string): Promise<Uint8Array> {
+    return new Uint8Array(await this.app.vault.readBinary(this.requireFile(path)));
+  }
+
   async readFrontmatter(path: string): Promise<Frontmatter | null> {
     const text = await this.app.vault.read(this.requireFile(path));
     const info = getFrontMatterInfo(text);

@@ -129,8 +129,8 @@ describe('buildManuscript', () => {
   });
 
   it('lists the chapters for the contents, and the scenes too when their titles are printed', () => {
-    expect(contentsOf(build(), false).map((part) => part.title)).toEqual(['Part one', HEBREW_FOLDER]);
-    expect(contentsOf(build(), true)).toHaveLength(6);
+    expect(contentsOf(build({ sceneTitles: false })).map((part) => part.title)).toEqual(['Part one', HEBREW_FOLDER]);
+    expect(contentsOf(build({ sceneTitles: true }))).toHaveLength(6);
     const ids = build().parts.map((part) => part.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -153,8 +153,10 @@ describe('what an export covers', () => {
 
 describe('the options', () => {
   it('start as the standard manuscript: Word, title page and running header on', () => {
+    const none = { from: 'none', text: '', note: null };
     expect(DEFAULT_EXPORT_OPTIONS).toEqual({
       format: 'docx',
+      preset: 'manuscript',
       scope: null,
       titlePage: true,
       header: true,
@@ -162,6 +164,8 @@ describe('the options', () => {
       sceneTitles: false,
       author: '',
       paper: 'a4',
+      cover: null,
+      matter: { dedication: none, epigraph: none, acknowledgements: none, about: none },
     });
   });
 

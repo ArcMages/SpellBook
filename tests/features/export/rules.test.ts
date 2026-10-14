@@ -44,6 +44,7 @@ describe('the source of the export', () => {
       'manuscript.ts',
       'markdown.ts',
       'toDocx.ts',
+      'toEpub.ts',
       'toHtml.ts',
       'toMarkdown.ts',
       'zip.ts',
@@ -97,7 +98,9 @@ describe('the source of the export', () => {
     for (const name of files) {
       for (const call of codeOf(name).matchAll(/\bvault\s*\.\s*(\w+)\s*\(/g)) doorway.add(call[1] ?? '');
     }
-    expect([...doorway].sort()).toEqual(['readFrontmatter', 'readText']);
+    expect([...doorway].sort()).toEqual(['exists', 'listImageFiles', 'readBinary', 'readFrontmatter', 'readText']);
+    // Bytes are read for one thing: the picture chosen for the cover of an e-book.
+    expect(codeOf('exporter.ts').match(/vault\.readBinary\([^)]*\)/g)).toEqual(['vault.readBinary(options.cover)']);
     expect((codeOf('exporter.ts').match(/createExportFile\(/g) ?? []).length).toBe(1);
   });
 
@@ -126,8 +129,13 @@ describe('the source of the export', () => {
   });
 
   it('puts nothing into an exported file that could fetch or run anything', () => {
+    // The one picture an e-book shows is its cover, a file inside the book itself.
+    const coverImage = '<img src="${coverHref}"';
+    const epub = strip(readFileSync(path.join(coreDir, 'toEpub.ts'), 'utf8'));
+    expect(epub.split(coverImage)).toHaveLength(2);
+    expect(epub).toContain('const coverHref = `images/cover.${coverExtension}`;');
     for (const name of readdirSync(coreDir)) {
-      const code = strip(readFileSync(path.join(coreDir, name), 'utf8'));
+      const code = strip(readFileSync(path.join(coreDir, name), 'utf8')).replace(coverImage, '');
       expect(/<script|javascript:|\bsrc=|@import|url\(/i.test(code), name).toBe(false);
     }
     // The one thing a page can do: the Print button of the page made for printing.

@@ -25,7 +25,7 @@ export const PROJECT_FOLDERS: readonly string[] = [MANUSCRIPT_FOLDER, TIMELINE_F
 export const EXPORTS_FOLDER = 'Exports';
 
 /** The kinds of file an export can be, by the ending of the file's name. */
-export const EXPORT_EXTENSIONS: readonly string[] = ['md', 'html', 'docx'];
+export const EXPORT_EXTENSIONS: readonly string[] = ['md', 'html', 'docx', 'epub'];
 
 /**
  * The folder the world-building notes live in: one note per character, place,

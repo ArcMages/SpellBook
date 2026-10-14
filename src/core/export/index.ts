@@ -7,8 +7,10 @@
 //               chapters, scenes that are switched off left out; the options
 //   markdown    the plugin's own reader of a scene's Markdown
 //   direction   which way a paragraph runs (Hebrew: right to left)
-//   writers     toMarkdown, toHtml, toDocx
-//   zip         the zip a .docx is, written and read
+//   presets     how the pages look: a manuscript, a reading copy, a proof
+//   matter      the pages before and after the text, in manuscript.ts
+//   writers     toMarkdown, toHtml, toDocx, toEpub
+//   zip         the zip a .docx or an .epub is, written and read
 //   fileName    the name of the new file
 //
 // All paths are relative to the project folder, as in the project snapshot.
@@ -17,30 +19,50 @@ export { directionOf, looksArabic, splitByScript } from './direction';
 export type { Direction, ScriptStretch } from './direction';
 export { EXTENSIONS, MAX_NAME_TRIES, exportFileName } from './fileName';
 export {
+  BACK_MATTER,
+  BOOK_SCENE_BREAK,
+  BOOK_WORDS,
   DEFAULT_EXPORT_OPTIONS,
   EXPORT_FORMATS,
+  FRONT_MATTER,
   MARGIN_TWIPS,
+  MATTER_KINDS,
+  MAX_MATTER_TEXT,
+  PAGE_BREAK_KEY,
   PAPERS,
   PAPER_SIZES,
+  PRESETS,
+  PRESET_IDS,
   SCENE_BREAK_MARK,
+  TITLE_KEY,
+  bookWords,
   buildManuscript,
   contentsOf,
   headerText,
   readExportOptions,
+  readSceneExportChoices,
   roundWords,
   scenesInScope,
   scopeChoices,
   scopeOf,
+  titledMatter,
+  withPreset,
   wordsLine,
 } from './manuscript';
 export type {
+  BookLanguage,
   ChapterPart,
   ExportFormat,
   ExportOptions,
   Manuscript,
   ManuscriptInput,
   ManuscriptPart,
+  MatterChoice,
+  MatterKind,
+  MatterPart,
   PaperId,
+  Preset,
+  PresetId,
   SceneSource,
   ScenePart,
   ScopeChoice,
@@ -50,6 +72,8 @@ export { BULLET, demoteHeadings, manuscriptText, parseBlocks, parseInline, plain
 export type { Block, Run } from './markdown';
 export { DOCX_STYLES, docxParts, escapeXml, toDocx } from './toDocx';
 export { CONTENTS_TITLE, PRINT_BUTTON_TEXT, PRINT_HINT_TEXT, escapeHtml, toHtml } from './toHtml';
+export { COVER_TYPES, EPUB_MIMETYPE, epubParts, isCoverPath, toEpub } from './toEpub';
+export type { EpubCover, EpubExtras } from './toEpub';
 export { MARKDOWN_SCENE_BREAK, toMarkdown } from './toMarkdown';
 export { crc32, fromUtf8, unzipStored, utf8, zipStored } from './zip';
 export type { ZipEntry } from './zip';
