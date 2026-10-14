@@ -27,16 +27,18 @@
 // read-change-save step, and each changes one property only.
 
 import {
+  carryStoryDate,
   compareStoryDates,
   formatStoryDate,
   formatStoryDateRange,
   readStoryDate,
+  redateEventPatch,
   sameStoryDate,
   storyDateToDayNumber,
   storyDateToFrontmatter,
   storyDateToText,
 } from '../timeline';
-import type { StoryCalendar, StoryDate } from '../timeline';
+import type { FrontmatterPatch, StoryCalendar, StoryDate } from '../timeline';
 import type { Frontmatter } from '../types';
 import { DATE_KEY, END_KEY, MOMENTS_KEY } from './types';
 import type { DateWords, EntityType } from './types';
@@ -335,6 +337,40 @@ export function removeMoment(frontmatter: Frontmatter, index: number, text: stri
   if (next.length === 0) delete frontmatter[MOMENTS_KEY];
   else frontmatter[MOMENTS_KEY] = next;
   return 'changed';
+}
+
+/**
+ * The change that moves a note to a new date on the timeline, taking its
+ * moments along. The date and the end move as an event's do (see
+ * redateEventPatch); each moment that can be read moves by the same amount,
+ * in its own units, so that the whole life of an entity keeps its shape. A
+ * moment that cannot be read is left as it is written, and so is a
+ * "moments" property that is not a list. A note without moments (any
+ * timeline event) gets exactly what redateEventPatch gives.
+ *
+ * @param frontmatter the note's properties as they are now
+ * @param target      the wanted start, in the project's calendar
+ */
+export function redateEntityPatch(frontmatter: unknown, target: StoryDate): FrontmatterPatch {
+  const patch = redateEventPatch(frontmatter, target);
+  if (!(DATE_KEY in patch) || typeof frontmatter !== 'object' || frontmatter === null || Array.isArray(frontmatter)) return patch;
+  const properties = frontmatter as Frontmatter;
+  const calendar = target.calendar ?? null;
+  const from = readStoryDate(properties[DATE_KEY], calendar);
+  const to = readStoryDate(patch[DATE_KEY], calendar);
+  const list = momentList(properties);
+  if (from === null || to === null || list === null || list.length === 0) return patch;
+  let moved = false;
+  const next = list.map((entry) => {
+    if (isBlank(entry)) return entry;
+    const read = parseMoment(entry, calendar);
+    if (read === null) return entry;
+    const date = carryStoryDate(read.date, from, to);
+    if (sameStoryDate(date, read.date)) return entry;
+    moved = true;
+    return momentText(date, read.label);
+  });
+  return moved ? { ...patch, [MOMENTS_KEY]: next } : patch;
 }
 
 // ------------------------------------------------------------------ history

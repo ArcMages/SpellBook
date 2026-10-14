@@ -21,7 +21,6 @@ import {
   moveLane,
   newEventFrontmatter,
   recolourLane,
-  redateEventPatch,
   removeEventFromLanePatch,
   removeLane,
   renameLane,
@@ -48,6 +47,7 @@ import { TextPromptModal } from '../../ui/textPromptModal';
 import { CalendarModal } from './calendarModal';
 import { EntityPickerModal } from './entityPicker';
 import { EventModal } from './eventModal';
+import { redateEntityPatch } from '../../core/world';
 import type { WorldLane } from '../../core/world';
 import type { NoteChange, TimelineHost } from './timelineHost';
 import { allLanes } from './timelineScene';
@@ -100,7 +100,7 @@ export class TimelineActions {
   shift(event: TimelineEvent, steps: number): void {
     if (event.start === null) return;
     const target = shiftStoryDate(event.start, steps);
-    this.change(steps < 0 ? 'Move earlier' : 'Move later', event, (frontmatter) => redateEventPatch(frontmatter, target));
+    this.change(steps < 0 ? 'Move earlier' : 'Move later', event, (frontmatter) => redateEntityPatch(frontmatter, target));
   }
 
   /** A dragged card was dropped: a new date, another lane, or both. */
@@ -108,7 +108,8 @@ export class TimelineActions {
     const context = this.context(event);
     if (context === null) return;
     this.change('Move event', event, (frontmatter) => ({
-      ...(result.dateChanged ? redateEventPatch(frontmatter, result.start) : {}),
+      // An entity's moments come along with its dates; an event has none.
+      ...(result.dateChanged ? redateEntityPatch(frontmatter, result.start) : {}),
       ...(result.laneChanged ? moveEventToLanePatch(frontmatter, fromLane, result.lane, context) : {}),
     }));
   }
