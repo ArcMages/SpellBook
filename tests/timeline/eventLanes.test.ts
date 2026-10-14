@@ -120,8 +120,12 @@ describe('removeEventFromLanePatch', () => {
     });
   });
 
-  it('leaves an empty list when the last lane goes', () => {
-    expect(removeEventFromLanePatch({ timelines: 'Main plot' }, 'Main plot', context)).toEqual({ timelines: [] });
+  it('takes the property away, rather than leave an empty list, when the last lane goes', () => {
+    expect(removeEventFromLanePatch({ timelines: 'Main plot' }, 'Main plot', context)).toEqual({ timelines: undefined });
+    const properties: Record<string, unknown> = { date: 1923, timelines: ['Main plot'] };
+    applyFrontmatterPatch(properties, removeEventFromLanePatch(properties, 'Main plot', context));
+    expect(properties).toEqual({ date: 1923 });
+    expect('timelines' in properties).toBe(false);
   });
 
   it('is empty when the event does not name the lane', () => {
@@ -215,7 +219,7 @@ describe('the Other lane, once the project lists it', () => {
   });
 
   it('lets an event be taken out of it', () => {
-    expect(removeEventFromLanePatch({ date: 1923, timelines: ['Ghost'] }, 'Other', withOther)).toEqual({ timelines: [] });
+    expect(removeEventFromLanePatch({ date: 1923, timelines: ['Ghost'] }, 'Other', withOther)).toEqual({ timelines: undefined });
     const odd = { note: 'kept' };
     expect(removeEventFromLanePatch({ timelines: ['Ghost', 'Main plot', odd, 'OTHER', 'Phantom'] }, 'other', withOther)).toEqual({
       timelines: ['Main plot', odd],

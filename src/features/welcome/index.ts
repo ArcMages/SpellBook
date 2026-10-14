@@ -54,7 +54,7 @@ export type { HelpHost } from './helpView';
 export { LAST_VERSION_KEY, WELCOME_SEEN_KEY, WHATS_NEW_KEY, WelcomePrefs } from './prefs';
 export { welcomeSettings } from './settings';
 export * from './texts';
-export { Tour, pageScreen } from './tour';
+export { DRAWER_SETTLE_MS, Tour, pageScreen } from './tour';
 export type { TourScreen } from './tour';
 export { WelcomeView } from './welcomeView';
 export type { WelcomeHost } from './welcomeView';
@@ -102,22 +102,22 @@ export const welcomeFeature: Feature = {
       tour?.end();
       cancelTourTimer?.();
       // Open the binder and the inspector, so that there is something to
-      // point at; not on a phone, where they would cover the page.
-      if (!Platform.isPhone) {
-        commands()?.run(OPEN_BINDER_COMMAND);
-        commands()?.run(OPEN_INSPECTOR_COMMAND);
-      }
+      // point at. On a phone they open in the sidebar drawers, and the tour
+      // slides each drawer out in turn and away again.
+      commands()?.run(OPEN_BINDER_COMMAND);
+      commands()?.run(OPEN_INSPECTOR_COMMAND);
       cancelTourTimer = clock.setTimer(
         () => {
           cancelTourTimer = null;
           if (released || typeof activeDocument === 'undefined') return;
-          const started = new Tour(pageScreen(activeDocument, Platform.isPhone, Platform.isMobile), TOUR_STOPS, () => {
+          const screen = pageScreen(activeDocument, Platform.isPhone, Platform.isMobile, app.workspace);
+          const started = new Tour(screen, TOUR_STOPS, () => {
             if (tour === started) tour = null;
           });
           tour = started;
           started.start();
         },
-        Platform.isPhone ? 0 : SIDEBARS_SETTLE_MS,
+        SIDEBARS_SETTLE_MS,
       );
     };
 

@@ -220,5 +220,6 @@ export function setEntitiesPatch(frontmatter: unknown, wanted: readonly string[]
   const absent = current === undefined || current === null;
   if (absent && next.length === 0) return {};
   if (Array.isArray(current) && JSON.stringify(current) === JSON.stringify(next)) return {};
-  return { [ENTITIES_KEY]: next };
+  // The last entity taken off takes the property away: no "entities: []" is left behind.
+  return { [ENTITIES_KEY]: next.length === 0 ? undefined : next };
 }

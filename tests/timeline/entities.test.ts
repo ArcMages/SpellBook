@@ -143,11 +143,12 @@ describe('changing the entities of a note', () => {
     expect(nested.linkFor(nested.resolve('A/Tom').key)).toBe('[[World/A/Tom]]');
   });
 
-  it('changes nothing when the note names those entities already, and writes an empty list when the last one goes', () => {
+  it('changes nothing when the note names those entities already, and takes the property away when the last one goes', () => {
     expect(setEntitiesPatch({ entities: ['[[Mara]]', '[[Saltwick]]'] }, [keyOf('Saltwick'), keyOf('Mara')], index)).toEqual({});
     expect(setEntitiesPatch({}, [], index)).toEqual({});
     expect(setEntitiesPatch(null, [], index)).toEqual({});
-    expect(setEntitiesPatch({ entities: ['[[Mara]]'] }, [], index)).toEqual({ entities: [] });
+    expect(setEntitiesPatch({ entities: ['[[Mara]]'] }, [], index)).toEqual({ entities: undefined });
+    expect(setEntitiesPatch({ entities: [] }, [], index)).toEqual({}); // an empty list someone wrote is left alone
     // A link written without quotes is put right when the list is written again.
     expect(setEntitiesPatch({ entities: [[['Mara']]] }, [keyOf('Mara')], index)).toEqual({ entities: ['[[Mara]]'] });
     // A key that no note has cannot be added.

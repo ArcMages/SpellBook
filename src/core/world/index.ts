@@ -138,6 +138,7 @@ export {
   readDateProperty,
   readEntityTime,
   readMoments,
+  redateEntityPatch,
   removeMoment,
   setEntityDate,
   spanText,

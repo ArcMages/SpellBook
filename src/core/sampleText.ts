@@ -538,6 +538,42 @@ export const SAMPLE_SCENE_DATES: Readonly<Record<string, string>> = {
 };
 
 /**
+ * The timelines each scene is in, besides Manuscript, by title: a little
+ * over a third of the scenes, so that the plot grid's lanes view shows how
+ * the three threads run through the book. Main plot follows the storm, the
+ * missing boat and the lamp; Mara's survey follows the chart; Backstory
+ * follows the keeper's log and the drowned village. A scene that tells an
+ * event is in that event's timelines; three scenes sit in two.
+ */
+export const SAMPLE_SCENE_TIMELINES: Readonly<Record<string, readonly number[]>> = {
+  Prologue: [MAIN_PLOT],
+  'The Last Ferry': [MAIN_PLOT, SURVEY],
+  'What the Harbour Master Wants': [SURVEY],
+  'Tobias Counts the Boats': [MAIN_PLOT],
+  'First Soundings': [SURVEY],
+  'The Chart That Lies': [SURVEY],
+  'Lamp in the Empty House': [MAIN_PLOT],
+  'Low Water': [SURVEY],
+  "The Keeper's Log": [BACKSTORY],
+  'A Line of Stakes': [SURVEY],
+  'The Village on the Old Map': [MAIN_PLOT, BACKSTORY],
+  Triangles: [SURVEY],
+  'What Tobias Did Not Say': [MAIN_PLOT],
+  'Pages Out of Order': [BACKSTORY],
+  'Mending Nets': [BACKSTORY],
+  'The Missing Boat': [MAIN_PLOT],
+  'A Second Lamp': [MAIN_PLOT],
+  "The Harbour Master's Offer": [SURVEY],
+  'Under the Floorboards': [BACKSTORY],
+  'The Bell Stops': [MAIN_PLOT],
+  'What the Keeper Wrote': [MAIN_PLOT, BACKSTORY],
+  'The Light': [MAIN_PLOT],
+  'Starting Over': [SURVEY],
+  'Tobias Tells It': [MAIN_PLOT],
+  'The Chart on the Wall': [SURVEY],
+};
+
+/**
  * The scenes that have a word target, by title: about a third of them, so
  * that the outliner's Target column has every kind of row to show. A number
  * is the target in words; 'reached' gives the scene exactly as many words to

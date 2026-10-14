@@ -192,7 +192,8 @@ describe('timeline lanes', () => {
     expect(props(s, LETTER)['label']).toBe(DANIEL);
     // A lane written as one name on its own is taken out all the same.
     await tap(s, pane, 'Closing', MAIN);
-    expect(props(s, CLOSING)['timelines']).toEqual([]);
+    // The last lane taken out takes the property away: no "timelines: []" is left in the scene.
+    expect('timelines' in props(s, CLOSING)).toBe(false);
     expect(props(s, CLOSING)['date']).toBe('1923-04-12');
     expect(pictureOf(pane)).toEqual({ Opening: 'x.', 'The Letter': '..', [NIGHT_TITLE]: '..', Middle: '..', Ghost: '..', Closing: '..' });
   });
