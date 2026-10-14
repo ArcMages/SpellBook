@@ -42,6 +42,7 @@ import { drawHistoryPart, drawTimePart } from './timePart';
 
 export const OPEN_NOTE_TEXT = 'Open note';
 export const BOARD_AROUND_TEXT = 'Board around it';
+export const RENAME_EVERYWHERE_TEXT = 'Rename everywhere';
 export const BACK_LABEL = 'Back to the list';
 export const CLOSE_LABEL = 'Close the sheet';
 export const CHOOSE_PICTURE_TEXT = 'Choose picture';
@@ -230,6 +231,13 @@ export class EntitySheet {
     if (boards !== null) {
       textButton(actions, 'spellbook-world-board', BOARD_AROUND_TEXT, () => {
         boards.draw(entity.path);
+      });
+    }
+    // The entity's name changed in its note, its other names and the manuscript, when the revision tools offer it.
+    const everywhere = this.host.renameEverywhere();
+    if (everywhere !== null) {
+      textButton(actions, 'spellbook-world-rename-everywhere', RENAME_EVERYWHERE_TEXT, () => {
+        everywhere.open(entity.path);
       });
     }
     textButton(actions, 'spellbook-world-choose-picture', CHOOSE_PICTURE_TEXT, () => {

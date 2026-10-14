@@ -7,6 +7,7 @@ import { WordCountCache } from '../src/core/wordCountCache';
 import { aihelperFeature } from '../src/features/aihelper/index';
 import { templatesFeature } from '../src/features/templates/index';
 import { boardsFeature } from '../src/features/boards/index';
+import { revisionFeature } from '../src/features/revision/index';
 import { corkboardFeature } from '../src/features/corkboard/index';
 import { modesFeature } from '../src/features/modes/index';
 import { exportFeature } from '../src/features/export/index';
@@ -78,8 +79,8 @@ const feature = (id: string, register: (context: FeatureContext) => void = () =>
 
 describe('the list of features', () => {
   it('holds the five screens, each from a folder of its own', () => {
-    expect(FEATURES).toEqual([corkboardFeature, progressFeature, plannerFeature, timelineFeature, outlinerFeature, schemesFeature, modesFeature, reportFeature, exportFeature, proseFeature, scriveningsFeature, snapshotsFeature, worldFeature, aihelperFeature, plotGridFeature, welcomeFeature, templatesFeature, boardsFeature]);
-    expect(FEATURES.map((entry) => entry.id)).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'modes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world', 'aihelper', 'plotgrid', 'welcome', 'templates', 'boards']);
+    expect(FEATURES).toEqual([corkboardFeature, progressFeature, plannerFeature, timelineFeature, outlinerFeature, schemesFeature, modesFeature, reportFeature, exportFeature, proseFeature, scriveningsFeature, snapshotsFeature, worldFeature, aihelperFeature, plotGridFeature, welcomeFeature, templatesFeature, boardsFeature, revisionFeature]);
+    expect(FEATURES.map((entry) => entry.id)).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'modes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world', 'aihelper', 'plotgrid', 'welcome', 'templates', 'boards', 'revision']);
   });
 
   it('registers as it stands: every screen plugs itself in, and none leaves a trace on the device', () => {
@@ -87,7 +88,7 @@ describe('the list of features', () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const registered = registerFeatures(FEATURES, host);
     expect(logged).not.toHaveBeenCalled(); // no screen failed to start
-    expect(registered.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'modes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world', 'aihelper', 'plotgrid', 'welcome', 'templates', 'boards']);
+    expect(registered.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'modes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world', 'aihelper', 'plotgrid', 'welcome', 'templates', 'boards', 'revision']);
 
     // What the screens registered through the plugin.
     expect(plugin.viewTypes).toEqual([
@@ -104,6 +105,7 @@ describe('the list of features', () => {
       'spellbook-welcome',
       'spellbook-help',
       'spellbook-boards',
+      'spellbook-revision',
     ]);
     const commandIds = plugin.commands.map((command) => command.id);
     expect(commandIds).toEqual(
@@ -121,8 +123,8 @@ describe('the list of features', () => {
       ['welcome', 'Welcome and help'],
       ['templates', 'Templates'],
     ]);
-    // The writing progress watches the editor and has its place in the bottom bar.
-    expect(plugin.editorExtensions).toHaveLength(1);
+    // The writing progress watches the editor and has its place in the bottom bar; the revision tools underline passages with notes.
+    expect(plugin.editorExtensions).toHaveLength(2);
     expect(plugin.statusBar.children).toHaveLength(1);
     expect(registered.services.get('progress.sceneLine')).toBeDefined();
     expect(registered.services.get('progress.stats')).toBeDefined();

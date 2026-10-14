@@ -124,9 +124,10 @@ describe('the corkboard and the inspector in the whole plugin', () => {
     // Plugging in opens nothing and remembers nothing on the device.
     expect(fake.workspace.leaves).toEqual([]);
     expect(fake.localStorage.size).toBe(0);
-    // Nothing of the corkboard's listens to the workspace yet: the three
-    // listeners are the writing progress's (file-open, layout-change, quit).
-    expect(fake.workspace.listenerCount()).toBe(3);
+    // Nothing of the corkboard's listens to the workspace yet: three
+    // listeners are the writing progress's (file-open, layout-change, quit),
+    // one the revision tools' (the editor's menu).
+    expect(fake.workspace.listenerCount()).toBe(4);
     expect(['file-open', 'layout-change', 'quit'].map((name) => fake.workspace.listenerCount(name))).toEqual([1, 1, 1]);
   });
 
@@ -206,8 +207,8 @@ describe('the corkboard and the inspector in the whole plugin', () => {
     const { leaf, pane } = await withCorkboard(loaded);
     loaded.command('open-inspector').callback?.();
     await until(() => loaded.fake.workspace.getLeavesOfType(INSPECTOR_VIEW_TYPE)[0]?.view != null, 'the inspector to open');
-    // One listener for the two panes, next to the three of the writing progress.
-    expect(loaded.fake.workspace.listenerCount()).toBe(4);
+    // One listener for the two panes, next to the three of the writing progress and the revision tools' one.
+    expect(loaded.fake.workspace.listenerCount()).toBe(5);
 
     loaded.plugin.unload();
     await until(() => pane.children.length === 0, 'the corkboard to be emptied');

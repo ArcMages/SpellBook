@@ -41,6 +41,7 @@ export const STYLE_FILES = Object.freeze([
   'welcome.css',
   'templates.css',
   'boards.css',
+  'revision.css',
 ]);
 
 const BANNER = `/*

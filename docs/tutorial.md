@@ -287,6 +287,8 @@ Restoring puts back the text only. The scene keeps the status, label, synopsis a
 
 **Take snapshot** and **Snapshots** are also in a scene's menu in the binder. Spellbook can take a snapshot for you before the first edit of each day; see [Snapshot options](customising.md#snapshot-options).
 
+**Notes for the rewrite, and a word changed everywhere.** Select a few words in "Arrival" that you want to come back to, right-click (on a phone, press and hold the selection) and choose **Add revision note**. Type what should change and press **Add note**: the words get a light dotted underline, and pointing at them shows your note. Run **Open revision notes** to see every note of the book in the right sidebar; tick **Done** when you have dealt with one. To change a word all through the book, run **Find and replace in the manuscript**, search, untick any place you want left alone, and press **Replace**: each scene is saved as a snapshot first. See [Revision](guide.md#revision).
+
 ## 13. Check the prose
 
 ![A scene in the editor with filler words, repeated words and long sentences marked](images/prose-checks.png)

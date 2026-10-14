@@ -16,6 +16,8 @@ import { ENTITY_SHEET_SERVICE, SCENE_ENTITIES_SERVICE, WORLD_HISTORY_SERVICE } f
 import type { EntitySheetService, WorldHistoryService } from '../../core/world';
 import { ENTITY_BOARD_SERVICE } from '../../core/boards';
 import type { EntityBoardService } from '../../core/boards';
+import { RENAME_EVERYWHERE_SERVICE } from '../../core/revision';
+import type { RenameEverywhereService } from '../../core/revision';
 import { iconName } from '../../ui/icons';
 import type { Feature, FeatureContext } from '../registry';
 import { WorldHost } from './host';
@@ -154,6 +156,8 @@ export const worldFeature: Feature = {
 
     // A board around an entity, for the sheet's button: offered by the idea boards, when they are there.
     host.entityBoard = () => context.services.get<EntityBoardService>(ENTITY_BOARD_SERVICE) ?? null;
+    // "Rename everywhere" in an entity's menu and on its sheet: offered by the revision tools, when they are there.
+    host.renameEverywhere = () => context.services.get<RenameEverywhereService>(RENAME_EVERYWHERE_SERVICE) ?? null;
 
     plugin.registerView(WORLD_VIEW_TYPE, (leaf) => createWorldView(leaf, host));
     plugin.addRibbonIcon(iconName(...WORLD_ICONS.view) ?? WORLD_ICON, WORLD_RIBBON_TITLE, () => {

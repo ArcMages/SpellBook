@@ -314,10 +314,27 @@ created: 2026-10-14
 | `end` | story date | Later than `date`. | Makes a dated scene a span on the timeline. | Yes. |
 | `tags` | list of text | Obsidian's own tags property. | Shown in the outliner and on the timeline. | Yes. |
 | `snapshot-id` | text | Written by Spellbook. | Ties the scene to its snapshots. Only there after the first snapshot. | **Never.** |
+| `revision-notes` | list of entries | Written by Spellbook. Each entry has `passage` (the exact words of the scene it is about), `note` (the writer's note), `created` (`YYYY-MM-DD`) and `done` (`true` or `false`). Absent for none. | The writer's revision notes, pinned to passages of the scene. See "Revision notes" below. | Only as described below. |
 
 Any other property is the writer's own. The outliner can show it as a column. Leave it alone unless asked.
 
 Reading is forgiving: a missing property takes its usual value (no synopsis, no status, no label, no target, included in compile). A value of the wrong kind (a list where text is expected) is ignored and reported to the writer as a problem, so do not write one.
+
+### Revision notes
+
+A scene's `revision-notes` property holds the notes the writer pinned to passages while revising. Spellbook underlines each passage that still stands in the scene, and lists every note in its Revision pane. An example:
+
+```yaml
+revision-notes:
+  - passage: The harbour was empty
+    note: Say what she hears instead.
+    created: 2026-10-14
+    done: false
+```
+
+- A note is found again by its `passage`: the first place where those exact words stand in the body. Rewriting the body so that the words are gone leaves the note in place; Spellbook then shows it as "passage changed". That is expected; do not "repair" passages.
+- Do not edit `revision-notes` by hand. The writer adds, edits, ticks and deletes notes in Spellbook. The one exception: when the writer asks you to, you may set one entry's `done` to `true` (after you made the change it asks for), or add one new entry at the end with all four fields, `passage` copied exactly from the body, `created` set to today and `done: false`. Never change or remove another entry, never reorder the list, and keep any field you do not know.
+- Reading the notes is always fine, for example to list what is left to revise.
 
 ### What counts as manuscript words
 
@@ -1127,6 +1144,7 @@ Never do by hand, even when asked, without first explaining the risk: adding, re
 - **`Snapshots/`**: read only. No edits, no new files, no renames, no deletes.
 - **`order`** on any scene: never write, change, remove or "tidy" it.
 - **`snapshot-id`** on any scene: never write, change or remove it.
+- **`revision-notes`** on any scene, except as section 5 ("Revision notes") allows.
 - **`created` and `edited`** on an existing scene.
 - **The index's structure** beyond the edits in section 14: no folder ids, no reordering, no `version`, no `spellbook`, no `entityTypes`, no `calendar`, no unknown keys. Never the index's body.
 - **`Exports/`** and **`AI helper/`**.

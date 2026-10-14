@@ -25,6 +25,7 @@
 import { Notice } from 'obsidian';
 import type { PaneType } from 'obsidian';
 import type { EntityBoardService } from '../../core/boards';
+import type { RenameEverywhereService } from '../../core/revision';
 import { sanitiseFileName } from '../../core/names';
 import { isImagePath, noteTitle, pathKey, relativeTo } from '../../core/paths';
 import { entityStart, worldTemplates } from '../../core/templates';
@@ -884,6 +885,9 @@ export class WorldHost {
 
   /** Set by the feature: what draws a board around an entity, asked for each time; null while no feature offers it. */
   entityBoard: () => EntityBoardService | null = () => null;
+
+  /** Set by the feature: what renames an entity everywhere, asked for each time; null while no feature offers it. */
+  renameEverywhere: () => RenameEverywhereService | null = () => null;
 
   // ----------------------------------------------------------------- mentions
 
