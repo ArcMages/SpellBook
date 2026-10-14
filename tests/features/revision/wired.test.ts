@@ -50,7 +50,7 @@ async function stage(options: { snapshots?: boolean; vault?: MemoryVault } = {})
   const services: FeatureServices = features.services;
   const context: FeatureContext = { ...host, deviceId: 'testdevice', services, addSettingsSection: () => undefined, onUnload: () => undefined };
   const keeper = new RevisionKeeper(context);
-  const s = { vault, store, timers, fake, plugin, features, keeper };
+  const s = { vault, store, timers, fake, plugin, features, keeper, services };
   stops.push(() => {
     keeper.dispose();
     features.release();
@@ -349,5 +349,45 @@ describe('what the writer is told about the links', () => {
       '3 links in 2 notes now lead to the new name.\nThe links in these notes could not be changed: Closing.\n2 notes outside the project link to it, and those links keep the old name: links are changed in this project only. ' +
         'To change them too, choose "The whole vault" under "When a note is renamed, update links in" in Spellbook\'s settings.',
     );
+  });
+});
+
+describe('review: long changes that something gets in the way of', () => {
+  it('a rename everywhere keeps to the project it began in, when another project is opened half way', async () => {
+    const vault = vaultWithWorld();
+    vault.seed('Second/Second.md', { frontmatter: { spellbook: 'project', version: 1, title: 'Second', binder: [] }, body: '' });
+    vault.seed(`Second/${ANNA}`, { frontmatter: { type: 'character' }, body: 'The other Anna.\n' });
+    const { keeper, store, timers } = await stage({ vault });
+    const found = await keeper.findName('Anna');
+    const renaming = keeper.renameEverywhere(ANNA, 'Dina', true, new TickedResults(found).plans('Dina'));
+    const opening = store.openProject('Second/Second.md');
+    const report = await renaming;
+    expect((await opening).status).toBe('done');
+    await calm({ store, timers });
+    // The other project's Anna is not touched.
+    expect(vault.has(`Second/${ANNA}`)).toBe(true);
+    expect(vault.has('Second/World/Characters/Dina.md')).toBe(false);
+    expect(typeof report).toBe('string');
+  });
+
+  it('a snapshot that fails by throwing leaves that scene alone, says so, and goes on with the others', async () => {
+    const { keeper, vault, services } = await stage({ snapshots: false });
+    let calls = 0;
+    services.provide(SNAPSHOTS_SERVICE_NAME, {
+      takeNamed: async () => {
+        calls++;
+        if (calls === 1) throw new Error('the disk is full');
+        return null;
+      },
+    });
+    const found = await keeper.search('dark', plain, null);
+    const found2 = await keeper.search('end', plain, null);
+    const plans = [...new TickedResults(found).plans('light'), ...new TickedResults(found2).plans('start')];
+    expect(plans.length).toBe(2);
+    const report = await keeper.replace(plans, 'test');
+    expect(report.scenes).toBe(1);
+    expect(report.problems).toHaveLength(1);
+    expect(report.problems[0]?.message).toContain('the disk is full');
+    expect(vault.bodyOf(inNovel(OPENING))).toContain('dark');
   });
 });

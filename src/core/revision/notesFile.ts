@@ -181,15 +181,26 @@ export function editScene(file: NotesFile, scene: SceneKey, idAt: IdAt, edit: (l
 /**
  * Add entries of notes to a scene's list, leaving out each that is the same
  * note as one already there (same passage, words and day): so that adding
- * the same notes twice adds them once. Every field of an entry is kept.
- * Entries that are not notes are left out. Returns whether the file changed.
+ * the same notes twice adds them once. A note that comes in done ticks the
+ * same note there when it is not yet (a tick is never taken away). Every
+ * field of an entry is kept. Entries that are not notes are left out.
+ * Returns whether the file changed.
  */
 export function mergeIntoScene(file: NotesFile, scene: SceneKey, idAt: IdAt, entries: readonly unknown[]): boolean {
   return editScene(file, scene, idAt, (list) => {
     let added = false;
     for (const entry of entries) {
       const note = readNote(entry);
-      if (!note || findNote(list, note) >= 0) continue;
+      if (!note) continue;
+      const at = findNote(list, note);
+      if (at >= 0) {
+        const there = list[at];
+        if (note.done && isRecord(there) && readNote(there)?.done === false) {
+          there['done'] = true;
+          added = true;
+        }
+        continue;
+      }
       list.push(JSON.parse(JSON.stringify(entry)) as unknown);
       added = true;
     }
@@ -197,12 +208,15 @@ export function mergeIntoScene(file: NotesFile, scene: SceneKey, idAt: IdAt, ent
   });
 }
 
-/** Whether every one of these notes is in a scene's list in the file. */
+/** Whether every one of these notes is in a scene's list in the file (and done there, when it is done here). */
 export function holdsAll(file: NotesFile, scene: SceneKey, idAt: IdAt, notes: readonly RevisionNote[]): boolean {
   const at = findEntry(file, scene, idAt);
   const entry = at < 0 ? null : (entriesOf(file)[at] as Record<string, unknown>);
   const list = entry && Array.isArray(entry['notes']) ? (entry['notes'] as unknown[]) : [];
-  return notes.every((note) => findNote(list, note) >= 0);
+  return notes.every((note) => {
+    const found = findNote(list, note);
+    return found >= 0 && (!note.done || readNote(list[found])?.done === true);
+  });
 }
 
 /**
@@ -221,6 +235,33 @@ export function takeEntriesAt(file: NotesFile, path: string): Array<Record<strin
     }
   }
   return taken;
+}
+
+/**
+ * Take out of the entries at a path (whatever their capitals) the notes that
+ * are in `copied` (entries as entriesAt gave them), and every entry left
+ * with no notes. A note that is not among them (one that arrived after they
+ * were copied) stays where it is. Returns whether the file changed.
+ */
+export function takeCopiedAt(file: NotesFile, path: string, copied: ReadonlyArray<Record<string, unknown>>): boolean {
+  const gone: unknown[] = copied.flatMap((entry) => (Array.isArray(entry['notes']) ? (entry['notes'] as unknown[]) : []));
+  const entries = entriesOf(file);
+  const key = pathKey(path);
+  let changed = false;
+  for (let at = entries.length - 1; at >= 0; at--) {
+    const entry = entries[at];
+    if (!isRecord(entry) || pathOf(entry) === '' || pathKey(pathOf(entry)) !== key) continue;
+    const list = Array.isArray(entry['notes']) ? (entry['notes'] as unknown[]) : [];
+    const kept = list.filter((item) => {
+      const read = readNote(item);
+      return read === null || findNote(gone, read) < 0;
+    });
+    if (kept.length === list.length && list.length > 0) continue;
+    changed = true;
+    if (kept.length === 0) entries.splice(at, 1);
+    else entry['notes'] = kept;
+  }
+  return changed;
 }
 
 /** The entries at a path, as copies, leaving the file as it is. */

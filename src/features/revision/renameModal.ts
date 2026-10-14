@@ -226,6 +226,11 @@ export class RenameEverywhereModal extends Modal {
       if (report.aliasProblem !== null) lines.push(report.aliasProblem);
       new Notice(lines.join('\n'), 8000);
       this.close();
+    } catch (error) {
+      console.error('Spellbook: the rename stopped', error);
+      const stopped = 'The rename stopped part way. Look at the note and the scenes before trying again; each changed scene has a snapshot.';
+      new Notice(stopped, PROBLEM_NOTICE_MS);
+      if (!this.closed) this.message?.setText(stopped);
     } finally {
       this.busy = false;
       if (!this.closed) this.showChanges();

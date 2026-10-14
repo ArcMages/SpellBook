@@ -49,13 +49,13 @@ import {
   sameNote,
   sceneNotes,
   serialiseNotesFile,
-  takeEntriesAt,
+  takeCopiedAt,
 } from '../../core/revision/index';
 import type { IdAt, NotesFile, PlacedNote, RevisionNote, SceneKey } from '../../core/revision/index';
 import { sceneIdOf } from '../../core/snapshots/index';
 import type { Frontmatter, ProjectSummary, TreeNode } from '../../core/types';
 import { VaultFileMissingError } from '../../core/vaultPort';
-import type { VaultEvent } from '../../core/vaultPort';
+import type { MarkdownFileInfo, VaultEvent } from '../../core/vaultPort';
 import type { FeatureContext } from '../registry';
 
 export const UNREADABLE_NOTES_TEXT = `The revision notes of this project could not be read (the file "${REVISION_NOTES_FILE}" may still be syncing), so nothing was changed. Try again in a moment.`;
@@ -191,12 +191,12 @@ export class RevisionNotesBook {
   }
 
   /** The ids of the notes of a project, as the vault has indexed them. Worked out once, when first asked. */
-  idsIn(project: Project): IdAt {
+  idsIn(project: Project, listed?: readonly MarkdownFileInfo[]): IdAt {
     let ids: Map<string, string | null> | null = null;
     return (path) => {
       if (!ids) {
         ids = new Map();
-        for (const note of this.context.vault.listMarkdownFiles(project.folder)) {
+        for (const note of listed ?? this.context.vault.listMarkdownFiles(project.folder)) {
           const rel = relativeTo(project.folder, note.path);
           if (rel !== null) ids.set(pathKey(rel), sceneIdOf(note.frontmatter));
         }
@@ -284,9 +284,12 @@ export class RevisionNotesBook {
     const project = this.projectOf(vaultPath);
     const rel = project ? relativeTo(project.folder, vaultPath) : null;
     if (!project || rel === null || !isMarkdownPath(rel)) return [];
-    const idAt = this.idsIn(project);
+    // The project's notes are listed once, for both (this runs whenever an editor's marks are redrawn).
+    const listed = this.context.vault.listMarkdownFiles(project.folder);
+    const idAt = this.idsIn(project, listed);
     const notes: RevisionNote[] = this.notesOf(project, rel, idAt);
-    const indexed = this.context.vault.listMarkdownFiles(project.folder).find((note) => pathKey(note.path) === pathKey(vaultPath));
+    const wanted = pathKey(vaultPath);
+    const indexed = listed.find((note) => pathKey(note.path) === wanted);
     for (const old of readNotes(indexed?.frontmatter ?? null)) {
       if (!notes.some((note) => sameNote(note, old))) notes.push(old);
     }
@@ -306,6 +309,7 @@ export class RevisionNotesBook {
   async write(project: Project, change: (file: NotesFile) => boolean): Promise<string | null> {
     if (this.disposed) return 'The revision notes are closed.';
     const box: { written: string | null; unreadable: boolean } = { written: null, unreadable: false };
+    const before = this.shelf(project).generation;
     const result = await this.context.store.updateRevisionNotes(project.indexPath, (current) => {
       box.written = null;
       box.unreadable = false;
@@ -326,6 +330,10 @@ export class RevisionNotesBook {
       return UNREADABLE_NOTES_TEXT;
     }
     if (result.status === 'done' && box.written !== null) {
+      // The file was read meanwhile (it changed again, on another device):
+      // what was read may be newer than what was written, and is set aside
+      // below. Read once more, so that it is not missed.
+      const reading = shelf.loading !== null || shelf.generation !== before;
       const text = box.written;
       const changed = text !== shelf.text;
       shelf.status = 'ready';
@@ -333,6 +341,7 @@ export class RevisionNotesBook {
       shelf.text = text;
       shelf.generation++;
       if (changed) this.emit();
+      if (reading) void this.load(shelf);
       return null;
     }
     if (result.status === 'done' || result.status === 'noop') return null;
@@ -414,7 +423,10 @@ export class RevisionNotesBook {
     }
     for (const move of across) {
       // Into the other project first, then out of this one: stopped half way, the notes are in both, never in neither.
-      const source = await this.loaded(move.from);
+      // Read again now: a note may have arrived by sync since the file was last read.
+      const source = this.shelf(move.from);
+      await this.load(source);
+      while (source.loading) await source.loading;
       const entries = source.file ? entriesAt(source.file, move.fromPath) : [];
       if (entries.length === 0) continue;
       const added = await this.write(move.to, (file) => putEntriesAt(file, move.toPath, entries));
@@ -422,7 +434,8 @@ export class RevisionNotesBook {
         console.warn(`Spellbook: the revision notes of a moved scene could not follow it. ${added}`);
         continue;
       }
-      const taken = await this.write(move.from, (file) => takeEntriesAt(file, move.fromPath).length > 0);
+      // Only the notes that were copied: one that arrived meanwhile stays, never lost.
+      const taken = await this.write(move.from, (file) => takeCopiedAt(file, move.fromPath, entries));
       if (taken) console.warn(`Spellbook: the revision notes of a moved scene were copied, but are still in the project it left. ${taken}`);
     }
   }

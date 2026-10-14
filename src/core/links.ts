@@ -12,7 +12,7 @@
 //   ![[Mara#Youth]]             -> ![[Mara Voss#Youth]]
 //   [the keeper](Mara.md)       -> [the keeper](Mara%20Voss.md)
 //
-// Links inside code ("`[[Mara]]`", or between ``` lines) are not links, and
+// Links inside code ("`[[Mara]]`", or between ``` or ~~~ lines) are not links, and
 // are left alone, as Obsidian leaves them.
 
 /**
@@ -38,7 +38,7 @@ export interface LinkPlace {
 /** The stretches of a text that are code, where nothing is a link. */
 function codeStretches(text: string): Array<{ from: number; to: number }> {
   const stretches: Array<{ from: number; to: number }> = [];
-  const code = /```[\s\S]*?(?:```|$)|`[^`\n]+`/g;
+  const code = /```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]+`/g;
   let found: RegExpExecArray | null;
   while ((found = code.exec(text)) !== null) {
     if (found[0].length === 0) {
@@ -107,7 +107,10 @@ export function linkPlaces(text: string): LinkPlace[] {
       raw = rest.slice(1, close);
     } else {
       // A title may follow the address, after a space: (Mara.md "Mara").
+      // Anything else after a space means the address itself holds a bare
+      // space ("Mara notes.md"): not the link to "Mara", so left alone.
       const space = rest.search(/\s/);
+      if (space >= 0 && !/^\s+(?:"[^"]*"|'[^']*'|\([^)]*\)?)\s*$/.test(rest.slice(space))) continue;
       raw = space < 0 ? rest : rest.slice(0, space);
     }
     const hash = raw.indexOf('#');
