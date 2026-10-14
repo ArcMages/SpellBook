@@ -79,6 +79,7 @@ import {
 } from './timelineScene';
 import type { PlacedBox, Scene, SceneWindow, TimeMode, TimelineContent } from './timelineScene';
 import { fillWorldCard, placeWorldCard, worldCardDrawn } from './worldCards';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export const TIMELINE_VIEW_TYPE = 'spellbook-timeline';
 export const TIMELINE_VIEW_NAME = 'Timeline';
@@ -100,6 +101,8 @@ export const TAGS_FILTERED_LABEL = 'Filtered';
 export const CLEAR_TAGS_LABEL = 'Clear filter';
 export const NO_TAGGED_MATCH = 'Nothing on the timeline matches this filter.';
 export const VIEWS_LABEL = 'Views';
+/** After the view's name on the views button while a filter by tags is laid over it. */
+export const FILTERED_SUFFIX = '(filtered)';
 export const SAVE_VIEW_LABEL = 'Save current view...';
 export const NO_WORLD_DATES = 'No entity of the world has a date yet. Give one a date on its sheet in the World browser, under "Time".';
 /** A card shows this many entities at most; the rest are counted. */
@@ -821,11 +824,21 @@ export class TimelineView extends ItemView {
   private drawViewButton(): void {
     const button = this.els?.viewButton;
     if (!button) return;
-    const current = this.content === null ? null : this.actions.currentView();
-    button.setText(current ?? VIEWS_LABEL);
-    // A saved view's name is the writer's own text.
-    button.setAttr('dir', current !== null && !BUILT_IN_VIEWS.includes(current) ? 'auto' : null);
-    button.setAttr('aria-label', current === null ? VIEWS_LABEL : `${VIEWS_LABEL}: ${current}`);
+    const { name: current, filtered } = this.content === null ? { name: null, filtered: false } : this.actions.viewLabel();
+    const name = current ?? VIEWS_LABEL;
+    // A saved view's name is the writer's own text: it alone takes the direction of what it says.
+    const own = current !== null && !BUILT_IN_VIEWS.includes(current);
+    if (!filtered) {
+      button.setText(name);
+      button.setAttr('dir', own ? 'auto' : null);
+    } else {
+      button.empty();
+      button.setAttr('dir', null);
+      button.createSpan({ text: name, attr: own ? { dir: 'auto' } : {} });
+      button.createSpan({ cls: 'spellbook-timeline-view-filtered', text: ` ${FILTERED_SUFFIX}` });
+    }
+    const said = current === null ? VIEWS_LABEL : `${VIEWS_LABEL}: ${current}`;
+    button.setAttr('aria-label', filtered ? `${said} ${FILTERED_SUFFIX}` : said);
   }
 
   /** The list of views: the two built in, the saved ones, then saving and deleting. */
@@ -1481,7 +1494,7 @@ export class TimelineView extends ItemView {
       menu.addItem((item) => {
         item.setTitle('What is wrong with this event?').onClick(() => {
           const calendar = this.content?.calendar ?? null;
-          new Notice(event.problems.map((problem) => describeEventProblem(problem, calendar)).join('\n'), 12000);
+          new Notice(event.problems.map((problem) => describeEventProblem(problem, calendar)).join('\n'), PROBLEM_NOTICE_MS);
         });
       });
     }

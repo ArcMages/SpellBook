@@ -14,6 +14,7 @@ import type { Feature, FeatureContext } from '../registry';
 import { firstDayOfWeekOf } from './plannerNumbers';
 import { PLANNER_ICON, PLANNER_VIEW_TYPE, createPlannerView } from './plannerView';
 import { PlannerWiring } from './plannerWiring';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 /** The commands the planner adds. Obsidian puts the plugin's name in front of their names. */
 export const OPEN_PLANNER_COMMAND = { id: 'open-planner', name: 'Open planner' } as const;
@@ -21,9 +22,6 @@ export const OPEN_TODO_NOTE_COMMAND = { id: 'open-todo-note', name: 'Open to-do 
 
 /** What the ribbon button says when it is pointed at. (The ribbon does not add the plugin's name.) */
 export const PLANNER_RIBBON_TITLE = 'Open Spellbook planner';
-
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-const PROBLEM_NOTICE_MS = 10000;
 
 /**
  * Show the planner as a tab in the main area. A planner that is open

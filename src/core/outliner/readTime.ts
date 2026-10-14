@@ -1,7 +1,9 @@
 // How long a scene takes to read.
 
-/** The reading speed the outliner goes by. */
-export const WORDS_PER_MINUTE = 250;
+import { READING_WORDS_PER_MINUTE } from '../wordCount';
+
+/** The reading speed the outliner goes by: the one of the whole plugin. */
+export const WORDS_PER_MINUTE = READING_WORDS_PER_MINUTE;
 
 /**
  * The minutes it takes to read a number of words, rounded up to a whole

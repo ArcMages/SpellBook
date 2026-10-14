@@ -36,6 +36,7 @@ import { NO_PROJECT_TEXT, NO_SCENE_TEXT, NO_SELECTION_TEXT, RevisionKeeper } fro
 import { NoteModal } from './noteModal';
 import { RenameEverywhereModal } from './renameModal';
 import { REVISION_VIEW_TYPE, createRevisionView, revisionIcon } from './revisionView';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export { RevisionKeeper, SNAPSHOTS_SERVICE_NAME } from './keeper';
 export type { LinksReport, RenameReport, ReplaceReport, SceneAt, SceneMatches, ScenePlan } from './keeper';
@@ -58,8 +59,6 @@ export const REVISION_RIBBON_TITLE = 'Open Spellbook revision notes';
 export const ADD_NOTE_TITLE = 'Add revision note';
 export const NOT_AN_ENTITY_TEXT = 'Open the note of a World entity first, or use "Rename everywhere" in its menu in the World browser.';
 export const COULD_NOT_OPEN_TEXT = 'The revision notes could not be opened.';
-
-const PROBLEM_NOTICE_MS = 10000;
 
 /** An editor and the note it shows, as Obsidian hands them to a command or a menu. */
 interface EditorAt {

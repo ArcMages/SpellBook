@@ -509,7 +509,7 @@ export class ReportView extends ItemView {
     tile('paragraphs', 'Paragraphs', formatCount(figures.paragraphs), PARAGRAPHS_NOTE);
     const pages = tile('pages', 'Pages', formatCount(figures.pages), 'A page that was begun counts as a page.');
     this.renderWordsPerPage(pages, wordsPerPage);
-    tile('read-time', 'Reading time', figures.readTime, `At ${WORDS_PER_MINUTE} words a minute, as in the outliner.`);
+    tile('read-time', 'Reading time', figures.readTime, `At ${WORDS_PER_MINUTE} words a minute, as in the outliner and the bottom bar.`);
     const grade = gradeTexts(figures.grade, stats);
     tile('grade', grade.label, grade.value, grade.note);
 

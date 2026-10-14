@@ -17,6 +17,7 @@ import { TIMELINE_ICONS } from './timelineMenus';
 import { readContent } from './timelineScene';
 import { TIMELINE_VIEW_TYPE, TimelineView, createTimelineView } from './timelineView';
 import { TimelineWiring } from './timelineWiring';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export { TIMELINE_VIEW_NAME, TIMELINE_VIEW_TYPE, TimelineView, createTimelineView } from './timelineView';
 export { TimelineWiring } from './timelineWiring';
@@ -35,9 +36,6 @@ export const EDIT_CALENDAR_NAME = 'Edit story calendar';
 /** The command that opens the timeline as the history of the world: the world lanes on, the scenes' lane off. */
 export const OPEN_WORLD_HISTORY_COMMAND = 'open-world-history';
 export const OPEN_WORLD_HISTORY_NAME = 'Open world history';
-
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-const PROBLEM_NOTICE_MS = 10000;
 
 /**
  * Show the timeline as a tab in the main area. A timeline that is already

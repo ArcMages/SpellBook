@@ -1079,6 +1079,30 @@
   }
 }
 
+/* The timeline's windows, on phones and tablets: the same sizes, also where
+   the screen does not say it is touched (Obsidian's phone layout on a
+   computer). Each window carries the class when Obsidian is in that layout. */
+.spellbook-timeline-lanes-window.spellbook-is-mobile .spellbook-timeline-lane-toggle,
+.spellbook-timeline-lanes-window.spellbook-is-mobile .spellbook-timeline-lane-more,
+.spellbook-timeline-lanes-window.spellbook-is-mobile .spellbook-timeline-lane-add,
+.spellbook-timeline-event-window.spellbook-is-mobile .spellbook-timeline-entity-choose,
+.spellbook-timeline-event-window.spellbook-is-mobile .spellbook-timeline-entity-remove,
+.spellbook-timeline-event-window.spellbook-is-mobile .spellbook-timeline-date-row .dropdown,
+.spellbook-timeline-entity-window.spellbook-is-mobile .spellbook-timeline-entity-row,
+.spellbook-timeline-tags-window.spellbook-is-mobile .spellbook-timeline-tag-match .spellbook-timeline-button,
+.spellbook-timeline-calendar-window.spellbook-is-mobile .spellbook-timeline-calendar-preset,
+.spellbook-timeline-calendar-window.spellbook-is-mobile .spellbook-timeline-calendar-add,
+.spellbook-timeline-calendar-window.spellbook-is-mobile .spellbook-timeline-calendar-row-button {
+  min-block-size: var(--spellbook-timeline-target);
+}
+
+.spellbook-timeline-lanes-window.spellbook-is-mobile .spellbook-timeline-lane-toggle,
+.spellbook-timeline-lanes-window.spellbook-is-mobile .spellbook-timeline-lane-more,
+.spellbook-timeline-event-window.spellbook-is-mobile .spellbook-timeline-entity-remove,
+.spellbook-timeline-calendar-window.spellbook-is-mobile .spellbook-timeline-calendar-row-button {
+  min-inline-size: var(--spellbook-timeline-target);
+}
+
 /* A tint under the mouse; nothing appears or disappears with it. */
 @media (hover: hover) {
   .spellbook-timeline-card-more:hover {
@@ -1149,9 +1173,11 @@
   padding-inline: var(--size-4-2);
 }
 
-/* Beside a point, the name leaves the point free. */
+/* Beside a point, the name leaves the point free. A margin, not a padding:
+   the view sets the padding of a long row's name to keep it in sight, and
+   that must not move the name back over the point. */
 .spellbook-timeline-world.spellbook-is-point .spellbook-timeline-world-text {
-  padding-inline-start: var(--size-4-4);
+  margin-inline-start: var(--size-4-3);
 }
 
 /* On a narrow pane an entity is a card like an event's, in its type's colour. */
@@ -1232,6 +1258,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* "(filtered)" after the view's name, while a filter by tags is laid over the view. */
+.spellbook-timeline-view-filtered {
+  color: var(--text-muted);
 }
 
 /* The strip of the filter by tags: what it shows is a button that opens the filter's window. */

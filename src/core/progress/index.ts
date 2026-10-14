@@ -390,6 +390,8 @@ export {
   monthOf,
   /** The first and last day of the week a date falls in; the week's first day can be chosen. */
   weekRange,
+  /** The weekday weeks start on in Obsidian's language (from its `moment`); Sunday when it cannot be told. */
+  firstDayOfWeekOf,
   /** Read a date property that may be text, text with a time, or a date value; null when it is not a real date. */
   readDateProperty,
 } from './calendar';

@@ -11,8 +11,10 @@
 
 import { Modal, Notice, Setting } from 'obsidian';
 import type { App } from 'obsidian';
+import { formatCount } from '../../core/binderModel';
 import { safely } from '../../ui/safely';
 import type { ExportOutcome, Exporter } from './exporter';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export type DoneOutcome = Extract<ExportOutcome, { status: 'done' }>;
 
@@ -37,11 +39,10 @@ export const HIDDEN_FILE_NOTE =
 /** On a phone or a tablet: the file can be reached from outside Obsidian too. */
 export const MOBILE_WHERE_NOTE = 'You can also reach the file from the Files app, in the folder of your vault.';
 
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-export const PROBLEM_NOTICE_MS = 10000;
+export { PROBLEM_NOTICE_MS };
 
 function plural(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`;
+  return `${formatCount(count)} ${count === 1 ? one : many}`;
 }
 
 /** The name of a file, from its vault path. */

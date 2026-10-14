@@ -15,6 +15,7 @@ import type { Feature, FeatureContext } from '../registry';
 import { ReportHost } from './host';
 import { REPORT_VIEW_TYPE, createReportView, reportIcon } from './reportView';
 import { ReportPrefs, reportSettings } from './settings';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export { ReportHost } from './host';
 export type { ReportChange, ReportOutcome, ReportSubject } from './host';
@@ -30,9 +31,6 @@ export const REPORT_COMMANDS = {
 } as const;
 
 export const COULD_NOT_OPEN_TEXT = 'The writing report could not be opened.';
-
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-const PROBLEM_NOTICE_MS = 10000;
 
 /**
  * Brings the writing report onto the screen, as a tab in the main area. A

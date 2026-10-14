@@ -6,7 +6,7 @@
 import type { Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin } from '@codemirror/view';
 import type { ViewUpdate } from '@codemirror/view';
-import { SHADE_OPACITY } from '../../core/modes/index';
+import { SHADE_OPACITY, hemingwayAllows } from '../../core/modes/index';
 import type { ModeSet, ModeSettings } from '../../core/modes/index';
 import type { FeatureClock } from '../registry';
 import { EditorFrame } from './editorFrame';
@@ -18,6 +18,8 @@ export interface ExtensionNeeds {
   readonly clock: FeatureClock;
   /** An iPhone or iPad. */
   readonly ios: boolean;
+  /** A phone or tablet: what Hemingway lets through may depend on it. */
+  readonly mobile: boolean;
   /** Told when Hemingway refused something. */
   readonly blocked: BlockedReport;
 }
@@ -54,7 +56,7 @@ function frameExtension(options: FrameOptions, clock: FeatureClock): Extension {
 /** The extensions for the modes that are on. Zen needs none: it changes nothing in an editor. */
 export function modeExtensions(modes: ModeSet, settings: ModeSettings, needs: ExtensionNeeds): Extension[] {
   const extensions: Extension[] = [];
-  if (modes.hemingway) extensions.push(hemingwayGuard(needs.blocked));
+  if (modes.hemingway) extensions.push(hemingwayGuard(needs.blocked, hemingwayAllows(settings, needs.mobile)));
   if (modes['letter-box'] || modes.typewriter) {
     extensions.push(
       frameExtension(

@@ -3,10 +3,11 @@
 // stop the plugin's other buttons from working.
 
 import { Notice } from 'obsidian';
+import { PROBLEM_NOTICE_MS } from './notices';
 
 function tell(what: string, error: unknown): void {
   console.error(`Spellbook: "${what}" failed`, error);
-  new Notice(`"${what}" did not work: ${error instanceof Error ? error.message : String(error)}`, 10000);
+  new Notice(`"${what}" did not work: ${error instanceof Error ? error.message : String(error)}`, PROBLEM_NOTICE_MS);
 }
 
 /**

@@ -225,6 +225,24 @@ describe('src/styles/timeline.css', () => {
     expect(coarse).toMatch(/min-inline-size:\s*var\(--spellbook-timeline-target\)/);
     // The same for phones and tablets, by Obsidian's own platform check.
     expect(bodyOf('.spellbook-timeline.spellbook-is-mobile .spellbook-timeline-button')).toMatch(/min-block-size/);
+    // ...and in the timeline's windows, which are not inside the timeline.
+    for (const selector of [
+      '.spellbook-timeline-entity-window.spellbook-is-mobile .spellbook-timeline-entity-row',
+      '.spellbook-timeline-tags-window.spellbook-is-mobile .spellbook-timeline-tag-match .spellbook-timeline-button',
+      '.spellbook-timeline-lanes-window.spellbook-is-mobile .spellbook-timeline-lane-toggle',
+      '.spellbook-timeline-event-window.spellbook-is-mobile .spellbook-timeline-entity-choose',
+      '.spellbook-timeline-calendar-window.spellbook-is-mobile .spellbook-timeline-calendar-preset',
+    ]) {
+      expect(bodyOf(selector), selector).toMatch(/min-block-size:\s*var\(--spellbook-timeline-target\)/);
+    }
+  });
+
+  it('puts the name of a one-date entity beside its point, also while the view keeps the name in sight', () => {
+    // The view sets the name's padding inline: the room for the point must come from elsewhere.
+    const body = bodyOf('.spellbook-timeline-world.spellbook-is-point .spellbook-timeline-world-text');
+    expect(body).toMatch(/margin-inline-start:\s*var\(--size-4-3\)/);
+    expect(body).not.toMatch(/padding-inline-start/);
+    expect(bodyOf('.spellbook-timeline-world-mark')).toMatch(/inline-size:\s*var\(--size-4-3\)/);
   });
 
   it('never hides or reveals anything on hover, and makes nothing invisible', () => {

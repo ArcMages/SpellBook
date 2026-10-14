@@ -18,6 +18,7 @@ import type { Entity, EntityType } from '../../core/world';
 import { safely } from '../../ui/safely';
 import { describeCards } from './keeper';
 import type { BoardInfo, CardDecision, Conversion, GroupBy, Outcome, SceneFolder } from './keeper';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export const PICK_BOARD_TEXT = 'Which board?';
 export const NO_BOARD_FOUND_TEXT = 'No board with that name.';
@@ -392,7 +393,7 @@ export class CardsToNotesModal extends Modal {
                 return;
               }
               const done = outcome.value;
-              if (done.problems.length > 0) new Notice([conversionText(done), ...done.problems].join(' '), 10000);
+              if (done.problems.length > 0) new Notice([conversionText(done), ...done.problems].join(' '), PROBLEM_NOTICE_MS);
               else new Notice(conversionText(done), 5000);
               this.close();
             });

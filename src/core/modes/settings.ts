@@ -8,6 +8,12 @@
 /** How much of the text outside the letter box's band can still be seen. */
 export type BandShade = 'hidden' | 'faint' | 'dimmed';
 
+/**
+ * Where something Hemingway would refuse is let through: nowhere, only on a
+ * phone or tablet (which has no other way to fix a typo), or everywhere.
+ */
+export type AllowWhere = 'never' | 'mobile' | 'always';
+
 export interface ModeSettings {
   /** Letter box: how tall the band of lines is, in hundredths of the pane's height. */
   readonly bandPercent: number;
@@ -21,6 +27,8 @@ export interface ModeSettings {
   readonly zenHideTitle: boolean;
   /** Zen: the Escape key leaves Zen. */
   readonly zenEscape: boolean;
+  /** Hemingway: where undo and redo are let through. */
+  readonly hemingwayUndo: AllowWhere;
 }
 
 /** The heights of the band the writer can choose from. */
@@ -30,6 +38,13 @@ export const BAND_PERCENTS = [20, 30, 40, 50, 60, 70] as const;
 export const ANCHOR_PERCENTS = [20, 30, 40, 50, 60, 70, 80] as const;
 
 export const BAND_SHADES = ['hidden', 'faint', 'dimmed'] as const;
+
+export const ALLOW_WHERE = ['never', 'mobile', 'always'] as const;
+
+/** Whether a choice of "where" lets something through on this device. */
+export function allowedHere(where: AllowWhere, mobile: boolean): boolean {
+  return where === 'always' || (where === 'mobile' && mobile);
+}
 
 /** How solid the cover over the text outside the band is: 1 hides the text altogether. */
 export const SHADE_OPACITY: Readonly<Record<BandShade, number>> = { hidden: 1, faint: 0.9, dimmed: 0.75 };
@@ -47,6 +62,8 @@ export function defaultModeSettings(phone: boolean): ModeSettings {
     zenHideProperties: true,
     zenHideTitle: false,
     zenEscape: true,
+    // A phone or tablet has no other way to take back a typo.
+    hemingwayUndo: 'mobile',
   };
 }
 
@@ -84,6 +101,7 @@ export function parseModeSettings(stored: unknown, phone: boolean): ModeSettings
   }
   if (!isRecord(value)) return defaults;
   const shade = value['bandShade'];
+  const undo = value['hemingwayUndo'];
   return {
     bandPercent: nearest(value['bandPercent'], BAND_PERCENTS, defaults.bandPercent),
     bandShade: (BAND_SHADES as readonly unknown[]).includes(shade) ? (shade as BandShade) : defaults.bandShade,
@@ -91,6 +109,7 @@ export function parseModeSettings(stored: unknown, phone: boolean): ModeSettings
     zenHideProperties: flag(value['zenHideProperties'], defaults.zenHideProperties),
     zenHideTitle: flag(value['zenHideTitle'], defaults.zenHideTitle),
     zenEscape: flag(value['zenEscape'], defaults.zenEscape),
+    hemingwayUndo: (ALLOW_WHERE as readonly unknown[]).includes(undo) ? (undo as AllowWhere) : defaults.hemingwayUndo,
   };
 }
 
@@ -103,6 +122,7 @@ export function formatModeSettings(settings: ModeSettings): string {
     zenHideProperties: settings.zenHideProperties,
     zenHideTitle: settings.zenHideTitle,
     zenEscape: settings.zenEscape,
+    hemingwayUndo: settings.hemingwayUndo,
   });
 }
 

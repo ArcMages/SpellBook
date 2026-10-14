@@ -24,6 +24,7 @@ import type { RevisionKeeper } from './keeper';
 import { linkScopeText, outsideText } from '../../ui/renameLinks';
 import { linksText, reportText } from './reports';
 import { JOINED_TEXT, TickedResults, changesText } from './results';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export { JOINED_TEXT } from './results';
 
@@ -214,7 +215,7 @@ export class RenameEverywhereModal extends Modal {
     try {
       const report = await this.keeper.renameEverywhere(this.entityPath, name, this.keepOld, results.plans(name));
       if (typeof report === 'string') {
-        new Notice(report, 10000);
+        new Notice(report, PROBLEM_NOTICE_MS);
         if (!this.closed) this.message?.setText(report);
         return;
       }

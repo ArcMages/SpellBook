@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { STYLES_DIR, STYLES_OUTPUT, STYLE_FILES, joinStyles, readStyles } from '../scripts/styles.mjs';
+import { STYLES_DIR, STYLES_OUTPUT, STYLE_FILES, joinStyles, minifyStyles, readStyles } from '../scripts/styles.mjs';
 
 const thisFile = fileURLToPath(import.meta.url);
 const repoRoot = path.resolve(path.dirname(thisFile), '..');
@@ -759,6 +759,24 @@ describe('the stylesheet is put together from one file per screen', () => {
       '.spellbook-b { color: var(--text-muted); }',
     ]);
     expect(joined.endsWith('}\n')).toBe(true);
+  });
+
+  it('shrinks the stylesheet for production, keeping every rule, fallback and prefix', () => {
+    const whole = readStyles(repoRoot);
+    const small = minifyStyles(whole);
+    expect(small.length).toBeLessThan(whole.length * 0.75);
+    // One comment only, the heading; no part headings, no line breaks in the rules.
+    expect(small.match(/\/\*/g)).toHaveLength(1);
+    expect(small).toMatch(/^\/\* Spellbook, a novel writer\. Generated from src\/styles/);
+    expect(small).not.toMatch(/=====/);
+    const count = (text: string, pattern: RegExp): number => text.match(pattern)?.length ?? 0;
+    // A plain colour before a color-mix is a fallback for older systems: both stay.
+    for (const pattern of [/color-mix\(/g, /background-color:/g, /-webkit-/g, /var\(--spellbook-timeline-target\)/g, /@media/g]) {
+      expect(count(small, pattern), String(pattern)).toBe(count(whole, pattern));
+    }
+    // Logical properties are left as written, never turned into left and right.
+    expect(small).not.toMatch(/\b(margin|padding)-(left|right)\b/);
+    expect(minifyStyles(whole)).toBe(small); // the same every time
   });
 
   it('keeps the generated stylesheet out of git', () => {

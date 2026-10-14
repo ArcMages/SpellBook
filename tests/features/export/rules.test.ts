@@ -59,7 +59,7 @@ describe('the source of the export', () => {
   });
 
   it('lets the windows know the project only through the exporter: no store, no vault, no device storage', () => {
-    const allowed = [/^obsidian$/, /^\.\/exporter$/, /^\.\/doneModal$/, /^\.\.\/\.\.\/core\/export$/, /^\.\.\/\.\.\/ui\/safely$/];
+    const allowed = [/^obsidian$/, /^\.\/exporter$/, /^\.\/doneModal$/, /^\.\.\/\.\.\/core\/export$/, /^\.\.\/\.\.\/core\/binderModel$/, /^\.\.\/\.\.\/ui\/(notices|safely)$/];
     for (const name of ['exportModal.ts', 'doneModal.ts']) {
       const code = codeOf(name);
       for (const target of importsOf(code)) {

@@ -9,7 +9,9 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fromUtf8, unzipStored } from '../../../src/core/export';
-import { EXPORTED_TITLE, VAULT_ROOT_TEXT, fileNameOf, folderOf } from '../../../src/features/export/doneModal';
+import { EXPORTED_TITLE, ExportDoneModal, VAULT_ROOT_TEXT, fileNameOf, folderOf } from '../../../src/features/export/doneModal';
+import type { DoneOutcome } from '../../../src/features/export/doneModal';
+import type { Exporter } from '../../../src/features/export/exporter';
 import {
   COULD_NOT_OPEN_TEXT,
   COULD_NOT_SHOW_TEXT,
@@ -26,6 +28,7 @@ import {
 import { NOTHING_TEXT, NO_PROJECT_TEXT, OPTIONS_KEY } from '../../../src/features/export/exporter';
 import { EXPORT_COMMANDS } from '../../../src/features/export/index';
 import { Modal as StubModal, Notice as StubNotice, Platform as StubPlatform, resetPlatform } from '../../obsidianStub';
+import type { FakeElement } from '../../obsidianStub';
 import { MemoryDeviceStorage, TODAY } from '../../storeHarness';
 import {
   CLOSING,
@@ -425,6 +428,24 @@ describe('saving an export', () => {
     expect(stage.vault.bytesOf(second)).not.toEqual(bytes);
     // A file of that name in other capitals, or of another kind, is in nobody's way.
     expect(await exportAs(stage, 'html')).toBe(`Novel/Exports/My Novel ${TODAY}.html`);
+  });
+
+  it('writes a long manuscript\'s count with commas between the thousands, as everywhere else', () => {
+    const outcome = {
+      status: 'done',
+      format: 'docx',
+      path: 'Novel/Exports/My Novel.docx',
+      rel: 'Exports/My Novel.docx',
+      scenes: 1204,
+      words: 28510,
+      switchedOff: [],
+      unread: [],
+      warnings: [],
+    } as unknown as DoneOutcome;
+    const done = new ExportDoneModal({} as never, {} as Exporter, outcome, false);
+    done.open();
+    expect((done.contentEl as unknown as FakeElement).withClass('spellbook-export-saved')[0]?.text).toBe('Saved 1,204 scenes, 28,510 words, as a new file.');
+    done.close();
   });
 
   it('makes way for a small window that says the file\'s name and folder, lists what was left out, and offers to open it', async () => {

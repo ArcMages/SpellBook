@@ -35,15 +35,13 @@ import type { FeatureContext, FeatureServices } from '../registry';
 import { HiddenLanes, WORLD_LANES_KEY, readWorldMarks, writeWorldMarks } from './hiddenLanes';
 import { ViewChoiceStore } from './viewChoices';
 import type { CreateEventResult, NewEvent, NoteChange, TimelineData, TimelineHost, WorldLaneChoice } from './timelineHost';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 /** The key of the project index that holds the lanes. */
 export const TIMELINES_KEY = 'timelines';
 
 export const NO_PROJECT_OPEN = 'No Spellbook project is open.';
 export const NOTE_NOT_OPENED = 'The note could not be opened. It may have been moved or deleted.';
-
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-const PROBLEM_NOTICE_MS = 10000;
 
 /** Every scene the binder lists, in reading order, as the binder spells its path. */
 function binderScenes(tree: readonly TreeNode[], into: string[] = []): string[] {

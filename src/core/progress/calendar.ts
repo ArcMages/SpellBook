@@ -98,6 +98,22 @@ export interface DateRange {
 }
 
 /**
+ * The weekday that weeks start on in the app's language, from the `moment`
+ * object that Obsidian sets to that language: 0 is Sunday, up to 6 for
+ * Saturday. Sunday when it cannot be told. The calendar grid and every week
+ * total ("This week") use this one rule, so that they always agree.
+ */
+export function firstDayOfWeekOf(locale: unknown): number {
+  try {
+    const data: unknown = (locale as { localeData?: () => unknown } | null | undefined)?.localeData?.();
+    const day: unknown = (data as { firstDayOfWeek?: () => unknown } | null | undefined)?.firstDayOfWeek?.();
+    return typeof day === 'number' && Number.isInteger(day) && day >= 0 && day <= 6 ? day : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * The week a date falls in.
  *
  * @param weekStartsOn the day a week begins with: 0 Sunday, 1 Monday (the default), up to 6 Saturday

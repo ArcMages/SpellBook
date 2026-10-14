@@ -4,6 +4,22 @@
 // in every language, including ones written without spaces (Chinese,
 // Japanese, Thai). Where it is not available, a simpler pattern is used.
 // The properties block at the top of a note and %% comments %% never count.
+//
+// One rule on every device: a hyphenated word ("well-known", "e-mail") is
+// one word, as in common writing tools. The segmenter alone would split it
+// in two, so the parts it gives are joined again across a single hyphen. A
+// Hebrew maqaf (U+05BE, as in "כל־הארץ") is not a hyphen: it joins two words
+// that stay two, with the segmenter and without it.
+
+/** How many words a reader reads in a minute: the one reading speed of the bar, the outliner and the report. */
+export const READING_WORDS_PER_MINUTE = 250;
+
+/**
+ * The hyphens that make one word of two: the hyphen-minus, the hyphen
+ * (U+2010) and the non-breaking hyphen (U+2011). Not the maqaf, and not a
+ * dash.
+ */
+export const WORD_HYPHENS: ReadonlySet<string> = new Set(['-', String.fromCharCode(0x2010), String.fromCharCode(0x2011)]);
 
 /** The part of Intl.Segmenter this file needs; also lets tests pass their own. */
 export interface WordSegmenter {
@@ -67,10 +83,11 @@ export function countableText(markdown: string): string {
 //  - Otherwise a word is a run of letters, digits and accent marks, which may
 //    be joined by one apostrophe, hyphen, dot or underscore ("don't",
 //    "well-known", "3.14"). The apostrophes include the curly one (U+2019)
-//    and the Hebrew geresh and gershayim (U+05F3, U+05F4).
+//    and the Hebrew geresh and gershayim (U+05F3, U+05F4); the hyphens are
+//    those of WORD_HYPHENS. The maqaf is not a joiner.
 const SPACELESS = '[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}]';
 const WORD_CHARACTER = `(?:(?!${SPACELESS})[\\p{L}\\p{N}\\p{M}])`;
-const JOINERS = `'._\\-${String.fromCharCode(0x2019, 0x05f3, 0x05f4)}`;
+const JOINERS = `'._\\-${String.fromCharCode(0x2010, 0x2011, 0x2019, 0x05f3, 0x05f4)}`;
 const FALLBACK_WORD = new RegExp(
   `${SPACELESS}|${WORD_CHARACTER}+(?:[${JOINERS}]${WORD_CHARACTER}+)*`,
   'gu',
@@ -93,8 +110,19 @@ export function countPlainWords(
 ): number {
   if (segmenter === null) return countWordsByPattern(text);
   let words = 0;
+  // Whether the last part was a word, and whether a word and then one hyphen came just before.
+  let afterWord = false;
+  let joining = false;
   for (const part of segmenter.segment(text)) {
-    if (part.isWordLike) words++;
+    if (part.isWordLike) {
+      // The second half of a hyphenated word is not a word of its own.
+      if (!joining) words++;
+      afterWord = true;
+      joining = false;
+    } else {
+      joining = afterWord && WORD_HYPHENS.has(part.segment);
+      afterWord = false;
+    }
   }
   return words;
 }

@@ -356,6 +356,7 @@ With **Chosen entities**, press **Choose** to open the "Choose entities" window,
 - **Letter box: height of the band** and **Letter box: text outside the band** (Hidden, Barely visible or Dimmed).
 - **Typewriter: where the line rests**.
 - **Zen: hide properties**, **Zen: hide the title** and **Zen: leave with Escape**.
+- **Hemingway: allow undo**: Never, On phones and tablets only (the default), or Everywhere.
 
 **On a phone.** A phone or tablet has no Escape key, so Zen shows a small "Leave Zen mode" button in the corner of the screen.
 
@@ -422,6 +423,8 @@ With **Chosen entities**, press **Choose** to open the "Choose entities" window,
 - **Ready-made bars**: Minimal, Drafting and Everything.
 - **Add button**: a shortcut button that runs any command you choose, for example one that switches a writing mode. Give it a label, an icon or both.
 - **Reset to default**.
+
+**How words are counted.** The same way on every device. A hyphenated word ("well-known", "e-mail") is one word, as in most writing programs. Words joined by a Hebrew maqaf (the short hyphen at the top of the line) count as two, since the maqaf joins separate words. Properties and `%% comments %%` are not counted. Reading time goes by 250 words a minute, in the bar, the outliner and the writing report alike. "This week" starts on the first day of the week of Obsidian's language, as the calendar does.
 
 **The daily word log.** While you write, Spellbook keeps a log of the words added and deleted each day, split into the manuscript and other notes of the project. The calendar and the "today" figures are worked out from it. See [How your writing is stored](#how-your-writing-is-stored).
 
@@ -513,12 +516,12 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 - **Zoom out**, **Zoom in** and **Fit**.
 - **New event**, or tap a lane to add an event there.
 - Drag an event along the axis to change its date.
-- Each event has a menu: **Open**, **Open in new tab**, **Set date** or **Change date**, **Move earlier**, **Move later**, **Entities**, **Move to lane**, **Also show in lane**, **Remove from this lane**.
+- Each event has a menu: **Open**, **Open in new tab**, **Set date** or **Change date**, **Move earlier**, **Move later**, **Entities**, **Move to lane**, **Also show in lane**, **Remove from this lane** (not offered for a scene in the Manuscript lane, where scenes always stay).
 - **Lanes** opens the "Timeline lanes" window: **Add lane**, and for each lane **Rename**, **Colour**, **Move up**, **Move down**, **Remove**, and **Hide** or **Show**. Removing a lane keeps its events; they show in the Other lane.
 - **Calendar** opens the [story calendar](#story-calendar).
 - **Only events with** narrows the timeline to the events that involve chosen characters, places or other entities; **Show all events** undoes it. It narrows the world lanes too.
 - **Filter by tags** (the tag button) shows only what carries chosen tags: events (their `tags`), scenes (their `tags`) and entities (the `tags` of their note). Pick tags from those used in the project, each shown with how many things carry it. **Any tag** shows what has one of them, **All tags** what has every one; a tag also matches the tags nested under it, so `royalty` matches `royalty/king`. Under **Show only**, tick kinds to see just those, for example Characters and Events; ticking a type of entity turns the world lanes on. A "Filtered: ..." strip says what is shown; tap it to change the filter, or **Clear filter** to see everything. Lanes the filter leaves empty are not drawn. So a king who is a character tagged `royalty` shows on his lane beside the royal events.
-- **Views** (the first button, named after the view shown) switches between saved combinations of lanes shown or hidden, world lanes on or off, and the filter. Two are built in: **Story** (the manuscript and your lanes, no world lanes, no filter) and **World history** (the world lanes and the events, the Manuscript lane hidden). Neither touches a lane you hid yourself. **Save current view...** keeps what you see under a name; saving under the same name again replaces it, and each saved view has a **Delete** item.
+- **Views** (the first button, named after the view shown, with "(filtered)" after the name while a filter by tags that no saved view holds is on) switches between saved combinations of lanes shown or hidden, world lanes on or off, and the filter. Two are built in: **Story** (the manuscript and your lanes, no world lanes, no filter) and **World history** (the world lanes and the events, the Manuscript lane hidden). Neither touches a lane you hid yourself. **Save current view...** keeps what you see under a name; saving under the same name again replaces it, and each saved view has a **Delete** item.
 - **World** switches the world lanes on or off: one lane for each type of entity that has a date, after your own lanes. An entity with a date and an end is a bar between the two; one with only a date is a point; its moments are small points on the same row, and its name stands on it. Tap an entity to open its sheet in the World screen; its menu has **Open sheet**, **Open note**, **Open note in new tab**, **Move earlier** and **Move later**. Drag it along its lane to change its dates, as you would an event; it stays in the lane of its type. In the "Timeline lanes" window the part called **World** shows or hides all world lanes, and each type's lane on its own.
 
 ![The timeline with world lanes: characters' lives and places' histories as bars and points beside the story's events](images/world-history-timeline.png)

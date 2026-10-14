@@ -3,8 +3,8 @@
 // the modes that are on follow it at once.
 
 import { Setting } from 'obsidian';
-import { ANCHOR_PERCENTS, BAND_PERCENTS, BAND_SHADES } from '../../core/modes/index';
-import type { BandShade, ModeSettings } from '../../core/modes/index';
+import { ALLOW_WHERE, ANCHOR_PERCENTS, BAND_PERCENTS, BAND_SHADES } from '../../core/modes/index';
+import type { AllowWhere, BandShade, ModeSettings } from '../../core/modes/index';
 import type { SettingsSection } from '../registry';
 
 export const MODES_SECTION_TITLE = 'Writing modes';
@@ -17,6 +17,12 @@ const SHADE_NAMES: Record<BandShade, string> = {
   hidden: 'Hidden',
   faint: 'Barely visible',
   dimmed: 'Dimmed',
+};
+
+const ALLOW_NAMES: Record<AllowWhere, string> = {
+  never: 'Never',
+  mobile: 'On phones and tablets only',
+  always: 'Everywhere',
 };
 
 /** How a resting place reads in the list. */
@@ -110,6 +116,17 @@ export function modesSettings(modes: TunedModes): SettingsSection {
         settings.zenEscape,
         (on) => {
           modes.tune({ zenEscape: on });
+        },
+      );
+      choiceRow(
+        containerEl,
+        'Hemingway: allow undo',
+        'Hemingway mode refuses anything that takes text away. A phone or tablet has no other way to fix a typo, so undo and redo can be let through there, or everywhere.',
+        ALLOW_WHERE.map((where) => [where, ALLOW_NAMES[where]] as const),
+        settings.hemingwayUndo,
+        (value) => {
+          const where = ALLOW_WHERE.find((candidate) => candidate === value);
+          if (where) modes.tune({ hemingwayUndo: where });
         },
       );
     },

@@ -55,8 +55,3 @@ export function worldTemplateFolderOf(rel: string): string | null {
   if (parentPath(folder) !== WORLD_TEMPLATES_FOLDER) return null;
   return folder.slice(WORLD_TEMPLATES_FOLDER.length + 1);
 }
-
-/** The folder the templates of a type of world entry are kept in, relative to the project folder. */
-export function worldTemplatesFolder(typeFolder: string): string {
-  return `${WORLD_TEMPLATES_FOLDER}/${typeFolder}`;
-}

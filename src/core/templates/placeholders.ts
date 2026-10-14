@@ -17,9 +17,6 @@ export interface PlaceholderValues {
   readonly project: string;
 }
 
-/** The placeholders a template can hold, as they are written. */
-export const PLACEHOLDERS: readonly string[] = ['{{title}}', '{{date}}', '{{project}}'];
-
 const PLACEHOLDER = /\{\{\s*(title|date|project)\s*\}\}/gi;
 
 /** A text with its placeholders filled in. */

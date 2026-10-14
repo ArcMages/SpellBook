@@ -15,6 +15,7 @@ import type { App, ButtonComponent } from 'obsidian';
 import { ConfirmModal } from '../../ui/confirmModal';
 import type { Feature, FeatureContext } from '../registry';
 import { HELPER_NOTE_PATH, NO_PROJECT_TEXT, ensureHelperNote, replaceHelperNote } from './helperNote';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export { HELPER_NOTE_PATH, NO_PROJECT_TEXT, ensureHelperNote, isShippedText, replaceHelperNote } from './helperNote';
 export type { HelperOutcome, ReplaceOutcome } from './helperNote';
@@ -25,8 +26,7 @@ export const AIHELPER_COMMANDS = {
   createNote: { id: 'create-ai-helper-note', name: 'Create AI helper note' },
 } as const;
 
-/** How long a notice about a problem stays up, in milliseconds. */
-export const PROBLEM_NOTICE_MS = 8000;
+export { PROBLEM_NOTICE_MS };
 
 export const CREATED_TITLE = 'AI helper note created';
 export const READY_TITLE = 'AI helper note';

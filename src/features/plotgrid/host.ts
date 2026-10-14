@@ -55,6 +55,7 @@ import {
 import type { Entity, EntityType, LinkChange, WorldLinks } from '../../core/world';
 import { MISSING_LABEL } from '../../ui/missingNote';
 import type { FeatureContext } from '../registry';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 /** Where this device remembers the grid. */
 export const PREFS_KEY = 'spellbook-plotgrid';
@@ -62,8 +63,7 @@ export const PREFS_KEY = 'spellbook-plotgrid';
 /** The key of the project index that lists the timeline's lanes. */
 const LANES_KEY = 'timelines';
 
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-export const PROBLEM_NOTICE_MS = 10000;
+export { PROBLEM_NOTICE_MS };
 
 export const SWITCHED_OFF_TEXT = 'Spellbook has been switched off. Nothing was changed.';
 export const NO_PROJECT_OPEN_TEXT = 'No project is open. Nothing was changed.';

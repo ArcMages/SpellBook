@@ -142,6 +142,7 @@ export class ModesController implements ModesService {
     const next = modeExtensions(this.current, this.tuned, {
       clock: this.context.clock,
       ios: this.options.ios,
+      mobile: this.options.mobile,
       blocked: (what, editorEl) => {
         this.chrome.blocked(what, editorEl);
       },

@@ -33,11 +33,9 @@ import { MISSING_LABEL } from '../ui/missingNote';
 import { renameWindowText, renamedLinksNotice } from '../ui/renameLinks';
 import { TextPromptModal } from '../ui/textPromptModal';
 import type { BinderServices } from './binderView';
+import { PROBLEM_NOTICE_MS } from '../ui/notices';
 
 export { MISSING_LABEL } from '../ui/missingNote';
-
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-const PROBLEM_NOTICE_MS = 10000;
 
 const NOT_STARTED = 'Spellbook is still starting. Try again in a moment.';
 const OTHER_PROJECT = 'That project is no longer the open one. Nothing was changed.';

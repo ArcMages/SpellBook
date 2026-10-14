@@ -26,6 +26,7 @@ import type { FeatureClock } from '../registry';
 import { RevisionKeeper } from './keeper';
 import type { RevisionChange, SceneNotes } from './keeper';
 import { NoteModal } from './noteModal';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export const REVISION_VIEW_TYPE = 'spellbook-revision';
 export const REVISION_VIEW_NAME = 'Revision';
@@ -49,7 +50,6 @@ export const EMPTY_TEXT = 'No revision notes yet. Select some words in a scene a
 
 /** How long after a scene was saved its passages are looked for again, in milliseconds. */
 const RECHECK_MS = 800;
-const PROBLEM_NOTICE_MS = 10000;
 
 /** "3 open notes in 2 scenes". */
 export function countText(notes: number, scenes: number, filter: NoteFilter): string {

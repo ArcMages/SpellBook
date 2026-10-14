@@ -96,7 +96,7 @@ describe('the source of the outliner', () => {
       /^\.\/(cells|host|parts)$/,
       /^\.\.\/\.\.\/core\/(cards|outliner)$/,
       /^\.\.\/\.\.\/core\/(binderModel|dropTarget|projectLayout|types)$/,
-      /^\.\.\/\.\.\/ui\/(dragDrop|icons|keys|missingNote|ownText|safely)$/,
+      /^\.\.\/\.\.\/ui\/(dragDrop|icons|keys|missingNote|notices|ownText|safely)$/,
     ];
     for (const name of ['cells.ts', 'outlinerView.ts', 'parts.ts']) {
       const code = codeOf(name);

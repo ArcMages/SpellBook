@@ -21,6 +21,7 @@ import {
   currentViewName,
   deleteView,
   isBuiltInView,
+  isTagFilterActive,
   sameTagFilter,
   saveView,
   addLane,
@@ -399,6 +400,19 @@ export class TimelineActions {
   currentView(): string | null {
     const now = this.viewState();
     return now === null ? null : currentViewName(now, this.savedViews());
+  }
+
+  /**
+   * What the views button says: the view shown now; or, while a filter by
+   * tags that no saved view holds is on, the view under the filter, marked
+   * as filtered (its name is null when the screen is no view at all).
+   */
+  viewLabel(): { readonly name: string | null; readonly filtered: boolean } {
+    const now = this.viewState();
+    if (now === null) return { name: null, filtered: false };
+    const exact = currentViewName(now, this.savedViews());
+    if (exact !== null || !isTagFilterActive(now.filter)) return { name: exact, filtered: false };
+    return { name: currentViewName({ ...now, filter: NO_TAG_FILTER }, this.savedViews()), filtered: true };
   }
 
   /** Switch to a view: one of the two built in, or one the writer saved. */
