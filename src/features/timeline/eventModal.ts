@@ -15,7 +15,7 @@
 // project's World folder), as chips that are taken off with a tap and added
 // through a list that can be searched (entityPicker.ts).
 
-import { Modal, Setting } from 'obsidian';
+import { Modal, Platform, Setting } from 'obsidian';
 import type { App, ButtonComponent } from 'obsidian';
 import { readStoryDate, storyDateToDayNumber } from '../../core/timeline';
 import type { EventEntity, StoryCalendar, StoryDate } from '../../core/timeline';
@@ -138,6 +138,8 @@ export class EventModal extends Modal {
     contentEl.empty();
     this.titleEl.setText(form.heading);
     this.modalEl.addClass('spellbook-prompt', 'spellbook-timeline-event-window');
+    // Phones and tablets: rows and buttons big enough for a finger (timeline.css).
+    this.modalEl.toggleClass('spellbook-is-mobile', Platform.isMobile);
     if (form.note !== undefined) {
       contentEl.createEl('p', { cls: 'spellbook-timeline-window-note', text: form.note, attr: { dir: 'auto' } });
     }

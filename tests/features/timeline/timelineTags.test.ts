@@ -9,7 +9,7 @@ import type { TimelineData, WorldLaneChoice } from '../../../src/features/timeli
 import { readContent } from '../../../src/features/timeline/timelineScene';
 import { VIEW_CHOICES_KEY, ViewChoiceStore } from '../../../src/features/timeline/viewChoices';
 import { MemoryDeviceStorage } from '../../storeHarness';
-import { resetPlatform } from '../../obsidianStub';
+import { Platform, resetPlatform } from '../../obsidianStub';
 import type { ButtonComponent, FakeElement } from '../../obsidianStub';
 import { EVENTS, FakeHost, note, sample } from './fakeHost';
 import { button, clearScreen, laneNames, lastMenu, open, openWindow, settle, titles, windowParts } from './screen';
@@ -159,6 +159,17 @@ describe('the filter on the screen', () => {
     expect(laneNames(s)).toEqual(['Manuscript', 'Main plot', 'רקע', 'Other', 'Characters', 'Places']);
   });
 
+  it('makes its rows big enough for a finger on a phone or tablet, also in the phone layout of a computer', async () => {
+    const s = await stage();
+    button(s, 'Filter by tags').fire('click');
+    expect(openWindow().modalEl.hasClass('spellbook-is-mobile')).toBe(false);
+    openWindow().close();
+    Object.assign(Platform, { isDesktop: false, isMobile: true, isPhone: true });
+    button(s, 'Filter by tags').fire('click');
+    expect(openWindow().modalEl.hasClass('spellbook-is-mobile')).toBe(true);
+    expect(openWindow().modalEl.hasClass('spellbook-timeline-entity-window')).toBe(true);
+  });
+
   it('turns the world lanes on when it asks for a type of the world', async () => {
     const s = await stage(royalData({ on: false, hidden: ['character'] }));
     expect(laneNames(s)).not.toContain('Characters');
@@ -193,10 +204,22 @@ describe('saved views', () => {
     expect(laneNames(s)).toEqual(['Manuscript', 'Main plot', 'רקע', 'Other']);
   });
 
+  it('names the view under a filter, marked as filtered', async () => {
+    const s = await stage(royalData({ on: false, hidden: [] }, { tags: ['royalty'], match: 'any', kinds: [] }));
+    const views = button(s, 'Views: Story (filtered)');
+    expect(views.fullText).toMatch(/^Story\s+\(filtered\)$/);
+    expect(views.withClass('spellbook-timeline-view-filtered')).toHaveLength(1);
+    // Clearing the filter leaves the plain name.
+    (strip(s).withClass('spellbook-timeline-filter-clear')[0] as FakeElement).fire('click');
+    await settle(s);
+    expect(button(s, 'Views: Story').text).toBe('Story');
+  });
+
   it('saves what is shown under a name, switches back to it, and deletes it', async () => {
     const s = await stage(royalData({ on: true, hidden: [] }, { tags: ['royalty'], match: 'any', kinds: [] }));
-    expect(button(s, 'Views').text).toBe('Views');
-    button(s, 'Views').fire('click');
+    // A filter is on and no view holds it: the button says so.
+    expect(button(s, 'Views (filtered)').fullText).toMatch(/^Views\s+\(filtered\)$/);
+    button(s, 'Views (filtered)').fire('click');
     lastMenu().item('Save current view...').click();
     const prompt = windowParts();
     prompt.type('spellbook-prompt-input', 'מלכים');

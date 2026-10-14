@@ -6,7 +6,7 @@
 // choose from. It opens a moment after the first one has closed.
 
 import { Menu } from 'obsidian';
-import { LANE_COLORS } from '../../core/timeline';
+import { LANE_COLORS, MANUSCRIPT_LANE, laneKey as laneKeyOf } from '../../core/timeline';
 import type { DisplayLane, LaneColor, TimelineEvent } from '../../core/timeline';
 import type { DragClock } from '../../ui/dragDrop';
 import { iconName } from '../../ui/icons';
@@ -169,15 +169,19 @@ export function eventMenu(
         });
       });
   });
-  menu.addItem((item) => {
-    item
-      .setTitle('Remove from this lane')
-      .setIcon(iconName(...TIMELINE_ICONS.removeFromLane))
-      .setDisabled(!actions.canRemoveFrom(event, laneKey))
-      .onClick(() => {
-        actions.removeFromLane(event, laneKey);
-      });
-  });
+  const removable = actions.canRemoveFrom(event, laneKey);
+  // A scene is always in Manuscript: the item would only ever be greyed out there, so it is left out.
+  if (removable || laneKey !== laneKeyOf(MANUSCRIPT_LANE)) {
+    menu.addItem((item) => {
+      item
+        .setTitle('Remove from this lane')
+        .setIcon(iconName(...TIMELINE_ICONS.removeFromLane))
+        .setDisabled(!removable)
+        .onClick(() => {
+          actions.removeFromLane(event, laneKey);
+        });
+    });
+  }
   return menu;
 }
 

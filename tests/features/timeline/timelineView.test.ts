@@ -515,8 +515,17 @@ describe('events', () => {
   it('never offers to take a scene out of Manuscript', async () => {
     const s = await open();
     tapAt(more(s, 'Opening'), grip(s, cardOf(s, 'Opening')));
-    expect(lastMenu().outline).toContain('Remove from this lane (off)');
+    // Not even greyed out: a scene's place is Manuscript.
+    expect(lastMenu().outline.filter((line) => line.startsWith('Remove from this lane'))).toEqual([]);
     expect(lastMenu().outline).toContain('Move to lane');
+    // An event moved into Manuscript can still be taken out of it.
+    tapAt(more(s, 'The war begins'), grip(s, cardOf(s, 'The war begins')));
+    lastMenu().item('Move to lane').click();
+    await settle(s);
+    lastMenu().item('Manuscript').click();
+    await settle(s);
+    tapAt(more(s, 'The war begins'), grip(s, cardOf(s, 'The war begins')));
+    expect(lastMenu().outline).toContain('Remove from this lane');
   });
 
   it('changes an event\'s dates in a window, exactly as typed', async () => {
