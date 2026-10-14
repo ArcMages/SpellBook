@@ -245,12 +245,12 @@ describe('the whole plugin', () => {
 
   it('never deletes a note outright or rewrites its text', () => {
     // In src/obsidian, "vault" is Obsidian's Vault. Its destructive methods are
-    // off limits: the FileManager ones (trashFile, renameFile, processFrontMatter) are used instead.
+    // off limits: the FileManager ones (trashFile, processFrontMatter) are used instead.
     expect(adapterFiles.length).toBeGreaterThan(0);
     const destructive = /\bvault\s*\.\s*(delete|trash|modify|modifyBinary|append|appendBinary|rename|copy)\s*\(/;
-    // One exception: renaming an entity's note, whose links the store brings
-    // up to date itself (see the rule about links below). It is the one call
-    // to vault.rename, in moveFile, and it renames and does nothing else.
+    // One exception: renaming or moving a note or folder, whose links the
+    // store brings up to date itself (see the rule about links below). It is
+    // the one call to vault.rename, in moveFile, and it renames and does nothing else.
     const doorway = codeOf(path.join(srcDir, 'obsidian', 'obsidianVault.ts'));
     const moveFile = /\n  async moveFile\([\s\S]*?\n  \}\n/.exec(doorway)?.[0] ?? '';
     expect((moveFile.match(/\bvault\s*\.\s*rename\s*\(/g) ?? []).length).toBe(1);
@@ -401,30 +401,51 @@ describe('the whole plugin', () => {
     expect(replaceRun).toMatch(/if \(snapshot !== null\) \{\s*problems\.push\([^;]*\);\s*continue;\s*\}/);
   });
 
-  it('renames an entity\'s note without the vault\'s own link updating in one place, and then points the links in the project at it', () => {
+  it('renames and moves notes and folders without the vault\'s own link updating, in one place, and then points the links at them', () => {
+    // Obsidian's own rename (fileManager.renameFile) stops to ask about links
+    // unless the writer told it to "Always update internal links", and the
+    // rename waits until they answer: it is used nowhere in the plugin.
+    for (const file of allFiles) {
+      expect(/\brenameFile\b/.test(codeOf(file)), relative(file)).toBe(false);
+    }
     // moveFile (a rename that leaves the links alone), linkSources and
-    // updateLinks are reached from the project store alone, and only in
-    // renameWorldNote: so no other note is ever renamed with its links left
-    // behind, and no other text is changed through updateLinks.
+    // updateLinks are reached from the project store alone, and moveFile and
+    // updateLinks only in relocate: so no note is ever renamed with its links
+    // left behind, and no other text is changed through updateLinks.
     for (const method of ['moveFile', 'updateLinks', 'linkSources']) {
       const callers = allFiles.filter((file) => new RegExp(`\\.\\s*${method}\\s*\\(`).test(codeOf(file))).map(relative);
       expect(callers.filter((file) => file !== 'obsidian/obsidianVault.ts'), method).toEqual(['core/projectStore.ts']);
     }
     const store = codeOf(path.join(srcDir, 'core', 'projectStore.ts'));
-    const rename = /\n  renameWorldNote\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
+    const relocate = /\n  private async relocate\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
     for (const method of ['moveFile', 'updateLinks']) {
       const uses = (store.match(new RegExp(`\\.\\s*${method}\\s*\\(`, 'g')) ?? []).length;
       expect(uses, method).toBe(1);
-      expect(rename, method).toMatch(new RegExp(`this\\.vault\\.${method}\\(`));
+      expect(relocate, method).toMatch(new RegExp(`this\\.vault\\.${method}\\(`));
     }
-    // The checks come first, and only the notes inside the project are read and changed.
-    const before = rename.split('this.vault.moveFile(')[0] ?? '';
-    expect(before).toMatch(/const blocked = this\.whyNotWritable\(active\);\s*if \(blocked \|\| !active\) return /);
-    expect(before).toMatch(/const file = this\.worldNote\(active, path\);\s*if \('status' in file\) return file;/);
-    expect(before).toMatch(/if \(!isInside\(active\.folder, source\)\) continue;/);
+    // Every rename and move of the store goes through relocate, each after its own checks.
+    const checks: Record<string, RegExp> = {
+      renameScene: /if \(!this\.isSceneNote\(active, rel\)\) \{/,
+      renameWorldNote: /const file = this\.worldNote\(active, path\);\s*if \('status' in file\) return file;/,
+      renameBoardFile: /const rel = this\.boardFilePath\(active, path\);\s*if \(typeof rel !== 'string'\) return rel;/,
+      moveInProject: /if \(indexes\.some\(/,
+    };
+    for (const [name, check] of Object.entries(checks)) {
+      const method = new RegExp(`\\n  ${name}\\([\\s\\S]*?\\n  \\}\\n`).exec(store)?.[0] ?? '';
+      const before = method.split('this.relocate(')[0] ?? '';
+      expect(method, name).toMatch(/this\.relocate\(active, /);
+      expect(before, name).toMatch(/const blocked = this\.whyNotWritable\(active\);\s*if \(blocked \|\| !active\) return /);
+      expect(before, name).toMatch(check);
+    }
+    expect((store.match(/this\.relocate\(/g) ?? []).length).toBe(4);
+    // Notes and boards outside the project are changed only when the writer chose the whole vault.
+    expect(relocate).toMatch(/const inScope = \(path: string\): boolean => scope === 'vault' \|\| isInside\(active\.folder, path\);/);
+    expect(relocate).toMatch(/if \(!inScope\(source\)\) \{\s*outside\.add\(source\);\s*continue;\s*\}/);
+    expect(relocate).toMatch(/if \(inScope\(board\)\) boards\.set\(board, named\);\s*else outside\.add\(board\);/);
     // The text keeps its properties block as it is, and nothing but link targets change.
-    expect(rename).toMatch(/const result = retargetLinks\(body, retarget\);/);
-    expect(rename).toMatch(/return result\.count > 0 \? head \+ result\.text : null;/);
+    expect(relocate).toMatch(/const result = retargetLinks\(body, retarget\);/);
+    expect(relocate).toMatch(/return result\.count > 0 \? head \+ result\.text : null;/);
+    expect(relocate).toMatch(/const result = retargetBoard\(current, /);
     const doorway = codeOf(path.join(srcDir, 'obsidian', 'obsidianVault.ts'));
     const update = /\n  async updateLinks\([\s\S]*?\n  \}\n/.exec(doorway)?.[0] ?? '';
     expect(update).toMatch(/return this\.changeText\(this\.requireFile\(path\), /);
@@ -457,7 +478,7 @@ describe('the whole plugin', () => {
     const writes: Record<string, string> = {
       createBoardFile: 'this.vault.createFile(',
       updateBoardFile: 'this.vault.updateBoardText(',
-      renameBoardFile: 'this.vault.rename(',
+      renameBoardFile: 'this.relocate(',
       trashBoardFile: 'this.vault.trash(',
     };
     for (const [name, write] of Object.entries(writes)) {
@@ -473,7 +494,9 @@ describe('the whole plugin', () => {
     // The doorway's method for a board's text is reached from the store alone, once, and it never creates a file.
     const callers = allFiles.filter((file) => /\.\s*updateBoardText\s*\(/.test(codeOf(file))).map(relative);
     expect(callers).toEqual(['core/projectStore.ts']);
-    expect((store.match(/\.\s*updateBoardText\s*\(/g) ?? []).length).toBe(1);
+    // Twice: for a board of the Boards folder (updateBoardFile), and to point a board's cards at a note that was renamed (relocate).
+    expect((store.match(/\.\s*updateBoardText\s*\(/g) ?? []).length).toBe(2);
+    expect(/\n  private async relocate\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '').toMatch(/this\.vault\.updateBoardText\(/);
     const doorway = codeOf(path.join(srcDir, 'obsidian', 'obsidianVault.ts'));
     const method = /\n  async updateBoardText\([\s\S]*?\n  \}\n/.exec(doorway)?.[0] ?? '';
     expect(method).toMatch(/const file = this\.requireFile\(path\);\s*if \(file\.extension\.toLowerCase\(\) !== 'canvas'\) throw/);

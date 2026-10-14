@@ -164,7 +164,10 @@ describe('updateBoardFile', () => {
 describe('renameBoardFile and trashBoardFile', () => {
   it('renames a board where it is, and never onto another', async () => {
     const { store, vault } = await openSeeded(scenes, withBoards());
-    expect(await store.renameBoardFile('Boards/Ideas.canvas', 'Part two')).toEqual({ status: 'done', value: { path: 'Boards/Part two.canvas' } });
+    expect(await store.renameBoardFile('Boards/Ideas.canvas', 'Part two')).toEqual({
+      status: 'done',
+      value: { path: 'Boards/Part two.canvas', links: 0, notes: 0, scope: 'project', outside: [], missed: [] },
+    });
     expect(vault.has('Novel/Boards/Part two.canvas')).toBe(true);
     const clash = await store.renameBoardFile('Boards/Part two.canvas', IDEAS_HE);
     expect(clash.status === 'refused' && clash.reason).toBe('exists');

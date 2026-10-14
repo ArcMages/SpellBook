@@ -703,7 +703,7 @@ describe('a scene\'s menu', () => {
     expect(s.vault.has(OPENING)).toBe(false);
     expect(s.vault.bodyOf('Novel/Manuscript/Prologue.md')).toBe('One two three.'); // the text is the same text
     expect(s.vault.writes).toEqual([
-      { op: 'rename', path: OPENING, to: 'Novel/Manuscript/Prologue.md' },
+      { op: 'moveFile', path: OPENING, to: 'Novel/Manuscript/Prologue.md' },
       { op: 'updateFrontmatter', path: INDEX },
     ]);
     expect((binderOnDisk(s.vault, INDEX) as unknown[])[0]).toBe('Manuscript/Prologue.md');

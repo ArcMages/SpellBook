@@ -813,7 +813,7 @@ describe('editing the binder, through to the notes', () => {
     expect(fake.calls).toEqual(['processFrontMatter Novel/Novel.md']);
   });
 
-  it('renames a scene with Obsidian\'s own rename (which keeps links working), and the binder follows', async () => {
+  it('renames a scene without Obsidian\'s own rename (which may stop to ask about links), and the binder follows', async () => {
     const { fake, pane } = await withBinder(threeScenes());
     menuFor(pane, 'Middle').item('Rename').click();
     expect((lastWindow().contentEl.withClass('spellbook-prompt-input')[0] as FakeElement).value).toBe('Middle');
@@ -821,7 +821,7 @@ describe('editing the binder, through to the notes', () => {
     await until(() => lines(pane).includes('  Crossing 3'), 'the new name to be shown');
 
     expect(fake.calls).toEqual([
-      'renameFile Novel/Manuscript/Middle.md -> Novel/Manuscript/Crossing.md',
+      'vault.rename Novel/Manuscript/Middle.md -> Novel/Manuscript/Crossing.md',
       'processFrontMatter Novel/Novel.md',
     ]);
     expect(binderOf(fake)).toEqual(['Manuscript/Opening.md', 'Manuscript/Crossing.md', 'Manuscript/Ending.md']);

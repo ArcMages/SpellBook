@@ -6,9 +6,10 @@
 //   - properties are changed with fileManager.processFrontMatter (a note's
 //     text is never touched),
 //   - notes are removed with fileManager.trashFile (never deleted outright),
-//   - notes are renamed with fileManager.renameFile (links are kept working),
-//     except an entity's note, whose links the project store brings up to
-//     date itself: moveFile and updateLinks below,
+//   - notes and folders are renamed and moved with vault.rename, in one
+//     place (moveFile below), and the project store brings the links to them
+//     up to date itself (updateLinks below), so a rename never waits on
+//     Obsidian's question about links,
 //   - a whole text is only ever replaced in the plugin's own files (the to-do
 //     list and the word logs), in one place: updateText below, which reads,
 //     changes and saves in one step with vault.process,
@@ -251,23 +252,18 @@ export class ObsidianVault implements VaultPort {
     await this.app.vault.createFolder(wanted);
   }
 
-  async rename(from: string, to: string): Promise<string> {
-    const file = this.requireFile(from);
-    await this.app.fileManager.renameFile(file, normalizePath(to));
-    return file.path;
-  }
-
   /**
-   * The one place in the plugin that renames a file without Obsidian's
-   * FileManager: the links to it are left as they are and nothing is asked.
-   * Only the project store calls it, in renameWorldNote, which brings the
-   * links to the note up to date itself (see moveFile in src/core/vaultPort.ts).
+   * The one place in the plugin that renames or moves a file or a folder:
+   * the links to it are left as they are and nothing is asked. Only the
+   * project store calls it, in relocate, which brings the links up to date
+   * itself (see moveFile in src/core/vaultPort.ts).
    */
   async moveFile(from: string, to: string): Promise<string> {
-    const file = this.requireFile(from);
+    const entry = this.find(from);
+    if (!(entry instanceof TFile) && !(entry instanceof TFolder)) throw new VaultFileMissingError(from);
     const wanted = normalizePath(to);
-    await this.app.vault.rename(file, wanted);
-    return file.path;
+    await this.app.vault.rename(entry, wanted);
+    return entry.path;
   }
 
   linkSources(path: string): string[] {
@@ -283,7 +279,7 @@ export class ObsidianVault implements VaultPort {
 
   /**
    * Changes a note's text so that its links lead to a renamed note; it never
-   * creates one. Only the project store calls it: see renameWorldNote in
+   * creates one. Only the project store calls it: see relocate in
    * src/core/projectStore.ts.
    */
   async updateLinks(path: string, change: (current: string) => string | null): Promise<boolean> {

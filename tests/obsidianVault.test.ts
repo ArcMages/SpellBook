@@ -181,15 +181,28 @@ describe('ObsidianVault: writing', () => {
     await expect(vault.createFolder('Novel')).resolves.toBeUndefined();
   });
 
-  it('renames through the file manager (so links are updated) and reports the new path', async () => {
+  it('renames a note without the file manager (nothing is asked) and reports the new path', async () => {
     const { vault, fake, events } = started();
-    const path = await vault.rename('Novel/Manuscript/Opening.md', 'Novel/Manuscript/First.md');
+    const path = await vault.moveFile('Novel/Manuscript/Opening.md', 'Novel/Manuscript/First.md');
     expect(path).toBe('Novel/Manuscript/First.md');
-    expect(fake.calls).toEqual(['renameFile Novel/Manuscript/Opening.md -> Novel/Manuscript/First.md']);
+    expect(fake.calls).toEqual(['vault.rename Novel/Manuscript/Opening.md -> Novel/Manuscript/First.md']);
     expect(events).toEqual([
       { type: 'rename', path: 'Novel/Manuscript/First.md', oldPath: 'Novel/Manuscript/Opening.md', folder: false },
     ]);
-    await expect(vault.rename('Nowhere.md', 'X.md')).rejects.toBeInstanceOf(VaultFileMissingError);
+    await expect(vault.moveFile('Nowhere.md', 'X.md')).rejects.toBeInstanceOf(VaultFileMissingError);
+  });
+
+  it('moves a folder with everything in it, without the file manager', async () => {
+    const fake = novelVault();
+    fake.addNote('Novel/World/Characters/Mara.md', 'Her story.');
+    fake.addNote('Novel/World/Characters/Old/Tom.md', 'His story.');
+    const { vault } = started(fake);
+    const path = await vault.moveFile('Novel/World/Characters', 'Novel/World/People');
+    expect(path).toBe('Novel/World/People');
+    expect(fake.calls).toEqual(['vault.rename Novel/World/Characters -> Novel/World/People']);
+    expect(await vault.readText('Novel/World/People/Mara.md')).toBe('Her story.');
+    expect(await vault.readText('Novel/World/People/Old/Tom.md')).toBe('His story.');
+    expect(vault.exists('Novel/World/Characters')).toBe(false);
   });
 
   it('renames an entity\'s note without the file manager (nothing is asked) and finds and changes the notes that link to it', async () => {
@@ -484,7 +497,7 @@ describe('the store on top of ObsidianVault', () => {
     expect(fake.trashed).toEqual(['Night Train/Manuscript/Prologue.md']);
     expect(store.project?.tree.map((node) => (node.kind === 'scene' ? node.title : node.name))).toEqual(['The Letter', 'Part one']);
     // The whole session used only the safe doorways.
-    expect(fake.calls.every((call) => /^(processFrontMatter|renameFile|trashFile) /.test(call))).toBe(true);
+    expect(fake.calls.every((call) => /^(processFrontMatter|vault\.rename|trashFile) /.test(call))).toBe(true);
     store.dispose();
   });
 });

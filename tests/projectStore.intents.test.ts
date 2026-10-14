@@ -199,7 +199,10 @@ describe('renameScene', () => {
 
     const result = await store.renameScene('Manuscript/B.md', 'The Letter');
 
-    expect(result).toEqual({ status: 'done', value: { path: 'Manuscript/The Letter.md' } });
+    expect(result).toEqual({
+      status: 'done',
+      value: { path: 'Manuscript/The Letter.md', links: 0, notes: 0, scope: 'project', outside: [], missed: [] },
+    });
     expect(vault.has('Novel/Manuscript/B.md')).toBe(false);
     expect(vault.bodyOf('Novel/Manuscript/The Letter.md')).toBe(sceneBody('B'));
     expect(vault.frontmatterOf('Novel/Manuscript/The Letter.md')).toEqual({ status: 'To do', order: 2048 });
@@ -210,7 +213,7 @@ describe('renameScene', () => {
     ]);
     expect(picture(store)).toBe('A Part[The Letter C] D');
     expect(vault.writes).toEqual([
-      { op: 'rename', path: 'Novel/Manuscript/B.md', to: 'Novel/Manuscript/The Letter.md' },
+      { op: 'moveFile', path: 'Novel/Manuscript/B.md', to: 'Novel/Manuscript/The Letter.md' },
       { op: 'updateFrontmatter', path: indexPath },
     ]);
 
@@ -223,7 +226,7 @@ describe('renameScene', () => {
   it('updates the index itself, without relying on the vault reporting the rename', async () => {
     // A vault that renames the note but never sends the "rename" event.
     class SilentRenameVault extends MemoryVault {
-      override async rename(from: string, to: string): Promise<string> {
+      override async moveFile(from: string, to: string): Promise<string> {
         this.external.rename(from, to, { silent: true });
         return to;
       }
@@ -277,7 +280,7 @@ describe('renameScene', () => {
   it('renames an unfiled note without touching the index', async () => {
     const { store, vault } = await openSeeded({ binder: [], scenes: { Loose: null } });
     expect(valueOf(await store.renameScene('Manuscript/Loose.md', 'Found')).path).toBe('Manuscript/Found.md');
-    expect(vault.writes).toEqual([{ op: 'rename', path: 'Novel/Manuscript/Loose.md', to: 'Novel/Manuscript/Found.md' }]);
+    expect(vault.writes).toEqual([{ op: 'moveFile', path: 'Novel/Manuscript/Loose.md', to: 'Novel/Manuscript/Found.md' }]);
     expect(project(store).unfiled).toEqual(['Manuscript/Found.md']);
   });
 

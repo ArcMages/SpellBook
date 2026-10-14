@@ -145,7 +145,7 @@ describe('MemoryVault as a VaultPort', () => {
     await expect(vault.readFrontmatter('Nope.md')).rejects.toBeInstanceOf(VaultFileMissingError);
     await expect(vault.updateFrontmatter('Nope.md', () => true)).rejects.toBeInstanceOf(VaultFileMissingError);
     await expect(vault.trash('Nope.md')).rejects.toBeInstanceOf(VaultFileMissingError);
-    await expect(vault.rename('Nope.md', 'X.md')).rejects.toBeInstanceOf(VaultFileMissingError);
+    await expect(vault.moveFile('Nope.md', 'X.md')).rejects.toBeInstanceOf(VaultFileMissingError);
 
     vault.external.corrupt('Broken.md');
     await expect(vault.readFrontmatter('Broken.md')).rejects.toThrow(/YAML/);
