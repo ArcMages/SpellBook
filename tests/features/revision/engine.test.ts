@@ -4,10 +4,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   REVISION_NOTES_KEY,
-  addNoteTo,
+  addToList,
   applyBodyEdits,
   applyToNote,
-  changeNoteIn,
+  changeInList,
   contextOf,
   editsFit,
   findInText,
@@ -21,13 +21,13 @@ import {
   patternOf,
   withCaseOf,
   propertiesOf,
+  readNoteList,
   readNotes,
-  removeNoteFrom,
+  removeFromList,
   splitBody,
   tidyPassage,
 } from '../../../src/core/revision/index';
 import type { RevisionNote, SearchOptions } from '../../../src/core/revision/index';
-import type { Frontmatter } from '../../../src/core/types';
 
 const plain: SearchOptions = { matchCase: false, wholeWords: false, wildcards: false };
 const words = (text: string, find: string, options: Partial<SearchOptions> = {}): string[] =>
@@ -35,20 +35,19 @@ const words = (text: string, find: string, options: Partial<SearchOptions> = {})
 
 const note = (passage: string, words = 'Say more', created = '2026-10-14', done = false): RevisionNote => ({ passage, note: words, created, done });
 
-describe('the revision notes, as they are kept in a scene\'s properties', () => {
-  it('are a list of plain entries under "revision-notes", each with passage, note, created and done', () => {
-    const frontmatter: Frontmatter = { status: 'Draft' };
-    expect(addNoteTo(frontmatter, note('The harbour was empty'))).toBe(true);
-    addNoteTo(frontmatter, note('Anna walked alone', 'Why alone?'));
-    expect(frontmatter[REVISION_NOTES_KEY]).toEqual([
+describe('the revision notes of a scene', () => {
+  it('are a list of plain entries, each with passage, note, created and done', () => {
+    const list: unknown[] = [];
+    expect(addToList(list, note('The harbour was empty'))).toBe(true);
+    addToList(list, note('Anna walked alone', 'Why alone?'));
+    expect(list).toEqual([
       { passage: 'The harbour was empty', note: 'Say more', created: '2026-10-14', done: false },
       { passage: 'Anna walked alone', note: 'Why alone?', created: '2026-10-14', done: false },
     ]);
-    expect(frontmatter['status']).toBe('Draft'); // the other properties are left alone
-    expect(Object.keys((frontmatter[REVISION_NOTES_KEY] as Array<Record<string, unknown>>)[0] ?? {})).toEqual(['passage', 'note', 'created', 'done']);
+    expect(Object.keys((list as Array<Record<string, unknown>>)[0] ?? {})).toEqual(['passage', 'note', 'created', 'done']);
   });
 
-  it('are read forgivingly: entries without a passage are skipped, "done" may be written as yes, a date may come as a date', () => {
+  it('are read forgivingly (also as earlier versions kept them, in the scene\'s properties): entries without a passage are skipped, "done" may be written as yes, a date may come as a date', () => {
     const notes = readNotes({
       [REVISION_NOTES_KEY]: [
         { passage: 'one', note: 'first', created: '2026-10-01', done: 'yes' },
@@ -68,26 +67,26 @@ describe('the revision notes, as they are kept in a scene\'s properties', () => 
   });
 
   it('are changed and taken out one at a time, found again even when the list moved under them', () => {
-    const frontmatter: Frontmatter = {};
-    addNoteTo(frontmatter, note('alpha'));
-    addNoteTo(frontmatter, note('beta', 'B'));
-    const [, beta] = readNotes(frontmatter);
+    const list: unknown[] = [];
+    addToList(list, note('alpha'));
+    addToList(list, note('beta', 'B'));
+    const [, beta] = readNoteList(list);
     if (!beta) throw new Error('no note');
     // Another device put a note in front meanwhile.
-    (frontmatter[REVISION_NOTES_KEY] as unknown[]).unshift({ passage: 'new', note: '', created: '', done: false, extra: 'kept' });
-    expect(findNote(frontmatter[REVISION_NOTES_KEY] as unknown[], beta)).toBe(2);
-    expect(changeNoteIn(frontmatter, beta, { done: true })).toBe(true);
-    expect(changeNoteIn(frontmatter, beta, { done: true })).toBe(false); // nothing to change
-    expect(changeNoteIn(frontmatter, { ...beta }, { note: 'B, again' })).toBe(true);
-    expect((frontmatter[REVISION_NOTES_KEY] as unknown[])[2]).toEqual({ passage: 'beta', note: 'B, again', created: '2026-10-14', done: true });
+    list.unshift({ passage: 'new', note: '', created: '', done: false, extra: 'kept' });
+    expect(findNote(list, beta)).toBe(2);
+    expect(changeInList(list, beta, { done: true })).toBe(true);
+    expect(changeInList(list, beta, { done: true })).toBe(false); // nothing to change
+    expect(changeInList(list, { ...beta }, { note: 'B, again' })).toBe(true);
+    expect(list[2]).toEqual({ passage: 'beta', note: 'B, again', created: '2026-10-14', done: true });
     // Its words changed: the old description no longer finds it.
-    expect(removeNoteFrom(frontmatter, beta)).toBe(false);
-    const [first, alpha] = readNotes(frontmatter);
-    expect(removeNoteFrom(frontmatter, alpha as RevisionNote)).toBe(true);
-    expect((frontmatter[REVISION_NOTES_KEY] as unknown[])[0]).toEqual({ passage: 'new', note: '', created: '', done: false, extra: 'kept' });
-    removeNoteFrom(frontmatter, first as RevisionNote);
-    removeNoteFrom(frontmatter, readNotes(frontmatter)[0] as RevisionNote);
-    expect(REVISION_NOTES_KEY in frontmatter).toBe(false); // an empty list goes as a whole
+    expect(removeFromList(list, beta)).toBe(false);
+    const [first, alpha] = readNoteList(list);
+    expect(removeFromList(list, alpha as RevisionNote)).toBe(true);
+    expect(list[0]).toEqual({ passage: 'new', note: '', created: '', done: false, extra: 'kept' });
+    removeFromList(list, first as RevisionNote);
+    removeFromList(list, readNoteList(list)[0] as RevisionNote);
+    expect(list).toEqual([]);
   });
 
   it('keep the exact words that were selected, without the spaces around them', () => {

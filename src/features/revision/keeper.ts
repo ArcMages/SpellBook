@@ -2,10 +2,11 @@
 // and the project store.
 //
 // It reads through the store (which scenes there are, the properties the
-// vault has indexed) and the vault doorway (a scene's text), and it writes
-// through the store only:
+// vault has indexed), the vault doorway (a scene's text) and the book of
+// revision notes (book.ts), and it writes through the store only:
 //   - a revision note, added, changed or taken away
-//                       store.updateNoteProperties (a property; the text is not touched)
+//                       the project's "Revision notes.json", through the
+//                       book (store.updateRevisionNotes); the scene is not touched
 //   - a replace         store.replaceInSceneBody, after a snapshot taken
 //                       through the snapshots' own service
 //   - a renamed entity  store.renameWorldNote (the note and the links to it),
@@ -18,12 +19,13 @@
 import type { App, EditorPosition } from 'obsidian';
 import { sanitiseFileName } from '../../core/names';
 import { isInside, joinPath, noteTitle, parentPath, pathKey, relativeTo } from '../../core/paths';
-import { REVISION_NOTES_KEY, addNoteTo, changeNoteIn, findNote, findWithJoined, locatePassage, nameOccurrences, readNotes, removeNoteFrom, splitBody, tidyPassage } from '../../core/revision/index';
+import { addToList, changeInList, findNote, findWithJoined, locatePassage, nameOccurrences, removeFromList, splitBody, tidyPassage } from '../../core/revision/index';
 import type { BodyEdit, NameOccurrence, PlacedNote, SearchOptions, TextMatch } from '../../core/revision/index';
-import type { Frontmatter, IntentResult, TreeNode } from '../../core/types';
+import type { IntentResult, TreeNode } from '../../core/types';
 import type { VaultEvent } from '../../core/vaultPort';
 import { editAliases, isEntityPath, readAliases } from '../../core/world/index';
 import type { FeatureContext } from '../registry';
+import { RevisionNotesBook } from './book';
 
 export const NO_PROJECT_TEXT = 'No Spellbook project is open.';
 export const READ_ONLY_TEXT = 'This project can only be read just now, so nothing can be changed.';
@@ -156,10 +158,21 @@ export class RevisionKeeper {
   private readonly listeners = new Set<(change: RevisionChange) => void>();
   private stops: Array<() => void> = [];
   private disposed = false;
+  /** Where the notes are kept. */
+  readonly book: RevisionNotesBook;
+  private readonly ownBook: boolean;
 
-  constructor(context: FeatureContext) {
+  /**
+   * @param book the feature's book of revision notes; without one, the keeper
+   *   keeps a book of its own, which reads and writes the notes but leaves
+   *   renames and notes kept the old way to the feature's
+   */
+  constructor(context: FeatureContext, book?: RevisionNotesBook) {
     this.context = context;
     this.app = context.app;
+    this.ownBook = book === undefined;
+    this.book = book ?? new RevisionNotesBook(context, { keep: false });
+    if (this.ownBook) this.book.start();
   }
 
   get isDisposed(): boolean {
@@ -170,6 +183,7 @@ export class RevisionKeeper {
     this.disposed = true;
     this.listeners.clear();
     this.unfollow();
+    if (this.ownBook) this.book.dispose();
   }
 
   // ------------------------------------------------------------- following
@@ -185,6 +199,9 @@ export class RevisionKeeper {
         }),
         this.context.store.onChange((change) => {
           if (change.type === 'project') this.emit({ type: 'project' });
+        }),
+        this.book.onChange(() => {
+          this.emit({ type: 'notes' });
         }),
       );
     }
@@ -319,25 +336,37 @@ export class RevisionKeeper {
 
   // ----------------------------------------------------------------- notes
 
-  /** The notes of a scene, as the vault has indexed its properties. Reads no file. */
+  /** The open project, as the book of notes knows it; null when none is open. */
+  private openProject(): { readonly indexPath: string; readonly folder: string } | null {
+    const project = this.context.store.project;
+    return this.disposed || !project ? null : { indexPath: project.indexPath, folder: project.folder };
+  }
+
+  /** The notes of a scene of the open project, as its revision notes file holds them. Reads no file. */
   notesOf(scenePath: string): PlacedNote[] {
-    const wanted = pathKey(scenePath);
-    for (const note of this.context.store.projectNotes()) {
-      if (pathKey(note.path) === wanted) return readNotes(note.frontmatter);
-    }
-    return [];
+    const project = this.openProject();
+    return project ? this.book.notesOf(project, scenePath) : [];
   }
 
   /** Every scene that has notes, in binder order, with its notes. Reads no file. */
   allNotes(): SceneNotes[] {
-    const byPath = new Map<string, Readonly<Frontmatter> | null>();
-    for (const note of this.context.store.projectNotes()) byPath.set(pathKey(note.path), note.frontmatter);
+    const project = this.openProject();
+    if (!project) return [];
+    const idAt = this.book.idsIn(project);
     const found: SceneNotes[] = [];
     for (const scene of this.scenes()) {
-      const notes = readNotes(byPath.get(pathKey(scene.path)) ?? null);
+      const notes = this.book.notesOf(project, scene.path, idAt);
       if (notes.length > 0) found.push({ scene, notes });
     }
     return found;
+  }
+
+  /** Why the notes cannot be changed just now; null when they can. */
+  private whyNotesBlocked(): string | null {
+    const blocked = this.whyNotWritable();
+    if (blocked) return blocked;
+    const project = this.openProject();
+    return project ? this.book.problem(project) : NO_PROJECT_TEXT;
   }
 
   /**
@@ -347,53 +376,50 @@ export class RevisionKeeper {
    * @returns null once it is saved, or why it was not
    */
   async addNote(scenePath: string, selection: string, words: string): Promise<string | null> {
-    const blocked = this.whyNotWritable();
+    const blocked = this.whyNotesBlocked();
     if (blocked) return blocked;
     const scene = this.scene(scenePath);
     if (!scene) return SCENE_GONE_TEXT;
     const passage = tidyPassage(selection);
     if (passage === '') return NO_SELECTION_TEXT;
+    const project = this.openProject();
+    if (!project) return NO_PROJECT_TEXT;
     const note = { passage, note: words.trim(), created: this.context.clock.today(), done: false };
-    const result = await this.context.store.updateNoteProperties(scene.path, (frontmatter) => addNoteTo(frontmatter, note), this.projectId());
+    const problem = await this.book.editScene(project, scene.path, (list) => addToList(list, note));
     this.emit({ type: 'notes' });
-    return problemOf(result);
+    return problem;
   }
 
   /** Change a note's words, or whether it is done. Resolves with null when done, or with why not. */
   async changeNote(scenePath: string, note: PlacedNote, change: { readonly note?: string; readonly done?: boolean }): Promise<string | null> {
-    const blocked = this.whyNotWritable();
+    const blocked = this.whyNotesBlocked();
     if (blocked) return blocked;
-    let found = false;
-    const result = await this.context.store.updateNoteProperties(
-      scenePath,
-      (frontmatter) => {
-        const list = frontmatter[REVISION_NOTES_KEY];
-        found = Array.isArray(list) && findNote(list, note) >= 0;
-        return found && changeNoteIn(frontmatter, note, change);
-      },
-      this.projectId(),
-    );
+    const project = this.openProject();
+    if (!project) return NO_PROJECT_TEXT;
+    const box = { found: false };
+    const problem = await this.book.editScene(project, scenePath, (list) => {
+      box.found = findNote(list, note) >= 0;
+      return box.found && changeInList(list, note, change);
+    });
     this.emit({ type: 'notes' });
-    if (!found) return NOTE_GONE_TEXT;
-    return problemOf(result);
+    if (problem) return problem;
+    return box.found ? null : NOTE_GONE_TEXT;
   }
 
   /** Take a note away. Resolves with null when done, or with why not. */
   async removeNote(scenePath: string, note: PlacedNote): Promise<string | null> {
-    const blocked = this.whyNotWritable();
+    const blocked = this.whyNotesBlocked();
     if (blocked) return blocked;
-    let found = false;
-    const result = await this.context.store.updateNoteProperties(
-      scenePath,
-      (frontmatter) => {
-        found = removeNoteFrom(frontmatter, note);
-        return found;
-      },
-      this.projectId(),
-    );
+    const project = this.openProject();
+    if (!project) return NO_PROJECT_TEXT;
+    const box = { found: false };
+    const problem = await this.book.editScene(project, scenePath, (list) => {
+      box.found = removeFromList(list, note);
+      return box.found;
+    });
     this.emit({ type: 'notes' });
-    if (!found) return NOTE_GONE_TEXT;
-    return problemOf(result);
+    if (problem) return problem;
+    return box.found ? null : NOTE_GONE_TEXT;
   }
 
   /**

@@ -113,17 +113,24 @@ describe('the feature', () => {
 });
 
 describe('revision notes', () => {
-  it('are added to the scene\'s properties, changed, ticked done and taken away; the text is never touched', async () => {
+  it('are added to the project\'s revision notes file, changed, ticked done and taken away; the scene is never touched', async () => {
     const { keeper, vault, store } = await stage();
-    const before = vault.bodyOf(inNovel(NIGHT));
+    const before = vault.textOf(inNovel(NIGHT));
     expect(await keeper.addNote(NIGHT, ' מן הנמל! ', 'למה הנמל?')).toBeNull();
     expect(await keeper.addNote(NIGHT, 'הים שקט', '')).toBeNull();
     await store.idle();
-    expect(vault.frontmatterOf(inNovel(NIGHT))?.['revision-notes']).toEqual([
-      { passage: 'מן הנמל!', note: 'למה הנמל?', created: '2026-10-14', done: false },
-      { passage: 'הים שקט', note: '', created: '2026-10-14', done: false },
+    const file = JSON.parse(vault.textOf('Novel/Revision notes.json')) as { scenes: unknown[] };
+    expect(file.scenes).toEqual([
+      {
+        scene: NIGHT,
+        notes: [
+          { passage: 'מן הנמל!', note: 'למה הנמל?', created: '2026-10-14', done: false },
+          { passage: 'הים שקט', note: '', created: '2026-10-14', done: false },
+        ],
+      },
     ]);
-    expect(vault.frontmatterOf(inNovel(NIGHT))?.['order']).toBe(2048);
+    expect(vault.textOf(inNovel(NIGHT))).toBe(before);
+    expect(vault.writes.filter((write) => write.path === inNovel(NIGHT))).toEqual([]);
     let notes = keeper.notesOf(NIGHT);
     expect(await keeper.changeNote(NIGHT, notes[0]!, { done: true })).toBeNull();
     expect(await keeper.changeNote(NIGHT, notes[1]!, { note: 'שקט מדי' })).toBeNull();
@@ -136,7 +143,7 @@ describe('revision notes', () => {
     expect(await keeper.removeNote(NIGHT, notes[0]!)).toBeNull();
     expect(await keeper.removeNote(NIGHT, notes[0]!)).not.toBeNull(); // gone already
     expect(keeper.notesOf(NIGHT).map((note) => note.passage)).toEqual(['הים שקט']);
-    expect(vault.bodyOf(inNovel(NIGHT))).toBe(before);
+    expect(vault.textOf(inNovel(NIGHT))).toBe(before);
     expect(vault.writes.some((write) => write.op === 'replaceText')).toBe(false);
   });
 

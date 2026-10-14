@@ -75,6 +75,7 @@ import {
   MANUSCRIPT_FOLDER,
   PROJECT_FOLDERS,
   RESEARCH_FOLDER,
+  REVISION_NOTES_FILE,
   SNAPSHOTS_FOLDER,
   STATS_FOLDER,
   TIMELINE_FOLDER,
@@ -1485,6 +1486,81 @@ export class ProjectStore {
     if (clashKey(joinPath(active.folder, rel)) === clashKey(active.indexPath)) return no;
     const wanted = clashKey(rel);
     if (flattenScenes(this.effectiveBinder(active)).some((scene) => clashKey(scene) === wanted)) return no;
+    return rel;
+  }
+
+  /**
+   * Change the revision notes of a project: the one file "Revision notes.json"
+   * at the top of the folder of the project whose index note is at
+   * `indexPath`, whether or not that project is the open one, in one
+   * read-modify-write of the file as it is on disk at that moment. The file
+   * is made when it is missing (and `change` asks for it).
+   *
+   * The place is fixed: no path is taken, so nothing else can be written
+   * this way, and never a scene or any other note. Refused for a read-only
+   * project, for a project that is no longer in the vault (or is only a
+   * conflicting copy of one), and when the binder lists that very file as a
+   * scene. For a project that is not open, its index is read as it is on
+   * disk at that moment. (Renaming a scene of a project that is not open
+   * moves its notes along: that is why another project can be written.)
+   *
+   * `change` works as for updateDataFile: it receives the current text, or
+   * null when there is no such file, and returns the new text, or null to
+   * leave everything as it is. It may be called more than once.
+   *
+   * @param indexPath the vault path of the project's index note, as listProjects() gives it
+   */
+  updateRevisionNotes(
+    indexPath: string,
+    change: (current: string | null) => string | null,
+  ): Promise<IntentResult<DataFileWrite>> {
+    return this.run(async (): Promise<IntentResult<DataFileWrite>> => {
+      const active = this.active;
+      if (active !== null && active.indexPath === indexPath) {
+        const blocked = this.whyNotWritable(active);
+        if (blocked) return blocked;
+        const rel = this.revisionNotesPath(active.folder, active.indexPath, this.effectiveBinder(active));
+        if (typeof rel !== 'string') return rel;
+        return this.writeDataFile(active.folder, rel, change);
+      }
+
+      const gone = refused('not-a-project', 'That project is no longer in this vault.');
+      const known = this.projects.get(indexPath);
+      if (!known || conflictCopies(this.projects.values()).has(indexPath)) return gone;
+      let frontmatter: Frontmatter | null;
+      try {
+        frontmatter = await this.vault.readFrontmatter(indexPath);
+      } catch (error) {
+        if (error instanceof VaultFileMissingError) return gone;
+        return failed(`The project's index note could not be read (${messageOf(error)}).`);
+      }
+      if (frontmatter === null || !isProjectIndex(frontmatter)) return gone;
+      const parsed = parseProjectIndex(frontmatter);
+      if (!parsed.ok) return refused('read-only', READ_ONLY_MESSAGE);
+
+      const folder = summaryOf(known).folder;
+      const rel = this.revisionNotesPath(folder, indexPath, parsed.binder);
+      if (typeof rel !== 'string') return rel;
+      return this.writeDataFile(folder, rel, change);
+    });
+  }
+
+  /**
+   * Where the revision notes go in a project: always the same file at the
+   * top of its folder. Returns that path relative to the project folder, or
+   * a refusal when the place is not free to be the plugin's own.
+   */
+  private revisionNotesPath(
+    folder: string,
+    indexPath: string,
+    binder: Binder,
+  ): string | { status: 'refused'; reason: RefusalReason; message: string } {
+    const rel = REVISION_NOTES_FILE;
+    const no = refused('invalid-path', `"${rel}" cannot be written in this project: it is not free to hold the revision notes.`);
+    if (!isSafeRelativePath(rel) || parentPath(rel) !== '') return no;
+    if (clashKey(joinPath(folder, rel)) === clashKey(indexPath)) return no;
+    const wanted = clashKey(rel);
+    if (flattenScenes(binder).some((scene) => clashKey(scene) === wanted)) return no;
     return rel;
   }
 
