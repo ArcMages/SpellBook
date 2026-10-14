@@ -11,8 +11,18 @@ import type { PaneType } from 'obsidian';
 import { tidyDisplayName } from '../../core/names';
 import {
   MANUSCRIPT_LANE,
+  NO_TAG_FILTER,
   OTHER_LANE,
+  STORY_VIEW,
+  TYPE_KIND_PREFIX,
+  WORLD_HISTORY_VIEW,
   addEventToLanePatch,
+  builtInViewState,
+  currentViewName,
+  deleteView,
+  isBuiltInView,
+  sameTagFilter,
+  saveView,
   addLane,
   isEmptyPatch,
   laneKey,
@@ -38,8 +48,11 @@ import type {
   LaneChange,
   LaneColor,
   LaneContext,
+  SavedView,
   StoryDate,
+  TagFilter,
   TimelineEvent,
+  ViewState,
 } from '../../core/timeline';
 import { ConfirmModal } from '../../ui/confirmModal';
 import { safely } from '../../ui/safely';
@@ -331,18 +344,126 @@ export class TimelineActions {
   }
 
   /**
-   * The world's history: the world lanes on, and the lane of the scenes
-   * off. Both are choices of this device, and both can be undone in the
-   * window that lists the lanes.
+   * The world's history: the built-in view "World history", with the world
+   * lanes on and the lane of the scenes off. Both are choices of this
+   * device; the view "Story" brings the scenes' lane back.
    */
   showWorldHistory(): void {
+    this.switchView(WORLD_HISTORY_VIEW);
+  }
+
+  // --------------------------------------------------------- filter and views
+
+  /** The filter by tags and by kind the timeline is shown with. */
+  tagFilter(): TagFilter {
+    return this.current()?.tagFilter ?? NO_TAG_FILTER;
+  }
+
+  /**
+   * Show the timeline with another filter by tags and by kind. A filter that
+   * asks for a type of the world turns the world lanes on, and shows that
+   * type's lane, so that what was asked for is there to see.
+   */
+  setTagFilter(filter: TagFilter): void {
+    const now = this.viewState();
+    if (now === null) return;
+    const types = filter.kinds.filter((kind) => kind.startsWith(TYPE_KIND_PREFIX)).map((kind) => kind.slice(TYPE_KIND_PREFIX.length));
+    const world =
+      types.length === 0 ? now.world : { on: true, hidden: now.world.hidden.filter((id) => !types.includes(id)) };
+    this.applyView('Filter', { hiddenLanes: now.hiddenLanes, world, filter });
+  }
+
+  /** What the screen shows now, as a view; null when no project is open. */
+  viewState(): ViewState | null {
     const content = this.current();
-    if (content === null) return;
-    this.setWorld(true);
-    const hidden = content.data.hiddenLanes;
-    if (hidden.some((name) => laneKey(name) === laneKey(MANUSCRIPT_LANE))) return;
-    safely('World history', () => {
-      this.host.setHiddenLanes([...hidden, MANUSCRIPT_LANE]);
+    if (content === null) return null;
+    const data = content.data;
+    return {
+      hiddenLanes: data.hiddenLanes,
+      world: data.worldLanes ?? { on: false, hidden: [] },
+      filter: data.tagFilter ?? NO_TAG_FILTER,
+    };
+  }
+
+  /** The views the writer saved on this device for this project. */
+  savedViews(): readonly SavedView[] {
+    return this.current()?.data.savedViews ?? [];
+  }
+
+  /** True when the host keeps saved views. */
+  canSaveViews(): boolean {
+    return this.host.setSavedViews !== undefined;
+  }
+
+  /** The name of the view the screen shows now (built in or saved); null for none. */
+  currentView(): string | null {
+    const now = this.viewState();
+    return now === null ? null : currentViewName(now, this.savedViews());
+  }
+
+  /** Switch to a view: one of the two built in, or one the writer saved. */
+  switchView(name: string): void {
+    const now = this.viewState();
+    if (now === null) return;
+    const state = builtInViewState(name, now) ?? this.savedViews().find((view) => view.name === name) ?? null;
+    if (state === null) return;
+    this.applyView(name === STORY_VIEW ? 'Story' : name === WORLD_HISTORY_VIEW ? 'World history' : 'View', state);
+  }
+
+  /** Ask for a name, and save what the screen shows under it. */
+  askSaveView(): void {
+    const now = this.viewState();
+    const save = this.host.setSavedViews?.bind(this.host);
+    if (now === null || save === undefined) return;
+    const current = this.currentView();
+    new TextPromptModal(this.host.app, {
+      title: 'Save view',
+      label: 'View name',
+      placeholder: 'View name',
+      value: current !== null && !isBuiltInView(current) ? current : '',
+      confirm: 'Save',
+      submit: (name) => {
+        const result = saveView(this.savedViews(), name, this.viewState() ?? now);
+        if (!result.ok) return result.message;
+        save(result.views);
+        return null;
+      },
+    }).open();
+  }
+
+  /** Ask, then delete a saved view. What the screen shows stays as it is. */
+  askDeleteView(name: string): void {
+    const save = this.host.setSavedViews?.bind(this.host);
+    if (save === undefined) return;
+    new ConfirmModal(this.host.app, {
+      title: `Delete the view "${name}"?`,
+      message: 'Only the saved view goes. The timeline keeps showing what it shows now.',
+      confirm: 'Delete',
+      onConfirm: () => {
+        safely('Delete view', () => {
+          save(deleteView(this.savedViews(), name));
+        });
+      },
+    }).open();
+  }
+
+  /** Show a view: the lanes hidden, the world lanes and the filter, all at once when the host can. */
+  private applyView(what: string, state: ViewState): void {
+    const now = this.viewState();
+    if (now === null) return;
+    safely(what, () => {
+      if (this.host.setViewState) {
+        this.host.setViewState(state);
+        return;
+      }
+      // A host that keeps the three apart is told of each that changed.
+      if (state.world.on !== now.world.on || state.world.hidden.join('\n') !== now.world.hidden.join('\n')) {
+        this.host.setWorldLanes?.({ on: state.world.on, hidden: state.world.hidden });
+      }
+      if (state.hiddenLanes.map(laneKey).join('\n') !== now.hiddenLanes.map(laneKey).join('\n')) {
+        this.host.setHiddenLanes(state.hiddenLanes);
+      }
+      if (!sameTagFilter(state.filter, now.filter)) this.host.setTagFilter?.(state.filter);
     });
   }
 

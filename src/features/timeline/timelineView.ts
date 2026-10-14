@@ -27,11 +27,16 @@
 // Text in any language: titles, tags and lane names are the writer's own and
 // choose their own direction; dates, counts and buttons do not.
 
-import { ItemView, Keymap, Notice, Platform } from 'obsidian';
+import { ItemView, Keymap, Menu, Notice, Platform } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import {
+  BUILT_IN_VIEWS,
   LANE_COLORS,
+  NO_TAG_FILTER,
+  STORY_VIEW,
+  WORLD_HISTORY_VIEW,
   chipsThatFit,
+  describeTagFilter,
   dateAtPosition,
   dayToPosition,
   describeEventProblem,
@@ -52,6 +57,8 @@ import { TimelineGestures } from './timelineGestures';
 import type { GesturePoint } from './timelineGestures';
 import type { TimelineData, TimelineHost } from './timelineHost';
 import { MORE_LABEL, TIMELINE_ICONS, eventMenu, worldMenu } from './timelineMenus';
+import { TagFilterModal } from './tagFilterModal';
+import { ownTextTitle } from '../../ui/ownText';
 import {
   META_FROM_WIDTH,
   MIN_CARD_WIDTH,
@@ -88,6 +95,12 @@ export const SHOW_ALL_LABEL = 'Show all events';
 export const NO_MATCHING_EVENTS = 'No event names any of these entities.';
 export const WORLD_LABEL = 'World';
 export const WORLD_HINT = 'Show the world on the timeline: a lane for each type of entity';
+export const TAGS_LABEL = 'Filter by tags';
+export const TAGS_FILTERED_LABEL = 'Filtered';
+export const CLEAR_TAGS_LABEL = 'Clear filter';
+export const NO_TAGGED_MATCH = 'Nothing on the timeline matches this filter.';
+export const VIEWS_LABEL = 'Views';
+export const SAVE_VIEW_LABEL = 'Save current view...';
 export const NO_WORLD_DATES = 'No entity of the world has a date yet. Give one a date on its sheet in the World browser, under "Time".';
 /** A card shows this many entities at most; the rest are counted. */
 export const CARD_ENTITIES = 3;
@@ -132,6 +145,9 @@ interface Elements {
   readonly alerts: HTMLElement;
   readonly filter: HTMLElement;
   readonly filterButton: HTMLElement;
+  readonly tags: HTMLElement;
+  readonly tagsButton: HTMLElement;
+  readonly viewButton: HTMLElement;
   readonly switcher: HTMLElement;
   readonly undated: HTMLElement;
   readonly main: HTMLElement;
@@ -227,6 +243,8 @@ export class TimelineView extends ItemView {
   private filter: readonly string[] = [];
   private filterDrawn = '';
   private filterTaps = new Map<HTMLElement, Tap>();
+  private tagsDrawn = '';
+  private tagsTaps = new Map<HTMLElement, Tap>();
 
   private cards = new Map<string, Card>();
   private cardOf = new Map<HTMLElement, Card>();
@@ -293,6 +311,12 @@ export class TimelineView extends ItemView {
     const header = root.createDiv({ cls: 'spellbook-timeline-header' });
     const range = header.createDiv({ cls: 'spellbook-timeline-range' });
     const toolbar = header.createDiv({ cls: 'spellbook-timeline-toolbar' });
+    // The saved views come first: the one shown now, and a tap opens the list of them.
+    const viewButton = this.button(toolbar, VIEWS_LABEL, null, () => {
+      this.showViewsMenu();
+    });
+    viewButton.addClass('spellbook-timeline-view-switch');
+    viewButton.setAttr('aria-haspopup', 'menu');
     const modes = toolbar.createDiv({ cls: 'spellbook-timeline-modes', attr: { role: 'group', 'aria-label': 'Order' } });
     const byDate = this.button(modes, BY_DATE_LABEL, null, () => {
       this.setMode('date');
@@ -329,6 +353,9 @@ export class TimelineView extends ItemView {
     const filterButton = this.button(toolbar, FILTER_LABEL, TIMELINE_ICONS.filter, () => {
       this.askFilter();
     });
+    const tagsButton = this.button(toolbar, TAGS_LABEL, TIMELINE_ICONS.tags, () => {
+      this.askTags();
+    });
     // The world on the timeline: a lane per type of entity, on or off.
     this.worldButton = this.button(toolbar, WORLD_LABEL, null, () => {
       this.toggleWorld();
@@ -338,6 +365,7 @@ export class TimelineView extends ItemView {
 
     const alerts = root.createDiv({ cls: ['spellbook-timeline-alerts', HIDDEN] });
     const filter = root.createDiv({ cls: ['spellbook-timeline-filter', HIDDEN], attr: { role: 'status' } });
+    const tags = root.createDiv({ cls: ['spellbook-timeline-tag-filter', HIDDEN], attr: { role: 'status' } });
     const switcher = root.createDiv({ cls: ['spellbook-timeline-switcher', HIDDEN], attr: { role: 'group', 'aria-label': 'Lane' } });
     const undated = root.createDiv({ cls: ['spellbook-timeline-undated', HIDDEN] });
     const main = root.createDiv({ cls: 'spellbook-timeline-main' });
@@ -350,11 +378,12 @@ export class TimelineView extends ItemView {
     const cards = viewport.createDiv({ cls: 'spellbook-timeline-cards' });
     const carried = viewport.createDiv({ cls: ['spellbook-timeline-carried', HIDDEN] });
     const empty = root.createDiv({ cls: ['spellbook-timeline-empty', HIDDEN] });
-    this.els = { root, range, byDate, byStory, alerts, filter, filterButton, switcher, undated, main, axis, names, viewport, grid, bands, cards, carried, empty };
+    this.els = { root, range, byDate, byStory, alerts, filter, filterButton, tags, tagsButton, viewButton, switcher, undated, main, axis, names, viewport, grid, bands, cards, carried, empty };
 
     this.delegate(switcher, this.switcherTaps);
     this.delegate(undated, this.undatedTaps);
     this.delegate(filter, this.filterTaps);
+    this.delegate(tags, this.tagsTaps);
     this.listen(viewport, 'keydown', (event) => {
       this.onKey(event);
     });
@@ -438,6 +467,8 @@ export class TimelineView extends ItemView {
     this.undatedTaps.clear();
     this.filterTaps.clear();
     this.filterDrawn = '';
+    this.tagsTaps.clear();
+    this.tagsDrawn = '';
     this.dropBand = null;
     this.watchers.clear();
     this.worldButton = null;
@@ -593,9 +624,19 @@ export class TimelineView extends ItemView {
     els.empty.toggleClass(HIDDEN, content !== null && (content.events.size > 0 || worldRows));
     this.worldButton?.toggleClass('is-active', content?.world.on === true);
     this.worldButton?.setAttr('aria-pressed', content?.world.on === true ? 'true' : 'false');
-    els.empty.setText(content === null ? NO_PROJECT_MESSAGE : content.filteredOut > 0 ? NO_MATCHING_EVENTS : NO_EVENTS_HINT);
+    els.empty.setText(
+      content === null
+        ? NO_PROJECT_MESSAGE
+        : content.tagged && content.taggedOut > 0
+          ? NO_TAGGED_MATCH
+          : content.filteredOut > 0
+            ? NO_MATCHING_EVENTS
+            : NO_EVENTS_HINT,
+    );
     this.drawAlerts();
     this.drawFilter();
+    this.drawTags();
+    this.drawViewButton();
     this.drawUndated();
     for (const [mode, button] of [['date', els.byDate], ['story', els.byStory]] as const) {
       button.toggleClass('is-active', this.mode === mode);
@@ -726,6 +767,112 @@ export class TimelineView extends ItemView {
     this.filterTaps.set(all, () => {
       this.setFilter([]);
     });
+  }
+
+  /**
+   * The strip that says the timeline is filtered by tags or by kind: what it
+   * shows, and the button that clears the filter. A tap on what it says
+   * opens the filter's window. Drawn again only when that changed.
+   */
+  private drawTags(): void {
+    const els = this.els;
+    if (!els) return;
+    const content = this.content;
+    const filter = content?.tagFilter ?? NO_TAG_FILTER;
+    const on = content?.tagged === true;
+    els.tagsButton.toggleClass('is-active', on);
+    els.tagsButton.setAttr('aria-pressed', on ? 'true' : 'false');
+    const names = new Map((content?.kinds ?? []).map((kind) => [kind.kind, kind.name]));
+    const words = on ? describeTagFilter(filter, (kind) => names.get(kind) ?? null) : '';
+    if (words === this.tagsDrawn) return;
+    this.tagsDrawn = words;
+    els.tags.empty();
+    this.tagsTaps.clear();
+    els.tags.toggleClass(HIDDEN, !on);
+    if (!on) return;
+    const said = els.tags.createEl('button', { cls: 'spellbook-timeline-tag-summary', attr: { type: 'button', 'aria-label': TAGS_LABEL } });
+    said.createSpan({ cls: 'spellbook-timeline-filter-label', text: `${TAGS_FILTERED_LABEL}:` });
+    // Tags and the names of types are the writer's own text.
+    said.createSpan({ cls: 'spellbook-timeline-tag-words', text: words === '' ? 'nothing chosen' : words, attr: { dir: 'auto' } });
+    this.tagsTaps.set(said, () => {
+      this.askTags();
+    });
+    const clear = els.tags.createEl('button', { cls: 'spellbook-timeline-filter-clear', text: CLEAR_TAGS_LABEL });
+    this.tagsTaps.set(clear, () => {
+      this.actions.setTagFilter(NO_TAG_FILTER);
+    });
+  }
+
+  /** The "Filter by tags" button: the window that sets the filter by tags and by kind. */
+  private askTags(): void {
+    const content = this.content;
+    if (content === null) return;
+    new TagFilterModal(this.app, {
+      tags: content.tagCounts,
+      kinds: content.kinds,
+      filter: content.tagFilter,
+      submit: (filter) => {
+        this.actions.setTagFilter(filter);
+      },
+    }).open();
+  }
+
+  /** The views button says which view the timeline shows now. */
+  private drawViewButton(): void {
+    const button = this.els?.viewButton;
+    if (!button) return;
+    const current = this.content === null ? null : this.actions.currentView();
+    button.setText(current ?? VIEWS_LABEL);
+    // A saved view's name is the writer's own text.
+    button.setAttr('dir', current !== null && !BUILT_IN_VIEWS.includes(current) ? 'auto' : null);
+    button.setAttr('aria-label', current === null ? VIEWS_LABEL : `${VIEWS_LABEL}: ${current}`);
+  }
+
+  /** The list of views: the two built in, the saved ones, then saving and deleting. */
+  private showViewsMenu(): void {
+    if (this.content === null) return;
+    const current = this.actions.currentView();
+    const menu = new Menu();
+    const item = (name: string, own: boolean): void => {
+      menu.addItem((entry) => {
+        entry
+          .setTitle(own ? ownTextTitle(name) : name)
+          .setChecked(name === current)
+          .onClick(() => {
+            this.switchView(name);
+          });
+      });
+    };
+    for (const name of BUILT_IN_VIEWS) item(name, false);
+    const saved = this.actions.savedViews();
+    if (saved.length > 0) menu.addSeparator();
+    for (const view of saved) item(view.name, true);
+    if (this.actions.canSaveViews()) {
+      menu.addSeparator();
+      menu.addItem((entry) => {
+        entry.setTitle(SAVE_VIEW_LABEL).onClick(() => {
+          this.actions.askSaveView();
+        });
+      });
+      for (const view of saved) {
+        menu.addItem((entry) => {
+          entry.setTitle(ownTextTitle(`Delete "${view.name}"`)).onClick(() => {
+            this.actions.askDeleteView(view.name);
+          });
+        });
+      }
+    }
+    const box = this.els?.viewButton.getBoundingClientRect();
+    menu.showAtPosition(box ? { x: box.left, y: box.bottom } : { x: 0, y: 0 });
+  }
+
+  /** Switch to a view. The world's history also goes to the world's dates, as its command does. */
+  private switchView(name: string): void {
+    if (name === WORLD_HISTORY_VIEW) {
+      this.showWorldHistory();
+      return;
+    }
+    this.actions.switchView(name);
   }
 
   /** Narrow the timeline to the events that name at least one of these entities; none shows every event. */
@@ -1296,6 +1443,11 @@ export class TimelineView extends ItemView {
     const content = this.content;
     if (content === null) return;
     const on = !content.world.on;
+    // Leaving the world's history by its switch goes back to the story, with the scenes' lane shown again.
+    if (!on && this.actions.currentView() === WORLD_HISTORY_VIEW) {
+      this.actions.switchView(STORY_VIEW);
+      return;
+    }
     this.actions.setWorld(on);
     if (on && content.world.lanes.length === 0) new Notice(NO_WORLD_DATES, 8000);
   }

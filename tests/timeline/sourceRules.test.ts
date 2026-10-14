@@ -34,6 +34,8 @@ describe('the timeline engine source', () => {
       'narrative.ts',
       'scale.ts',
       'storyDate.ts',
+      'tagFilter.ts',
+      'views.ts',
     ]);
   });
 

@@ -9,7 +9,7 @@
 // the same way everywhere: in `events`, in `scenes` and in `sceneOrder`.
 
 import type { App, PaneType } from 'obsidian';
-import type { FrontmatterPatch, LaneChange, TimelineNote } from '../../core/timeline';
+import type { FrontmatterPatch, LaneChange, SavedView, TagFilter, TimelineNote, ViewState } from '../../core/timeline';
 import type { Frontmatter } from '../../core/types';
 import type { DragClock } from '../../ui/dragDrop';
 
@@ -54,6 +54,13 @@ export interface TimelineData {
   readonly sceneOrder: readonly string[];
   /** The names of the lanes this device has hidden. */
   readonly hiddenLanes: readonly string[];
+  /**
+   * The filter by tags and by kind this device shows the timeline with.
+   * Nothing here means: no filter. A host without it has no filter by tags.
+   */
+  readonly tagFilter?: TagFilter;
+  /** The views the writer saved on this device for this project. */
+  readonly savedViews?: readonly SavedView[];
   /** Today as a day number (whole days since 1 January 1970): where an empty timeline is centred. */
   readonly today: number;
 }
@@ -156,6 +163,19 @@ export interface TimelineHost {
 
   /** Remember, on this device only, what is shown of the world; then announce the change. A host without it has no world lanes. */
   setWorldLanes?(choice: WorldLaneChoice): void;
+
+  /** Remember, on this device only, the filter by tags and by kind; then announce the change. */
+  setTagFilter?(filter: TagFilter): void;
+
+  /**
+   * Switch to a view: remember, on this device only, the lanes hidden, what
+   * is shown of the world and the filter, all at once; then announce the
+   * change once.
+   */
+  setViewState?(state: ViewState): void;
+
+  /** Remember, on this device only, the views the writer saved for this project; then announce the change. */
+  setSavedViews?(views: readonly SavedView[]): void;
 
   /**
    * Show an entity's sheet (the World browser's), for a tap on an entity of

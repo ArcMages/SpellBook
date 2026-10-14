@@ -361,3 +361,74 @@ export type { DragInput } from './drag';
 export type { DragOutcome } from './drag';
 /** Work out what a press on an event card means: a tap, a new date, a new lane. */
 export { resolveDrag } from './drag';
+
+// ------------------------------------------------------- filter and views
+
+/** The tags in Obsidian's own "tags" property, without "#". */
+export { readTags } from './events';
+/** The timeline's filter by tags and by kind. */
+export type { TagFilter } from './tagFilter';
+/** How the chosen tags are matched: any of them, or all. */
+export type { TagMatch } from './tagFilter';
+/** One tag used in the project, and on how many things. */
+export type { TagCount } from './tagFilter';
+/** The kind of the timeline's events, for the filter. */
+export { EVENTS_KIND } from './tagFilter';
+/** The kind of the manuscript's scenes, for the filter. */
+export { SCENES_KIND } from './tagFilter';
+/** What the kind of a type of the world starts with. */
+export { TYPE_KIND_PREFIX } from './tagFilter';
+/** The filter that narrows nothing. */
+export { NO_TAG_FILTER } from './tagFilter';
+/** No more than this many tags or kinds are kept in a filter. */
+export { MAX_FILTER_ITEMS } from './tagFilter';
+/** The kind of the entities of a type of the world. */
+export { typeKind } from './tagFilter';
+/** A tag as it is compared: no "#", small letters. */
+export { tagKey } from './tagFilter';
+/** True when a filter by tags narrows anything. */
+export { isTagFilterActive } from './tagFilter';
+/** A filter by tags from whatever was stored, checked. */
+export { readTagFilter } from './tagFilter';
+/** True when two filters by tags say the same. */
+export { sameTagFilter } from './tagFilter';
+/** True when something with these tags, of this kind, passes the filter. */
+export { passesTagFilter } from './tagFilter';
+/** Every tag the things carry, with how many carry it, most used first. */
+export { countTags } from './tagFilter';
+/** The tags that have the search text in them. */
+export { searchTags } from './tagFilter';
+/** What a filter by tags shows, in words. */
+export { describeTagFilter } from './tagFilter';
+/** What the world lanes show: on or off, and the types hidden. */
+export type { WorldChoice } from './views';
+/** Everything a view of the timeline sets. */
+export type { ViewState } from './views';
+/** A view of the timeline the writer saved under a name. */
+export type { SavedView } from './views';
+/** What saving a view came to: the new list, or why not. */
+export type { SaveViewResult } from './views';
+/** The built-in view of the story: manuscript and timelines. */
+export { STORY_VIEW } from './views';
+/** The built-in view of the world's history: world lanes and events. */
+export { WORLD_HISTORY_VIEW } from './views';
+/** The names of the two built-in views. */
+export { BUILT_IN_VIEWS } from './views';
+/** No more than this many views are kept per project. */
+export { MAX_VIEWS } from './views';
+/** A view's name is cut to this many characters. */
+export { MAX_VIEW_NAME } from './views';
+/** True for the name of a built-in view, whatever its capitals. */
+export { isBuiltInView } from './views';
+/** The saved views from whatever was stored, checked. */
+export { readSavedViews } from './views';
+/** What a built-in view makes of the screen as it is now. */
+export { builtInViewState } from './views';
+/** True when two views show the same. */
+export { sameViewState } from './views';
+/** The name of the view the screen shows now, or null. */
+export { currentViewName } from './views';
+/** Save the screen as it is under a name. */
+export { saveView } from './views';
+/** The saved views without the one of this name. */
+export { deleteView } from './views';
