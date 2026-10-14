@@ -196,6 +196,12 @@ export class WorldHost {
   private readonly listening = new Set<() => void>();
   private stops: Array<() => void> = [];
   private model: Model | null = null;
+  /**
+   * The world notes of the open project by name (lower case), for following
+   * links: worked out once and kept until something changes, because a big
+   * world has thousands of links and each would otherwise list every note.
+   */
+  private namesIndex: { readonly project: string; readonly byName: Map<string, string[]> } | null = null;
   /** The timer of a change that is about to be told, if any. */
   private stopTelling: (() => void) | null = null;
   /** How the browser is laid out on this device; null until it is read from the device's storage. */
@@ -223,6 +229,7 @@ export class WorldHost {
     this.stopTelling?.();
     this.stopTelling = null;
     this.model = null;
+    this.namesIndex = null;
     // A pane or a window that is still open says that there is nothing to show any more.
     for (const listener of [...this.listening]) listener();
     this.listening.clear();
@@ -245,6 +252,7 @@ export class WorldHost {
   private changed(): void {
     if (this.disposed) return;
     this.model = null;
+    this.namesIndex = null;
     if (this.stopTelling !== null || this.listening.size === 0) return;
     this.stopTelling = this.context.clock.setTimer(() => {
       this.stopTelling = null;
@@ -287,6 +295,7 @@ export class WorldHost {
     const snapshot = this.context.store.project;
     if (!snapshot) {
       this.model = null;
+      this.namesIndex = null;
       return null;
     }
     if (this.model !== null && this.model.project.id === snapshot.indexPath) return this.model;
@@ -578,13 +587,28 @@ export class WorldHost {
   private resolveEntityLink(target: string, from: string): string | null {
     const { store, vault } = this.context;
     if (!target.includes('/')) {
-      const wanted = target.trim().toLowerCase();
-      const own = store.worldNotes().filter((note) => noteTitle(note.path).toLowerCase() === wanted);
-      const only = own.length === 1 ? own[0] : undefined;
-      const path = only ? store.vaultPathOf(only.path) : null;
+      const own = this.worldNotesNamed(target.trim().toLowerCase());
+      const path = own.length === 1 ? store.vaultPathOf(own[0] as string) : null;
       if (path !== null) return path;
     }
     return vault.resolveLink(target, from);
+  }
+
+  /** The world notes of the open project whose name is `wanted` (lower case), as paths relative to the project folder. */
+  private worldNotesNamed(wanted: string): readonly string[] {
+    const { store } = this.context;
+    const project = store.project?.indexPath ?? '';
+    if (this.namesIndex === null || this.namesIndex.project !== project) {
+      const byName = new Map<string, string[]>();
+      for (const note of store.worldNotes()) {
+        const name = noteTitle(note.path).toLowerCase();
+        const list = byName.get(name);
+        if (list) list.push(note.path);
+        else byName.set(name, [note.path]);
+      }
+      this.namesIndex = { project, byName };
+    }
+    return this.namesIndex.byName.get(wanted) ?? [];
   }
 
   /** Whether an entry of a list, written in the note at `from`, leads to the note at `to`. */
