@@ -1353,3 +1353,7 @@
     min-height: var(--spellbook-world-touch);
   }
 }
+
+.spellbook-world-time-unread .spellbook-world-time-problem {
+  margin-inline-start: var(--size-2-2);
+}

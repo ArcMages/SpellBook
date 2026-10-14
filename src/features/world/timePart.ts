@@ -82,7 +82,7 @@ export function drawTimePart(app: App, host: WorldHost, rest: HTMLElement, entit
     else if (unread !== '') {
       const value = row.createSpan({ cls: 'spellbook-world-time-value spellbook-world-time-unread' });
       value.createSpan({ text: unread, attr: { dir: 'auto' } });
-      value.createSpan({ cls: 'spellbook-world-time-problem', text: ` (${UNREAD_DATE_TEXT})` });
+      value.createSpan({ cls: 'spellbook-world-time-problem', text: `(${UNREAD_DATE_TEXT})` });
     } else row.createSpan({ cls: 'spellbook-world-time-value spellbook-world-time-none', text: NO_DATE_TEXT });
     if (!canChange) return;
     const has = date !== null || unread !== '';
