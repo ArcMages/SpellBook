@@ -465,6 +465,7 @@ Tap a card to open the entity's sheet; the number of scenes on the card does the
 The sheet is one entity laid out to read and to fill in. It opens beside the list in a wide pane. The command **Open entity sheet** opens the sheet of the entity whose note is open in the editor.
 
 - **Picture.** **Choose picture** lists the image files in your vault; tap one. **Remove picture** takes it off again. The picture file itself is never moved or changed. An entity without a picture shows its type's icon.
+- **Other names.** See below.
 - **Summary and fields.** Type in a field and press Enter, or tap elsewhere, to save it. Each field is one property of the note; the note's text is never touched. A property that holds a list is shown but is changed in the note itself.
 - **Open note** opens the note, where you write as much as you like under its headings.
 - **Related.** Press **Add**, type how the two have to do with each other ("sister", "keeps", "born there"; you may leave it empty), and tap the other entity. Relations are grouped by type. Each has a button to change its label and one to remove it. A relation is written in one note only; the other entity's sheet shows it by itself under **Mentioned by**.
@@ -480,7 +481,7 @@ The sheet is one entity laid out to read and to fill in. It opens beside the lis
 
 *A piece of lore written in Hebrew: the name, the fields and the Hebrew scene titles read right to left.*
 
-**Other names.** An entity's other names are Obsidian's own `aliases` property. Add them in the note's properties; "Find mentions" looks for them too.
+**Other names.** Under the picture, **Other names** lists the other names the entity goes by, each in a small box of its own. Type in **Add a name** and press Enter, or tap elsewhere, to add one; tap a name to change it; press the button beside a name, or empty its box, to remove it. They are saved as Obsidian's own `aliases` property of the note, as a list, so Obsidian's links and search know them as well, and "Find mentions" looks for them too. A Hebrew name reads right to left in its box.
 
 **Linking to scenes and events.** In the [inspector](#inspector), under **In this scene**, press **Add**. On the timeline, use **Entities** in an event's menu.
 

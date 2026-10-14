@@ -4,8 +4,11 @@
 // one (a phone, a sidebar).
 //
 //   head     the button that leads back, and the name
-//   hero     the picture (or the type's icon), the type, the other names,
-//            "Open note", "Choose picture" and "Remove picture"
+//   hero     the picture (or the type's icon), the type, "Open note",
+//            "Choose picture" and "Remove picture"
+//   names    the other names it goes by (Obsidian's "aliases"): each in a
+//            box of its own to be changed, with a button that takes it
+//            away, and a box to add one more
 //   form     the summary, then the fields of the type and whatever else the
 //            writer added to the note, each to be changed in place
 //   rest     "Related" in groups by type, with "Mentioned by" for the other
@@ -39,6 +42,14 @@ export const BACK_LABEL = 'Back to the list';
 export const CLOSE_LABEL = 'Close the sheet';
 export const CHOOSE_PICTURE_TEXT = 'Choose picture';
 export const REMOVE_PICTURE_TEXT = 'Remove picture';
+export const ALIASES_HEADING = 'Other names';
+export const ALIAS_LABEL = 'Other name';
+export const ADD_ALIAS_PLACEHOLDER = 'Add a name';
+export const ADD_ALIAS_LABEL = 'Add another name';
+export const REMOVE_ALIAS_LABEL = 'Remove the name';
+/** What "the box being typed in" is called while it is one of the other names, or the box that adds one. */
+const TYPING_ALIAS = '\u0000alias';
+const TYPING_NEW_ALIAS = '\u0000new alias';
 export const SUMMARY_LABEL = 'Summary';
 export const SUMMARY_PLACEHOLDER = 'One or two lines about it';
 export const RELATED_HEADING = 'Related';
@@ -84,6 +95,14 @@ interface FieldBox {
   stored: string;
 }
 
+/** The other names on a sheet: the names themselves, drawn anew when they change, and the box that adds one, which stays. */
+interface AliasParts {
+  readonly list: HTMLElement;
+  readonly add: HTMLInputElement;
+  /** The names the list was last drawn for. */
+  drawn: string | null;
+}
+
 /** The parts of a sheet that is on the screen, kept while it shows the same entity. */
 interface Built {
   /** What it was built for: the entity, and the fields it has to offer. */
@@ -91,6 +110,8 @@ interface Built {
   readonly detail: HTMLElement;
   readonly head: HTMLElement;
   readonly hero: HTMLElement;
+  /** The other names; null where nothing can be changed (the hero then shows them). */
+  readonly aliases: AliasParts | null;
   readonly boxes: FieldBox[];
   readonly rest: HTMLElement;
 }
@@ -150,10 +171,11 @@ export class EntitySheet {
       this.typingIn = null;
       const head = detail.createDiv({ cls: 'spellbook-world-detail-head' });
       const hero = detail.createDiv({ cls: 'spellbook-world-sheet-hero' });
+      const aliases = canChange ? this.buildAliases(detail, entity.path) : null;
       const boxes: FieldBox[] = [];
       this.buildForm(detail, entity, fields, canChange, boxes);
       const rest = detail.createDiv({ cls: 'spellbook-world-sheet-rest' });
-      built = { signature, detail, head, hero, boxes, rest };
+      built = { signature, detail, head, hero, aliases, boxes, rest };
       this.built = built;
     } else {
       // The same sheet: its boxes stay, and say what the note says now. The one being typed in is left alone.
@@ -168,6 +190,7 @@ export class EntitySheet {
     }
     this.drawHead(built.head, entity);
     this.drawHero(built.hero, entity, type, canChange);
+    if (built.aliases !== null) this.drawAliases(built.aliases, entity);
     this.drawRest(built.rest, entity, canChange);
   }
 
@@ -191,7 +214,8 @@ export class EntitySheet {
     typeBadge(kind, type);
     // The name of a type of the writer's own is the writer's text.
     kind.createSpan({ cls: 'spellbook-world-detail-type', text: type?.name ?? OTHER_NAME, attr: { dir: 'auto' } });
-    if (entity.aliases.length > 0) {
+    // Where they can be changed, the other names have a place of their own under the picture.
+    if (entity.aliases.length > 0 && !canChange) {
       words.createDiv({ cls: 'spellbook-world-detail-aliases', text: entity.aliases.join(', '), attr: { dir: 'auto' } });
     }
     const actions = words.createDiv({ cls: 'spellbook-world-detail-actions' });
@@ -203,6 +227,100 @@ export class EntitySheet {
     // Also for a picture that cannot be shown: what the note names can then be taken away again.
     if (url !== null || entity.frontmatter?.[IMAGE_KEY] !== undefined) {
       textButton(actions, 'spellbook-world-remove-picture', REMOVE_PICTURE_TEXT, () => settle(this.host.setPicture(entity.path, null)));
+    }
+  }
+
+  // -------------------------------------------------------------- other names
+
+  /**
+   * The place of the other names: a heading, the list of names (filled in by
+   * drawAliases) and the box that adds one. A name is saved when its box is
+   * left or Enter is pressed. Each change is one step (one name more, one
+   * changed, one less) made to the note's "aliases" list as it is at that
+   * moment, and to nothing else.
+   */
+  private buildAliases(detail: HTMLElement, entityPath: string): AliasParts {
+    const into = detail.createDiv({ cls: 'spellbook-world-aliases', attr: { role: 'group', 'aria-label': ALIASES_HEADING } });
+    into.createDiv({ cls: 'spellbook-world-aliases-head', text: ALIASES_HEADING });
+    const row = into.createDiv({ cls: 'spellbook-world-aliases-list' });
+    const list = row.createSpan({ cls: 'spellbook-world-aliases-names', attr: { role: 'list' } });
+    const add = row.createEl('input', {
+      cls: 'spellbook-world-alias-box spellbook-world-alias-add',
+      // A name may be in any language; let it pick its own direction.
+      attr: { type: 'text', dir: 'auto', placeholder: ADD_ALIAS_PLACEHOLDER, 'aria-label': ADD_ALIAS_LABEL, enterkeyhint: 'done', size: boxSize(ADD_ALIAS_PLACEHOLDER) },
+    });
+    const save = (): void => {
+      const name = tidyName(add.value);
+      add.value = '';
+      if (name !== '') void settle(this.host.changeAliases(entityPath, { add: name }));
+    };
+    add.addEventListener('focus', () => {
+      this.typingIn = TYPING_NEW_ALIAS;
+    });
+    add.addEventListener('blur', () => {
+      if (this.typingIn === TYPING_NEW_ALIAS) this.typingIn = null;
+      save();
+    });
+    add.addEventListener('keydown', (event) => {
+      if (isInputMethodKey(event)) return;
+      if (event.key === 'Enter') {
+        // The box keeps the keyboard: the next name can be typed at once.
+        event.preventDefault();
+        save();
+      } else if (event.key === 'Escape' && add.value !== '') {
+        event.preventDefault();
+        event.stopPropagation();
+        add.value = '';
+      }
+    });
+    return { list, add, drawn: null };
+  }
+
+  /** The names themselves, each in a box of its own with a button that takes it away. */
+  private drawAliases(parts: AliasParts, entity: Entity): void {
+    const names = JSON.stringify(entity.aliases);
+    // Nothing new; or a name is being typed in, and is left alone until its box is left.
+    if (parts.drawn === names || this.typingIn === TYPING_ALIAS) return;
+    parts.drawn = names;
+    const { list } = parts;
+    list.empty();
+    for (const name of entity.aliases) {
+      const item = list.createSpan({ cls: 'spellbook-world-alias', attr: { role: 'listitem' } });
+      const box = item.createEl('input', {
+        cls: 'spellbook-world-alias-box',
+        // A name may be in any language; let it pick its own direction.
+        attr: { type: 'text', dir: 'auto', 'aria-label': `${ALIAS_LABEL}: ${name}`, enterkeyhint: 'done', size: boxSize(name) },
+      });
+      box.value = name;
+      box.addEventListener('focus', () => {
+        this.typingIn = TYPING_ALIAS;
+      });
+      box.addEventListener('input', () => {
+        box.setAttr('size', boxSize(box.value));
+      });
+      box.addEventListener('blur', () => {
+        if (this.typingIn === TYPING_ALIAS) this.typingIn = null;
+        const typed = tidyName(box.value);
+        if (typed !== name) void settle(this.host.changeAliases(entity.path, typed === '' ? { remove: name } : { change: name, to: typed }));
+        // Whatever came in while the name was being typed is shown now.
+        const now = this.host.entity(entity.path);
+        if (now !== null && JSON.stringify(now.aliases) !== parts.drawn) this.owner.redrawSheet();
+      });
+      box.addEventListener('keydown', (event) => {
+        if (isInputMethodKey(event)) return;
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          box.blur();
+        } else if (event.key === 'Escape' && box.value !== name) {
+          event.preventDefault();
+          event.stopPropagation();
+          box.value = name;
+          box.setAttr('size', boxSize(name));
+        }
+      });
+      iconButton(item, 'spellbook-world-alias-remove', `${REMOVE_ALIAS_LABEL}: ${name}`, WORLD_ICONS.unlink, () =>
+        settle(this.host.changeAliases(entity.path, { remove: name })),
+      );
     }
   }
 
@@ -478,6 +596,16 @@ export class EntitySheet {
       snippet.createSpan({ text: scene.snippet.after });
     }
   }
+}
+
+/** A name as it is kept: on one line, without spaces around it. */
+function tidyName(typed: string): string {
+  return typed.replace(/\s+/g, ' ').trim();
+}
+
+/** How many characters wide the box of a name is: as wide as the name, within reason. */
+function boxSize(name: string): number {
+  return Math.min(Math.max([...name].length + 1, 4), 40);
 }
 
 /**

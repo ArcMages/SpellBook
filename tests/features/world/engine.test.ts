@@ -24,6 +24,8 @@ import {
   newEntityBody,
   newEntityFrontmatter,
   readAliases,
+  setAliases,
+  tidyAliases,
   readEntities,
   sceneCountText,
   sceneMention,
@@ -122,6 +124,30 @@ describe('readEntities', () => {
     expect(entities.find((entity) => entity.name === 'Kraken')?.typeId).toBeNull();
     const renamed = readEntities(NOTES, [{ ...type('place'), folder: 'Locations' }]);
     expect(renamed.find((entity) => entity.name === 'Saltwick')?.typeId).toBeNull();
+  });
+
+  it('writes other names as a list, and leaves alone what is no list of names', () => {
+    expect(tidyAliases(['  the   keeper ', '', 'M', 'the keeper', 'השומרת'])).toEqual(['the keeper', 'M', 'השומרת']);
+    const note: Record<string, unknown> = { type: 'character', aliases: ['the keeper'], role: 'Keeper' };
+    expect(setAliases(note, ['the keeper'])).toBe('unchanged');
+    expect(setAliases(note, ['the keeper', ' השומרת '])).toBe('changed');
+    expect(note).toEqual({ type: 'character', aliases: ['the keeper', 'השומרת'], role: 'Keeper' });
+    expect(Object.keys(note)).toEqual(['type', 'aliases', 'role']);
+    expect(setAliases(note, [])).toBe('changed');
+    expect(note['aliases']).toEqual([]);
+    // One name written by itself becomes a list once it is changed; a note without the property gets one.
+    const single: Record<string, unknown> = { aliases: 'the keeper' };
+    expect(setAliases(single, ['the keeper', 'M'])).toBe('changed');
+    expect(single['aliases']).toEqual(['the keeper', 'M']);
+    const none: Record<string, unknown> = { type: 'item' };
+    expect(setAliases(none, [])).toBe('unchanged');
+    expect(setAliases(none, ['Lamp'])).toBe('changed');
+    expect(none).toEqual({ type: 'item', aliases: ['Lamp'] });
+    // Anything else is the writer's to put right.
+    const odd: Record<string, unknown> = { aliases: { first: 'x' } };
+    expect(setAliases(odd, ['M'])).toBe('unreadable');
+    expect(setAliases({ aliases: ['a', { b: 1 }] }, ['M'])).toBe('unreadable');
+    expect(odd['aliases']).toEqual({ first: 'x' });
   });
 
   it('reads other names and values as they may be written by hand', () => {

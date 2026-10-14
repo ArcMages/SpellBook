@@ -580,6 +580,69 @@
   text-align: start;
 }
 
+/* The other names: each in a small box of its own with a button to take it
+   away, and a box to add one more. They wrap onto as many lines as they need. */
+.spellbook-world-aliases {
+  margin-block-start: var(--size-4-3);
+}
+
+.spellbook-world-aliases-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-2-3);
+  margin-block-start: var(--size-2-2);
+}
+
+.spellbook-world-aliases-names {
+  display: contents;
+}
+
+.spellbook-world-alias {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background-color: var(--background-secondary);
+}
+
+.spellbook-world-alias:focus-within {
+  border-color: var(--interactive-accent);
+}
+
+.spellbook-world-detail .spellbook-world-alias-box {
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  padding: var(--size-2-1) var(--size-4-2);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-m);
+  box-shadow: none;
+  background-color: transparent;
+  color: var(--text-normal);
+  font-family: inherit;
+  font-size: var(--font-ui-small);
+  text-align: start;
+  field-sizing: content;
+}
+
+.spellbook-world-detail .spellbook-world-alias-add {
+  border-style: dashed;
+  border-color: var(--background-modifier-border);
+}
+
+.spellbook-world-detail .spellbook-world-alias-add:focus {
+  border-style: solid;
+  border-color: var(--interactive-accent);
+  background-color: var(--background-modifier-form-field);
+}
+
+.spellbook-world-alias .spellbook-world-alias-remove {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+
 /* The picture, and beside it the type, the other names and the buttons. */
 .spellbook-world-sheet-hero {
   display: flex;
@@ -687,7 +750,8 @@
   min-width: 0;
 }
 
-.spellbook-world-field-name {
+.spellbook-world-field-name,
+.spellbook-world-aliases-head {
   padding-inline: var(--size-2-3);
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
@@ -855,6 +919,7 @@
 .spellbook-world.spellbook-is-mobile .spellbook-world-remove-picture,
 .spellbook-world.spellbook-is-mobile .spellbook-world-relate,
 .spellbook-world.spellbook-is-mobile .spellbook-world-box,
+.spellbook-world.spellbook-is-mobile .spellbook-world-alias-box,
 .spellbook-world.spellbook-is-mobile .spellbook-world-table-sort,
 .spellbook-world.spellbook-is-mobile .spellbook-world-table-entity,
 .spellbook-world.spellbook-is-mobile .spellbook-world-card-scenes {
@@ -880,6 +945,7 @@
   .spellbook-world .spellbook-world-remove-picture,
   .spellbook-world .spellbook-world-relate,
   .spellbook-world .spellbook-world-box,
+  .spellbook-world .spellbook-world-alias-box,
   .spellbook-world .spellbook-world-table-sort,
   .spellbook-world .spellbook-world-table-entity,
   .spellbook-world .spellbook-world-card-scenes {

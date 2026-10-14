@@ -211,6 +211,58 @@ export function sheetFields(entity: Entity, type: EntityType | null): SheetField
 /** What changing one property of a note came to. */
 export type FieldChange = 'changed' | 'unchanged' | 'unreadable';
 
+/** Other names as they are kept: each trimmed to one line, no empty one, none twice. */
+export function tidyAliases(names: readonly string[]): string[] {
+  const tidy: string[] = [];
+  for (const raw of names) {
+    const name = raw.replace(/\s+/g, ' ').trim();
+    if (name !== '' && !tidy.includes(name)) tidy.push(name);
+  }
+  return tidy;
+}
+
+/** One change of the other names: one more, one changed, or one taken away. */
+export type AliasEdit =
+  | { readonly add: string }
+  | { readonly change: string; readonly to: string }
+  | { readonly remove: string };
+
+/**
+ * Make one change to the other names of an entity note, starting from the
+ * names the note lists at this moment (which another device may have changed
+ * since they were shown). A name changed to nothing is taken away.
+ */
+export function editAliases(frontmatter: Frontmatter, edit: AliasEdit): FieldChange {
+  const now = readAliases(frontmatter);
+  let wanted: string[];
+  if ('add' in edit) wanted = [...now, edit.add];
+  else if ('remove' in edit) wanted = now.filter((name) => name !== edit.remove);
+  else wanted = now.map((name) => (name === edit.change ? edit.to : name));
+  return setAliases(frontmatter, wanted);
+}
+
+/**
+ * Set the other names of an entity note: its "aliases" property, always
+ * written as a list (an empty one when there are none), which is what
+ * Obsidian itself reads. No other property is touched. Nothing changes when
+ * the note has exactly these names already; a property that holds anything
+ * but one name or a list of names is left as it is ("unreadable").
+ *
+ * @param names the names, in order; empty ones and repeats are dropped
+ */
+export function setAliases(frontmatter: Frontmatter, names: readonly string[]): FieldChange {
+  const current: unknown = frontmatter[ALIASES_KEY];
+  const plain = (item: unknown): boolean => typeof item === 'string' || typeof item === 'number';
+  const readable = current === undefined || current === null || plain(current) || (Array.isArray(current) && current.every(plain));
+  if (!readable) return 'unreadable';
+  const wanted = tidyAliases(names);
+  const now = readAliases(frontmatter);
+  // The same names already, however they are written (one name by itself, or none at all): nothing to put right.
+  if (now.length === wanted.length && now.every((name, at) => name === wanted[at])) return 'unchanged';
+  frontmatter[ALIASES_KEY] = wanted;
+  return 'changed';
+}
+
 /**
  * Set one property of an entity note, in place, to what was typed on its
  * sheet. No other property is touched. Nothing changes when the property

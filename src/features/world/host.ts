@@ -52,11 +52,13 @@ import {
   removeRelation,
   resolveImage,
   sceneMention,
+  editAliases,
   setEntityField,
   setImage,
   writeEntityTypes,
 } from '../../core/world';
 import type {
+  AliasEdit,
   Entity,
   EntityType,
   FieldChange,
@@ -79,6 +81,8 @@ export const NOT_FOUND_TEXT = 'That note is no longer in the project (it may sti
 export const UNREADABLE_LIST_TEXT =
   'The "entities" property of that note is not a list of links, so it was left as it is. Put it right in the note itself.';
 export const UNREADABLE_FIELD_TEXT = 'That property holds a list or something else that is not one line of text, so it was left as it is. Change it in the note itself.';
+export const UNREADABLE_ALIASES_TEXT =
+  'The "aliases" property of that note is not a list of names, so it was left as it is. Put it right in the note itself.';
 export const UNREADABLE_RELATED_TEXT =
   'The "related" property of that note is not a list of links, so it was left as it is. Put it right in the note itself.';
 export const NOT_A_PICTURE_TEXT = 'That file is no longer in the vault, or it is not a picture.';
@@ -611,6 +615,29 @@ export class WorldHost {
     );
     this.changed();
     return (outcome as FieldChange) === 'unreadable' ? UNREADABLE_FIELD_TEXT : answerOf(result);
+  }
+
+  /**
+   * Change the other names of an entity by one: add a name, change one or
+   * take one away. The "aliases" property of its note is written as a list,
+   * starting from what the note says at the moment of writing. Only that
+   * property changes; never the note's text.
+   */
+  async changeAliases(entityPath: string, edit: AliasEdit): Promise<string | null> {
+    const project = this.writable();
+    if (typeof project === 'string') return project;
+    if (this.entity(entityPath) === null) return NOT_FOUND_TEXT;
+    let outcome: FieldChange = 'unchanged';
+    const result = await this.context.store.updateNoteProperties(
+      entityPath,
+      (frontmatter) => {
+        outcome = editAliases(frontmatter, edit);
+        return outcome === 'changed';
+      },
+      project.id,
+    );
+    this.changed();
+    return (outcome as FieldChange) === 'unreadable' ? UNREADABLE_ALIASES_TEXT : answerOf(result);
   }
 
   /**
