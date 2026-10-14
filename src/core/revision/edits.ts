@@ -75,3 +75,32 @@ export function applyToNote(note: string, expectedBody: string, edits: readonly 
   if (splitBody(result).head !== head) return null;
   return result;
 }
+
+/** Whether a character has capitals at all (Latin, Greek, Cyrillic do; Hebrew does not). */
+function hasCase(character: string): boolean {
+  return character.toLowerCase() !== character.toUpperCase();
+}
+
+/**
+ * The replacement for words found without "Match case", given the capitals
+ * of the words it replaces:
+ *   ALL CAPS found ("GULLS", two letters or more)   -> "SEABIRDS"
+ *   a capital first letter found ("Gulls", "G")     -> "Seabirds"
+ *   anything else ("gulls", "gULLS")                -> as typed
+ * Only letters that have capitals count; words in a script without them
+ * (Hebrew) leave the replacement as typed.
+ */
+export function withCaseOf(found: string, replacement: string): string {
+  const cased = [...found].filter(hasCase);
+  if (cased.length === 0) return replacement;
+  const upper = (character: string): boolean => character === character.toUpperCase();
+  if (cased.length >= 2 && cased.every(upper)) return replacement.toUpperCase();
+  const firstFound = [...found].find((character) => /\p{L}/u.test(character)) ?? '';
+  if (!hasCase(firstFound) || !upper(firstFound)) return replacement;
+  const characters = [...replacement];
+  // The first letter of the replacement, when it has a capital.
+  const first = characters.findIndex((character) => /\p{L}/u.test(character));
+  if (first < 0 || !hasCase(characters[first] ?? '')) return replacement;
+  characters[first] = (characters[first] ?? '').toUpperCase();
+  return characters.join('');
+}

@@ -8,12 +8,13 @@
 // offered unticked, since a joined letter can also make another word.
 //
 // Links to the entity ("[[Mara]]", "[[Mara|the keeper]]") are not listed by
-// their target: renaming the note brings those up to date by itself. What a
-// link shows after "|" is the writer's text, and is listed.
+// their target: the rename itself points them at the new name (see
+// renameWorldNote in src/core/projectStore.ts). What a link shows after "|"
+// is the writer's text, and is listed.
 
 import { sanitiseFileName } from '../names';
 import { findInText, isWordChar } from './search';
-import type { TextMatch } from './search';
+import type { SearchOptions, TextMatch } from './search';
 
 /** The Hebrew letters that are joined to the front of a word as a short word of their own. */
 const HEBREW_PREFIXES = 'והבלמשכ';
@@ -53,25 +54,36 @@ function joinedBefore(text: string, at: number): boolean {
   return false;
 }
 
+/**
+ * Every place in a text where the words are found, in order, as findInText
+ * finds them; and, for whole words, also the places where one or two Hebrew
+ * letters are joined to the front of a Hebrew word that is looked for
+ * ("the lighthouse", which Hebrew writes as one word), marked as joined.
+ * Only the words themselves are the place found there: the joined letters
+ * stay when they are replaced.
+ */
+export function findWithJoined(text: string, find: string, options: SearchOptions): NameOccurrence[] {
+  const found: NameOccurrence[] = findInText(text, find, options).map((match) => ({ ...match, joined: false }));
+  if (!options.wholeWords) return found;
+  const starts = new Set(found.map((match) => match.from));
+  let joined = false;
+  for (const match of findInText(text, find, { ...options, wholeWords: false })) {
+    if (!HEBREW_LETTER.test(match.text.charAt(0)) || starts.has(match.from)) continue;
+    // The word must end where the words found end, and only joined letters may stand before them.
+    if (isWordChar(text.charAt(match.to)) || !joinedBefore(text, match.from)) continue;
+    found.push({ ...match, joined: true });
+    joined = true;
+  }
+  if (joined) found.sort((a, b) => a.from - b.from);
+  return found;
+}
+
 /** Every place in a text where a name stands, in order. */
 export function nameOccurrences(text: string, name: string): NameOccurrence[] {
   const wanted = name.trim();
   if (wanted === '') return [];
   const links = linkTargets(text);
-  const found: NameOccurrence[] = findInText(text, wanted, { matchCase: true, wholeWords: true, wildcards: false })
-    .filter((match) => !inside(links, match.from, match.to))
-    .map((match) => ({ ...match, joined: false }));
-  if (HEBREW_LETTER.test(wanted.charAt(0))) {
-    // The name with letters joined to its front: everywhere it stands, a word's end after it.
-    for (const match of findInText(text, wanted, { matchCase: true, wholeWords: false, wildcards: false })) {
-      if (found.some((other) => other.from === match.from)) continue;
-      if (isWordChar(text.charAt(match.to)) || !joinedBefore(text, match.from)) continue;
-      if (inside(links, match.from, match.to)) continue;
-      found.push({ ...match, joined: true });
-    }
-    found.sort((a, b) => a.from - b.from);
-  }
-  return found;
+  return findWithJoined(text, wanted, { matchCase: true, wholeWords: true, wildcards: false }).filter((match) => !inside(links, match.from, match.to));
 }
 
 /** Why a new name will not do, or null when it will. */

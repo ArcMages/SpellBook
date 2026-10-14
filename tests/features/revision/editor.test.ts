@@ -7,6 +7,7 @@ import type { DecorationSet, EditorView, ViewUpdate } from '@codemirror/view';
 import { editorInfoField } from 'obsidian';
 import { describe, expect, it } from 'vitest';
 import { NotesReader, PASSAGE_NOTE, RevisionMarksView, notesAt } from '../../../src/features/revision/index';
+import { markLineAt, tipPlace } from '../../../src/features/revision/editor';
 import type { RevisionEditorHost } from '../../../src/features/revision/editor';
 import { ManualTimers } from '../../memoryVault';
 import { FakeElement } from '../../obsidianStub';
@@ -147,5 +148,36 @@ describe('the underlined passages', () => {
     const word = inner.createSpan({});
     expect(notesAt(word, null)).toEqual(['inner', 'outer']);
     expect(notesAt(word, outer)).toEqual(['inner']);
+  });
+});
+
+describe('where the bubble of a note goes', () => {
+  const tip = { width: 200, height: 40 };
+  const screen = { width: 1000, height: 800 };
+
+  it('stands above the line of the passage, so that it covers neither the passage nor the line after it', () => {
+    const line = { top: 300, bottom: 320 };
+    const place = tipPlace(tip, screen, 120, 310, line);
+    expect(place.top + tip.height).toBeLessThanOrEqual(line.top);
+    expect(place.left).toBe(120);
+  });
+
+  it('goes below the line only when there is no room above it, and stays on the screen across', () => {
+    const line = { top: 20, bottom: 40 };
+    const place = tipPlace(tip, screen, 950, 30, line);
+    expect(place.top).toBeGreaterThanOrEqual(line.bottom);
+    expect(place.left + tip.width).toBeLessThanOrEqual(screen.width);
+  });
+
+  it('finds the line of the mark under the pointer, among the lines a passage runs over', () => {
+    const within = new FakeElement('div');
+    const mark = within.createSpan({ attr: { [PASSAGE_NOTE]: 'Colder.' } });
+    const word = mark.createSpan({ text: 'night' });
+    (mark as unknown as { getClientRects: () => Array<{ top: number; bottom: number }> }).getClientRects = () => [
+      { top: 100, bottom: 120 },
+      { top: 120, bottom: 140 },
+    ];
+    expect(markLineAt(word, within, 130)).toEqual({ top: 120, bottom: 140 });
+    expect(markLineAt(within, within, 130)).toBeNull();
   });
 });

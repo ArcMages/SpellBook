@@ -11,6 +11,7 @@ import {
   contextOf,
   editsFit,
   findInText,
+  findWithJoined,
   findNote,
   linkTargets,
   locatePassage,
@@ -18,6 +19,7 @@ import {
   newNameProblem,
   passageMarks,
   patternOf,
+  withCaseOf,
   propertiesOf,
   readNotes,
   removeNoteFrom,
@@ -214,5 +216,49 @@ describe('where a name stands, for Rename everywhere', () => {
     expect(newNameProblem('Mara', '  ')).not.toBeNull();
     expect(newNameProblem('Mara', 'Di/na')).not.toBeNull();
     expect(newNameProblem('Mara', 'דינה')).toBeNull();
+  });
+});
+
+describe('withCaseOf: a replacement takes the capitals of the words it replaces', () => {
+  it('capitalises after a capital first letter, upper-cases after ALL CAPS, and leaves the rest as typed', () => {
+    expect(withCaseOf('Gulls', 'seabirds')).toBe('Seabirds');
+    expect(withCaseOf('GULLS', 'seabirds')).toBe('SEABIRDS');
+    expect(withCaseOf('gulls', 'seabirds')).toBe('seabirds');
+    expect(withCaseOf('gulls', 'Seabirds')).toBe('Seabirds');
+    expect(withCaseOf('G', 'seabirds')).toBe('Seabirds');
+    expect(withCaseOf('gULLS', 'seabirds')).toBe('seabirds');
+    expect(withCaseOf('Gulls', '"sea" birds')).toBe('"Sea" birds');
+    expect(withCaseOf('Gulls', '')).toBe('');
+  });
+
+  it('leaves words without capitals (Hebrew) as they are, on either side', () => {
+    expect(withCaseOf('שחפים', 'seabirds')).toBe('seabirds');
+    expect(withCaseOf('Gulls', 'שחפים')).toBe('שחפים');
+    expect(withCaseOf('GULLS', 'שחפים')).toBe('שחפים');
+    expect(withCaseOf('Gulls', 'שחפים and gulls')).toBe('שחפים and gulls');
+  });
+});
+
+describe('findWithJoined: whole words, and Hebrew words with letters joined to their front', () => {
+  const whole = { matchCase: false, wholeWords: true, wildcards: false };
+
+  it('finds the word itself, and a joined form marked as joined', () => {
+    const text = 'מגדלור. המגדלור והמגדלור, מגדלורים.';
+    const found = findWithJoined(text, 'מגדלור', whole);
+    expect(found.map((match) => [text.slice(match.from, match.to), match.joined])).toEqual([
+      ['מגדלור', false],
+      ['מגדלור', true],
+      ['מגדלור', true],
+    ]);
+    expect(found[1]?.from).toBe(text.indexOf('המגדלור') + 1);
+  });
+
+  it('finds no joined forms without whole words (they are found anyway), nor for English words', () => {
+    expect(findWithJoined('המגדלור', 'מגדלור', { ...whole, wholeWords: false }).map((match) => match.joined)).toEqual([false]);
+    expect(findWithJoined('the art of start', 'art', whole).map((match) => match.from)).toEqual([4]);
+  });
+
+  it('is what Rename everywhere finds too, without link targets', () => {
+    expect(nameOccurrences('המגדלור [[מגדלור]]', 'מגדלור').map((match) => match.joined)).toEqual([true]);
   });
 });

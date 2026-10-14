@@ -418,7 +418,7 @@ describe('making an entity', () => {
 });
 
 describe('the card\'s menu', () => {
-  it('renames the note, and nothing else', async () => {
+  it('renames the note, and points the links to it at the new name', async () => {
     const s = await stage();
     const { pane } = await openWorld(s);
     one(cardNamed(pane, 'Mara'), 'spellbook-world-card-more').fire('click');
@@ -427,7 +427,12 @@ describe('the card\'s menu', () => {
     expect(one(lastWindow().contentEl, 'spellbook-prompt-input').value).toBe('Mara');
     await answer(s, 'Saltwick');
     // Another note of that name in another folder is no clash.
-    expect(s.vault.writes).toEqual([{ op: 'rename', path: inNovel(MARA), to: 'Novel/World/Characters/Saltwick.md' }]);
+    expect(s.vault.writes).toEqual([
+      { op: 'moveFile', path: inNovel(MARA), to: 'Novel/World/Characters/Saltwick.md' },
+      { op: 'updateFrontmatter', path: inNovel(OPENING) },
+    ]);
+    // A bare "Saltwick" would lead to the place, so the link names the whole path.
+    expect(s.vault.frontmatterOf(inNovel(OPENING))?.['entities']).toEqual(['[[Novel/World/Characters/Saltwick]]', '[[Saltwick]]']);
     expect(s.vault.bodyOf('Novel/World/Characters/Saltwick.md')).toBe('## Description\n\nHer story so far.\n');
     expect(groupsOf(pane)[0]).toEqual(['Characters', '2', ['Saltwick', MARA_HE]]);
   });
@@ -716,18 +721,14 @@ describe('who is in a scene (what the inspector is offered)', () => {
     expect(s.vault.frontmatterOf(inNovel(LETTER))?.['entities']).toEqual({ who: 'Mara' });
   });
 
-  it('keeps a link working when the entity is renamed (the vault rewrites the link, as Obsidian does)', async () => {
+  it('keeps a link working when the entity is renamed (Spellbook points the link at the new name itself)', async () => {
     const s = await stage();
     const { pane } = await openWorld(s);
     one(cardNamed(pane, 'Mara'), 'spellbook-world-card-more').fire('click');
     lastMenu().item('Rename').click();
     await answer(s, 'Mara Voss');
-    // The memory vault does not rewrite links. Obsidian does: here it is done by hand, as another device would.
-    expect(service(s).of(OPENING).map((chip) => [chip.name, chip.found])).toEqual([['Mara', false], ['Saltwick', true]]);
-    s.vault.external.editFrontmatter(inNovel(OPENING), (frontmatter) => {
-      frontmatter['entities'] = ['[[Mara Voss]]', '[[Saltwick]]'];
-    });
     await calm(s);
+    expect(s.vault.frontmatterOf(inNovel(OPENING))?.['entities']).toEqual(['[[Mara Voss]]', '[[Saltwick]]']);
     expect(service(s).of(OPENING).map((chip) => [chip.name, chip.found])).toEqual([['Mara Voss', true], ['Saltwick', true]]);
     expect(one(cardNamed(pane, 'Mara Voss'), 'spellbook-world-card-scenes').text).toBe('1 scene');
   });

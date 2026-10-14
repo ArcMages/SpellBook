@@ -18,6 +18,7 @@
 
 import { TFile, TFolder, getFrontMatterInfo, parseYaml, stringifyYaml } from 'obsidian';
 import type { App, CachedMetadata, TAbstractFile } from 'obsidian';
+import { linkPlaces } from '../src/core/links';
 import { resolveLinkAmong } from './memoryVault';
 import { FakeElement } from './obsidianStub';
 
@@ -164,8 +165,14 @@ class FakeVault extends FakeEvents {
     throw new Error('vault.modify must never be used: a note\'s text is not the plugin\'s to rewrite');
   }
 
-  async rename(): Promise<void> {
-    throw new Error('vault.rename must not be used: use fileManager.renameFile so links are updated');
+  /**
+   * Renames a file and does nothing else, as Obsidian's own does: links to it
+   * are left as they are. (fileManager.renameFile is the one that updates
+   * them, or asks.) Every call is recorded in the app's calls.
+   */
+  async rename(file: TAbstractFile, newPath: string): Promise<void> {
+    this.owner.calls.push(`vault.rename ${file.path} -> ${newPath}`);
+    this.owner.move(file, newPath);
   }
 
   // --- helpers for building the fake vault
@@ -221,6 +228,21 @@ class FakeMetadataCache extends FakeEvents {
     const paths = this.owner.vault.getFiles().map((file) => file.path);
     const found = resolveLinkAmong(paths, linkpath, sourcePath);
     return found === null ? null : this.owner.vault.getFileByPath(found);
+  }
+
+  /** Which notes link to which files, worked out from their text each time it is asked, as Obsidian keeps it. */
+  get resolvedLinks(): Record<string, Record<string, number>> {
+    const paths = this.owner.vault.getFiles().map((file) => file.path);
+    const resolved: Record<string, Record<string, number>> = {};
+    for (const file of this.owner.vault.getMarkdownFiles()) {
+      const targets: Record<string, number> = {};
+      for (const place of linkPlaces(this.owner.vault.text.get(file.path) ?? '')) {
+        const target = resolveLinkAmong(paths, place.path, file.path);
+        if (target !== null) targets[target] = (targets[target] ?? 0) + 1;
+      }
+      resolved[file.path] = targets;
+    }
+    return resolved;
   }
 
   private parse(file: TFile): CachedMetadata {
@@ -527,23 +549,7 @@ export class FakeObsidian {
     },
     renameFile: async (file: TAbstractFile, newPath: string): Promise<void> => {
       this.calls.push(`renameFile ${file.path} -> ${newPath}`);
-      if (this.vault.entries.has(newPath)) throw new Error('Destination file already exists!');
-      const oldPath = file.path;
-      const text = this.vault.text.get(oldPath) ?? '';
-      this.vault.detach(file);
-      const parent = this.vault.attachFolder(parentOf(newPath));
-      file.path = newPath;
-      file.name = nameOf(newPath);
-      if (file instanceof TFile) {
-        const dot = file.name.lastIndexOf('.');
-        file.basename = dot < 0 ? file.name : file.name.slice(0, dot);
-      }
-      file.parent = parent;
-      parent.children.push(file);
-      this.vault.entries.set(newPath, file);
-      this.vault.text.set(newPath, text);
-      this.metadataCache.move(oldPath, newPath);
-      this.vault.trigger('rename', file, oldPath);
+      this.move(file, newPath);
     },
     trashFile: async (file: TAbstractFile): Promise<void> => {
       this.calls.push(`trashFile ${file.path}`);
@@ -553,6 +559,27 @@ export class FakeObsidian {
       this.vault.trigger('delete', file);
     },
   };
+
+  /** Move a file to a new path, as a rename does. */
+  move(file: TAbstractFile, newPath: string): void {
+    if (this.vault.entries.has(newPath)) throw new Error('Destination file already exists!');
+    const oldPath = file.path;
+    const text = this.vault.text.get(oldPath) ?? '';
+    this.vault.detach(file);
+    const parent = this.vault.attachFolder(parentOf(newPath));
+    file.path = newPath;
+    file.name = nameOf(newPath);
+    if (file instanceof TFile) {
+      const dot = file.name.lastIndexOf('.');
+      file.basename = dot < 0 ? file.name : file.name.slice(0, dot);
+    }
+    file.parent = parent;
+    parent.children.push(file);
+    this.vault.entries.set(newPath, file);
+    this.vault.text.set(newPath, text);
+    this.metadataCache.move(oldPath, newPath);
+    this.vault.trigger('rename', file, oldPath);
+  }
 
   /** Paths whose text was actually written by processFrontMatter. */
   readonly saves: string[] = [];

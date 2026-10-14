@@ -16,12 +16,13 @@
 // Every write the code under test makes is recorded in `writes`, so tests can
 // assert exactly which files were touched.
 
+import { linkPlaces } from '../src/core/links';
 import { clashKey, isImagePath, isInside, isMarkdownPath, joinPath, parentPath } from '../src/core/paths';
 import type { Frontmatter } from '../src/core/types';
 import { VaultFileMissingError } from '../src/core/vaultPort';
 import type { MarkdownFileInfo, VaultEvent, VaultListener, VaultPort } from '../src/core/vaultPort';
 
-export type WriteOp = 'createFile' | 'createBinary' | 'createFolder' | 'rename' | 'trash' | 'updateFrontmatter' | 'updateText' | 'replaceText' | 'updateBoardText';
+export type WriteOp = 'createFile' | 'createBinary' | 'createFolder' | 'rename' | 'moveFile' | 'trash' | 'updateFrontmatter' | 'updateText' | 'replaceText' | 'updateBoardText' | 'updateLinks';
 
 export interface WriteRecord {
   readonly op: WriteOp;
@@ -435,6 +436,43 @@ export class MemoryVault implements VaultPort {
     return to;
   }
 
+  async moveFile(from: string, to: string): Promise<string> {
+    this.maybeFail('moveFile', from);
+    if (!this.files.has(from)) throw new VaultFileMissingError(from);
+    if (this.exists(to) && clashKey(to) !== clashKey(from)) throw new Error(`Destination file already exists: ${to}`);
+    this.writes.push({ op: 'moveFile', path: from, to });
+    this.moveEntry(from, to, false);
+    return to;
+  }
+
+  /** The notes with a link (in their text or their properties) that resolves to the file, as Obsidian's resolvedLinks has them. */
+  linkSources(path: string): string[] {
+    if (!this.files.has(path)) return [];
+    const paths = [...this.files.keys()];
+    const sources: string[] = [];
+    for (const [source, file] of this.files) {
+      if (!isMarkdownPath(source) || file.bytes !== undefined) continue;
+      const text = this.compose(file);
+      if (linkPlaces(text).some((place) => resolveLinkAmong(paths, place.path, source) === path)) sources.push(source);
+    }
+    return sources.sort();
+  }
+
+  async updateLinks(path: string, change: (current: string) => string | null): Promise<boolean> {
+    const file = this.files.get(path);
+    if (!file) throw new VaultFileMissingError(path);
+    // The callback always sees the file as it is on disk right now.
+    const current = this.compose(file);
+    const text = change(current);
+    if (text === null || text === current) return false;
+    this.maybeFail('updateLinks', path);
+    this.writes.push({ op: 'updateLinks', path });
+    Object.assign(file, { ...takeApart(text), corrupt: false, raw: text });
+    this.emit({ type: 'modify', path });
+    this.index(path);
+    return true;
+  }
+
   async trash(path: string): Promise<void> {
     this.maybeFail('trash', path);
     if (!this.files.has(path)) throw new VaultFileMissingError(path);
@@ -588,7 +626,7 @@ export class MemoryVault implements VaultPort {
     }
     if (this.files.has(from)) {
       this.ensureFolders(parentPath(to), silent);
-      this.moveFile(from, to);
+      this.moveOneFile(from, to);
       if (!silent) this.emit({ type: 'rename', path: to, oldPath: from, folder: false });
       return;
     }
@@ -598,7 +636,7 @@ export class MemoryVault implements VaultPort {
     const movedFiles: Array<[string, string]> = [];
     for (const file of [...this.files.keys()].filter((candidate) => isInside(from, candidate))) {
       const target = joinPath(to, file.slice(from.length + 1));
-      this.moveFile(file, target);
+      this.moveOneFile(file, target);
       movedFiles.push([file, target]);
     }
     const movedFolders: Array<[string, string]> = [];
@@ -629,7 +667,7 @@ export class MemoryVault implements VaultPort {
   }
 
   /** Move one file's content and index entry. Obsidian sends no "metadata" event for a rename. */
-  private moveFile(from: string, to: string): void {
+  private moveOneFile(from: string, to: string): void {
     const file = this.files.get(from);
     if (!file) return;
     this.files.delete(from);

@@ -8,8 +8,8 @@
 //                       store.updateNoteProperties (a property; the text is not touched)
 //   - a replace         store.replaceInSceneBody, after a snapshot taken
 //                       through the snapshots' own service
-//   - a renamed entity  store.renameWorldNote, and its other names through
-//                       store.updateNoteProperties
+//   - a renamed entity  store.renameWorldNote (the note and the links to it),
+//                       and its other names through store.updateNoteProperties
 //
 // Replacing words is one of the two things in the plugin that change what
 // the writer wrote (restoring a snapshot is the other), so it goes carefully
@@ -18,7 +18,7 @@
 import type { App, EditorPosition } from 'obsidian';
 import { sanitiseFileName } from '../../core/names';
 import { isInside, joinPath, noteTitle, parentPath, pathKey, relativeTo } from '../../core/paths';
-import { REVISION_NOTES_KEY, addNoteTo, changeNoteIn, findInText, findNote, locatePassage, nameOccurrences, readNotes, removeNoteFrom, splitBody, tidyPassage } from '../../core/revision/index';
+import { REVISION_NOTES_KEY, addNoteTo, changeNoteIn, findNote, findWithJoined, locatePassage, nameOccurrences, readNotes, removeNoteFrom, splitBody, tidyPassage } from '../../core/revision/index';
 import type { BodyEdit, NameOccurrence, PlacedNote, SearchOptions, TextMatch } from '../../core/revision/index';
 import type { Frontmatter, IntentResult, TreeNode } from '../../core/types';
 import type { VaultEvent } from '../../core/vaultPort';
@@ -101,6 +101,19 @@ export interface RenameReport {
   /** Why the old name could not be kept as another name; null when it was, or was not asked for. */
   readonly aliasProblem: string | null;
   readonly replaced: ReplaceReport;
+  /** What came of the links to it. */
+  readonly links: LinksReport;
+}
+
+/** What came of the links to a renamed entity. */
+export interface LinksReport {
+  /** How many links in the project now lead to the new name, and in how many notes. */
+  readonly changed: number;
+  readonly notes: number;
+  /** Notes outside the project that link to it (vault paths): left as they are. */
+  readonly outside: readonly string[];
+  /** Notes in the project whose links could not be changed, by title. */
+  readonly missed: readonly string[];
 }
 
 /** What the keeper tells those who follow it. */
@@ -429,9 +442,11 @@ export class RevisionKeeper {
    * Look for words in the text of the scenes (without their properties): in
    * all of them, or in those inside one binder folder. What is typed in open
    * editors is saved first. Scenes where nothing is found are left out.
+   * With whole words, Hebrew words with a letter joined to their front are
+   * found too, marked as joined (see findWithJoined).
    */
-  async search(find: string, options: SearchOptions, folderId: string | null): Promise<SceneMatches[]> {
-    return this.searchWith(folderId, (body) => findInText(body, find, options));
+  async search(find: string, options: SearchOptions, folderId: string | null): Promise<Array<SceneMatches<NameOccurrence>>> {
+    return this.searchWith(folderId, (body) => findWithJoined(body, find, options));
   }
 
   /** Where an entity's name stands in the text of the scenes. See nameOccurrences. */
@@ -532,13 +547,24 @@ export class RevisionKeeper {
   }
 
   /**
-   * Rename an entity everywhere:
-   *  1. the ticked places in the manuscript, with a snapshot of each scene
+   * The notes outside the project that link to an entity's note, as vault
+   * paths. Spellbook changes nothing outside a project, so those links are
+   * left as they are when it is renamed. Reads no file.
+   */
+  linksFromOutside(entityPath: string): string[] {
+    return this.disposed ? [] : this.context.store.linksFromOutside(entityPath);
+  }
+
+  /**
+   * Rename an entity everywhere, in this order, so that nothing waits on
+   * anything the writer has to answer:
+   *  1. its old name added to its other names, when asked;
+   *  2. the ticked places in the manuscript, with a snapshot of each scene
    *     first (see replace);
-   *  2. its note, through Obsidian's rename, so that links to it follow;
-   *  3. its old name added to its other names, when asked.
-   * The note is not renamed when the name will not do (it is checked first);
-   * the text is left as it is then too.
+   *  3. its note, and every link to it in the project, by the store itself
+   *     (see renameWorldNote): not left to Obsidian, which asks first unless
+   *     the writer has told it to always update links.
+   * Nothing is done when the name will not do (it is checked first).
    */
   async renameEverywhere(entityPath: string, newName: string, keepOldName: boolean, plans: readonly ScenePlan[]): Promise<RenameReport | string> {
     const blocked = this.whyNotWritable();
@@ -547,22 +573,17 @@ export class RevisionKeeper {
     if (!entity) return 'That entity is no longer in the project.';
     const name = newName.trim();
     if (name === '' || sanitiseFileName(name, '') !== name) return `"${name}" cannot be used as the name of a note.`;
+    if (name === entity.name) return 'That is the name it has now.';
     const target = pathKey(joinPath(parentPath(entity.path), `${name}.md`));
     const taken = target !== pathKey(entity.path) && this.context.store.projectNotes().some((note) => pathKey(note.path) === target);
     if (taken) return `There is already a note called "${name}" in that folder.`;
 
-    const replaced = await this.replace(plans, `Before rename: ${entity.name} → ${name}`);
-    const renamed = await this.context.store.renameWorldNote(entity.path, name, this.projectId());
-    if (renamed.status !== 'done' && !(renamed.status === 'noop' && renamed.reason === 'unchanged')) {
-      return `${renamed.message}${replaced.changes > 0 ? ` The text was changed in ${replaced.scenes} ${replaced.scenes === 1 ? 'scene' : 'scenes'}.` : ''}`;
-    }
-    const path = renamed.status === 'done' ? renamed.value.path : entity.path;
     let aliasProblem: string | null = null;
     if (keepOldName) {
       const old = entity.name;
       let unreadable = false;
       const result = await this.context.store.updateNoteProperties(
-        path,
+        entity.path,
         (frontmatter) => {
           if (readAliases(frontmatter).includes(old)) return false;
           const change = editAliases(frontmatter, { add: old });
@@ -573,8 +594,18 @@ export class RevisionKeeper {
       );
       aliasProblem = unreadable ? 'The old name could not be added to its other names: its "aliases" property holds something else.' : problemOf(result);
     }
+
+    const replaced = await this.replace(plans, `Before rename: ${entity.name} → ${name}`);
+    const renamed = await this.context.store.renameWorldNote(entity.path, name, this.projectId());
     this.emit({ type: 'notes' });
-    return { path, aliasProblem, replaced };
+    if (renamed.status !== 'done') {
+      const parts = [renamed.message];
+      if (replaced.changes > 0) parts.push(`The text was changed in ${replaced.scenes} ${replaced.scenes === 1 ? 'scene' : 'scenes'}.`);
+      if (keepOldName && aliasProblem === null) parts.push(`"${entity.name}" was added to its other names.`);
+      return parts.join(' ');
+    }
+    const { path, links, notes, outside, missed } = renamed.value;
+    return { path, aliasProblem, replaced, links: { changed: links, notes, outside, missed } };
   }
 
   private projectId(): string | undefined {

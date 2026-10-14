@@ -10,6 +10,9 @@ import { contextOf } from '../../core/revision/index';
 import type { BodyEdit, TextMatch } from '../../core/revision/index';
 import type { SceneMatches, ScenePlan } from './keeper';
 
+/** The word shown after a place where Hebrew letters are joined to the front of the words found. */
+export const JOINED_TEXT = 'joined letter';
+
 /** The most places drawn in the list; the others are counted and can still be ticked as a scene. */
 export const MOST_DRAWN = 600;
 
@@ -94,7 +97,9 @@ export class TickedResults<M extends TextMatch = TextMatch> {
     let drawn = 0;
     this.groups.forEach((group, at) => {
       const scene = into.createDiv({ cls: 'spellbook-revision-result-scene' });
-      const head = scene.createEl('label', { cls: 'spellbook-revision-result-head' });
+      // A row takes the direction of its own words, so that in a right-to-left
+      // scene the tick stands at their start, on the right, beside them.
+      const head = scene.createEl('label', { cls: 'spellbook-revision-result-head', attr: { dir: 'auto' } });
       const all = head.createEl('input', { attr: { type: 'checkbox', 'aria-label': `All places in ${group.scene.title}` } });
       head.createSpan({ cls: 'spellbook-revision-result-title', text: group.scene.title, attr: { dir: 'auto' } });
       const count = head.createSpan({ cls: 'spellbook-revision-result-count' });
@@ -118,7 +123,7 @@ export class TickedResults<M extends TextMatch = TextMatch> {
       group.matches.forEach((match, index) => {
         if (drawn >= MOST_DRAWN) return;
         drawn++;
-        const row = list.createEl('label', { cls: 'spellbook-revision-result' });
+        const row = list.createEl('label', { cls: 'spellbook-revision-result', attr: { dir: 'auto' } });
         const box = row.createEl('input', { attr: { type: 'checkbox' } });
         boxes.push(box);
         box.addEventListener('change', () => {

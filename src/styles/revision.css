@@ -174,6 +174,32 @@
   margin-inline-end: auto;
 }
 
+.spellbook-revision-actions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--size-2-2);
+  margin-inline-start: auto;
+}
+
+.spellbook-revision .spellbook-revision-small {
+  height: auto;
+  padding: var(--size-2-1) var(--size-4-2);
+  font-size: var(--font-ui-small);
+}
+
+.spellbook-revision .spellbook-revision-delete {
+  background-color: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.spellbook-revision .spellbook-revision-delete:hover,
+.spellbook-revision .spellbook-revision-delete:focus-visible {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-error);
+}
+
 .spellbook-revision.spellbook-is-mobile .spellbook-revision-button,
 .spellbook-revision.spellbook-is-mobile .spellbook-revision-segment,
 .spellbook-revision.spellbook-is-mobile .spellbook-revision-done {
@@ -186,6 +212,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--size-4-2);
+}
+
+.spellbook-revision-find-options {
+  margin-block-start: var(--size-4-3);
 }
 
 .spellbook-revision-find-field {
@@ -294,4 +324,18 @@
   width: 100%;
   min-height: 6em;
   resize: vertical;
+}
+
+.spellbook-revision-rename-busy {
+  color: var(--text-accent);
+  font-size: var(--font-ui-small);
+}
+
+.spellbook-revision-rename .spellbook-is-hidden {
+  display: none;
+}
+
+.spellbook-revision-rename-modal.spellbook-is-busy .spellbook-revision-results {
+  opacity: 0.6;
+  pointer-events: none;
 }

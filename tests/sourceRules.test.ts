@@ -248,8 +248,16 @@ describe('the whole plugin', () => {
     // off limits: the FileManager ones (trashFile, renameFile, processFrontMatter) are used instead.
     expect(adapterFiles.length).toBeGreaterThan(0);
     const destructive = /\bvault\s*\.\s*(delete|trash|modify|modifyBinary|append|appendBinary|rename|copy)\s*\(/;
+    // One exception: renaming an entity's note, whose links the store brings
+    // up to date itself (see the rule about links below). It is the one call
+    // to vault.rename, in moveFile, and it renames and does nothing else.
+    const doorway = codeOf(path.join(srcDir, 'obsidian', 'obsidianVault.ts'));
+    const moveFile = /\n  async moveFile\([\s\S]*?\n  \}\n/.exec(doorway)?.[0] ?? '';
+    expect((moveFile.match(/\bvault\s*\.\s*rename\s*\(/g) ?? []).length).toBe(1);
+    expect((doorway.match(/\bvault\s*\.\s*rename\s*\(/g) ?? []).length).toBe(1);
     for (const file of adapterFiles) {
-      expect(destructive.test(codeOf(file)), relative(file)).toBe(false);
+      const code = relative(file) === 'obsidian/obsidianVault.ts' ? codeOf(file).replace(moveFile, '') : codeOf(file);
+      expect(destructive.test(code), relative(file)).toBe(false);
     }
     for (const file of allFiles) {
       expect(/\badapter\s*\./.test(codeOf(file)), `${relative(file)} must not use the low-level adapter`).toBe(false);
@@ -391,6 +399,36 @@ describe('the whole plugin', () => {
     expect(replaceRun.indexOf('taker.takeNamed(')).toBeGreaterThan(0);
     expect(replaceRun.indexOf('this.context.store.replaceInSceneBody(')).toBeGreaterThan(replaceRun.indexOf('taker.takeNamed('));
     expect(replaceRun).toMatch(/if \(snapshot !== null\) \{\s*problems\.push\([^;]*\);\s*continue;\s*\}/);
+  });
+
+  it('renames an entity\'s note without the vault\'s own link updating in one place, and then points the links in the project at it', () => {
+    // moveFile (a rename that leaves the links alone), linkSources and
+    // updateLinks are reached from the project store alone, and only in
+    // renameWorldNote: so no other note is ever renamed with its links left
+    // behind, and no other text is changed through updateLinks.
+    for (const method of ['moveFile', 'updateLinks', 'linkSources']) {
+      const callers = allFiles.filter((file) => new RegExp(`\\.\\s*${method}\\s*\\(`).test(codeOf(file))).map(relative);
+      expect(callers.filter((file) => file !== 'obsidian/obsidianVault.ts'), method).toEqual(['core/projectStore.ts']);
+    }
+    const store = codeOf(path.join(srcDir, 'core', 'projectStore.ts'));
+    const rename = /\n  renameWorldNote\([\s\S]*?\n  \}\n/.exec(store)?.[0] ?? '';
+    for (const method of ['moveFile', 'updateLinks']) {
+      const uses = (store.match(new RegExp(`\\.\\s*${method}\\s*\\(`, 'g')) ?? []).length;
+      expect(uses, method).toBe(1);
+      expect(rename, method).toMatch(new RegExp(`this\\.vault\\.${method}\\(`));
+    }
+    // The checks come first, and only the notes inside the project are read and changed.
+    const before = rename.split('this.vault.moveFile(')[0] ?? '';
+    expect(before).toMatch(/const blocked = this\.whyNotWritable\(active\);\s*if \(blocked \|\| !active\) return /);
+    expect(before).toMatch(/const file = this\.worldNote\(active, path\);\s*if \('status' in file\) return file;/);
+    expect(before).toMatch(/if \(!isInside\(active\.folder, source\)\) continue;/);
+    // The text keeps its properties block as it is, and nothing but link targets change.
+    expect(rename).toMatch(/const result = retargetLinks\(body, retarget\);/);
+    expect(rename).toMatch(/return result\.count > 0 \? head \+ result\.text : null;/);
+    const doorway = codeOf(path.join(srcDir, 'obsidian', 'obsidianVault.ts'));
+    const update = /\n  async updateLinks\([\s\S]*?\n  \}\n/.exec(doorway)?.[0] ?? '';
+    expect(update).toMatch(/return this\.changeText\(this\.requireFile\(path\), /);
+    expect(update).not.toMatch(/\.create\(/);
   });
 
   it('writes and trashes snapshots in one folder only, through the store', () => {
