@@ -214,7 +214,7 @@ describe('the Find and replace window, with the writer\'s capitals and Hebrew', 
     expect(button(modal, 'Replace').buttonEl.text).toBe('Replace');
     // Each row takes the direction of its own words, so that the tick stands at their start.
     expect(rows[0]?.getAttr('dir')).toBe('rtl');
-    for (const head of modal.contentEl.withClass('spellbook-revision-result-head')) expect(head.getAttr('dir')).toBe('auto');
+    for (const head of modal.contentEl.withClass('spellbook-revision-result-head')) expect(head.getAttr('dir')).toBe('rtl');
   });
 });
 
