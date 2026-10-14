@@ -27,7 +27,7 @@ import {
   withFolded,
   writePrefs,
 } from '../../src/core/plotgrid';
-import type { PlotColumn } from '../../src/core/plotgrid';
+import type { PlotColumn, PlotGridPrefs } from '../../src/core/plotgrid';
 import { readLanes } from '../../src/core/timeline';
 import type { TreeNode } from '../../src/core/types';
 import { BUILT_IN_TYPES, buildWorldLinks } from '../../src/core/world';
@@ -238,7 +238,7 @@ describe('the grid', () => {
 
 describe('what the device remembers', () => {
   it('reads back what it wrote, and the defaults for anything it cannot read', () => {
-    let prefs = { ...DEFAULT_PREFS, kind: 'chosen' as const, synopsisLine: true, gapLength: 8 };
+    let prefs: PlotGridPrefs = { ...DEFAULT_PREFS, kind: 'chosen', synopsisLine: true, gapLength: 8 };
     prefs = withChosen(prefs, 'Novel/Novel.md', ['World/Characters/Mara.md', 'World/Characters/Mara.md', 'World/Places/Harbour.md']);
     prefs = withFolded(prefs, 'Novel/Novel.md', ['f1']);
     const back = readPrefs(writePrefs(prefs));
