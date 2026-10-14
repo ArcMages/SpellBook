@@ -4,6 +4,7 @@
 // cannot prove how the real app behaves; that needs trying in Obsidian.
 
 import { describe, expect, it } from 'vitest';
+import type { TFile } from 'obsidian';
 import { ProjectStore } from '../src/core/projectStore';
 import { VaultFileMissingError } from '../src/core/vaultPort';
 import type { VaultEvent } from '../src/core/vaultPort';
@@ -53,6 +54,46 @@ describe('ObsidianVault: reading', () => {
     ]);
     expect(vault.listMarkdownFiles('Novel/Manuscript').map((file) => file.path)).toEqual(['Novel/Manuscript/Opening.md']);
     expect(vault.listMarkdownFiles('')).toHaveLength(4);
+  });
+
+  it('gives the same list again while nothing changes, and one that cannot be changed', () => {
+    const { vault } = started();
+    const first = vault.listMarkdownFiles('Novel');
+    expect(vault.listMarkdownFiles('Novel')).toBe(first);
+    expect(Object.isFrozen(first)).toBe(true);
+    expect(vault.listMarkdownFiles()).not.toBe(first); // each folder has a list of its own
+    expect(vault.listMarkdownFiles('Novel/')).toBe(first);
+  });
+
+  it('lists again after a note arrives, leaves, moves, or its properties change', async () => {
+    const { vault, fake } = started();
+    const paths = (): string[] => vault.listMarkdownFiles('Novel').map((file) => file.path);
+    expect(paths()).toEqual(['Novel/Novel.md', 'Novel/Manuscript/Opening.md']);
+    await vault.createFile('Novel/Manuscript/Middle.md', 'x', { status: 'To do' });
+    expect(paths()).toContain('Novel/Manuscript/Middle.md');
+    await vault.moveFile('Novel/Manuscript/Middle.md', 'Novel/Manuscript/Centre.md');
+    expect(paths()).toContain('Novel/Manuscript/Centre.md');
+    expect(paths()).not.toContain('Novel/Manuscript/Middle.md');
+    await vault.updateFrontmatter('Novel/Manuscript/Opening.md', (frontmatter) => {
+      frontmatter['status'] = 'Final';
+      return true;
+    });
+    fake.metadataCache.index(fake.vault.getFileByPath('Novel/Manuscript/Opening.md') as TFile);
+    expect(vault.listMarkdownFiles('Novel').find((file) => file.path === 'Novel/Manuscript/Opening.md')?.frontmatter).toMatchObject({ status: 'Final' });
+    await vault.trash('Novel/Manuscript/Centre.md');
+    expect(paths()).toEqual(['Novel/Novel.md', 'Novel/Manuscript/Opening.md']);
+  });
+
+  it('keeps no list before it is started or after it is stopped', () => {
+    const fake = novelVault();
+    fake.finishStartup();
+    const vault = new ObsidianVault(fake.app);
+    expect(vault.listMarkdownFiles('Novel')).not.toBe(vault.listMarkdownFiles('Novel'));
+    vault.start();
+    expect(vault.listMarkdownFiles('Novel')).toBe(vault.listMarkdownFiles('Novel'));
+    vault.stop();
+    fake.addNote('Novel/Quiet.md', 'x'); // nobody is listening any more
+    expect(vault.listMarkdownFiles('Novel').map((file) => file.path)).toContain('Novel/Quiet.md');
   });
 
   it('lists every folder, without the top of the vault itself', async () => {
@@ -387,7 +428,8 @@ describe('ObsidianVault: events and start-up', () => {
 
   it('unhooks everything on stop, and can stop before the layout was ever ready', () => {
     const { vault, fake, events } = started();
-    expect(fake.vault.listenerCount()).toBe(4);
+    // create, delete, rename and modify passed on; create, delete and rename to forget the kept lists of notes
+    expect(fake.vault.listenerCount()).toBe(7);
     vault.stop();
     expect(fake.vault.listenerCount()).toBe(0);
     expect(fake.metadataCache.listenerCount()).toBe(0);
@@ -409,7 +451,8 @@ describe('ObsidianVault: events and start-up', () => {
     const vault = new ObsidianVault(fake.app);
     const handed: unknown[] = [];
     vault.start((ref) => handed.push(ref));
-    expect(handed).toHaveLength(fake.metadataCache.listenerCount()); // before the layout is ready
+    // before the layout is ready: the index's listeners, and the vault's that forget the kept lists of notes
+    expect(handed).toHaveLength(fake.metadataCache.listenerCount() + fake.vault.listenerCount());
     fake.finishStartup();
     // the one-off "resolved" listener has detached itself by now, but was handed over too
     expect(handed).toHaveLength(fake.vault.listenerCount() + fake.metadataCache.listenerCount() + 1);

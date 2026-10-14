@@ -63,13 +63,17 @@ export function replaceFolderPrefix(path: string, oldFolder: string, newFolder: 
   return rest === null ? null : joinPath(newFolder, rest);
 }
 
+/** Plain ASCII: text that reads the same in every Unicode form. */
+const ONLY_ASCII = /^[\x00-\x7f]*$/;
+
 /**
  * Key for deciding whether two paths name the same file. Accented and pointed
  * letters (for example Hebrew with niqqud) can be stored in two equivalent
  * Unicode forms, and iCloud does not promise to keep the form it was given.
  */
 export function pathKey(path: string): string {
-  return path.normalize('NFC');
+  // A path of plain ASCII letters is the same in every form; it is most paths, and asked for thousands of times.
+  return ONLY_ASCII.test(path) ? path : path.normalize('NFC');
 }
 
 /**

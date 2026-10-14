@@ -51,7 +51,9 @@ export class VaultFileMissingError extends Error {
 export interface VaultPort {
   /**
    * Every markdown note, or only those inside `under` (a folder path), with
-   * the frontmatter currently indexed for each. Cheap; reads no files.
+   * the frontmatter currently indexed for each. Cheap; reads no files. The
+   * list must not be changed: the same list may be given again, as long as
+   * nothing in the vault changed meanwhile.
    */
   listMarkdownFiles(under?: string): MarkdownFileInfo[];
 

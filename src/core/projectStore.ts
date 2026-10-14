@@ -371,6 +371,8 @@ export class ProjectStore {
   private revision = 0;
   /** The open project's notes as they were when the snapshot was last worked out. */
   private snapshotFiles = new Map<string, ProjectFile>();
+  /** The last map projectFiles made, and the vault's list it was made from (see projectFiles). Never changed once made. */
+  private filesFrom: { readonly listing: readonly MarkdownFileInfo[]; readonly folder: string; readonly files: Map<string, ProjectFile> } | null = null;
 
   /** The end of the job queue; every job chains onto it. */
   private tail: Promise<void> = Promise.resolve();
@@ -3190,12 +3192,17 @@ export class ProjectStore {
 
   /** The markdown notes inside the project folder, by the key of their relative path. */
   private projectFiles(active: ActiveProject): Map<string, ProjectFile> {
+    const listing = this.vault.listMarkdownFiles(active.folder);
+    // The vault gives the very same list again while nothing changed: then so is the map made from it.
+    const kept = this.filesFrom;
+    if (kept !== null && kept.listing === listing && kept.folder === active.folder) return kept.files;
     const files = new Map<string, ProjectFile>();
-    for (const file of this.vault.listMarkdownFiles(active.folder)) {
+    for (const file of listing) {
       const rel = relativeTo(active.folder, file.path);
       if (rel === null) continue;
       files.set(pathKey(rel), { rel, path: file.path, frontmatter: file.frontmatter });
     }
+    this.filesFrom = { listing, folder: active.folder, files };
     return files;
   }
 
