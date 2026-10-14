@@ -12,7 +12,7 @@
     "deploy": "npm run build && node scripts/deploy.mjs",
     "package": "npm run build && node scripts/package.mjs"
   },
-  "author": "Daniel | DandiMage",
+  "author": "DandiMage",
   "devDependencies": {
     "@types/node": "26.6.5",
     "esbuild": "0.28.2",

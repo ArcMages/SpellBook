@@ -34,7 +34,7 @@ describe('plugin manifest', () => {
     expect(manifest.id).toBe('spellbook-novel-writer');
     expect(manifest.id).toBe(PLUGIN_ID);
     expect(manifest.name).toBe('Spellbook');
-    expect(manifest.author).toBe('Daniel | DandiMage');
+    expect(manifest.author).toBe('DandiMage');
   });
 
   it('works on phones and tablets as well as desktop', () => {
