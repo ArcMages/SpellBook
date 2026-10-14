@@ -1,7 +1,8 @@
 // What this device remembers about the plot grid: what the columns are, the
 // entities picked for each project, the folders folded shut in each project,
-// whether a scene's synopsis shows on a second line, and how long a gap has
-// to be before it is marked.
+// whether a scene's synopsis shows on a second line, how long a gap has
+// to be before it is marked, and whether the scenes outside each plotline's
+// span are shaded.
 //
 // It is saved as JSON text, and checked when it is read back, because it can
 // be anything: an older version's, or something edited by hand.
@@ -20,6 +21,8 @@ export interface PlotGridPrefs {
   readonly synopsisLine: boolean;
   /** How many scenes in a row make a gap worth marking; 0 for no marks. */
   readonly gapLength: number;
+  /** Whether the scenes before a plotline's first scene and after its last are shaded. */
+  readonly shadeOutside: boolean;
   /** The entities picked for the "Chosen entities" columns, by project index path. */
   readonly chosen: Readonly<Record<string, readonly string[]>>;
   /** The folded folders, by project index path. */
@@ -30,6 +33,7 @@ export const DEFAULT_PREFS: PlotGridPrefs = Object.freeze({
   kind: 'lanes',
   synopsisLine: false,
   gapLength: DEFAULT_GAP_LENGTH,
+  shadeOutside: true,
   chosen: Object.freeze({}),
   folded: Object.freeze({}),
 });
@@ -63,6 +67,7 @@ export function readPrefs(stored: unknown): PlotGridPrefs {
     kind: isColumnKind(value['kind']) ? value['kind'] : DEFAULT_PREFS.kind,
     synopsisLine: value['synopsisLine'] === true,
     gapLength: value['gapLength'] === undefined ? DEFAULT_GAP_LENGTH : readGapLength(value['gapLength']),
+    shadeOutside: value['shadeOutside'] !== false,
     chosen: readLists(value['chosen']),
     folded: readLists(value['folded']),
   };

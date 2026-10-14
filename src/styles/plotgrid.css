@@ -391,6 +391,15 @@
   background-color: var(--background-secondary-alt);
 }
 
+/* Before a column's first scene and after its last: outside the stretch where
+   it is in the story, so a faint wash of the text colour lets that stretch
+   stand out. It follows the theme and the colour scheme, light or dark. (The
+   plain background is for a device that does not know how to mix colours.) */
+.spellbook-plotgrid-cell.spellbook-plotgrid-outside {
+  background-color: var(--background-modifier-hover);
+  background-color: color-mix(in srgb, var(--text-normal) 6%, transparent);
+}
+
 @media (hover: hover) and (pointer: fine) {
   .spellbook-plotgrid-mark:hover {
     background-color: var(--background-modifier-hover);

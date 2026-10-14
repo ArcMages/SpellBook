@@ -27,6 +27,7 @@ export const PLOT_GRID_COMMANDS = {
 export const COULD_NOT_OPEN_TEXT = 'The plot grid could not be opened.';
 
 export const GAP_SETTING_NAME = 'Mark long gaps';
+export const OUTSIDE_SETTING_NAME = 'Shade before and after';
 
 /** Brings the plot grid onto the screen as a tab in the main area; one that is open already is brought to the front. */
 export class PlotGridPane {
@@ -77,7 +78,7 @@ export class PlotGridPane {
   }
 }
 
-/** The plot grid's part of the settings tab: how long a gap must be before it is marked. */
+/** The plot grid's part of the settings tab: how long a gap must be before it is marked, and whether a plotline's span stands out. */
 export function plotGridSettings(host: PlotGridHost): SettingsSection {
   return {
     id: 'plotgrid',
@@ -97,6 +98,17 @@ export function plotGridSettings(host: PlotGridHost): SettingsSection {
             if (!/^\d+$/.test(typed)) return;
             const length = readGapLength(typed);
             if (String(length) === String(Number(typed))) host.setGapLength(length);
+          });
+        });
+      new Setting(containerEl)
+        .setName(OUTSIDE_SETTING_NAME)
+        .setDesc(
+          "Shade a plotline's cells before its first scene and after its last, so the stretch where it is in the story stands out. " +
+            'This choice is kept on this device only.',
+        )
+        .addToggle((toggle) => {
+          toggle.setValue(host.prefs.shadeOutside).onChange((on) => {
+            host.setShadeOutside(on);
           });
         });
     },

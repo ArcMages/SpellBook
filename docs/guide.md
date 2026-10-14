@@ -300,11 +300,11 @@ With **Chosen entities**, press **Choose** to open the "Choose entities" window,
 - **Synopsis line** shows each scene's synopsis on a line under its name. On a computer the synopsis also shows when the pointer rests on the name.
 - A label that scenes use but that is missing from the project's list shows as a column with its name in italics.
 
-**Settings** (under "Plot grid"): **Mark long gaps** says how many scenes in a row a column can be missing from before the stretch is shaded: any whole number from 2 to 99, 5 to begin with. 0 turns the shading off.
+**Settings** (under "Plot grid"): **Mark long gaps** says how many scenes in a row a column can be missing from before the stretch is shaded: any whole number from 2 to 99, 5 to begin with. 0 turns the shading off. **Shade before and after** (on to begin with) shades each column's cells before its first scene and after its last, so the stretch where that plotline, character or place is in the story stands out.
 
 **On a phone.** The pane decides its layout by its own width. A narrow pane keeps the scene names in a narrower column at the side while the columns scroll sideways, with larger cells to tap.
 
-**Limits.** The kind of columns, the chosen entities, the folded folders, the synopsis line and the gap length are remembered on each device separately. Columns of characters and places only show entities of the built-in Character and Place types; use **Chosen entities** for any other. A read-only project, and a scene whose note is missing, show the grid but cannot be changed from it.
+**Limits.** The kind of columns, the chosen entities, the folded folders, the synopsis line, the gap length and the shading before and after are remembered on each device separately. Columns of characters and places only show entities of the built-in Character and Place types; use **Chosen entities** for any other. A read-only project, and a scene whose note is missing, show the grid but cannot be changed from it.
 
 ## Novel view
 
@@ -796,7 +796,7 @@ Press **Export**. The file is saved as a new file in the project's Exports folde
 
 ## Settings
 
-Open Obsidian's Settings and choose **Spellbook**. The page shows the installed version, the **Projects in this vault**, and these sections, each described above: **Writing progress** (with the bottom bar), **Colour scheme**, **Writing modes**, **Prose checks**, **Snapshots**, **Plot grid** ("Mark long gaps"), **Welcome and help** ("Show the welcome page again" and "Show what is new after updates") and **Templates** (the list of templates, with **Open** and **Delete**), and a row for the writing report's words on a page.
+Open Obsidian's Settings and choose **Spellbook**. The page shows the installed version, the **Projects in this vault**, and these sections, each described above: **Writing progress** (with the bottom bar), **Colour scheme**, **Writing modes**, **Prose checks**, **Snapshots**, **Plot grid** ("Mark long gaps" and "Shade before and after"), **Welcome and help** ("Show the welcome page again" and "Show what is new after updates") and **Templates** (the list of templates, with **Open** and **Delete**), and a row for the writing report's words on a page.
 
 [Making Spellbook your own](customising.md) goes through these settings one by one, and ends with a table of where each setting lives.
 
@@ -962,7 +962,7 @@ These are remembered separately on every device and do not sync:
 - the snapshot settings (automatic snapshots, and how many to keep);
 - the corkboard's card size, and the outliner's columns, sorting and filters;
 - whether the World screen shows cards or a list;
-- the plot grid's kind of columns, chosen entities, folded folders, synopsis line and gap length;
+- the plot grid's kind of columns, chosen entities, folded folders, synopsis line, gap length and shading before and after;
 - whether the welcome page and the note after an update have been shown;
 - which timeline lanes are hidden;
 - the place you were reading in the novel view;
