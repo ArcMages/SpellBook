@@ -62,6 +62,12 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 
 *A piece of lore written in Hebrew: its name, fields and scenes read right to left, beside English cards that read left to right.*
 
+### World history
+
+![The timeline with world lanes: lives and histories as bars and points beside the story's events](docs/images/world-history-timeline.png)
+
+*Characters, places and legends can carry dates and moments. The timeline shows them as lanes beside the story's events, and each sheet lists its own history.*
+
 ### Story graph
 
 ![Obsidian's graph view of a novel: scenes, characters, places, items and events as linked dots](docs/images/graph-view.png)

@@ -394,6 +394,10 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 - **Only events with** narrows the timeline to the events that involve chosen characters, places or other entities; **Show all events** undoes it. It narrows the world lanes too.
 - **World** switches the world lanes on or off: one lane for each type of entity that has a date, after your own lanes. An entity with a date and an end is a bar between the two; one with only a date is a point; its moments are small points on the same row, and its name stands on it. Tap an entity to open its sheet in the World screen; its menu has **Open sheet**, **Open note**, **Open note in new tab**, **Move earlier** and **Move later**. Drag it along its lane to change its dates, as you would an event; it stays in the lane of its type. In the "Timeline lanes" window the part called **World** shows or hides all world lanes, and each type's lane on its own.
 
+![The timeline with world lanes: characters' lives and places' histories as bars and points beside the story's events](images/world-history-timeline.png)
+
+*World history: the sample novel's characters and places on the timeline, from the drowned village of the 1600s to the story's 1923.*
+
 **World history.** Command **Open world history**, or the **History** button in the World screen, opens the timeline with the world lanes on and the Manuscript lane hidden, fitted to the range of the world's dates. Both are choices of this device: show the Manuscript lane again in the "Timeline lanes" window. The world lanes show in **By date** order only.
 
 **Dates.** A date can be a year, a year and month, or a full date: 1923, 1923-04 or 1923-04-12.
@@ -457,6 +461,11 @@ At the top of the screen:
 - **Cards** and **List**, under "Show as". Cards show each entity's picture or icon, its name, one or two key facts and its summary, in a group for each type. The list is one table of them all with the columns **Name**, **Type**, **Kind**, **From**, **Until** and **Scenes**; tap a heading to sort by it, and again to turn the order round. **From** and **Until** are when each entity begins and ends.
 - **By name** or **By date**, for the order of the cards in each group. By date, the earliest comes first and those without a date come after. A card shows its dates under its key facts.
 - **History**, which opens the [world history](#timeline) on the timeline.
+
+![The sheet of the Keeper with its History part: born, takes over the light, pensioned off, the lighthouse closed, died](images/world-history-sheet.png)
+
+*The History part of a sheet: everything dated about the Keeper, in order, with the event and scene it belongs to.*
+
 - **New**, and the button for **Entity types**.
 
 Tap a card to open the entity's sheet; the number of scenes on the card does the same. Tap the entity's name on the card to open its note instead (on a computer the name shows as a link under the pointer). In the list it is the same: tap a row to open the sheet, tap the name to open the note. With a keyboard, Enter on a card or a row opens the sheet. Each card has a menu: **Open note**, **Open note in new tab**, **Open sheet**, **Rename**, **Delete** (to the trash).
