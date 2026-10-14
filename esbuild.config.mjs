@@ -4,7 +4,7 @@
 // everything Obsidian already provides is left out of the bundle.
 //
 //   node esbuild.config.mjs              watch mode, with inline source maps
-//   node esbuild.config.mjs production   one minified build, then exit
+//   node esbuild.config.mjs production   one minified build (main.js and styles.css), then exit
 
 import { watch } from 'node:fs';
 import { builtinModules } from 'node:module';
@@ -54,9 +54,10 @@ const context = await esbuild.context({
   outfile: 'main.js',
 });
 
-// The stylesheet is generated too: styles.css is written from src/styles.
-writeStyles(repoRoot);
-console.log(`  ${STYLES_OUTPUT}  joined from ${STYLES_DIR}`);
+// The stylesheet is generated too: styles.css is written from src/styles,
+// and shrunk for production.
+writeStyles(repoRoot, { minify: production });
+console.log(`  ${STYLES_OUTPUT}  ${production ? 'joined and minified' : 'joined'} from ${STYLES_DIR}`);
 
 if (production) {
   await context.rebuild();

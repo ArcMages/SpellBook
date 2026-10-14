@@ -6,9 +6,14 @@
 // different screens never change the same file. The build joins them, always
 // in the same order, into styles.css at the top of the repository. That file
 // is generated: it is not kept in git and must not be edited by hand.
+//
+// The production build also shrinks it (comments and spaces out, with
+// esbuild's own CSS minifier), which halves what a phone downloads. In watch
+// mode it stays readable, with a heading for each part.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import esbuild from 'esbuild';
 
 /** The folder the parts are in, relative to the repository root. */
 export const STYLES_DIR = 'src/styles';
@@ -73,15 +78,33 @@ export function readStyles(repoRoot) {
   );
 }
 
+/** The one comment a shrunk stylesheet keeps. */
+const MINIFIED_BANNER = `/* Spellbook, a novel writer. Generated from ${STYLES_DIR} by the build; do not edit by hand. */\n`;
+
+/**
+ * Shrink a stylesheet: comments, spaces and line breaks out. What it does is
+ * left exactly as it was: no syntax is rewritten for older browsers, and
+ * fallback declarations (a plain colour before a color-mix) are kept.
+ *
+ * @param {string} css the whole stylesheet
+ * @returns {string}
+ */
+export function minifyStyles(css) {
+  const { code } = esbuild.transformSync(css, { loader: 'css', minify: true, legalComments: 'none' });
+  return MINIFIED_BANNER + code;
+}
+
 /**
  * Write the generated stylesheet, unless it already says exactly that.
  *
  * @param {string} repoRoot absolute path of the plugin repository
+ * @param {{ minify?: boolean }} [options] minify: shrink it (the production build)
  * @returns {string} the path that was written
  */
-export function writeStyles(repoRoot) {
+export function writeStyles(repoRoot, options = {}) {
   const output = path.join(repoRoot, STYLES_OUTPUT);
-  const text = readStyles(repoRoot);
+  const joined = readStyles(repoRoot);
+  const text = options.minify === true ? minifyStyles(joined) : joined;
   let current = null;
   try {
     current = readFileSync(output, 'utf8');
