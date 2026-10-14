@@ -3,7 +3,8 @@
 //
 // The window shows what will change before anything does:
 //   - the entity's note gets the new name, and every link to it in the
-//     project is pointed at the new name (by Spellbook itself, so that it
+//     project (or the whole vault, as the writer chose in the settings) is
+//     pointed at the new name (by Spellbook itself, so that it
 //     never waits on Obsidian's question about updating links);
 //   - its old name can be kept as one of its other names (ticked at first);
 //   - the places in the manuscript's text where the old name stands, by
@@ -20,7 +21,8 @@ import type { NameOccurrence } from '../../core/revision/index';
 import { ConfirmModal } from '../../ui/confirmModal';
 import { isInputMethodKey } from '../../ui/keys';
 import type { RevisionKeeper } from './keeper';
-import { linksText, outsideText, reportText } from './reports';
+import { linkScopeText, outsideText } from '../../ui/renameLinks';
+import { linksText, reportText } from './reports';
 import { JOINED_TEXT, TickedResults, changesText } from './results';
 
 export { JOINED_TEXT } from './results';
@@ -161,8 +163,9 @@ export class RenameEverywhereModal extends Modal {
     const { name, problem } = this.wanted();
     const shownName = problem === null ? name : '…';
     this.message?.setText(problem !== null && name !== '' && name !== entity.name ? problem : '');
-    this.noteLine?.setText(`The note "${entity.name}" becomes "${shownName}". Every link to it in the project is changed to the new name.`);
-    const outside = this.outside;
+    const scope = this.keeper.linkScope();
+    this.noteLine?.setText(`The note "${entity.name}" becomes "${shownName}". ${linkScopeText(scope)}`);
+    const outside = scope === 'project' ? this.outside : 0;
     this.outsideLine?.setText(outside > 0 ? outsideText(outside) : '');
     this.outsideLine?.toggleClass('spellbook-is-hidden', outside === 0);
     this.busyLine?.setText(this.busy ? BUSY_TEXT : '');

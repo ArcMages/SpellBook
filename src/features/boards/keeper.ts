@@ -48,6 +48,7 @@ import {
   readEntityTypes,
 } from '../../core/world';
 import type { Entity, EntityType, LinkingNote, WorldLinks, WorldRelations } from '../../core/world';
+import { renameWindowText, renamedLinksNotice } from '../../ui/renameLinks';
 import type { FeatureContext } from '../registry';
 
 export const NO_PROJECT_TEXT = 'Open a Spellbook project first.';
@@ -430,8 +431,18 @@ export class BoardKeeper {
     return fail(`There are boards of every name like "${base}" already.`);
   }
 
-  /** Rename a board. */
-  async renameBoard(path: string, rawName: string): Promise<Outcome<string>> {
+  /** What the rename window says about the links to a board: where they are changed, and how many notes outside the project keep the old name. */
+  renameNote(path: string): string {
+    const store = this.context.store;
+    return renameWindowText(store.linkScope, store.linksFromOutside(path).length);
+  }
+
+  /**
+   * Rename a board. Spellbook points the links to it at the new name itself.
+   * `told` is what the writer should be told about those links afterwards
+   * (notes outside the project that keep the old name), or null.
+   */
+  async renameBoard(path: string, rawName: string): Promise<Outcome<{ readonly path: string; readonly told: string | null }>> {
     const blocked = this.whyNotWritable();
     if (blocked !== null) return fail(blocked);
     if (rawName.trim() === '') return fail(NO_NAME_TEXT);
@@ -439,8 +450,8 @@ export class BoardKeeper {
     if (name === '') return fail(BAD_NAME_TEXT);
     const result = await this.context.store.renameBoardFile(path, name, this.project?.id);
     this.changed();
-    if (result.status === 'done') return { ok: true, value: result.value.path };
-    if (result.status === 'noop' && result.reason === 'unchanged') return { ok: true, value: path };
+    if (result.status === 'done') return { ok: true, value: { path: result.value.path, told: renamedLinksNotice(name, result.value) } };
+    if (result.status === 'noop' && result.reason === 'unchanged') return { ok: true, value: { path, told: null } };
     return fail(result.message);
   }
 

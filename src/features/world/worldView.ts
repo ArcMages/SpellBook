@@ -60,6 +60,7 @@ import { askNewEntity } from './newEntity';
 import {
   MORE_LABEL,
   NO_PROJECT_TEXT,
+  PROBLEM_NOTICE_MS,
   WORLD_ICONS,
   entityPicture,
   iconButton,
@@ -631,9 +632,11 @@ export class WorldView extends ItemView {
       label: 'New name',
       value: entity.name,
       confirm: 'Rename',
+      note: this.host.renameNote(entity.path),
       submit: async (value) => {
         const renamed = await this.host.renameEntity(entity.path, value);
         if ('problem' in renamed) return renamed.problem;
+        if (renamed.told) new Notice(renamed.told, PROBLEM_NOTICE_MS);
         // The details follow the note to its new name.
         if (this.selected === entity.path) this.selected = renamed.path;
         return null;

@@ -84,9 +84,12 @@ export class BoardActions {
       label: NEW_BOARD_LABEL,
       value: board.name,
       confirm: RENAME_CONFIRM,
+      note: this.keeper.renameNote(board.path),
       submit: async (value) => {
         const renamed = await this.keeper.renameBoard(board.path, value);
-        return renamed.ok ? null : renamed.message;
+        if (!renamed.ok) return renamed.message;
+        if (renamed.value.told !== null) new Notice(renamed.value.told, PROBLEM_NOTICE_MS);
+        return null;
       },
     }).open();
   }

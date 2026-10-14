@@ -1,5 +1,6 @@
 // Shared set-up for the project store tests.
 
+import type { LinkScope } from '../src/core/links';
 import { COLLAPSED_KEY } from '../src/core/devicePrefs';
 import type { DeviceStorage } from '../src/core/devicePrefs';
 import { ProjectStore } from '../src/core/projectStore';
@@ -26,9 +27,9 @@ export function fixedRandom(seed = 1): () => number {
 }
 
 /** A store on a memory vault, with timers and the date under the test's control. */
-export function makeStore(vault: MemoryVault = new MemoryVault()): Harness {
+export function makeStore(vault: MemoryVault = new MemoryVault(), linkScope?: () => LinkScope): Harness {
   const timers = new ManualTimers();
-  const store = new ProjectStore({ vault, today: () => TODAY, setTimer: timers.set, random: fixedRandom() });
+  const store = new ProjectStore({ vault, today: () => TODAY, setTimer: timers.set, random: fixedRandom(), ...(linkScope ? { linkScope } : {}) });
   const changes: StoreChange[] = [];
   store.onChange((change) => changes.push(change));
   store.start();

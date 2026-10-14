@@ -106,6 +106,11 @@ export default class SpellbookPlugin extends Plugin implements BinderHost, Actio
     return this.services?.store ?? null;
   }
 
+  /** What this device remembers, for the settings tab. Null until Obsidian's layout is ready. */
+  get prefs(): DevicePrefs | null {
+    return this.services?.prefs ?? null;
+  }
+
   override onload(): void {
     this.addSettingTab(new SpellbookSettingTab(this.app, this));
 
@@ -244,14 +249,15 @@ export default class SpellbookPlugin extends Plugin implements BinderHost, Actio
   private start(): void {
     if (this.unloaded || this.services) return;
     const vault = new ObsidianVault(this.app);
+    const storage = new ObsidianDeviceStorage(this.app);
+    const prefs = new DevicePrefs(storage);
     const store = new ProjectStore({
       vault,
       today: localToday,
       setTimer,
       random: Math.random,
+      linkScope: () => prefs.getLinkScope(),
     });
-    const storage = new ObsidianDeviceStorage(this.app);
-    const prefs = new DevicePrefs(storage);
     const session = new ProjectSession(store, prefs);
     const wordCounts = new WordCountCache({ vault, setTimer });
     const selection = new BinderSelection();

@@ -1,5 +1,6 @@
 // What this device remembers about how the writer left things: which project
-// was open, and which folders of the binder were folded shut.
+// was open, which folders of the binder were folded shut, and where the links
+// to a renamed note are brought up to date.
 //
 // This is kept per device (and per vault), not in the plugin's synced data:
 // a phone and a desktop each keep their own. In Obsidian it is stored through
@@ -11,6 +12,8 @@
 // older version's data, or something edited by hand. A storage that fails is
 // ignored; the choices then last until Obsidian closes.
 
+import type { LinkScope } from './links';
+
 /** A small store of named values that belongs to this device and this vault. */
 export interface DeviceStorage {
   /** The value saved under `key`, or null when there is none. */
@@ -21,6 +24,7 @@ export interface DeviceStorage {
 
 export const ACTIVE_PROJECT_KEY = 'spellbook-active-project';
 export const COLLAPSED_KEY = 'spellbook-binder-collapsed';
+export const LINK_SCOPE_KEY = 'spellbook-link-scope';
 
 /** No more than this many projects have their folded folders remembered. */
 const MAX_PROJECTS = 40;
@@ -33,6 +37,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export class DevicePrefs {
   private readonly storage: DeviceStorage;
+  /** undefined until it has been read from the storage. */
+  private scope: LinkScope | undefined;
   /** undefined until it has been read from the storage. */
   private active: string | null | undefined;
   /** Folded items by project index path; null until read from the storage. */
@@ -57,6 +63,25 @@ export class DevicePrefs {
     if (this.getActiveProject() === indexPath) return;
     this.active = indexPath;
     this.save(ACTIVE_PROJECT_KEY, indexPath);
+  }
+
+  // ------------------------------------------------------------ link scope
+
+  /**
+   * Where the links to a note that Spellbook renames are brought up to date:
+   * "project" (the open project only, as it comes) or "vault" (every note).
+   */
+  getLinkScope(): LinkScope {
+    if (this.scope === undefined) this.scope = this.load(LINK_SCOPE_KEY) === 'vault' ? 'vault' : 'project';
+    return this.scope;
+  }
+
+  setLinkScope(scope: LinkScope): void {
+    const wanted: LinkScope = scope === 'vault' ? 'vault' : 'project';
+    if (this.getLinkScope() === wanted) return;
+    this.scope = wanted;
+    // Nothing is stored while it is as it comes.
+    this.save(LINK_SCOPE_KEY, wanted === 'vault' ? 'vault' : null);
   }
 
   // ------------------------------------------------------------ folded items

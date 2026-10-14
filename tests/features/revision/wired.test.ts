@@ -339,7 +339,8 @@ describe('what the writer is told about the links', () => {
     expect(linksText({ changed: 0, notes: 0, outside: [], missed: [] })).toBeNull();
     expect(linksText({ changed: 1, notes: 1, outside: [], missed: [] })).toBe('1 link in 1 note now leads to the new name.');
     expect(linksText({ changed: 3, notes: 2, outside: ['a.md', 'b.md'], missed: ['Closing'] })).toBe(
-      '3 links in 2 notes now lead to the new name.\nThe links in these notes could not be changed: Closing.\n2 notes outside the project link to it. Spellbook changes nothing outside the project, so those links keep the old name.',
+      '3 links in 2 notes now lead to the new name.\nThe links in these notes could not be changed: Closing.\n2 notes outside the project link to it, and those links keep the old name: links are changed in this project only. ' +
+        'To change them too, choose "The whole vault" under "When a note is renamed, update links in" in Spellbook\'s settings.',
     );
   });
 });

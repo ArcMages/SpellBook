@@ -25,6 +25,8 @@ export interface TextPrompt {
   readonly value?: string;
   /** The text of the button that confirms, for example "Create". */
   readonly confirm: string;
+  /** A line under the field that says what else will happen (a rename: what becomes of the links). Default: none. */
+  readonly note?: string;
   /**
    * A list to choose one thing from, under the field (for example the
    * template a new scene starts from). Default: none.
@@ -103,6 +105,9 @@ export class TextPromptModal extends Modal {
     });
     this.input = input;
     this.message = field.createDiv({ cls: 'spellbook-prompt-message', attr: { role: 'alert', dir: 'auto' } });
+    if (prompt.note !== undefined && prompt.note !== '') {
+      field.createDiv({ cls: 'spellbook-prompt-note', text: prompt.note });
+    }
 
     const choice = prompt.choice;
     this.chosen = choice?.value ?? choice?.options[0]?.value ?? '';

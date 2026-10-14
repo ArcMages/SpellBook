@@ -1,6 +1,7 @@
 // What the writer is told once a replace is over.
 
 import { formatCount } from '../../core/binderModel';
+import { outsideText } from '../../ui/renameLinks';
 import type { LinksReport, ReplaceReport } from './keeper';
 
 /** "Replaced 3 changes in 2 scenes. Left as they were: Opening (it was changed since the search ...)." */
@@ -27,6 +28,4 @@ export function linksText(report: LinksReport): string | null {
 }
 
 /** Why links from notes outside the project keep the old name. */
-export function outsideText(count: number): string {
-  return `${formatCount(count)} ${count === 1 ? 'note' : 'notes'} outside the project ${count === 1 ? 'links' : 'link'} to it. Spellbook changes nothing outside the project, so ${count === 1 ? 'that link keeps' : 'those links keep'} the old name.`;
-}
+export { outsideText } from '../../ui/renameLinks';

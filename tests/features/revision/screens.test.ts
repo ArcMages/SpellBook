@@ -2,6 +2,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Plugin as ObsidianPlugin } from 'obsidian';
+import type { LinkScope } from '../../../src/core/links';
 import { WordCountCache } from '../../../src/core/wordCountCache';
 import { registerFeatures } from '../../../src/features/registry';
 import { RENAME_EVERYWHERE_SERVICE } from '../../../src/core/revision/index';
@@ -20,7 +21,7 @@ afterEach(() => {
   for (const stop of stops.splice(0)) stop();
 });
 
-async function stage() {
+async function stage(scope: LinkScope = 'project') {
   const vault = novelVault();
   vault.seed(inNovel(OPENING), {
     frontmatter: {
@@ -35,7 +36,7 @@ async function stage() {
   });
   vault.seed(inNovel('World/Characters/Anna.md'), { frontmatter: { type: 'character', aliases: [] }, body: 'Anna keeps the light.\n' });
   vault.seed('Notes/Diary.md', { body: 'Met [[Anna]].' });
-  const { store, timers } = makeStore(vault);
+  const { store, timers } = makeStore(vault, () => scope);
   await store.openProject(NOVEL_INDEX);
   const fake = new FakeObsidian();
   const plugin = new StubPlugin(fake.app, { id: 'spellbook-novel-writer' });
@@ -228,8 +229,11 @@ describe('the Rename everywhere window', () => {
     box.value = 'Dina';
     box.fire('input');
     const lines = texts(modal.contentEl, 'spellbook-revision-rename-line');
-    expect(lines[0]).toBe('The note "Anna" becomes "Dina". Every link to it in the project is changed to the new name.');
-    expect(lines[1]).toBe('1 note outside the project links to it. Spellbook changes nothing outside the project, so that link keeps the old name.');
+    expect(lines[0]).toBe('The note "Anna" becomes "Dina". Every link to it in this project is changed to the new name.');
+    expect(lines[1]).toBe(
+      '1 note outside the project links to it, and that link keeps the old name: links are changed in this project only. ' +
+        'To change them too, choose "The whole vault" under "When a note is renamed, update links in" in Spellbook\'s settings.',
+    );
     expect(lines.join(' ')).not.toContain('Links to it follow');
     button(modal, 'Rename').click();
     button(lastWindow(), 'Rename').click();
@@ -241,5 +245,26 @@ describe('the Rename everywhere window', () => {
     expect(modal.isOpen).toBe(false);
     expect(s.vault.has(inNovel('World/Characters/Dina.md'))).toBe(true);
     expect(s.vault.bodyOf(inNovel(OPENING))).toContain('Dina walked alone');
+    // Links are changed in the project only, as the setting has it as it comes.
+    expect(s.vault.bodyOf('Notes/Diary.md')).toBe('Met [[Anna]].');
+  });
+
+  it('says that links everywhere in the vault are changed when the writer chose the whole vault, and changes them', async () => {
+    const s = await stage('vault');
+    s.features.services.get<RenameEverywhereService>(RENAME_EVERYWHERE_SERVICE)?.open('World/Characters/Anna.md');
+    const modal = lastWindow();
+    await calm(s);
+    const box = modal.contentEl.withClass('spellbook-revision-find-input')[0] as FakeElement;
+    box.value = 'Dina';
+    box.fire('input');
+    const lines = texts(modal.contentEl, 'spellbook-revision-rename-line');
+    expect(lines[0]).toBe('The note "Anna" becomes "Dina". Every link to it in the vault is changed to the new name.');
+    // Nothing about notes outside the project keeping the old name.
+    expect(lines.join(' ')).not.toContain('outside the project');
+    button(modal, 'Rename').click();
+    button(lastWindow(), 'Rename').click();
+    await calm(s);
+    expect(modal.isOpen).toBe(false);
+    expect(s.vault.bodyOf('Notes/Diary.md')).toBe('Met [[Dina]].');
   });
 });
