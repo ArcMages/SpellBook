@@ -558,19 +558,32 @@ The sheet is one entity laid out to read and to fill in. It opens beside the lis
 **What you choose.**
 
 - **Format**:
-  - **Word (.docx)**: standard manuscript format, 12 point serif, double spacing, a # between scenes, each chapter on a new page.
+  - **Word (.docx)**: a Word document laid out by the preset, each chapter on a new page.
+  - **E-book (.epub)**: an e-book for Apple Books and other e-book readers, with a table of contents and one part for each chapter. A Hebrew book is marked as Hebrew and its pages turn right to left. You can choose a **Cover**: a JPEG, PNG, GIF or WebP picture from the vault, ideally upright (about 1600 by 2560 pixels). Pictures inside the project folder are listed first.
   - **Web page (.html)**: one page that opens in any browser.
   - **Markdown (.md)**: one note with the whole text, as you wrote it.
-  - **Print / save as PDF**: makes a page laid out for printing and opens it in your browser, where you choose "Save as PDF".
+  - **Print / save as PDF**: makes a page laid out for printing and opens it in your browser, where you choose "Save as PDF". The top of the page says which paper and margins to choose.
+- **Preset**: how the pages look. Choosing one also sets the switches below to where it starts them; you can still change them.
+  - **Manuscript for an agent**: the standard manuscript format. 12 point serif, double spacing, a # between scenes, one inch of margin, the number of words on the title page, "Author / Title / page" at the top of each page.
+  - **Reading copy**: like a book. Normal spacing, lines flush with both margins, large chapter titles, three stars between scenes, a list of contents, no word count and no line at the top.
+  - **Proof**: for marking up on paper. Double spacing, two inches of margin at the sides to write notes in, scene titles printed. Word also numbers the lines; the other formats cannot.
 - **Include**: **Whole manuscript**, or one folder.
 - **Author**, and switches for **Title page**, **Line at the top of each page**, **List of contents** and **Scene titles**.
 - **Paper**: A4 or US Letter.
+- **Front and back matter** (folded away; tap to open): a **Dedication**, an **Epigraph**, **Acknowledgements** and **About the author**. For each, choose **None**, **Write it here** (a box to type in) or **From a note** (any note of the project, for example one in Research). The dedication and the epigraph come after the title page, each on a page of its own; the acknowledgements and about the author come at the end, with headings. A heading on the first line of the text (`# With thanks`) becomes the page's heading; otherwise the acknowledgements are headed "Acknowledgements" and about the author "About the Author", or their Hebrew words in a Hebrew book. In an e-book each is a part of its own; in Markdown the epigraph is a quote.
+
+The window remembers your last choices for each project, on this device, typed front and back matter included.
+
+**Per-scene choices.** Two scene properties change how one scene goes out. The inspector does not show them: add them in Obsidian's properties of the scene note.
+
+- `export-page-break: true` starts the scene on a new page (in an e-book, a new part). A scene that is first under its chapter heading already starts a page.
+- `export-title: true` prints the scene's title above it even when **Scene titles** is off; `export-title: false` never prints it.
 
 Press **Export**. The file is saved as a new file in the project's Exports folder; an export never replaces an earlier one. The window then says how many scenes and words were saved and which scenes were left out, and offers **Open**. On a computer there is also a button that shows the file in its folder.
 
 **On a phone.** "Print / save as PDF" is not offered on a phone or tablet. Export the web page instead, open it in the browser or the Files app, and print it from the share menu, which offers to save it as a PDF.
 
-**Limits.** There is no direct PDF file. The Word file was checked by converting it with macOS tools, not by opening it in Word, Pages or Google Docs. Word and web-page files only show in Obsidian's file list when Obsidian's "Detect all file extensions" setting is on. The button that shows the file in its folder is on computers only.
+**Limits.** There is no direct PDF file: the browser's "Save as PDF" sets Hebrew correctly, and a PDF written by Spellbook itself could not (see [the PDF study](pdf-study.md)). Safari leaves out the line at the top of each page when it prints. The e-book has been checked by automated tests that open it again, not in Apple Books or another reader, and not with the official EPUB checker. The Word file was checked by converting it with macOS tools, not by opening it in Word, Pages or Google Docs. Word and web-page files only show in Obsidian's file list when Obsidian's "Detect all file extensions" setting is on. The button that shows the file in its folder is on computers only.
 
 ## For AI assistants
 
@@ -697,6 +710,8 @@ A scene is a note in the Manuscript folder. Spellbook reads and writes these pro
 | `label` | The scene's label. |
 | `target` | The scene's word target. Only there when the scene has one. |
 | `compile` | Whether the scene is included in an export. |
+| `export-page-break` | `true` to start the scene on a new page in an export. Not shown in the inspector; add it yourself. |
+| `export-title` | `true` or `false` to print or hide the scene's title in an export, whatever the window says. Not shown in the inspector; add it yourself. |
 | `order` | The scene's place in the binder, as a number. The index decides the order; this copy is there so that other tools can sort by it. |
 | `created` | The date the scene was started. |
 | `edited` | The date the scene was last edited. |
@@ -804,6 +819,7 @@ Spellbook is at version 0.9.0 and has not been used for real writing yet. This l
 **Export**
 
 - No direct PDF file; use "Print / save as PDF" on a computer, or print the web page on a phone or tablet.
+- The e-book has not been opened in Apple Books or another reader, nor run through the official EPUB checker.
 - The Word file was checked by converting it with macOS tools, not by opening it in Word, Pages or Google Docs.
 - Exported Word and web-page files only show in Obsidian's file list when "Detect all file extensions" is on.
 - The button that shows an exported file in its folder is on computers only.

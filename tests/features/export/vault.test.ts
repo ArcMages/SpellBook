@@ -127,7 +127,7 @@ describe('ProjectStore.createExportFile', () => {
 
   it('takes the three kinds of export, in any language', async () => {
     const { store, vault } = await openSeeded({ scenes: { Opening: 1024 } });
-    expect(EXPORT_EXTENSIONS).toEqual(['md', 'html', 'docx']);
+    expect(EXPORT_EXTENSIONS).toEqual(['md', 'html', 'docx', 'epub']);
     for (const name of ['Book.md', 'Book.html', 'הרומן שלי 2026-10-13.docx', 'My Novel (to print) 2026-10-13.html']) {
       expect(valueOf(await store.createExportFile(name, BYTES)).path, name).toBe(`Exports/${name}`);
     }

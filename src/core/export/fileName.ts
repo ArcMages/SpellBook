@@ -8,6 +8,7 @@ import type { ExportFormat } from './manuscript';
 /** How each kind of export's file name ends. */
 export const EXTENSIONS: Readonly<Record<ExportFormat, string>> = {
   docx: 'docx',
+  epub: 'epub',
   html: 'html',
   markdown: 'md',
   print: 'html',

@@ -52,3 +52,29 @@
   font-size: var(--font-ui-small);
   overflow-wrap: anywhere;
 }
+
+/* The pages before and after the text: folded away under a heading that a finger can open. */
+.spellbook-export .spellbook-export-matter {
+  margin-block: var(--size-4-3);
+  padding-block: var(--size-4-2);
+  border-block-start: 1px solid var(--background-modifier-border);
+}
+
+.spellbook-export .spellbook-export-matter > summary {
+  min-height: var(--touch-target-size, 44px);
+  display: flex;
+  align-items: center;
+  font-weight: var(--font-semibold);
+  cursor: pointer;
+}
+
+/* What the writer types for one of those pages: the writer's own text, full width. */
+.spellbook-export .spellbook-export-matter-text {
+  display: block;
+  width: 100%;
+  min-height: 6em;
+  margin-block: 0 var(--size-4-3);
+  font-family: var(--font-text);
+  text-align: start;
+  resize: vertical;
+}
