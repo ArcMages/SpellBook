@@ -190,6 +190,24 @@ export interface VaultPort {
   replaceText(path: string, change: (current: string) => string | null): Promise<boolean>;
 
   /**
+   * Read, change and save the whole text of an idea board (a Canvas file,
+   * ending in ".canvas") that is there, in one step, against the file as it
+   * is on disk at that moment. Nothing is ever created, and nothing but a
+   * board is accepted: rejects with VaultFileMissingError when there is no
+   * such file, and with another error for a file that is not a board.
+   *
+   * The project store is the only caller, and it accepts nothing but a board
+   * directly inside the open project's Boards folder: see updateBoardFile
+   * there. A note's text is never reached this way.
+   *
+   * `change` receives the current text and returns the new text, or null to
+   * leave the file exactly as it is (nothing is written).
+   *
+   * Resolves with whether the file was written. Rejects when the save fails.
+   */
+  updateBoardText(path: string, change: (current: string) => string | null): Promise<boolean>;
+
+  /**
    * The note a link points at, as the vault itself resolves it: `link` is
    * what stands between the double brackets of a wikilink, without a heading
    * or a shown name ("Mara", "World/Characters/Mara"), and `from` is the

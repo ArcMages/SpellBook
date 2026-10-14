@@ -1,0 +1,214 @@
+/* ------------------------------------------------------- The Boards pane */
+
+.spellbook-boards {
+  /* The smallest height of something that is tapped with a finger. */
+  --spellbook-touch-target: 44px;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  padding: var(--size-4-2);
+}
+
+.spellbook-boards-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-2);
+}
+
+/* The project's name: the writer's own text. */
+.spellbook-boards-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: var(--font-semibold);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.spellbook-boards-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+}
+
+.spellbook-boards-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-1);
+}
+
+.spellbook-boards-empty {
+  color: var(--text-muted);
+  padding-block: var(--size-4-2);
+  text-align: start;
+}
+
+.spellbook-boards-row {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-2);
+  border-radius: var(--radius-s);
+}
+
+.spellbook-boards-row:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+/* The whole row opens the board; it is a button, so a finger, a mouse and a keyboard can all use it. */
+.spellbook-boards-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding-block: var(--size-4-1);
+  padding-inline: var(--size-4-2);
+  background: none;
+  box-shadow: none;
+  border: none;
+  height: auto;
+  color: var(--text-normal);
+  justify-content: flex-start;
+}
+
+.spellbook-boards-icon {
+  flex: 0 0 auto;
+  display: flex;
+  color: var(--text-muted);
+}
+
+/* The board's name: the writer's own text, in whichever direction it is written. */
+.spellbook-boards-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-boards-count {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+}
+
+.spellbook-boards-more {
+  flex: 0 0 auto;
+}
+
+/* On a phone or a tablet every row and button is tall enough for a finger. */
+.spellbook-boards.spellbook-is-mobile .spellbook-boards-open,
+.spellbook-boards.spellbook-is-mobile .spellbook-boards-more,
+.spellbook-boards.spellbook-is-mobile .spellbook-boards-buttons button {
+  min-height: var(--spellbook-touch-target);
+}
+
+/* ------------------------------------------------------------- The windows */
+
+.spellbook-boards-window-text {
+  color: var(--text-muted);
+  text-align: start;
+}
+
+.spellbook-boards-window-message {
+  color: var(--text-error);
+  text-align: start;
+}
+
+.spellbook-boards-window-message:empty {
+  display: none;
+}
+
+.spellbook-boards-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+}
+
+.spellbook-boards-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding-block: var(--size-4-2);
+}
+
+.spellbook-boards-field-name {
+  flex: 1 1 8em;
+  text-align: start;
+}
+
+.spellbook-boards-field select {
+  flex: 1 1 12em;
+  max-width: 100%;
+}
+
+.spellbook-boards-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+  padding-block-end: var(--size-4-2);
+}
+
+/* The cards of a board, each with what it is to become. */
+.spellbook-boards-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.spellbook-boards-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding: var(--size-4-2);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background-color: var(--background-secondary);
+}
+
+/* At phone width the choice goes under the card's words. */
+.spellbook-boards-card-words {
+  flex: 1 1 14em;
+  min-width: 0;
+}
+
+.spellbook-boards-card-title {
+  font-weight: var(--font-semibold);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.spellbook-boards-card-rest {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-align: start;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.spellbook-boards-card-choice {
+  flex: 1 1 10em;
+  max-width: 100%;
+}
+
+/* The lists to pick a board or an entity from. */
+.spellbook-boards-pick-name {
+  text-align: start;
+}
+
+.spellbook-boards-pick-type {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-align: start;
+}

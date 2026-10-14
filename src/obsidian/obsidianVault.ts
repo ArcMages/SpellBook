@@ -310,6 +310,17 @@ export class ObsidianVault implements VaultPort {
     return this.changeText(this.requireFile(path), (current) => change(current ?? ''));
   }
 
+  /**
+   * Changes the text of an idea board (a Canvas file) that is there; it
+   * never creates one, and refuses every file that is not a board. Only the
+   * project store calls it: see updateBoardFile in src/core/projectStore.ts.
+   */
+  async updateBoardText(path: string, change: (current: string) => string | null): Promise<boolean> {
+    const file = this.requireFile(path);
+    if (file.extension.toLowerCase() !== 'canvas') throw new Error(`"${path}" is not a board.`);
+    return this.changeText(file, (current) => change(current ?? ''));
+  }
+
   /** Read, change and save an existing file's text in one step; nothing is written when `change` gives null. */
   private async changeText(file: TFile, change: (current: string | null) => string | null): Promise<boolean> {
     let saved = false;

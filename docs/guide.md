@@ -651,6 +651,12 @@ Obsidian shows each of these with "Spellbook:" in front.
 | Edit story calendar | Opens the window that defines the story's calendar. |
 | Open world history | Shows the timeline with the world lanes on and the Manuscript lane off, fitted to the world's dates. |
 | Open plot grid | Shows the scenes in binder order against plotlines, labels, characters or places, with a tick where a scene belongs to one. |
+| New idea board | Makes an empty idea board in the project's Boards folder and opens it in Obsidian's Canvas. |
+| Open idea boards | Shows the project's idea boards, with what each holds. |
+| Turn board cards into notes | Turns text cards of a board into scenes or World entries; each card then shows its new note. |
+| Board: relationship map | Draws a new board of the characters and the relations between them. |
+| Board: chapter as cards | Draws a new board of one folder's scenes as cards in reading order. |
+| Board: around this entity | Draws a new board with one World entry in the middle and what it is linked to around it. |
 | Save scene as template | Saves the open scene's properties and text as a template for new scenes in this project. |
 | Save as World template | Saves the open World entry's fields and text as a template for new entries of its type. |
 | Save project as template | Saves the project's folders and scene titles and synopses (and, if asked, their text) as a template for new projects. |

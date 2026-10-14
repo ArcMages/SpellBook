@@ -81,6 +81,7 @@ import {
   TODO_FILE,
   WORLD_FOLDER,
 } from './projectLayout';
+import { BOARDS_FOLDER, BOARD_EXTENSION, readBoard } from './boards/index';
 import { plantSeed } from './projectSeed';
 import type { PlantedSeed, ProjectSeed } from './projectSeed';
 import { DEFAULT_SCENE_NAME, newSceneFrontmatter } from './scene';
@@ -2194,6 +2195,209 @@ export class ProjectStore {
     return path;
   }
 
+  // -------------------------------------------------------------- idea boards
+  //
+  // The idea boards are Canvas files (".canvas") directly inside the
+  // project's Boards folder. These methods are the only way a screen can
+  // list, read, make, change, rename or remove one. None of them reaches
+  // outside that folder, and none of them can touch a note: a board is not a
+  // note, and every path is checked by boardFilePath first.
+
+  /**
+   * The boards of the open project: the Canvas files directly inside its
+   * Boards folder, as paths relative to the project folder, sorted. Empty
+   * when no project is open or it has no such folder. Cheap; reads no files.
+   */
+  boardFiles(): string[] {
+    const active = this.active;
+    if (!active) return [];
+    return this.vault
+      .listFiles(joinPath(active.folder, BOARDS_FOLDER))
+      .map((path) => relativeTo(active.folder, path))
+      .filter((rel): rel is string => rel !== null && typeof this.boardFilePath(active, rel) === 'string')
+      .sort();
+  }
+
+  /**
+   * The whole text of a board of the open project. Refused for every path
+   * that is not a board directly inside the Boards folder.
+   *
+   * @param path "Boards/<name>.canvas", relative to the project folder
+   */
+  async readBoardFile(path: string): Promise<IntentResult<string>> {
+    const active = this.active;
+    if (!active) return refused('no-project', 'No project is open.');
+    const rel = this.boardFilePath(active, path);
+    if (typeof rel !== 'string') return rel;
+    try {
+      return done(await this.vault.readText(joinPath(active.folder, rel)));
+    } catch (error) {
+      if (error instanceof VaultFileMissingError) return noop('not-found', 'That board is no longer in the project.');
+      return failed(`"${noteTitleOfBoard(rel)}" could not be read: ${messageOf(error)}`);
+    }
+  }
+
+  /**
+   * Make a new board: a new Canvas file directly inside the open project's
+   * Boards folder, holding the text given. The folder is made first when the
+   * project has none.
+   *
+   * Nothing is ever replaced, and the name is used exactly as it is given or
+   * not at all: refused when it is not a tidy file name as it stands (see
+   * sanitiseFileName; tidy it first), and when the folder already holds
+   * something of that name, whatever its capitals, so that the caller can try
+   * the next name. Refused as well for a text that is not a board, for a
+   * read-only project, and when no project is open.
+   *
+   * @param name the board's name, without ".canvas"
+   * @param text the whole file: JSON Canvas (see src/core/boards)
+   * @returns the new board's path relative to the project folder
+   */
+  createBoardFile(name: string, text: string, inProject?: string): Promise<IntentResult<{ path: string }>> {
+    return this.run(async (): Promise<IntentResult<{ path: string }>> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = this.boardFilePath(active, `${BOARDS_FOLDER}/${name}.${BOARD_EXTENSION}`);
+      if (typeof rel !== 'string') return rel;
+      if (readBoard(text) === null) return refused('invalid-key', 'That is not the text of a board.');
+      const target = joinPath(active.folder, rel);
+      if (this.vault.exists(target)) {
+        return refused('exists', `There is already a board called "${name}".`);
+      }
+      let createdPath: string;
+      try {
+        const folder = joinPath(active.folder, BOARDS_FOLDER);
+        if (!this.vault.exists(folder)) await this.vault.createFolder(folder);
+        // The vault itself refuses to create a file where something already is.
+        createdPath = await this.vault.createFile(target, text);
+      } catch (error) {
+        return failed(`The board "${name}" could not be made: ${messageOf(error)}`);
+      }
+      return done({ path: relativeTo(active.folder, createdPath) ?? rel });
+    }, inProject);
+  }
+
+  /**
+   * Change a board of the open project, in one read-modify-write of its file
+   * as it is on disk at that moment. Nothing is ever created.
+   *
+   * `change` receives the board's text and returns the new text, or null to
+   * leave the board exactly as it is. A new text that is not a board is not
+   * written either. It may be called more than once.
+   *
+   * Refused for every path that is not a board directly inside the Boards
+   * folder, for a read-only project, and when no project is open.
+   *
+   * @param path "Boards/<name>.canvas", relative to the project folder
+   */
+  updateBoardFile(path: string, change: (current: string) => string | null, inProject?: string): Promise<IntentResult> {
+    return this.run(async (): Promise<IntentResult> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = this.boardFilePath(active, path);
+      if (typeof rel !== 'string') return rel;
+      let saved: boolean;
+      try {
+        saved = await this.vault.updateBoardText(joinPath(active.folder, rel), (current) => {
+          const next = change(current);
+          return next !== null && readBoard(next) !== null ? next : null;
+        });
+      } catch (error) {
+        if (error instanceof VaultFileMissingError) return noop('not-found', 'That board is no longer in the project.');
+        return failed(`"${noteTitleOfBoard(rel)}" could not be saved: ${messageOf(error)}`);
+      }
+      return saved ? done(undefined) : noop('unchanged', 'Nothing needed to change.');
+    }, inProject);
+  }
+
+  /**
+   * Rename a board where it is (links to it are updated by the vault). The
+   * name is used exactly as given or not at all, and nothing is replaced:
+   * refused for a name that is not a tidy file name as it stands and for
+   * one that is taken. Refused for every path that is not a board directly
+   * inside the Boards folder.
+   *
+   * @param path "Boards/<name>.canvas", relative to the project folder
+   * @param name the new name, without ".canvas"
+   * @returns the board's new path relative to the project folder
+   */
+  renameBoardFile(path: string, name: string, inProject?: string): Promise<IntentResult<{ path: string }>> {
+    return this.run(async (): Promise<IntentResult<{ path: string }>> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = this.boardFilePath(active, path);
+      if (typeof rel !== 'string') return rel;
+      const wanted = this.boardFilePath(active, `${BOARDS_FOLDER}/${name}.${BOARD_EXTENSION}`);
+      if (typeof wanted !== 'string') return refused('invalid-name', `"${name}" cannot be used as the name of a board.`);
+      if (wanted === rel) return noop('unchanged', 'The board already has that name.');
+      const from = joinPath(active.folder, rel);
+      const target = joinPath(active.folder, wanted);
+      // Changing only the capitals of its own name is not a clash.
+      if (clashKey(target) !== clashKey(from) && this.vault.exists(target)) {
+        return refused('exists', `There is already a board called "${name}".`);
+      }
+      let newPath: string;
+      try {
+        newPath = await this.vault.rename(from, target);
+      } catch (error) {
+        if (error instanceof VaultFileMissingError) return noop('not-found', 'That board is no longer in the project.');
+        return failed(`"${noteTitleOfBoard(rel)}" could not be renamed: ${messageOf(error)}`);
+      }
+      return done({ path: relativeTo(active.folder, newPath) ?? wanted });
+    }, inProject);
+  }
+
+  /**
+   * Move a board to the trash (it is never deleted outright). Refused for
+   * every path that is not a board directly inside the Boards folder. The
+   * notes its cards show are not touched.
+   *
+   * @param path "Boards/<name>.canvas", relative to the project folder
+   */
+  trashBoardFile(path: string, inProject?: string): Promise<IntentResult> {
+    return this.run(async (): Promise<IntentResult> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = this.boardFilePath(active, path);
+      if (typeof rel !== 'string') return rel;
+      try {
+        await this.vault.trash(joinPath(active.folder, rel));
+      } catch (error) {
+        if (error instanceof VaultFileMissingError) return noop('not-found', 'That board is no longer in the project.');
+        return failed(`"${noteTitleOfBoard(rel)}" could not be moved to the trash: ${messageOf(error)}`);
+      }
+      return done(undefined);
+    }, inProject);
+  }
+
+  /**
+   * Check a path given for a board. Only a Canvas file directly inside the
+   * Boards folder passes ("Boards/<name>.canvas"), and only when its name is
+   * a tidy file name as it stands: this is what keeps the board methods away
+   * from every note and every other place in the vault. Returns the path, or
+   * a refusal.
+   */
+  private boardFilePath(
+    active: ActiveProject,
+    path: string,
+  ): string | { status: 'refused'; reason: RefusalReason; message: string } {
+    const no = refused('invalid-path', `"${path}" is not a board. Boards are the Canvas files in the ${BOARDS_FOLDER} folder.`);
+    const parts = path.split('/');
+    if (parts.length !== 2 || parts[0] !== BOARDS_FOLDER || !isSafeRelativePath(path)) return no;
+    const file = parts[1] ?? '';
+    const ending = `.${BOARD_EXTENSION}`;
+    if (!file.endsWith(ending)) return no;
+    const name = file.slice(0, -ending.length);
+    // A name that the tidying would change holds something it should not: a colon, a leading dot.
+    if (name === '' || sanitiseFileName(name, '') !== name) return no;
+    if (clashKey(joinPath(active.folder, path)) === clashKey(active.indexPath)) return no;
+    return path;
+  }
+
   /** Write any outstanding order keys now instead of waiting for the delay. */
   syncOrderKeysNow(): Promise<void> {
     return this.enqueue(() => this.flushOrderKeys());
@@ -3019,4 +3223,10 @@ export class ProjectStore {
       this.refreshSnapshot();
     }
   }
+}
+
+/** What a board is called: its file name without ".canvas". */
+function noteTitleOfBoard(path: string): string {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  return name.endsWith(`.${BOARD_EXTENSION}`) ? name.slice(0, -(BOARD_EXTENSION.length + 1)) : name;
 }
