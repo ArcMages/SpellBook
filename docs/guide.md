@@ -709,7 +709,7 @@ Command **Board: around this entity** (for the World entry open in the editor, o
 **Notes on a passage.**
 
 - Select some words in a scene and run **Add revision note** (command, or the editor's right-click menu; on a phone or tablet, the menu that opens when you press and hold a selection). A small window shows the words you chose; type your note and press **Add note**. Ctrl+Enter or Cmd+Enter saves too.
-- The words stay exactly as they are: the note is kept in the scene's properties, not in its text. In the editor, passages with an open note get a light dotted underline. Point at one, or tap it, to read its note.
+- The words stay exactly as they are: the note is not kept in the scene at all, but in one file of the project's own, "Revision notes.json" at the top of the project folder. Obsidian does not list it, and you never need to open it. A note follows its scene when you rename or move the scene; if you delete the scene, its notes are kept, and come back if you put the scene back under its name. In the editor, passages with an open note get a light dotted underline. Point at one, or tap it, to read its note.
 - When you rewrite a passage so that its exact words are no longer in the scene, its note stays, and the Revision pane marks it **Passage changed**.
 
 **The Revision pane.** **Open revision notes** (command, or the ribbon button "Open Spellbook revision notes") shows the pane in the right sidebar. It lists the notes of the whole manuscript, grouped by scene in binder order.
@@ -925,7 +925,7 @@ A scene is a note in the Manuscript folder. Spellbook reads and writes these pro
 | `edited` | The date the scene was last edited. |
 | `entities` | Links to the characters, places and other entities in the scene. Only there once you add one. |
 | `snapshot-id` | A short id that ties the scene to its snapshots. Only there after the first snapshot. |
-| `revision-notes` | The scene's revision notes: a list in which each entry holds `passage` (the exact words), `note`, `created` (the day, YYYY-MM-DD) and `done` (`true` or `false`). Only there once you add one. |
+| `revision-notes` | Where earlier versions kept the scene's revision notes. Spellbook moves them into the project's "Revision notes.json" when the project is opened, and takes the property out of the scene. |
 
 Spellbook also reads `date` (a scene with a date shows in the timeline's Manuscript lane) and `tags` (shown in the outliner). Any other property is yours, and is left alone.
 
