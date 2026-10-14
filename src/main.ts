@@ -1,5 +1,5 @@
 import { Notice, Plugin } from 'obsidian';
-import type { PaneType } from 'obsidian';
+import type { Command, PaneType } from 'obsidian';
 import { owningProject, placeOfNote } from './core/binderModel';
 import { BinderSelection } from './core/binderSelection';
 import { sceneRef } from './core/binderTree';
@@ -12,6 +12,8 @@ import { MANUSCRIPT_FOLDER, RESEARCH_FOLDER } from './core/projectLayout';
 import { ProjectSession } from './core/projectSession';
 import { ProjectStore } from './core/projectStore';
 import type { IntentResult, NodeRef, ProjectSnapshot } from './core/types';
+import { COMMANDS_SERVICE } from './core/welcome/services';
+import type { CommandsService } from './core/welcome/services';
 import { WordCountCache } from './core/wordCountCache';
 import { FEATURES, registerFeatures } from './features/registry';
 import type { RegisteredFeatures } from './features/registry';
@@ -86,6 +88,12 @@ export default class SpellbookPlugin extends Plugin implements BinderHost, Actio
   private waiting: Array<() => void> = [];
   /** The binder being brought to the front, so that two requests cannot open two. */
   private revealing: Promise<void> | null = null;
+  /**
+   * Every command the plugin and its features registered, with its own id and
+   * name as given (Obsidian puts the plugin's in front of both), for the Help
+   * pane's list and for the welcome page's buttons.
+   */
+  private readonly registeredCommands: Array<{ readonly id: string; readonly name: string; readonly command: Command }> = [];
 
   /**
    * The projects in this vault and the one that is open. Views read from
@@ -190,6 +198,37 @@ export default class SpellbookPlugin extends Plugin implements BinderHost, Actio
     });
   }
 
+  /** Obsidian's own addCommand, which also notes the command down for the Help pane. */
+  override addCommand(command: Command): Command {
+    const { id, name } = command;
+    const added = super.addCommand(command);
+    this.registeredCommands.push({ id, name, command: added });
+    return added;
+  }
+
+  /** What the welcome and help screens are offered: the plugin's commands, to list and to run. */
+  private commandsService(): CommandsService {
+    return {
+      list: () => this.registeredCommands.map(({ id, name }) => ({ id, name })),
+      run: (id) => {
+        if (this.unloaded) return false;
+        const found = this.registeredCommands.find((entry) => entry.id === id)?.command;
+        if (!found) return false;
+        if (found.checkCallback) {
+          if (found.checkCallback(true) !== true) return false;
+          found.checkCallback(false);
+          return true;
+        }
+        if (found.callback) {
+          void found.callback();
+          return true;
+        }
+        // A command that needs an editor is only run from the command palette.
+        return false;
+      },
+    };
+  }
+
   override onunload(): void {
     // Nothing to release by hand: the settings tab, the commands, the ribbon
     // icon, the binder panel, the vault listeners and the store's clean-up
@@ -248,6 +287,8 @@ export default class SpellbookPlugin extends Plugin implements BinderHost, Actio
       openNote: (path, where) => this.openNote(path, where),
     });
     this.features = features;
+    // Looked up when it is used, so it may be offered after the features registered.
+    features.services.provide(COMMANDS_SERVICE, this.commandsService());
 
     this.register(() => {
       // The features first: they may still want the store while they close.

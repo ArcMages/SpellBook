@@ -19,6 +19,7 @@ import { snapshotsFeature } from '../src/features/snapshots/index';
 import { FEATURES, registerFeatures } from '../src/features/registry';
 import type { Feature, FeatureContext, FeatureHost, SettingsSection } from '../src/features/registry';
 import { timelineFeature } from '../src/features/timeline/index';
+import { welcomeFeature } from '../src/features/welcome/index';
 import { worldFeature } from '../src/features/world/index';
 import { FakeObsidian } from './fakeObsidianApp';
 import { Plugin as StubPlugin, resetFakeDocument } from './obsidianStub';
@@ -74,8 +75,8 @@ const feature = (id: string, register: (context: FeatureContext) => void = () =>
 
 describe('the list of features', () => {
   it('holds the five screens, each from a folder of its own', () => {
-    expect(FEATURES).toEqual([corkboardFeature, progressFeature, plannerFeature, timelineFeature, outlinerFeature, schemesFeature, modesFeature, reportFeature, exportFeature, proseFeature, scriveningsFeature, snapshotsFeature, worldFeature, aihelperFeature]);
-    expect(FEATURES.map((entry) => entry.id)).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'modes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world', 'aihelper']);
+    expect(FEATURES).toEqual([corkboardFeature, progressFeature, plannerFeature, timelineFeature, outlinerFeature, schemesFeature, modesFeature, reportFeature, exportFeature, proseFeature, scriveningsFeature, snapshotsFeature, worldFeature, aihelperFeature, welcomeFeature]);
+    expect(FEATURES.map((entry) => entry.id)).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'modes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world', 'aihelper', 'welcome']);
   });
 
   it('registers as it stands: every screen plugs itself in, and none leaves a trace on the device', () => {
@@ -83,7 +84,7 @@ describe('the list of features', () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const registered = registerFeatures(FEATURES, host);
     expect(logged).not.toHaveBeenCalled(); // no screen failed to start
-    expect(registered.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'modes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world', 'aihelper']);
+    expect(registered.ids).toEqual(['corkboard', 'progress', 'planner', 'timeline', 'outliner', 'schemes', 'modes', 'report', 'export', 'prose', 'scrivenings', 'snapshots', 'world', 'aihelper', 'welcome']);
 
     // What the screens registered through the plugin.
     expect(plugin.viewTypes).toEqual([
@@ -96,6 +97,8 @@ describe('the list of features', () => {
       'spellbook-scrivenings',
       'spellbook-snapshots',
       'spellbook-world',
+      'spellbook-welcome',
+      'spellbook-help',
     ]);
     const commandIds = plugin.commands.map((command) => command.id);
     expect(commandIds).toEqual(
@@ -109,6 +112,7 @@ describe('the list of features', () => {
       ['report', 'Writing report'],
       ['prose', 'Prose checks'],
       ['snapshots', 'Snapshots'],
+      ['welcome', 'Welcome and help'],
     ]);
     // The writing progress watches the editor and has its place in the bottom bar.
     expect(plugin.editorExtensions).toHaveLength(1);

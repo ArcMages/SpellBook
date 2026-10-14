@@ -37,6 +37,7 @@ import { proseFeature } from './prose/index';
 import { snapshotsFeature } from './snapshots/index';
 import { timelineFeature } from './timeline/index';
 import { scriveningsFeature } from './scrivenings/index';
+import { welcomeFeature } from './welcome/index';
 import { worldFeature } from './world/index';
 
 /** The device's clock and timers. Features never read the clock themselves. */
@@ -159,6 +160,7 @@ export const FEATURES: readonly Feature[] = [
   snapshotsFeature,
   worldFeature,
   aihelperFeature,
+  welcomeFeature,
 ];
 
 /** What registerFeatures needs: a FeatureContext without the parts the registry makes itself. */
