@@ -5,6 +5,7 @@
 import { joinPath } from './paths';
 import type { NewProjectOptions, ProjectStore } from './projectStore';
 import { starterProject } from './projectSeed';
+import type { ProjectSeed } from './projectSeed';
 import { SAMPLE_PROJECT_NAME, sampleProject } from './sampleProject';
 import type { CreatedProject, IntentResult } from './types';
 
@@ -41,15 +42,19 @@ async function createAndOpen(
 }
 
 /**
- * Create a project with one empty scene, "Scene 1", and open it.
+ * Create a project and open it: with one empty scene, "Scene 1", or with the
+ * folders and scenes of a starting structure or a project template.
  * Refuses when something called `name` is already in `parentFolder`.
+ *
+ * @param seed what the project starts with. Default: one empty scene.
  */
 export function createStarterProject(
   store: ProjectStore,
   name: string,
   parentFolder = '',
+  seed: ProjectSeed = starterProject(),
 ): Promise<IntentResult<NewProject>> {
-  return createAndOpen(store, name, parentFolder, { seed: starterProject() });
+  return createAndOpen(store, name, parentFolder, { seed });
 }
 
 /**

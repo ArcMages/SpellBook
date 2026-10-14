@@ -638,6 +638,9 @@ Obsidian shows each of these with "Spellbook:" in front.
 | Edit story calendar | Opens the window that defines the story's calendar. |
 | Open world history | Shows the timeline with the world lanes on and the Manuscript lane off, fitted to the world's dates. |
 | Open plot grid | Shows the scenes in binder order against plotlines, labels, characters or places, with a tick where a scene belongs to one. |
+| Save scene as template | Saves the open scene's properties and text as a template for new scenes in this project. |
+| Save as World template | Saves the open World entry's fields and text as a template for new entries of its type. |
+| Save project as template | Saves the project's folders and scene titles and synopses (and, if asked, their text) as a template for new projects. |
 | Open world | Shows the World screen. |
 | New character | Makes a character note. |
 | New place | Makes a place note. |

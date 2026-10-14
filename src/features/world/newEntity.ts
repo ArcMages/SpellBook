@@ -60,15 +60,31 @@ export class TypeChoiceModal extends Modal {
   }
 }
 
-/** Ask for the name of a new entity of a type, make it, and show its note. */
+/** The first choice of "Start from" when a type has templates: what an entry of the type starts with anyway. */
+export const PLAIN_ENTITY_CHOICE = 'Plain';
+
+/**
+ * Ask for the name of a new entity of a type, make it, and show its note.
+ * When the project has templates for the type (Templates/World/<its
+ * folder>), the window also asks which one it starts from.
+ */
 function askName(app: App, host: WorldHost, type: EntityType): void {
+  const templates = host.templatesFor(type.id);
   new TextPromptModal(app, {
     title: newEntityTitle(type),
     label: 'Name',
     placeholder: 'Name',
     confirm: 'Create',
-    submit: async (value) => {
-      const made = await host.createEntity(type.id, value);
+    ...(templates.length === 0
+      ? {}
+      : {
+          choice: {
+            label: 'Start from',
+            options: [{ value: '', text: PLAIN_ENTITY_CHOICE }, ...templates.map((template) => ({ value: template.path, text: template.name }))],
+          },
+        }),
+    submit: async (value, chosen) => {
+      const made = await host.createEntity(type.id, value, chosen);
       if ('problem' in made) return made.problem;
       void host.open(made.path, false);
       return null;

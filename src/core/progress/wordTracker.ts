@@ -26,6 +26,7 @@
 import { isDateText } from './../dates';
 import { isInside, isMarkdownPath, joinPath, pathKey } from './../paths';
 import { MANUSCRIPT_FOLDER } from './../projectLayout';
+import { LIBRARY_FOLDER, TEMPLATES_FOLDER } from './../templates/places';
 import { STATS_FOLDER } from './statsFile';
 import type { DayCounts } from './statsFile';
 import { WRITE_RETRY_MS, planWrites } from './writeSchedule';
@@ -157,17 +158,21 @@ export interface SessionWords {
  *    that project, whichever project is open.
  *  - Any other note counts as "other" for the open project.
  *  - Null (not counted at all) when there is no open project to credit, for a
- *    file that is not a markdown note, and for the daily logs themselves.
+ *    file that is not a markdown note, for the daily logs themselves, and for
+ *    templates (a project's Templates folder, the vault's folder of project
+ *    templates): they are not writing.
  */
 export function classifyNote(path: string, projects: ProjectsNow): NoteTarget | null {
   if (!isMarkdownPath(path)) return null;
   const note = pathKey(path);
+  if (isInside(pathKey(LIBRARY_FOLDER), note)) return null;
   const folders = projects.active === null ? projects.folders : [...projects.folders, projects.active];
 
   let manuscriptOf: string | null = null;
   for (const folder of folders) {
     const key = pathKey(folder);
     if (isInside(joinPath(key, STATS_FOLDER), note)) return null;
+    if (isInside(joinPath(key, pathKey(TEMPLATES_FOLDER)), note)) return null;
     if (!isInside(joinPath(key, MANUSCRIPT_FOLDER), note)) continue;
     // A project inside another project's folder: the nearest one wins.
     if (manuscriptOf === null || key.length > pathKey(manuscriptOf).length) manuscriptOf = folder;

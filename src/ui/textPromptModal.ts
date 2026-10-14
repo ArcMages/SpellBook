@@ -26,11 +26,27 @@ export interface TextPrompt {
   /** The text of the button that confirms, for example "Create". */
   readonly confirm: string;
   /**
-   * Called with the text when the writer confirms. Resolves with null when
+   * A list to choose one thing from, under the field (for example the
+   * template a new scene starts from). Default: none.
+   */
+  readonly choice?: PromptChoice;
+  /**
+   * Called with the text when the writer confirms, and the value of what was
+   * chosen in the list ("" when there is no list). Resolves with null when
    * all went well (the window closes), or with a short message saying why the
    * text will not do (shown under the field; the window stays open).
    */
-  readonly submit: (value: string) => Promise<string | null> | string | null;
+  readonly submit: (value: string, chosen: string) => Promise<string | null> | string | null;
+}
+
+/** A list to choose from in the window. */
+export interface PromptChoice {
+  /** What the list is for, for example "Start from". */
+  readonly label: string;
+  /** The things to choose from, in order. Their texts may be the writer's own, in any language. */
+  readonly options: ReadonlyArray<{ readonly value: string; readonly text: string }>;
+  /** What is chosen at first. Default: the first. */
+  readonly value?: string;
 }
 
 export class TextPromptModal extends Modal {
@@ -40,6 +56,7 @@ export class TextPromptModal extends Modal {
   private confirmButton: ButtonComponent | null = null;
   private busy = false;
   private closed = false;
+  private chosen = '';
 
   constructor(app: App, prompt: TextPrompt) {
     super(app);
@@ -87,6 +104,22 @@ export class TextPromptModal extends Modal {
     this.input = input;
     this.message = field.createDiv({ cls: 'spellbook-prompt-message', attr: { role: 'alert', dir: 'auto' } });
 
+    const choice = prompt.choice;
+    this.chosen = choice?.value ?? choice?.options[0]?.value ?? '';
+    if (choice !== undefined && choice.options.length > 0) {
+      // In a place of its own: the window's own row of buttons stays its first row.
+      const place = contentEl.createDiv({ cls: 'spellbook-prompt-choice-row' });
+      new Setting(place).setName(choice.label).addDropdown((dropdown) => {
+        for (const option of choice.options) {
+          dropdown.selectEl.createEl('option', { value: option.value, text: option.text, attr: { dir: 'auto' } });
+        }
+        dropdown.selectEl.addClass('spellbook-prompt-choice');
+        dropdown.setValue(this.chosen).onChange((value) => {
+          this.chosen = value;
+        });
+      });
+    }
+
     new Setting(contentEl)
       .addButton((button) => {
         button.setButtonText('Cancel').onClick(() => {
@@ -129,7 +162,7 @@ export class TextPromptModal extends Modal {
     this.confirmButton?.setDisabled(true);
     let problem: string | null;
     try {
-      problem = await this.prompt.submit(input.value);
+      problem = await this.prompt.submit(input.value, this.chosen);
     } catch (error) {
       console.error('Spellbook: the name could not be used', error);
       problem = error instanceof Error ? error.message : String(error);

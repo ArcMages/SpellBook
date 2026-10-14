@@ -39,6 +39,7 @@ export const STYLE_FILES = Object.freeze([
   'world.css',
   'plotgrid.css',
   'welcome.css',
+  'templates.css',
 ]);
 
 const BANNER = `/*
