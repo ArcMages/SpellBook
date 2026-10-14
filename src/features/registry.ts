@@ -29,6 +29,7 @@ import { corkboardFeature } from './corkboard/index';
 import { modesFeature } from './modes/index';
 import { exportFeature } from './export/index';
 import { outlinerFeature } from './outliner/index';
+import { plotGridFeature } from './plotgrid/index';
 import { plannerFeature } from './planner/index';
 import { progressFeature } from './progress/index';
 import { schemesFeature } from './schemes/index';
@@ -159,6 +160,7 @@ export const FEATURES: readonly Feature[] = [
   snapshotsFeature,
   worldFeature,
   aihelperFeature,
+  plotGridFeature,
 ];
 
 /** What registerFeatures needs: a FeatureContext without the parts the registry makes itself. */

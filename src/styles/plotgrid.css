@@ -1,0 +1,500 @@
+/*
+ * Spellbook: the plot grid, which scene carries which plotline.
+ *
+ * The rules of styles.css hold here too:
+ *   - every class starts with "spellbook-", every variable with "--spellbook-";
+ *   - colours and spacing come only from Obsidian's CSS variables, so the
+ *     plugin follows the user's theme in light and dark mode;
+ *   - sides are named "start" and "end", never by their physical names, so
+ *     that everything mirrors when Obsidian itself runs the other way;
+ *   - nothing may depend on hover alone, and every layout must work at phone width.
+ *
+ * Set from the plugin's code, because they are worked out: how far a row is
+ * set in, and where the pieces of a column's coverage bar start and how long
+ * they are.
+ */
+
+.spellbook-plotgrid {
+  --spellbook-plotgrid-touch: 44px;
+  --spellbook-plotgrid-indent: var(--size-4-4);
+  --spellbook-plotgrid-name-width: 16rem;
+  --spellbook-plotgrid-cell: 2.5rem;
+  --spellbook-plotgrid-column: 6.5rem;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.spellbook-plotgrid-pane {
+  padding: 0;
+}
+
+/* ------------------------------------------------------------------ Colours */
+
+.spellbook-plotgrid-color-red {
+  --spellbook-plotgrid-tint: var(--color-red);
+}
+
+.spellbook-plotgrid-color-orange {
+  --spellbook-plotgrid-tint: var(--color-orange);
+}
+
+.spellbook-plotgrid-color-yellow {
+  --spellbook-plotgrid-tint: var(--color-yellow);
+}
+
+.spellbook-plotgrid-color-green {
+  --spellbook-plotgrid-tint: var(--color-green);
+}
+
+.spellbook-plotgrid-color-cyan {
+  --spellbook-plotgrid-tint: var(--color-cyan);
+}
+
+.spellbook-plotgrid-color-blue {
+  --spellbook-plotgrid-tint: var(--color-blue);
+}
+
+.spellbook-plotgrid-color-purple {
+  --spellbook-plotgrid-tint: var(--color-purple);
+}
+
+.spellbook-plotgrid-color-pink {
+  --spellbook-plotgrid-tint: var(--color-pink);
+}
+
+/* No colour of its own: the accent, so that a filled cell still stands out. */
+.spellbook-plotgrid-no-color {
+  --spellbook-plotgrid-tint: var(--interactive-accent);
+}
+
+/* ------------------------------------------------------------- Header, bar */
+
+.spellbook-plotgrid-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--size-4-2);
+  padding-block: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+}
+
+.spellbook-plotgrid-heading {
+  font-size: var(--font-ui-large);
+  font-weight: var(--font-semibold);
+  text-align: start;
+}
+
+.spellbook-plotgrid-summary {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.spellbook-plotgrid-bar-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+  padding-block-end: var(--size-4-2);
+  padding-inline: var(--size-4-3);
+}
+
+.spellbook-plotgrid-synopsis-toggle.is-active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.spellbook-plotgrid-message {
+  padding-block: var(--size-4-4);
+  padding-inline: var(--size-4-3);
+  color: var(--text-muted);
+  text-align: start;
+}
+
+/* ------------------------------------------------------------------ Table */
+
+.spellbook-plotgrid-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  /* The sticky name column must not hide a column that snaps into place. */
+  scroll-padding-inline-start: var(--spellbook-plotgrid-name-width);
+}
+
+.spellbook-plotgrid-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.spellbook-plotgrid-corner,
+.spellbook-plotgrid-head,
+.spellbook-plotgrid-name,
+.spellbook-plotgrid-cell {
+  box-sizing: border-box;
+  border: 0;
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  font-weight: var(--font-normal);
+  text-align: start;
+  vertical-align: middle;
+}
+
+/* The header row stays at the top. */
+.spellbook-plotgrid-corner,
+.spellbook-plotgrid-head {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  padding-block: var(--size-2-3);
+  padding-inline: var(--size-4-2);
+  background-color: var(--background-secondary);
+  color: var(--text-muted);
+  font-weight: var(--font-medium);
+}
+
+.spellbook-plotgrid-head {
+  min-width: var(--spellbook-plotgrid-column);
+  max-width: 10rem;
+  scroll-snap-align: start;
+}
+
+/* The scene names stay at the start while the plot columns scroll sideways. */
+.spellbook-plotgrid-corner,
+.spellbook-plotgrid-name {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  width: var(--spellbook-plotgrid-name-width);
+  min-width: var(--spellbook-plotgrid-name-width);
+  max-width: var(--spellbook-plotgrid-name-width);
+  border-inline-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+/* Where the header row and the name column meet: above both. */
+.spellbook-plotgrid-corner {
+  z-index: 3;
+}
+
+.spellbook-plotgrid-head-top {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-2);
+  min-width: 0;
+}
+
+.spellbook-plotgrid-head-dot {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-s);
+  height: var(--icon-s);
+  color: var(--spellbook-plotgrid-tint);
+}
+
+.spellbook-plotgrid-head-dot:empty {
+  width: var(--size-4-2);
+  height: var(--size-4-2);
+  border-radius: 50%;
+  background-color: var(--spellbook-plotgrid-tint);
+}
+
+.spellbook-plotgrid-head-dot .svg-icon {
+  width: var(--icon-s);
+  height: var(--icon-s);
+}
+
+.spellbook-plotgrid-head-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-normal);
+}
+
+/* A label a scene names that the project's list does not have. */
+.spellbook-plotgrid-unlisted .spellbook-plotgrid-head-name {
+  font-style: italic;
+}
+
+.spellbook-plotgrid-head-count {
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Where in the book the column's scenes are: a thin strip, filled where they are. */
+.spellbook-plotgrid-coverage {
+  position: relative;
+  height: var(--size-2-3);
+  margin-block-start: var(--size-2-2);
+  border-radius: var(--radius-s);
+  background-color: var(--background-modifier-border);
+  overflow: hidden;
+}
+
+.spellbook-plotgrid-coverage-run,
+.spellbook-plotgrid-coverage-gap {
+  position: absolute;
+  inset-block: 0;
+}
+
+.spellbook-plotgrid-coverage-run {
+  background-color: var(--spellbook-plotgrid-tint);
+}
+
+/* A long stretch without the column: a quiet line under the strip. */
+.spellbook-plotgrid-coverage-gap {
+  border-block-end: var(--border-width) dashed var(--text-faint);
+}
+
+/* ------------------------------------------------------------------- Rows */
+
+.spellbook-plotgrid-name {
+  padding-block: var(--size-2-2);
+  padding-inline: var(--size-4-2);
+  overflow: hidden;
+}
+
+.spellbook-plotgrid-name-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-2);
+  min-width: 0;
+}
+
+.spellbook-plotgrid-name-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.spellbook-plotgrid-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+  cursor: pointer;
+}
+
+.spellbook-plotgrid-synopsis {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+}
+
+.spellbook-plotgrid-missing .spellbook-plotgrid-title {
+  color: var(--text-faint);
+}
+
+.spellbook-plotgrid-missing-label {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+/* A folder: a row that groups the scenes under it, set apart from them. */
+.spellbook-plotgrid-folder > .spellbook-plotgrid-name,
+.spellbook-plotgrid-folder > .spellbook-plotgrid-cell {
+  background-color: var(--background-secondary);
+  font-weight: var(--font-medium);
+}
+
+.spellbook-plotgrid-folder-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+  cursor: pointer;
+}
+
+.spellbook-plotgrid-folder-scenes,
+.spellbook-plotgrid-folder-count {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+}
+
+.spellbook-plotgrid-fold {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.spellbook-plotgrid-fold.is-collapsed .svg-icon {
+  transform: rotate(-90deg);
+}
+
+.spellbook-plotgrid-fold.is-collapsed:dir(rtl) .svg-icon {
+  transform: rotate(90deg);
+}
+
+/* ------------------------------------------------------------------ Cells */
+
+.spellbook-plotgrid-cell {
+  padding: 0;
+  text-align: center;
+}
+
+.spellbook-plotgrid-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--spellbook-plotgrid-cell);
+  cursor: pointer;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.spellbook-plotgrid-mark[aria-disabled='true'] {
+  cursor: default;
+}
+
+.spellbook-plotgrid-mark:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+
+/* A scene that is in the column: a dot of the column's colour, with a tick in it. */
+.spellbook-plotgrid-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-4-5);
+  height: var(--size-4-5);
+  border-radius: 50%;
+  background-color: var(--spellbook-plotgrid-tint);
+  color: var(--background-primary);
+}
+
+.spellbook-plotgrid-dot .svg-icon {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  stroke-width: 3;
+}
+
+/* A change that is being saved. */
+.spellbook-plotgrid-busy {
+  opacity: 0.5;
+}
+
+/* A long stretch of scenes the column is missing from: quietly shaded. */
+.spellbook-plotgrid-cell.spellbook-plotgrid-gap {
+  background-color: var(--background-secondary-alt);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .spellbook-plotgrid-mark:hover {
+    background-color: var(--background-modifier-hover);
+  }
+}
+
+/* ----------------------------------------------- Narrow panes and touch */
+
+/* A narrow pane: a shorter name column, cells as big as a fingertip, and plot columns that snap into place. */
+.spellbook-plotgrid.spellbook-is-narrow {
+  --spellbook-plotgrid-name-width: 9rem;
+  --spellbook-plotgrid-cell: var(--spellbook-plotgrid-touch);
+  --spellbook-plotgrid-column: 5rem;
+}
+
+.spellbook-plotgrid.spellbook-is-narrow .spellbook-plotgrid-scroll {
+  scroll-snap-type: inline proximity;
+}
+
+.spellbook-plotgrid.spellbook-is-mobile {
+  --spellbook-plotgrid-cell: var(--spellbook-plotgrid-touch);
+}
+
+.spellbook-plotgrid.spellbook-is-mobile .spellbook-plotgrid-fold,
+.spellbook-plotgrid.spellbook-is-narrow .spellbook-plotgrid-fold {
+  min-width: var(--spellbook-plotgrid-touch);
+  min-height: var(--spellbook-plotgrid-touch);
+}
+
+.spellbook-plotgrid.spellbook-is-mobile .spellbook-plotgrid-bar-row button {
+  min-height: var(--spellbook-plotgrid-touch);
+}
+
+@media (pointer: coarse) {
+  .spellbook-plotgrid .spellbook-plotgrid-mark {
+    min-height: var(--spellbook-plotgrid-touch);
+  }
+}
+
+/* On a phone, Obsidian's own bar floats over the bottom of the pane: room under the last row. */
+.spellbook-plotgrid.spellbook-is-phone .spellbook-plotgrid-table {
+  margin-block-end: max(var(--mobile-navbar-height, 0px), 80px);
+}
+
+/* ----------------------------------------------------------------- Picker */
+
+.spellbook-plotgrid-picker-hint,
+.spellbook-plotgrid-picker-empty {
+  color: var(--text-muted);
+  margin-block-end: var(--size-4-2);
+}
+
+.spellbook-plotgrid-picker-list {
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.spellbook-plotgrid-picker-group {
+  padding-block: var(--size-4-2) var(--size-2-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  text-align: start;
+}
+
+.spellbook-plotgrid-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  /* As tall as a fingertip: the window is used on phones too. */
+  min-height: 44px;
+  padding-inline: var(--size-4-2);
+  border-radius: var(--radius-s);
+  cursor: pointer;
+}
+
+.spellbook-plotgrid-pick-box {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-m);
+  height: var(--icon-m);
+  border: var(--border-width) solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.spellbook-plotgrid-pick.is-chosen .spellbook-plotgrid-pick-box {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.spellbook-plotgrid-pick-name {
+  flex: 1 1 auto;
+  text-align: start;
+}
+
+.spellbook-plotgrid-picker-buttons {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: var(--size-4-3);
+}
+
+/* Out of sight. (Repeated, so that it outweighs whatever lays the thing out.) */
+.spellbook-plotgrid-off.spellbook-plotgrid-off.spellbook-plotgrid-off {
+  display: none;
+}
