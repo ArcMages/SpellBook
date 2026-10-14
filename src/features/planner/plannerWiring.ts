@@ -36,12 +36,10 @@ import type { FeatureClock, FeatureServices } from '../registry';
 import type { PlannerChange, PlannerHost, PlannerProject, PlannerStats } from './plannerHost';
 import { PROGRESS_STATS_SERVICE, TARGETS_KEY, asDays, asProgressStats, statsFrom, wordsOn } from './plannerNumbers';
 import type { ProgressStats, ProgressSummary } from './plannerNumbers';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 /** How often the host looks whether the day has changed, in milliseconds, while a planner is open. */
 export const DAY_CHECK_MS = 60000;
-
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-const PROBLEM_NOTICE_MS = 10000;
 
 const NO_PROJECT = 'No project is open.';
 

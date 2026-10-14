@@ -7,6 +7,7 @@ import type { CardColor } from '../../core/cards';
 import type { EntityType } from '../../core/world';
 import { showIcon } from '../../ui/icons';
 import { safely } from '../../ui/safely';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 /** What a "more" button is called (read out, and shown as a tooltip). The binder's wording. */
 export const MORE_LABEL = 'More options';
@@ -20,8 +21,7 @@ export const NO_COLOR_CLASS = 'spellbook-world-no-color';
 /** The icon shown when a type's own is not known to this version of Obsidian. */
 export const FALLBACK_ICON = 'circle';
 
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-export const PROBLEM_NOTICE_MS = 10000;
+export { PROBLEM_NOTICE_MS };
 
 export const NO_PROJECT_TEXT = 'No Spellbook project is open.';
 export const READ_ONLY_TEXT = 'This project is read-only, so nothing can be changed.';

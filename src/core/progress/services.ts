@@ -104,7 +104,7 @@ export interface StatsSummary {
   readonly streak: number;
   /** Net manuscript words per day that was written on, rounded; 0 when there is none. */
   readonly average: number;
-  /** Net manuscript words of the week today falls in (weeks begin on Monday). */
+  /** Net manuscript words of the week today falls in (weeks begin on the first day of the week of Obsidian's language, as in the calendar). */
   readonly weekTotal: number;
   /** Net manuscript words of the month today falls in. */
   readonly monthTotal: number;

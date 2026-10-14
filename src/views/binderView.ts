@@ -78,6 +78,7 @@ import { MISSING_LABEL } from './binderActions';
 import type { BinderActions } from './binderActions';
 import { folderMenu, missingMenu, researchMenu, sceneMenu, unfiledMenu } from './binderMenus';
 import type { MenuContext } from './binderMenus';
+import { PROBLEM_NOTICE_MS } from '../ui/notices';
 
 export { MISSING_LABEL } from './binderActions';
 
@@ -93,9 +94,6 @@ export const MORE_LABEL = 'More options';
 /** What the panel says when a conflicting copy of the project's index is found: for one copy, and for several. */
 export const CONFLICT_MESSAGE = "A conflicting copy of this project's structure was found.";
 export const CONFLICTS_MESSAGE = "Conflicting copies of this project's structure were found.";
-
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-const PROBLEM_NOTICE_MS = 10000;
 
 /** The parts of the plugin the binder works with. They exist once Obsidian has finished starting up. */
 export interface BinderServices {

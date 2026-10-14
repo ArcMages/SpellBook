@@ -50,19 +50,11 @@ export function asProgressStats(value: unknown): ProgressStats | null {
 }
 
 /**
- * The weekday that weeks start on in a language, from the `moment` object
- * that Obsidian sets to the app's language: 0 is Sunday, up to 6 for
- * Saturday. Sunday when it cannot be told.
+ * The weekday that weeks start on in a language: 0 is Sunday, up to 6 for
+ * Saturday. Sunday when it cannot be told. It lives in the core, so that the
+ * week totals of the writing progress follow the same rule.
  */
-export function firstDayOfWeekOf(locale: unknown): number {
-  try {
-    const data: unknown = (locale as { localeData?: () => unknown } | null | undefined)?.localeData?.();
-    const day: unknown = (data as { firstDayOfWeek?: () => unknown } | null | undefined)?.firstDayOfWeek?.();
-    return typeof day === 'number' && Number.isInteger(day) && day >= 0 && day <= 6 ? day : 0;
-  } catch {
-    return 0;
-  }
-}
+export { firstDayOfWeekOf } from '../../core/progress';
 
 /**
  * The number of words to write each day, from the value stored under the

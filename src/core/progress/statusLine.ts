@@ -14,6 +14,7 @@ import type { BarItemId } from './barLayout';
 import { DEFAULT_BAR_LAYOUT, barItemIds } from './barLayout';
 import { readDateProperty } from './calendar';
 import { formatDisplayDate, formatNumber } from './format';
+import { READING_WORDS_PER_MINUTE as WORDS_PER_MINUTE } from './../wordCount';
 
 /** The names of the pieces of the line: the figures the writer can choose from. */
 export type StatusSegmentId = BarItemId;
@@ -72,8 +73,8 @@ export interface StatusLineInput {
   readonly todos?: { readonly dueToday: number; readonly late: number } | null;
 }
 
-/** How many words a reader reads in a minute, for the reading time. */
-export const READING_WORDS_PER_MINUTE = 238;
+/** How many words a reader reads in a minute, for the reading time: the one reading speed of the whole plugin. */
+export const READING_WORDS_PER_MINUTE = WORDS_PER_MINUTE;
 
 const isCount = (value: number | null | undefined): value is number =>
   value !== null && value !== undefined && Number.isFinite(value);

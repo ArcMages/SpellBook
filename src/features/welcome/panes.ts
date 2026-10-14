@@ -5,9 +5,7 @@
 import { Notice, Platform } from 'obsidian';
 import type { App, WorkspaceLeaf } from 'obsidian';
 import { COULD_NOT_OPEN_TEXT } from './texts';
-
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-const PROBLEM_NOTICE_MS = 10000;
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export class PaneOpener {
   private readonly app: App;

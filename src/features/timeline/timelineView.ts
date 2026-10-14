@@ -79,6 +79,7 @@ import {
 } from './timelineScene';
 import type { PlacedBox, Scene, SceneWindow, TimeMode, TimelineContent } from './timelineScene';
 import { fillWorldCard, placeWorldCard, worldCardDrawn } from './worldCards';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export const TIMELINE_VIEW_TYPE = 'spellbook-timeline';
 export const TIMELINE_VIEW_NAME = 'Timeline';
@@ -1481,7 +1482,7 @@ export class TimelineView extends ItemView {
       menu.addItem((item) => {
         item.setTitle('What is wrong with this event?').onClick(() => {
           const calendar = this.content?.calendar ?? null;
-          new Notice(event.problems.map((problem) => describeEventProblem(problem, calendar)).join('\n'), 12000);
+          new Notice(event.problems.map((problem) => describeEventProblem(problem, calendar)).join('\n'), PROBLEM_NOTICE_MS);
         });
       });
     }

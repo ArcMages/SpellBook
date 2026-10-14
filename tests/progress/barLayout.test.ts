@@ -6,6 +6,7 @@ import {
   DEFAULT_BAR_LAYOUT,
   MAX_BAR_ENTRIES,
   MAX_LABEL_LENGTH,
+  READING_WORDS_PER_MINUTE,
   addBarButton,
   addBarItem,
   barItemIds,
@@ -22,6 +23,7 @@ import {
   serializeBarLayout,
 } from '../../src/core/progress';
 import type { BarLayout, StatusLineInput } from '../../src/core/progress';
+import { WORDS_PER_MINUTE } from '../../src/core/outliner/readTime';
 
 const ZEN = 'spellbook-novel-writer:toggle-zen-mode';
 
@@ -197,14 +199,16 @@ describe('the line of figures, as the writer laid it out', () => {
     expect(buildStatusLine({ sceneWords: 10, sceneTarget: 0 }, ['target'])).toEqual([]);
   });
 
-  it('reads the reading time at 238 words a minute', () => {
+  it('reads the reading time at 250 words a minute, as the outliner and the report do', () => {
+    expect(READING_WORDS_PER_MINUTE).toBe(250);
+    expect(READING_WORDS_PER_MINUTE).toBe(WORDS_PER_MINUTE);
     expect(formatReadingTime(0)).toBe('0 min');
     expect(formatReadingTime(-5)).toBe('0 min');
     expect(formatReadingTime(Number.NaN)).toBe('0 min');
     expect(formatReadingTime(100)).toBe('<1 min');
-    expect(formatReadingTime(238)).toBe('1 min');
-    expect(formatReadingTime(2380)).toBe('10 min');
-    expect(formatReadingTime(238 * 65)).toBe('1h 05m');
+    expect(formatReadingTime(250)).toBe('1 min');
+    expect(formatReadingTime(2500)).toBe('10 min');
+    expect(formatReadingTime(250 * 65)).toBe('1h 05m');
     expect(buildStatusLine(everything, ['reading'])).toEqual([{ id: 'reading', label: 'Reading', value: '5 min' }]);
     expect(buildStatusLine({}, ['reading'])).toEqual([]);
   });

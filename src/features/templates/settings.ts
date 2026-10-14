@@ -9,6 +9,7 @@ import { LIBRARY_FOLDER, SCENE_TEMPLATES_FOLDER, WORLD_TEMPLATES_FOLDER, allWorl
 import type { IntentResult } from '../../core/types';
 import { ConfirmModal } from '../../ui/confirmModal';
 import type { FeatureContext, SettingsSection } from '../registry';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export const TEMPLATES_SECTION_ID = 'templates';
 export const TEMPLATES_SECTION_TITLE = 'Templates';
@@ -19,8 +20,6 @@ export const NO_PROJECT_TEMPLATES_TEXT =
 export const NO_OPEN_PROJECT_TEXT = 'Open a project to see its templates.';
 export const NO_LIBRARY_TEXT = `No project templates yet. Run "Save project as template" to save the shape of the open project in the "${LIBRARY_FOLDER}" folder.`;
 export const COULD_NOT_OPEN_TEXT = 'The template could not be opened.';
-
-const PROBLEM_NOTICE_MS = 8000;
 
 /** One template, as a row of the section shows it. */
 interface Row {

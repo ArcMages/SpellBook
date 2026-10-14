@@ -8,7 +8,7 @@
 // the project store, and lets go of every one of those when the plugin unloads.
 
 import type { Extension } from '@codemirror/state';
-import { Notice, Platform } from 'obsidian';
+import { Notice, Platform, moment } from 'obsidian';
 import type { App, Tasks } from 'obsidian';
 import { binderTotals, placeOfNote, scenesWithNotes } from '../../core/binderModel';
 import { isDateText } from '../../core/dates';
@@ -24,6 +24,7 @@ import {
   barItemIds,
   buildStatusLine,
   countsOn,
+  firstDayOfWeekOf,
   formatDisplayDate,
   formatNumber,
   monthOf,
@@ -58,9 +59,7 @@ import { TargetsModal } from './targetsModal';
 import type { TargetsChoice } from './targetsModal';
 import { WordLedger } from './wordLedger';
 import type { EditorEdit } from './wordLedger';
-
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-const PROBLEM_NOTICE_MS = 10000;
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 /** How long after a note was last saved its words are counted again from the vault. */
 export const RECOUNT_AFTER_MS = 1000;
@@ -823,7 +822,8 @@ export class WritingProgress {
     return {
       streak: writingStreak(totals, today, 'manuscript').current,
       average: writingAverage(totals, 'manuscript').averageNet,
-      weekTotal: net(totalsForWeek(totals, today)),
+      // The week starts where the calendar grid starts it: on the first day of the week of Obsidian's language.
+      weekTotal: net(totalsForWeek(totals, today, firstDayOfWeekOf(moment))),
       monthTotal: month === null ? 0 : net(totalsForMonth(totals, month)),
       dailyTarget: daily,
       dailyTargetMet: daily !== null && net(countsOn(totals, today)) >= daily,

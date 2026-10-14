@@ -741,6 +741,14 @@ export function resetPlatform(): void {
   Object.assign(Platform, { isDesktop: true, isMobile: false, isPhone: false, isTablet: false });
 }
 
+/** The language data Obsidian's `moment` gives. Tests change the first day of the week and put it back. */
+export const momentLocale = { firstDayOfWeek: 0 };
+
+/** A stand-in for Obsidian's `moment`: only what Spellbook reads of it, the first day of the week. */
+export const moment = {
+  localeData: () => ({ firstDayOfWeek: () => momentLocale.firstDayOfWeek }),
+};
+
 interface StubUserEvent {
   metaKey?: boolean;
   ctrlKey?: boolean;

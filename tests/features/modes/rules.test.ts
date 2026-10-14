@@ -59,8 +59,8 @@ describe('the source of the writing modes', () => {
     expect(STYLE_FILES).toContain('modes.css');
   });
 
-  it('reaches nothing outside its own folder but the core, the shared icons, the registry, Obsidian and the editor', () => {
-    const allowed = [/^obsidian$/, /^@codemirror\/(state|view)$/, /^\.\/\w+$/, /^\.\.\/\.\.\/core\/(modes\/index|devicePrefs)$/, /^\.\.\/\.\.\/ui\/icons$/, /^\.\.\/registry$/];
+  it('reaches nothing outside its own folder but the core, the shared icons and notice length, the registry, Obsidian and the editor', () => {
+    const allowed = [/^obsidian$/, /^@codemirror\/(state|view)$/, /^\.\/\w+$/, /^\.\.\/\.\.\/core\/(modes\/index|devicePrefs)$/, /^\.\.\/\.\.\/ui\/(icons|notices)$/, /^\.\.\/registry$/];
     for (const name of files) {
       for (const target of importsOf(codeOf(name))) {
         expect(allowed.some((pattern) => pattern.test(target)), `${name} imports ${target}`).toBe(true);

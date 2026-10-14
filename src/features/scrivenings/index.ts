@@ -19,6 +19,7 @@ import type { Feature, FeatureContext } from '../registry';
 import { obsidianDrawer } from './drawing';
 import { ScriveningsHost } from './host';
 import { SCRIVENINGS_VIEW_TYPE, createScriveningsView, scriveningsIcon } from './scriveningsView';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export { ScriveningsHost, MEMORY_KEY, WORD_COUNT_ASKER } from './host';
 export type { HostScene, ScopeScenes, ScriveningsChange } from './host';
@@ -39,9 +40,6 @@ export const SCRIVENINGS_COMMANDS = {
 } as const;
 
 export const COULD_NOT_OPEN_TEXT = 'The novel view could not be opened.';
-
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-const PROBLEM_NOTICE_MS = 10000;
 
 /**
  * Brings the continuous manuscript onto the screen, as a tab in the main

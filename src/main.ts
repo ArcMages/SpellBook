@@ -31,13 +31,11 @@ import { BinderActions } from './views/binderActions';
 import type { ActionsHost } from './views/binderActions';
 import { BINDER_VIEW_TYPE, BinderView } from './views/binderView';
 import type { BinderHost, BinderServices } from './views/binderView';
+import { PROBLEM_NOTICE_MS } from './ui/notices';
 
 const STILL_STARTING = 'Spellbook is still starting. Try again in a moment.';
 const STILL_CREATING = 'Spellbook is still creating the last project. Try again when it has finished.';
 const NO_ROOM_FOR_BINDER = 'The binder could not be opened: Obsidian has no room for it in the left sidebar.';
-
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-const PROBLEM_NOTICE_MS = 10000;
 
 /** The open project, when it is one that can be changed. */
 interface OpenProject {

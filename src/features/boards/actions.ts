@@ -11,6 +11,7 @@ import { TextPromptModal } from '../../ui/textPromptModal';
 import { BoardKeeper, NO_PROJECT_TEXT, NO_ENTITIES_TEXT } from './keeper';
 import type { BoardInfo, Outcome } from './keeper';
 import { BoardPickerModal, CardsToNotesModal, ChapterBoardModal, EntityPickerModal, NO_TEXT_CARDS_TEXT, RelationMapModal } from './windows';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export const NEW_BOARD_TITLE = 'New idea board';
 export const NEW_BOARD_LABEL = 'Name';
@@ -22,7 +23,6 @@ export const NO_BOARDS_TEXT = 'This project has no boards yet. Use "New idea boa
 export const NO_WORLD_TEXT = 'The World of this project has no entities yet.';
 export const BOARD_MADE_TEXT = 'Board drawn.';
 
-const PROBLEM_NOTICE_MS = 10000;
 const NOTICE_MS = 5000;
 
 /** 'Delete "Ideas"?' */

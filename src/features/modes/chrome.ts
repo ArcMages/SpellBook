@@ -20,6 +20,7 @@ import type { App, EventRef } from 'obsidian';
 import { blockedText } from '../../core/modes/index';
 import type { Blocked, ModeId, ModeSet, ModeSettings } from '../../core/modes/index';
 import { iconName, showIcon } from '../../ui/icons';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 import type { FeatureClock } from '../registry';
 
 /** On the body while Zen is on. */
@@ -51,8 +52,8 @@ const LOCK_ICON = ['lock-keyhole', 'lock'] as const;
 
 /** How long the lock and the frame stay lit after something was refused. */
 export const FLASH_MS = 450;
-/** How long the notice about the first refusal stays. */
-export const REFUSED_NOTICE_MS = 8000;
+/** How long the notice about the first refusal stays: as long as every problem notice. */
+export const REFUSED_NOTICE_MS = PROBLEM_NOTICE_MS;
 
 /** Things that take the Escape key for themselves while they are open. */
 const ESCAPE_TAKERS = '.modal-container, .menu, .suggestion-container, .prompt';

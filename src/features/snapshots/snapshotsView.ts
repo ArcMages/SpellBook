@@ -37,6 +37,7 @@ import type { FeatureClock } from '../registry';
 import { SnapshotKeeper } from './keeper';
 import type { KeeperChange, SceneAt } from './keeper';
 import { RestoreModal } from './restoreModal';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export const SNAPSHOTS_VIEW_TYPE = 'spellbook-snapshots';
 export const SNAPSHOTS_VIEW_NAME = 'Snapshots';
@@ -72,7 +73,6 @@ export const RESTORED_TEXT = 'Restored. The text from before was saved as a snap
 /** How long after a save the list waits before it counts the differences again, in milliseconds. */
 export const RECOUNT_DELAY_MS = 1200;
 const NOTICE_MS = 5000;
-const PROBLEM_NOTICE_MS = 10000;
 
 /** "+12 -3 words against the scene now", with a real minus sign. */
 export function describeChange(diff: Pick<TextDiff, 'added' | 'removed'>): string {

@@ -28,6 +28,7 @@ import type { Feature, FeatureContext } from '../registry';
 import { BoardActions } from './actions';
 import { BOARDS_VIEW_TYPE, boardsIcon, createBoardsView } from './boardsView';
 import { BoardKeeper } from './keeper';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export { BoardActions } from './actions';
 export { BOARDS_VIEW_NAME, BOARDS_VIEW_TYPE, BoardsView } from './boardsView';
@@ -47,7 +48,6 @@ export const BOARD_COMMANDS = {
 } as const;
 
 export const COULD_NOT_OPEN_TEXT = 'The idea boards could not be opened.';
-const PROBLEM_NOTICE_MS = 10000;
 
 /**
  * Brings the Boards pane onto the screen, in the side bar on the right (a

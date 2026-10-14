@@ -7,7 +7,7 @@ import { MEASURE_AFTER_MS, WRITE_AFTER_QUIET_MS, updateStatsText } from '../../.
 import type { StatsChange } from '../../../src/core/progress/index';
 import { COUNT_PASTED_KEY } from '../../../src/features/progress/settings';
 import { TargetsModal } from '../../../src/features/progress/targetsModal';
-import { FakeElement, Modal, Notice, Platform, resetFakeDocument, resetPlatform } from '../../obsidianStub';
+import { FakeElement, Modal, Notice, Platform, momentLocale, resetFakeDocument, resetPlatform } from '../../obsidianStub';
 import type { ButtonComponent, Setting } from '../../obsidianStub';
 import type { MemoryVault } from '../../memoryVault';
 import type { SettingWithToggles } from './obsidianExtras';
@@ -443,6 +443,24 @@ describe('the word log, for the calendar', () => {
       dailyTarget: 40,
       dailyTargetMet: false,
     });
+  });
+
+  it('counts "this week" from the same first day of the week as the calendar grid', async () => {
+    // Sunday the 11th and Tuesday the 13th (today).
+    const week = otherDevice('phone00001', '2026-10', [
+      { date: '2026-10-11', counts: { manuscriptAdded: 50 } },
+      { date: DAY, counts: { manuscriptAdded: 7 } },
+    ]);
+    const stand = await standUp({ prepare: week });
+    const stats = stand.stats();
+    try {
+      momentLocale.firstDayOfWeek = 0; // a language whose weeks start on Sunday
+      expect((await stats.summary(DAY)).weekTotal).toBe(57);
+      momentLocale.firstDayOfWeek = 1; // and one whose weeks start on Monday
+      expect((await stats.summary(DAY)).weekTotal).toBe(7);
+    } finally {
+      momentLocale.firstDayOfWeek = 0;
+    }
   });
 
   it('says whether today\'s target is met, and gives zeros for a project nobody has written in', async () => {

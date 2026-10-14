@@ -102,7 +102,7 @@ describe('the source of the corkboard feature', () => {
       /^\.\.\/\.\.\/core\/cards$/,
       /^\.\.\/\.\.\/core\/(binderModel|dropTarget|names|types)$/,
       // missingNote: the wording of the warning on an entry whose note is missing, shared with the binder.
-      /^\.\.\/\.\.\/ui\/(confirmModal|dragDrop|icons|keys|missingNote|safely|textPromptModal)$/,
+      /^\.\.\/\.\.\/ui\/(confirmModal|dragDrop|icons|keys|missingNote|notices|safely|textPromptModal)$/,
     ];
     for (const name of screens) {
       const code = codeOf(name);

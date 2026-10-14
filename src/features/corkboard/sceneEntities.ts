@@ -16,13 +16,11 @@ import { showIcon } from '../../ui/icons';
 import { safely } from '../../ui/safely';
 import type { FeatureClock, FeatureServices } from '../registry';
 import type { SceneEntitiesPart } from './host';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export const SCENE_ENTITIES_HEADING = 'In this scene';
 export const SCENE_ENTITIES_NONE = 'Nobody and nothing yet.';
 export const SCENE_ENTITIES_ADD = 'Add';
-
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-const PROBLEM_NOTICE_MS = 10000;
 
 /**
  * Whether what was found under the service's name can be used. It is looked

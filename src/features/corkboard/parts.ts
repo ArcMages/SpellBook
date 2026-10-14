@@ -7,6 +7,7 @@ import { CARD_COLORS } from '../../core/cards';
 import type { CardColor } from '../../core/cards';
 import { showIcon } from '../../ui/icons';
 import { safely } from '../../ui/safely';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 /** What a "more" button is called (read out, and shown as a tooltip). The binder's wording. */
 export const MORE_LABEL = 'More options';
@@ -20,8 +21,7 @@ export const SWATCH_CLASS = 'spellbook-swatch';
 /** On something that has a colour of its own but, for now, none of the eight. */
 export const NO_COLOR_CLASS = 'spellbook-no-color';
 
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-export const PROBLEM_NOTICE_MS = 10000;
+export { PROBLEM_NOTICE_MS };
 
 /**
  * The class that gives an element one of the eight colours. The stylesheet

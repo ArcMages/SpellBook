@@ -32,6 +32,7 @@ import { SIDE_BY_SIDE_FROM, TABS_BELOW, isWideEnough } from './plannerModel';
 import { readsRightToLeft } from './plannerParts';
 import type { PlannerFrame, PlannerOwner } from './plannerParts';
 import { TodoPart } from './todoPart';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export const PLANNER_VIEW_TYPE = 'spellbook-planner';
 export const PLANNER_VIEW_NAME = 'Planner';
@@ -45,9 +46,6 @@ export type PlannerTab = 'calendar' | 'todos';
 export const NO_PROJECT_MESSAGE = 'Open a Spellbook project to see its calendar and its to-dos.';
 /** What the writer is told when a to-do was no longer in the file as the list showed it. */
 export const TODO_CHANGED_NOTICE = 'That to-do was changed in the file meanwhile. The list is up to date again.';
-
-/** How long a notice about something that went wrong stays up, in milliseconds. */
-const PROBLEM_NOTICE_MS = 10000;
 
 interface Elements {
   readonly root: HTMLElement;

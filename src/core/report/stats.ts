@@ -11,7 +11,7 @@
 // agrees with them. Reading time comes from the outliner's own rule.
 
 import { formatReadTime } from '../outliner/readTime';
-import { countWords, defaultSegmenter } from '../wordCount';
+import { WORD_HYPHENS, countWords, defaultSegmenter } from '../wordCount';
 import type { WordSegmenter } from '../wordCount';
 import { proseBlocks } from './prose';
 import { countSentences } from './sentences';
@@ -92,7 +92,7 @@ export function addStats(total: TextStats, part: TextStats): TextStats {
 // joined by one apostrophe, hyphen, dot or underscore.
 const SPACELESS = '[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}]';
 const WORD_CHARACTER = `(?:(?!${SPACELESS})[\\p{L}\\p{N}\\p{M}])`;
-const JOINERS = `'._\\-${String.fromCharCode(0x2019, 0x05f3, 0x05f4)}`;
+const JOINERS = `'._\\-${String.fromCharCode(0x2010, 0x2011, 0x2019, 0x05f3, 0x05f4)}`;
 const FALLBACK_WORD = new RegExp(`${SPACELESS}|${WORD_CHARACTER}+(?:[${JOINERS}]${WORD_CHARACTER}+)*`, 'gu');
 
 /**
@@ -104,8 +104,19 @@ const FALLBACK_WORD = new RegExp(`${SPACELESS}|${WORD_CHARACTER}+(?:[${JOINERS}]
 export function wordsOf(text: string, segmenter: WordSegmenter | null = defaultSegmenter()): string[] {
   if (segmenter === null) return text.match(FALLBACK_WORD) ?? [];
   const words: string[] = [];
+  // A hyphenated word is one word, as the word counter has it: its parts are joined again.
+  let afterWord = false;
+  let hyphen: string | null = null;
   for (const part of segmenter.segment(text)) {
-    if (part.isWordLike) words.push(part.segment);
+    if (part.isWordLike) {
+      if (hyphen !== null && words.length > 0) words[words.length - 1] += hyphen + part.segment;
+      else words.push(part.segment);
+      afterWord = true;
+      hyphen = null;
+    } else {
+      hyphen = afterWord && WORD_HYPHENS.has(part.segment) ? part.segment : null;
+      afterWord = false;
+    }
   }
   return words;
 }

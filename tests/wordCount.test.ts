@@ -137,6 +137,31 @@ describe('countWords', () => {
   });
 });
 
+describe('the same count on every device', () => {
+  const texts = [
+    "Don't stop the well-known e-mail.",
+    'A state-of-the-art, mother-in-law story; well‐known and non‑breaking.',
+    'Dashes are not hyphens: one — two – three - four -- five.',
+    'A trailing hyphen- and a -leading one.',
+    'Numbers 1-2 and 3.14 count once each.',
+    // The maqaf joins two words that stay two: "the whole earth", "school".
+    'כל־הארץ ובית־ספר',
+    'שלום עולם, מה שלומך?',
+  ];
+
+  it('counts a hyphenated word as one word, with the segmenter and without it', () => {
+    expect(countWords('well-known e-mail')).toBe(2);
+    expect(countWords('a state-of-the-art plot')).toBe(3);
+    expect(countWords('well‐known non‑breaking')).toBe(2);
+    for (const text of texts) expect(countWords(text), text).toBe(countWords(text, null));
+  });
+
+  it('counts the words joined by a maqaf as separate words, everywhere', () => {
+    expect(countWords('כל־הארץ')).toBe(2);
+    expect(countWords('כל־הארץ', null)).toBe(2);
+  });
+});
+
 describe('fallback counting (no Intl.Segmenter)', () => {
   it('counts English words, keeping contractions and hyphenated words whole', () => {
     expect(countWords('The quick brown fox.', null)).toBe(4);

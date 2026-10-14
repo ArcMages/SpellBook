@@ -19,6 +19,7 @@ import { NO_PROJECT_TEXT, NO_SCENE_TEXT, SnapshotKeeper } from './keeper';
 import type { SceneAt } from './keeper';
 import { SnapshotPrefs, snapshotSettings } from './prefs';
 import { SNAPSHOTS_VIEW_TYPE, SnapshotsView, TAKEN_TEXT, TAKE_LABEL, TAKE_PLACEHOLDER, TAKE_TEXT, TAKE_TITLE, createSnapshotsView } from './snapshotsView';
+import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export { AutomaticSnapshots } from './automatic';
 export { SnapshotKeeper } from './keeper';
@@ -53,7 +54,6 @@ export interface SnapshotsService {
 export const COULD_NOT_OPEN_TEXT = 'The snapshots could not be opened.';
 
 const NOTICE_MS = 5000;
-const PROBLEM_NOTICE_MS = 10000;
 
 /**
  * Brings the snapshots of a scene onto the screen, as a tab in the main area

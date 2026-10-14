@@ -424,6 +424,8 @@ With **Chosen entities**, press **Choose** to open the "Choose entities" window,
 - **Add button**: a shortcut button that runs any command you choose, for example one that switches a writing mode. Give it a label, an icon or both.
 - **Reset to default**.
 
+**How words are counted.** The same way on every device. A hyphenated word ("well-known", "e-mail") is one word, as in most writing programs. Words joined by a Hebrew maqaf (the short hyphen at the top of the line) count as two, since the maqaf joins separate words. Properties and `%% comments %%` are not counted. Reading time goes by 250 words a minute, in the bar, the outliner and the writing report alike. "This week" starts on the first day of the week of Obsidian's language, as the calendar does.
+
 **The daily word log.** While you write, Spellbook keeps a log of the words added and deleted each day, split into the manuscript and other notes of the project. The calendar and the "today" figures are worked out from it. See [How your writing is stored](#how-your-writing-is-stored).
 
 **Limits.** A long bar takes at most 60% of the window's width and scrolls sideways. Link addresses and code blocks count as words. The layout of the bar is remembered on each device separately.
