@@ -174,7 +174,7 @@ export function textCards(board: BoardReading): ReadCard[] {
 
 /** What a text card becomes: a file card pointing at a note (by its vault path). */
 export interface CardSwap {
-  /** The text card's id: the file card keeps it, so that every edge stays joined to it. */
+  /** The text card's id. */
   readonly id: string;
   /** The new note's vault path. */
   readonly file: string;
@@ -184,16 +184,22 @@ export interface CardSwap {
 export interface SwapResult {
   /** The board's new text; null when nothing changed (no card could be swapped). */
   readonly text: string | null;
-  /** The ids of the cards that were swapped. */
+  /** The ids of the cards that were swapped (their ids before the swap). */
   readonly swapped: readonly string[];
+  /** The id each swapped card has now, by its old id. */
+  readonly ids: ReadonlyMap<string, string>;
   /** The ids that were asked for and are not text cards of the board (any more). */
   readonly missing: readonly string[];
 }
 
 /**
  * Turn text cards into file cards, in a board's text as it is now. Each card
- * keeps its id, its place, its size and its colour, so its edges stay as they
- * were; only its type changes, and its text gives way to the note's path.
+ * keeps its place, its size and its colour; its type changes, its text gives
+ * way to the note's path, and it gets a new id, with every edge that joined
+ * the old card joined to the new one. The new id matters when the board is
+ * open: Canvas follows a change of the file card by card, by id, and cannot
+ * turn a text card it is showing into a file card, so a card under the same
+ * id stayed a text card on screen, and Canvas's next save undid the swap.
  * Every other card, every edge and every key of the file is written back as
  * it was read. A card that is no longer there, or no longer a text card, is
  * left alone and reported.
@@ -202,27 +208,44 @@ export function swapCards(text: string, swaps: readonly CardSwap[]): SwapResult 
   const raw = parseRaw(text);
   const wanted = new Map(swaps.map((swap) => [swap.id, swap.file]));
   if (raw === null || !Array.isArray(raw['nodes'])) {
-    return { text: null, swapped: [], missing: [...wanted.keys()] };
+    return { text: null, swapped: [], ids: new Map(), missing: [...wanted.keys()] };
+  }
+  const taken = new Set<string>();
+  for (const item of [...raw['nodes'], ...(Array.isArray(raw['edges']) ? raw['edges'] : [])]) {
+    if (isRecord(item) && typeof item['id'] === 'string') taken.add(item['id']);
   }
   const swapped: string[] = [];
+  const ids = new Map<string, string>();
   const nodes = raw['nodes'].map((node: unknown): unknown => {
     if (!isRecord(node) || node['type'] !== 'text' || typeof node['id'] !== 'string') return node;
-    const file = wanted.get(node['id']);
-    if (file === undefined || swapped.includes(node['id'])) return node;
-    swapped.push(node['id']);
+    const id = node['id'];
+    const file = wanted.get(id);
+    if (file === undefined || swapped.includes(id)) return node;
+    swapped.push(id);
     const card: Json = {};
     for (const [key, value] of Object.entries(node)) {
       if (key === 'text') continue;
-      if (key === 'type') card['type'] = 'file';
+      if (key === 'id') card['id'] = boardId(`${id}\n${file}`, taken);
+      else if (key === 'type') card['type'] = 'file';
       else if (key === 'x' || key === 'y' || key === 'width' || key === 'height') card[key] = Math.round(finite(value) ?? 0);
       else card[key] = value;
     }
     card['file'] = file;
+    ids.set(id, card['id'] as string);
     return card;
   });
   const missing = [...wanted.keys()].filter((id) => !swapped.includes(id));
-  if (swapped.length === 0) return { text: null, swapped, missing };
-  return { text: writeRaw({ ...raw, nodes }), swapped, missing };
+  if (swapped.length === 0) return { text: null, swapped, ids, missing };
+  const edges = Array.isArray(raw['edges'])
+    ? raw['edges'].map((edge: unknown): unknown => {
+        if (!isRecord(edge)) return edge;
+        const from = typeof edge['fromNode'] === 'string' ? ids.get(edge['fromNode']) : undefined;
+        const to = typeof edge['toNode'] === 'string' ? ids.get(edge['toNode']) : undefined;
+        if (from === undefined && to === undefined) return edge;
+        return { ...edge, ...(from !== undefined ? { fromNode: from } : {}), ...(to !== undefined ? { toNode: to } : {}) };
+      })
+    : raw['edges'];
+  return { text: writeRaw({ ...raw, nodes, edges }), swapped, ids, missing };
 }
 
 /**

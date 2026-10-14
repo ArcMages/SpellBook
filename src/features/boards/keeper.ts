@@ -469,8 +469,9 @@ export class BoardKeeper {
    * becomes a new note of that type in the World (its first line the name,
    * the rest the summary). Then, in one change of the board as it is on disk
    * at that moment, each card that became a note is replaced by a file card
-   * pointing at it, in the same place, of the same size and colour, with the
-   * same id, so its edges stay. A card left as it is stays a text card.
+   * pointing at it, in the same place, of the same size and colour, with its
+   * edges kept (under a new id, so that a board open in Canvas shows the
+   * change; see swapCards). A card left as it is stays a text card.
    */
   async convert(boardPath: string, decisions: readonly CardDecision[], parentId: string | null): Promise<Outcome<Conversion>> {
     const blocked = this.whyNotWritable();
