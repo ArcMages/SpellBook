@@ -1038,7 +1038,19 @@ export class TextComponent {
 
 export class DropdownComponent {
   readonly selectEl = new FakeElement('select');
+  /** The options offered, by value: what each shows. */
+  readonly options = new Map<string, string>();
   private changed: ((value: string) => unknown) | null = null;
+
+  addOption(value: string, display: string): this {
+    this.options.set(value, display);
+    return this;
+  }
+
+  addOptions(options: Record<string, string>): this {
+    for (const [value, display] of Object.entries(options)) this.options.set(value, display);
+    return this;
+  }
 
   setValue(value: string): this {
     this.selectEl.value = value;

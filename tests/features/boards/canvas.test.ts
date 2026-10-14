@@ -5,9 +5,11 @@ import { describe, expect, it } from 'vitest';
 import {
   EMPTY_BOARD_TEXT,
   boardId,
+  boardLinks,
   boardProblems,
   countCards,
   readBoard,
+  retargetBoard,
   swapCards,
   textCards,
   writeBoard,
@@ -199,5 +201,52 @@ describe('ids', () => {
     const many = new Set<string>();
     for (let i = 0; i < 2000; i++) boardId(`card ${i}`, many);
     expect(many.size).toBe(2000);
+  });
+});
+
+describe('pointing a board at notes that were renamed or moved', () => {
+  const board = [
+    '{',
+    '\t"nodes":[',
+    '\t\t{"id":"a1","type":"file","file":"Novel/Manuscript/Middle.md","subpath":"#Storm","x":0,"y":0,"width":260,"height":120,"color":"2"}',
+    '\t\t{"id":"b2","type":"text","text":"See [[Middle#Storm|the storm]] and ![[Middle]] and [[Ending]].","x":300,"y":0,"width":260,"height":120}',
+    '\t\t{"id":"c3","type":"file","file":"Novel/Manuscript/Ending.md","x":600,"y":0,"width":260,"height":120}',
+    '\t\t{"id":"d4","type":"link","url":"https://example.com","x":0,"y":200,"width":260,"height":120}',
+    '\t],',
+    '\t"edges":[',
+    '\t\t{"id":"e5","fromNode":"a1","toNode":"c3","label":"then"}',
+    '\t],',
+    '\t"newer":{"kept":true}',
+    '}',
+  ].join('\n').replace(/\}\n\t\t\{/g, '},\n\t\t{');
+
+  it('lists the paths of its file cards and the links in its text cards', () => {
+    expect(boardLinks(board)).toEqual({
+      files: ['Novel/Manuscript/Middle.md', 'Novel/Manuscript/Ending.md'],
+      links: ['Middle', 'Middle', 'Ending'],
+    });
+    expect(boardLinks('not a board')).toEqual({ files: [], links: [] });
+  });
+
+  it('changes the file cards and the links asked for, and nothing else: ids, places, colours, edges and unknown keys stay', () => {
+    const result = retargetBoard(
+      board,
+      (file) => (file === 'Novel/Manuscript/Middle.md' ? 'Novel/Manuscript/Crossing.md' : null),
+      (link) => (link === 'Middle' ? 'Crossing' : null),
+    );
+    expect(result.count).toBe(3);
+    const written = JSON.parse(result.text ?? '{}') as { nodes: Array<Record<string, unknown>>; edges: unknown[]; newer: unknown };
+    expect(written.nodes[0]).toEqual({ id: 'a1', type: 'file', file: 'Novel/Manuscript/Crossing.md', subpath: '#Storm', x: 0, y: 0, width: 260, height: 120, color: '2' });
+    expect(written.nodes[1]?.['text']).toBe('See [[Crossing#Storm|the storm]] and ![[Crossing]] and [[Ending]].');
+    expect(written.nodes[2]).toEqual(JSON.parse(board).nodes[2]);
+    expect(written.nodes[3]).toEqual(JSON.parse(board).nodes[3]);
+    expect(written.edges).toEqual([{ id: 'e5', fromNode: 'a1', toNode: 'c3', label: 'then' }]);
+    expect(written.newer).toEqual({ kept: true });
+    expect(readBoard(result.text ?? '')).not.toBeNull();
+  });
+
+  it('writes nothing when nothing on the board leads to the renamed note, or the file is not a board', () => {
+    expect(retargetBoard(board, () => null, () => null)).toEqual({ text: null, count: 0 });
+    expect(retargetBoard('not a board', () => 'x', () => 'y')).toEqual({ text: null, count: 0 });
   });
 });

@@ -22,6 +22,8 @@
 // else in the file, keys this version does not know included, is written
 // back exactly as it was read.
 
+import { linkPlaces, retargetLinks } from '../links';
+
 /** The ending of a board's file name. */
 export const BOARD_EXTENSION = 'canvas';
 
@@ -246,6 +248,58 @@ export function swapCards(text: string, swaps: readonly CardSwap[]): SwapResult 
       })
     : raw['edges'];
   return { text: writeRaw({ ...raw, nodes, edges }), swapped, ids, missing };
+}
+
+/** What a board points at: the vault paths of its file cards, and the notes its text cards link to, as the links name them. */
+export function boardLinks(text: string): { readonly files: readonly string[]; readonly links: readonly string[] } {
+  const raw = parseRaw(text);
+  const files: string[] = [];
+  const links: string[] = [];
+  const nodes = raw !== null && Array.isArray(raw['nodes']) ? raw['nodes'] : [];
+  for (const node of nodes) {
+    if (!isRecord(node)) continue;
+    if (node['type'] === 'file' && typeof node['file'] === 'string') files.push(node['file']);
+    if (node['type'] === 'text' && typeof node['text'] === 'string') {
+      for (const place of linkPlaces(node['text'])) links.push(place.path);
+    }
+  }
+  return { files, links };
+}
+
+/**
+ * A board with its cards pointed at notes that were renamed or moved: each
+ * file card whose path `file` gives a new one for, and each link in a text
+ * card that `link` gives a new one for (see retargetLinks in
+ * src/core/links.ts). Every other card, every edge and every key of the file
+ * is written back as it was read, ids included, so a board that is open
+ * keeps its cards. `text` is null when nothing changed (or the file is not
+ * a board); `count` says how many references changed.
+ */
+export function retargetBoard(
+  text: string,
+  file: (path: string) => string | null,
+  link: (path: string) => string | null,
+): { readonly text: string | null; readonly count: number } {
+  const raw = parseRaw(text);
+  if (raw === null || !Array.isArray(raw['nodes'])) return { text: null, count: 0 };
+  let count = 0;
+  const nodes = raw['nodes'].map((node: unknown): unknown => {
+    if (!isRecord(node)) return node;
+    if (node['type'] === 'file' && typeof node['file'] === 'string') {
+      const next = file(node['file']);
+      if (next === null || next === node['file']) return node;
+      count++;
+      return { ...node, file: next };
+    }
+    if (node['type'] === 'text' && typeof node['text'] === 'string') {
+      const changed = retargetLinks(node['text'], link);
+      if (changed.count === 0) return node;
+      count += changed.count;
+      return { ...node, text: changed.text };
+    }
+    return node;
+  });
+  return count === 0 ? { text: null, count } : { text: writeRaw({ ...raw, nodes }), count };
 }
 
 /**

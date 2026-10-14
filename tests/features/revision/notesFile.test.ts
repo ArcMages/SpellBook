@@ -253,6 +253,15 @@ describe('revision notes kept in the project\'s file', () => {
     expect(passagesIn(vault)).toEqual({ 'Draft/Arrival.md': ['dark night'], 'Draft/Part one/לילה.md': ['הים שקט'] });
   });
 
+  it('follow scenes in a folder Spellbook moves (moveInProject), which reports each scene renamed', async () => {
+    const { keeper, vault, store, rest } = await stage();
+    await keeper.addNote(OPENING, 'dark night', 'Colder.');
+    const moved = await store.moveInProject('Manuscript', 'Draft');
+    expect(moved.status).toBe('done');
+    await rest();
+    expect(passagesIn(vault)).toEqual({ 'Draft/Opening.md': ['dark night'] });
+  });
+
   it('stay in the file when their scene is deleted, and are back when it is put back', async () => {
     const { keeper, vault, store, rest } = await stage();
     await keeper.addNote(CLOSING, 'end came', 'Softer.');

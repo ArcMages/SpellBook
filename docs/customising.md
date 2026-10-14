@@ -559,6 +559,7 @@ Both settings are kept on each device separately, so switch automatic snapshots 
 | Bottom bar figures, order and shortcut buttons | Settings, "Writing progress", under "Bottom bar" | Stays on the device |
 | Count pasted text | Settings, "Writing progress" | Stays on the device |
 | Automatic snapshots, and how many to keep | Settings, "Snapshots" | Stays on the device |
+| Where links are updated when a note is renamed (this project only, or the whole vault) | Settings, "Renaming" | Stays on the device |
 | Words on a page | The writing report, under the pages figure; also in Settings | Stays on the device |
 | Last choices in the export window | The export window | Stays on the device |
 | Corkboard card size | The corkboard | Stays on the device |

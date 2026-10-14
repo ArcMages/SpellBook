@@ -563,6 +563,10 @@ export class FakeObsidian {
   /** Move a file to a new path, as a rename does. */
   move(file: TAbstractFile, newPath: string): void {
     if (this.vault.entries.has(newPath)) throw new Error('Destination file already exists!');
+    if (file instanceof TFolder) {
+      this.moveFolder(file, newPath);
+      return;
+    }
     const oldPath = file.path;
     const text = this.vault.text.get(oldPath) ?? '';
     this.vault.detach(file);
@@ -579,6 +583,39 @@ export class FakeObsidian {
     this.vault.text.set(newPath, text);
     this.metadataCache.move(oldPath, newPath);
     this.vault.trigger('rename', file, oldPath);
+  }
+
+  /** Move a folder and everything in it, as Obsidian does: the folder reports its rename first, then everything inside it. */
+  private moveFolder(folder: TFolder, newPath: string): void {
+    const oldPath = folder.path;
+    const inside: TAbstractFile[] = [];
+    const walk = (at: TFolder): void => {
+      for (const child of at.children) {
+        inside.push(child);
+        if (child instanceof TFolder) walk(child);
+      }
+    };
+    walk(folder);
+    if (folder.parent) folder.parent.children = folder.parent.children.filter((child) => child !== folder);
+    const parent = parentOf(newPath) === '/' ? this.vault.root : this.vault.attachFolder(parentOf(newPath));
+    const moves: Array<[TAbstractFile, string]> = [];
+    for (const entry of [folder, ...inside]) {
+      const old = entry.path;
+      const path = `${newPath}${old.slice(oldPath.length)}`;
+      this.vault.entries.delete(old);
+      this.vault.entries.set(path, entry);
+      entry.path = path;
+      if (entry instanceof TFile) {
+        this.vault.text.set(path, this.vault.text.get(old) ?? '');
+        this.vault.text.delete(old);
+        this.metadataCache.move(old, path);
+      }
+      moves.push([entry, old]);
+    }
+    folder.name = nameOf(newPath);
+    folder.parent = parent;
+    parent.children.push(folder);
+    for (const [entry, old] of moves) this.vault.trigger('rename', entry, old);
   }
 
   /** Paths whose text was actually written by processFrontMatter. */

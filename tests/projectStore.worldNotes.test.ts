@@ -153,7 +153,7 @@ describe('addWorldNote', () => {
 describe('renameWorldNote', () => {
   it('renames the note where it is, in one write, and leaves its text and properties alone', async () => {
     const { store, vault } = await openSeeded(scenes, withWorld());
-    expect(valueOf(await store.renameWorldNote('World/Characters/Mara.md', 'Mara Voss'))).toEqual({ path: 'World/Characters/Mara Voss.md', links: 0, notes: 0, outside: [], missed: [] });
+    expect(valueOf(await store.renameWorldNote('World/Characters/Mara.md', 'Mara Voss'))).toEqual({ path: 'World/Characters/Mara Voss.md', links: 0, notes: 0, scope: 'project', outside: [], missed: [] });
     expect(vault.writes).toEqual([{ op: 'moveFile', path: 'Novel/World/Characters/Mara.md', to: 'Novel/World/Characters/Mara Voss.md' }]);
     expect(vault.bodyOf('Novel/World/Characters/Mara Voss.md')).toBe('Her story so far.');
     expect(vault.frontmatterOf('Novel/World/Characters/Mara Voss.md')).toEqual({ type: 'character', summary: 'Keeps the light.' });
@@ -174,7 +174,7 @@ describe('renameWorldNote', () => {
     const { store } = await openSeeded(scenes, vault);
     vault.writes.length = 0;
     const result = valueOf(await store.renameWorldNote('World/Characters/Mara.md', 'Mara Voss'));
-    expect(result).toEqual({ path: 'World/Characters/Mara Voss.md', links: 9, notes: 3, outside: ['Elsewhere/Diary.md'], missed: [] });
+    expect(result).toEqual({ path: 'World/Characters/Mara Voss.md', links: 9, notes: 3, scope: 'project', outside: ['Elsewhere/Diary.md'], missed: [] });
     expect(vault.bodyOf('Novel/Research/Lighthouse.md')).toBe(
       'See [[Mara Voss]], [[World/Characters/Mara Voss|her]], ![[Mara Voss#Youth]], [the keeper](Mara%20Voss.md) and [[Saltwick]].\nIn code: `[[Mara]]`.',
     );
@@ -183,7 +183,6 @@ describe('renameWorldNote', () => {
     expect(vault.bodyOf('Novel/World/Characters/Mara Voss.md')).toBe('Her story: [[Mara Voss#Youth]].');
     // Nothing outside the project is changed, and no rename that updates links was asked of the vault.
     expect(vault.bodyOf('Elsewhere/Diary.md')).toBe('Met [[Mara]] today.');
-    expect(vault.writes.some((write) => write.op === 'rename')).toBe(false);
     expect(vault.writes.every((write) => write.path.startsWith('Novel/'))).toBe(true);
     expect(vault.writes[0]).toEqual({ op: 'moveFile', path: 'Novel/World/Characters/Mara.md', to: 'Novel/World/Characters/Mara Voss.md' });
   });

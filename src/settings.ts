@@ -1,5 +1,7 @@
 import { PluginSettingTab, Setting } from 'obsidian';
 import type { App, Plugin } from 'obsidian';
+import type { DevicePrefs } from './core/devicePrefs';
+import type { LinkScope } from './core/links';
 import type { ProjectStore } from './core/projectStore';
 import type { RegisteredFeatures } from './features/registry';
 
@@ -9,6 +11,19 @@ export type SettingsHost = Plugin & {
   readonly store: ProjectStore | null;
   /** The screens that plugged themselves in, with their settings sections; null until Obsidian has finished starting up. */
   readonly features: Pick<RegisteredFeatures, 'settingsSections'> | null;
+  /** What this device remembers (where the links to a renamed note are updated); null until Obsidian has finished starting up. */
+  readonly prefs?: DevicePrefs | null;
+};
+
+export const LINKS_HEADING_TEXT = 'Renaming';
+export const LINK_SCOPE_NAME_TEXT = 'When a note is renamed, update links in';
+export const LINK_SCOPE_DESC_TEXT =
+  'Spellbook renames scenes, boards and World notes itself and points the links to them at the new name, so Obsidian never stops to ask. ' +
+  'With "This project only", notes outside the project folder keep links to the old name, and Spellbook tells you how many. ' +
+  'This choice is kept on this device only.';
+export const LINK_SCOPE_OPTIONS: Readonly<Record<LinkScope, string>> = {
+  project: 'This project only',
+  vault: 'The whole vault',
 };
 
 /**
@@ -57,6 +72,7 @@ export class SpellbookSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setName('Projects in this vault').setHeading();
     this.renderProjects(containerEl);
+    this.renderLinks(containerEl);
     this.renderSections(containerEl);
   }
 
@@ -82,6 +98,24 @@ export class SpellbookSettingTab extends PluginSettingTab {
       row.nameEl.setAttr('dir', 'auto');
       row.descEl.setAttr('dir', 'auto');
     }
+  }
+
+  /** Where the links to a note that Spellbook renames are brought up to date. */
+  private renderLinks(containerEl: HTMLElement): void {
+    const prefs = this.plugin.prefs;
+    if (!prefs) return;
+    new Setting(containerEl).setName(LINKS_HEADING_TEXT).setHeading();
+    new Setting(containerEl)
+      .setName(LINK_SCOPE_NAME_TEXT)
+      .setDesc(LINK_SCOPE_DESC_TEXT)
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOptions({ ...LINK_SCOPE_OPTIONS })
+          .setValue(prefs.getLinkScope())
+          .onChange((value) => {
+            prefs.setLinkScope(value === 'vault' ? 'vault' : 'project');
+          });
+      });
   }
 
   /** One heading and one place of its own for every section a feature added. */

@@ -22,7 +22,7 @@ import type { Frontmatter } from '../src/core/types';
 import { VaultFileMissingError } from '../src/core/vaultPort';
 import type { MarkdownFileInfo, VaultEvent, VaultListener, VaultPort } from '../src/core/vaultPort';
 
-export type WriteOp = 'createFile' | 'createBinary' | 'createFolder' | 'rename' | 'moveFile' | 'trash' | 'updateFrontmatter' | 'updateText' | 'replaceText' | 'updateBoardText' | 'updateLinks';
+export type WriteOp = 'createFile' | 'createBinary' | 'createFolder' | 'moveFile' | 'trash' | 'updateFrontmatter' | 'updateText' | 'replaceText' | 'updateBoardText' | 'updateLinks';
 
 export interface WriteRecord {
   readonly op: WriteOp;
@@ -428,17 +428,9 @@ export class MemoryVault implements VaultPort {
     this.ensureFolders(path, false);
   }
 
-  async rename(from: string, to: string): Promise<string> {
-    this.maybeFail('rename', from);
-    if (!this.files.has(from)) throw new VaultFileMissingError(from);
-    this.writes.push({ op: 'rename', path: from, to });
-    this.moveEntry(from, to, false);
-    return to;
-  }
-
   async moveFile(from: string, to: string): Promise<string> {
     this.maybeFail('moveFile', from);
-    if (!this.files.has(from)) throw new VaultFileMissingError(from);
+    if (!this.files.has(from) && !this.folders.has(from)) throw new VaultFileMissingError(from);
     if (this.exists(to) && clashKey(to) !== clashKey(from)) throw new Error(`Destination file already exists: ${to}`);
     this.writes.push({ op: 'moveFile', path: from, to });
     this.moveEntry(from, to, false);

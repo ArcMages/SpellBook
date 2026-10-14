@@ -91,6 +91,7 @@ import type {
   WorldLinks,
   WorldRelations,
 } from '../../core/world';
+import { renameWindowText, renamedLinksNotice } from '../../ui/renameLinks';
 import type { FeatureContext } from '../registry';
 import { NO_PROJECT_TEXT, PROBLEM_NOTICE_MS } from './parts';
 
@@ -539,7 +540,7 @@ export class WorldHost {
    *
    * @returns the note's new path, or why it was not renamed
    */
-  async renameEntity(path: string, rawName: string): Promise<{ readonly path: string } | { readonly problem: string }> {
+  async renameEntity(path: string, rawName: string): Promise<{ readonly path: string; readonly told?: string | null } | { readonly problem: string }> {
     const project = this.writable();
     if (typeof project === 'string') return { problem: project };
     if (rawName.trim() === '') return { problem: NO_NAME_TEXT };
@@ -547,9 +548,15 @@ export class WorldHost {
     if (name === '') return { problem: BAD_NAME_TEXT };
     const result = await this.context.store.renameWorldNote(path, name, project.id);
     this.changed();
-    if (result.status === 'done') return { path: result.value.path };
+    if (result.status === 'done') return { path: result.value.path, told: renamedLinksNotice(name, result.value) };
     if (result.status === 'noop' && result.reason === 'unchanged') return { path };
     return { problem: result.message };
+  }
+
+  /** What the rename window says about the links to an entity's note: where they are changed, and how many notes outside the project keep the old name. */
+  renameNote(path: string): string {
+    const store = this.context.store;
+    return renameWindowText(store.linkScope, store.linksFromOutside(path).length);
   }
 
   /** Move an entity's note to the trash. The scenes that list it are left as they are. */

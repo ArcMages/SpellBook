@@ -21,6 +21,7 @@ import { sanitiseFileName } from '../../core/names';
 import { isInside, joinPath, noteTitle, parentPath, pathKey, relativeTo } from '../../core/paths';
 import { addToList, changeInList, findNote, findWithJoined, locatePassage, nameOccurrences, removeFromList, splitBody, tidyPassage } from '../../core/revision/index';
 import type { BodyEdit, NameOccurrence, PlacedNote, SearchOptions, TextMatch } from '../../core/revision/index';
+import type { LinkScope } from '../../core/links';
 import type { IntentResult, TreeNode } from '../../core/types';
 import type { VaultEvent } from '../../core/vaultPort';
 import { editAliases, isEntityPath, readAliases } from '../../core/world/index';
@@ -574,11 +575,16 @@ export class RevisionKeeper {
 
   /**
    * The notes outside the project that link to an entity's note, as vault
-   * paths. Spellbook changes nothing outside a project, so those links are
+   * paths. With the link scope "project" (see linkScope), those links are
    * left as they are when it is renamed. Reads no file.
    */
   linksFromOutside(entityPath: string): string[] {
     return this.disposed ? [] : this.context.store.linksFromOutside(entityPath);
+  }
+
+  /** Where the links to a renamed note are changed, as the writer chose in the settings: "project" or "vault". */
+  linkScope(): LinkScope {
+    return this.context.store.linkScope;
   }
 
   /**

@@ -1,7 +1,7 @@
 // Links in a note's text, and pointing them at a renamed note (src/core/links.ts).
 
 import { describe, expect, it } from 'vitest';
-import { linkPlaces, renamedLinkPath, retargetLinks, retargetLinksInValue } from '../src/core/links';
+import { linkPlaces, movedLinkPath, movedPaths, renamedLinkPath, retargetLinks, retargetLinksInValue } from '../src/core/links';
 
 const toVoss = (path: string): string | null => (path === 'Mara' || path === 'Mara.md' || path === 'World/Mara' ? renamedLinkPath(path, 'Mara Voss') : null);
 
@@ -66,5 +66,48 @@ describe('retargetLinksInValue', () => {
     });
     const untouched = ['[[Saltwick]]'];
     expect(retargetLinksInValue(untouched, toVoss).value).toBe(untouched);
+  });
+});
+
+describe('movedLinkPath', () => {
+  const at = (...paths: string[]) => (candidate: string): boolean =>
+    paths.some((path) => path === candidate || path === `${candidate}.md` || path.endsWith(`/${candidate}`) || path.endsWith(`/${candidate}.md`));
+
+  it('keeps a bare name bare, and a ".md" ending only where it was written', () => {
+    const resolves = at('Novel/World/Characters/Mara Voss.md');
+    expect(movedLinkPath('Mara', 'Novel/World/Characters/Mara Voss.md', resolves)).toBe('Mara Voss');
+    expect(movedLinkPath('Mara.md', 'Novel/World/Characters/Mara Voss.md', resolves)).toBe('Mara Voss.md');
+  });
+
+  it('keeps the folders a link names when the note was renamed where it is', () => {
+    expect(movedLinkPath('World/Characters/Mara', 'Novel/World/Characters/Mara Voss.md', at('Novel/World/Characters/Mara Voss.md'))).toBe('World/Characters/Mara Voss');
+  });
+
+  it('names as many steps of the new path as the link had when the folder changed', () => {
+    expect(movedLinkPath('Characters/Mara', 'Novel/World/People/Mara.md', at('Novel/World/People/Mara.md'))).toBe('People/Mara');
+    expect(movedLinkPath('World/Characters/Mara.md', 'Novel/World/People/Mara.md', at('Novel/World/People/Mara.md'))).toBe('World/People/Mara.md');
+  });
+
+  it('names the whole path where nothing shorter leads to the note', () => {
+    expect(movedLinkPath('Mara', 'Novel/World/Mara Voss.md', () => false)).toBe('Novel/World/Mara Voss');
+    expect(movedLinkPath('Mara.md', 'Novel/World/Mara Voss.md', () => false)).toBe('Novel/World/Mara Voss.md');
+  });
+
+  it('always writes the ending of a file that is not a note, such as a board', () => {
+    expect(movedLinkPath('Ideas.canvas', 'Novel/Boards/Part two.canvas', at('Novel/Boards/Part two.canvas'))).toBe('Part two.canvas');
+  });
+
+  it('works for Hebrew names', () => {
+    expect(movedLinkPath('מארה', 'Novel/World/מארה וּוֹס.md', at('Novel/World/מארה וּוֹס.md'))).toBe('מארה וּוֹס');
+  });
+});
+
+describe('movedPaths', () => {
+  it('maps a moved file, or every file inside a moved folder, and nothing else', () => {
+    expect([...movedPaths('A/B.md', 'A/C.md', ['A/B.md', 'A/B.md.bak'])]).toEqual([['A/B.md', 'A/C.md']]);
+    expect([...movedPaths('A/Old', 'A/New', ['A/Old/x.md', 'A/Old/Deep/y.canvas', 'A/Older/z.md'])]).toEqual([
+      ['A/Old/x.md', 'A/New/x.md'],
+      ['A/Old/Deep/y.canvas', 'A/New/Deep/y.canvas'],
+    ]);
   });
 });

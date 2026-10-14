@@ -82,9 +82,10 @@ import {
   TODO_FILE,
   WORLD_FOLDER,
 } from './projectLayout';
-import { BOARDS_FOLDER, BOARD_EXTENSION, readBoard } from './boards/index';
+import { BOARDS_FOLDER, BOARD_EXTENSION, boardLinks, readBoard, retargetBoard } from './boards/index';
 import { plantSeed } from './projectSeed';
-import { linkPlaces, renamedLinkPath, retargetLinks, retargetLinksInValue } from './links';
+import { linkPlaces, movedLinkPath, movedPaths, retargetLinks, retargetLinksInValue } from './links';
+import type { LinkScope } from './links';
 import { applyToNote, splitBody } from './revision/edits';
 import type { BodyEdit } from './revision/edits';
 import type { PlantedSeed, ProjectSeed } from './projectSeed';
@@ -177,19 +178,28 @@ export interface DataFileWrite {
 }
 
 /** What renaming an entity's note came to. */
-export interface RenamedNote {
-  /** The note's new path, relative to the project folder. */
-  readonly path: string;
-  /** How many links to it were brought up to date, and in how many notes. */
+/** What came of the links to a note (or the notes of a folder) that Spellbook renamed or moved. */
+export interface MovedLinks {
+  /** How many links were brought up to date, and in how many notes and boards. */
   readonly links: number;
   readonly notes: number;
+  /** Where the links were brought up to date: the open project only, or the whole vault. */
+  readonly scope: LinkScope;
   /**
-   * Notes outside the project that link to it, as vault paths. Spellbook
-   * changes nothing outside a project, so their links still name the old note.
+   * Notes and boards outside the project that link to it, as vault paths,
+   * sorted. With the scope "project" their links were left as they are and
+   * still name the old note; with "vault" they were brought up to date too,
+   * and this is empty.
    */
   readonly outside: readonly string[];
-  /** The notes inside the project whose links could not be brought up to date, by title. */
+  /** The notes and boards whose links could not be brought up to date, by title. */
   readonly missed: readonly string[];
+}
+
+/** What renaming or moving a note came to. */
+export interface RenamedNote extends MovedLinks {
+  /** The note's (or folder's) new path, relative to the project folder. */
+  readonly path: string;
 }
 
 /** What deleting a scene came to. */
@@ -210,6 +220,12 @@ export interface StoreDeps {
   readonly setTimer: (callback: () => void, ms: number) => () => void;
   /** A random number from 0 up to (not including) 1; used for new folder ids. */
   readonly random: () => number;
+  /**
+   * Where the links to a note that Spellbook renames or moves are brought up
+   * to date: in the open project only (as it comes), or in the whole vault.
+   * Asked at each rename. Left out: the project only.
+   */
+  readonly linkScope?: () => LinkScope;
 }
 
 interface KnownProject {
@@ -852,11 +868,12 @@ export class ProjectStore {
   }
 
   /**
-   * Rename a scene: its note is renamed (links to it are updated by the
-   * vault) and its binder entry follows. `path` is relative to the project.
+   * Rename a scene: its note is renamed, the links to it are brought up to
+   * date (see relocate), and its binder entry follows. `path` is relative to
+   * the project.
    */
-  renameScene(path: string, title: string, inProject?: string): Promise<IntentResult<{ path: string }>> {
-    return this.run(async (): Promise<IntentResult<{ path: string }>> => {
+  renameScene(path: string, title: string, inProject?: string): Promise<IntentResult<RenamedNote>> {
+    return this.run(async (): Promise<IntentResult<RenamedNote>> => {
       const active = this.active;
       const blocked = this.whyNotWritable(active);
       if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
@@ -891,8 +908,12 @@ export class ProjectStore {
       if (name === noteTitle(file.path)) return noop('unchanged', 'The scene already has that name.');
 
       const target = joinPath(directory, `${name}.md`);
-      const newPath = await this.vault.rename(file.path, target);
-      const newRel = relativeTo(active.folder, newPath) ?? relativeTo(active.folder, target) ?? rel;
+      const moved = await this.relocate(active, file.path, target);
+      if ('status' in moved) {
+        if (moved.status === 'noop') return noop(moved.reason, 'That scene is no longer in the project.');
+        return failed(`"${noteTitle(rel)}" could not be renamed: ${moved.message}`);
+      }
+      const newRel = relativeTo(active.folder, moved.path) ?? relativeTo(active.folder, target) ?? rel;
       // The vault also reports the rename as an event; recording it twice is harmless.
       this.recordRename(file.rel, newRel);
       const saved = await this.mutateBinder<undefined>(() => noop('unchanged', ''));
@@ -901,11 +922,11 @@ export class ProjectStore {
           `The note was renamed to "${noteTitle(newRel)}", but the binder could not be updated: ${saved.message}`,
         );
       }
-      return done({ path: newRel });
+      return done({ ...moved, path: newRel });
     }, inProject);
   }
 
-  /** Change a binder folder's name. */
+  /** Change a binder folder's name. (A binder folder is the binder's own: no folder on disk is renamed.) */
   renameFolder(id: string, name: string, inProject?: string): Promise<IntentResult> {
     return this.run(async (): Promise<IntentResult> => {
       const tidy = tidyDisplayName(name);
@@ -2022,8 +2043,9 @@ export class ProjectStore {
 
   /**
    * The notes outside the open project that link to one of its notes, as
-   * vault paths, sorted: renameWorldNote leaves their links as they are,
-   * since nothing outside a project is changed. Cheap; reads no files.
+   * vault paths, sorted: with the link scope "project" (see linkScope), a
+   * rename leaves their links as they are. Cheap; reads no files, so boards
+   * are not among them.
    *
    * @param path the note's path relative to the project folder
    */
@@ -2036,25 +2058,19 @@ export class ProjectStore {
   }
 
   /**
-   * Rename a world-building note where it is, and bring every link to it in
-   * the project up to date. The name is used exactly as given or not at all,
+   * Where the links to a note that Spellbook renames or moves are brought up
+   * to date now: "project" (the open project only, as it comes) or "vault".
+   */
+  get linkScope(): LinkScope {
+    return this.deps.linkScope?.() === 'vault' ? 'vault' : 'project';
+  }
+
+  /**
+   * Rename a world-building note where it is, and bring every link to it up
+   * to date (see relocate). The name is used exactly as given or not at all,
    * and nothing is replaced: refused for a name that is not a tidy file name
    * as it stands and for one that is taken. Refused for every note outside
    * the World folder, and for one the binder lists as a scene.
-   *
-   * The links are not left to the vault: Obsidian updates them by itself only
-   * when the writer has told it to "Always update internal links", and
-   * otherwise stops to ask, holding the rename (and every save after it)
-   * until they answer. So:
-   *  1. the notes of the project that link to it are read, and the links in
-   *     them that lead to it are noted;
-   *  2. the note is renamed, and nothing else (moveFile);
-   *  3. in each of those notes, those links are pointed at the new name,
-   *     against the note as it is at that moment: in its text (updateLinks)
-   *     and in its properties (updateFrontmatter). Only the part of a link
-   *     that names the note changes.
-   * Notes outside the project are never changed: those that link to it are
-   * listed in the result instead.
    *
    * @param path the note's path relative to the project folder
    * @param name the new name, without ".md"
@@ -2076,89 +2092,257 @@ export class ProjectStore {
       if (clashKey(target) !== clashKey(file.path) && this.vault.exists(target)) {
         return refused('exists', `There is already a note called "${name}" in that folder.`);
       }
-
-      // 1. Which links in the project lead to it, note by note.
-      const oldPath = file.path;
-      const sources = this.vault.linkSources(oldPath);
-      const outside = sources.filter((source) => !isInside(active.folder, source));
-      const linking = new Map<string, Set<string>>();
-      for (const source of sources) {
-        if (!isInside(active.folder, source)) continue;
-        let text: string;
-        try {
-          text = await this.vault.readText(source);
-        } catch {
-          continue;
-        }
-        const named = new Set<string>();
-        for (const place of linkPlaces(text)) {
-          if (this.vault.resolveLink(place.path, source) === oldPath) named.add(place.path);
-        }
-        if (named.size > 0) linking.set(source, named);
+      const moved = await this.relocate(active, file.path, target);
+      if ('status' in moved) {
+        if (moved.status === 'noop') return noop(moved.reason, 'That note is no longer in the project.');
+        return failed(`"${noteTitle(file.rel)}" could not be renamed: ${moved.message}`);
       }
-
-      // 2. The note itself.
-      let newPath: string;
-      try {
-        newPath = await this.vault.moveFile(oldPath, target);
-      } catch (error) {
-        if (error instanceof VaultFileMissingError) return noop('not-found', 'That note is no longer in the project.');
-        return failed(`"${noteTitle(file.rel)}" could not be renamed: ${messageOf(error)}`);
-      }
-
-      // 3. The links to it.
-      let links = 0;
-      let notes = 0;
-      const missed: string[] = [];
-      for (const [source, named] of linking) {
-        const at = source === oldPath ? newPath : source;
-        const chosen = new Map<string, string>();
-        const retarget = (linkPath: string): string | null => {
-          if (!named.has(linkPath)) return null;
-          let next = chosen.get(linkPath);
-          if (next === undefined) {
-            next = renamedLinkPath(linkPath, name);
-            // Where another note of the new name lies nearer, the link names the whole path.
-            if (this.vault.resolveLink(next, at) !== newPath) {
-              next = /\.md$/i.test(linkPath) ? newPath : newPath.replace(/\.md$/i, '');
-            }
-            chosen.set(linkPath, next);
-          }
-          return next;
-        };
-        let changed = 0;
-        try {
-          await this.vault.updateLinks(at, (current) => {
-            const { head, body } = splitBody(current);
-            const result = retargetLinks(body, retarget);
-            changed = result.count;
-            return result.count > 0 ? head + result.text : null;
-          });
-          const { head } = splitBody(await this.vault.readText(at));
-          if (linkPlaces(head).some((place) => named.has(place.path))) {
-            await this.vault.updateFrontmatter(at, (frontmatter) => {
-              let count = 0;
-              for (const key of Object.keys(frontmatter)) {
-                const result = retargetLinksInValue(frontmatter[key], retarget);
-                if (result.count === 0) continue;
-                frontmatter[key] = result.value;
-                count += result.count;
-              }
-              changed += count;
-              return count > 0;
-            });
-          }
-        } catch {
-          missed.push(noteTitle(at));
-        }
-        if (changed > 0) {
-          links += changed;
-          notes++;
-        }
-      }
-      const rel = relativeTo(active.folder, newPath) ?? relativeTo(active.folder, target) ?? file.rel;
-      return done({ path: rel, links, notes, outside, missed });
+      return done({ ...moved, path: relativeTo(active.folder, moved.path) ?? relativeTo(active.folder, target) ?? file.rel });
     }, inProject);
+  }
+
+  /**
+   * Rename or move a note, a board or a folder of the open project to
+   * another place in it, and bring every link to it (to every note inside a
+   * folder) up to date: see relocate. Nothing is replaced: refused when
+   * something is already at the new path. Refused for the project index,
+   * for a folder that holds a project index, for a folder moved into
+   * itself, and for every path outside the project. Folders on the way to
+   * the new place are made when they are missing. A scene keeps its place
+   * in the binder.
+   *
+   * @param path the note's or folder's path relative to the project folder
+   * @param newPath where it goes, relative to the project folder
+   */
+  moveInProject(path: string, newPath: string, inProject?: string): Promise<IntentResult<RenamedNote>> {
+    return this.run(async (): Promise<IntentResult<RenamedNote>> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = normaliseRelativePath(path);
+      const wanted = normaliseRelativePath(newPath);
+      if (rel === null || !isSafeRelativePath(rel)) return refused('invalid-path', `"${path}" is not inside this project.`);
+      if (wanted === null || !isSafeRelativePath(wanted)) return refused('invalid-path', `"${newPath}" is not inside this project.`);
+      const from = joinPath(active.folder, rel);
+      const to = joinPath(active.folder, wanted);
+      if (rel === wanted) return noop('unchanged', 'It is already there.');
+      const isFolder = this.vault.listFolders().includes(from);
+      if (!isFolder && !this.vault.listFiles(parentPath(from)).includes(from)) {
+        return noop('not-found', `"${rel}" is no longer in the project.`);
+      }
+      const indexes = [...this.projects.keys(), active.indexPath];
+      if (indexes.some((index) => clashKey(index) === clashKey(from) || (isFolder && isInside(from, index)))) {
+        return refused('invalid-path', 'A project index cannot be moved, nor a folder that holds one.');
+      }
+      if (isFolder && isInside(from, to)) return refused('invalid-move', 'A folder cannot be moved into itself.');
+      if (!isFolder && isMarkdownPath(from) !== isMarkdownPath(to)) {
+        return refused('invalid-name', 'A note keeps its ".md" ending, and only a note has one.');
+      }
+      // Changing only the capitals of its own name is not a clash.
+      if (clashKey(to) !== clashKey(from) && this.vault.exists(to)) {
+        return refused('exists', `There is already something at "${wanted}".`);
+      }
+      const steps = parentPath(wanted).split('/').filter((step) => step !== '');
+      try {
+        for (let at = 1; at <= steps.length; at++) {
+          const folder = joinPath(active.folder, steps.slice(0, at).join('/'));
+          if (!this.vault.exists(folder)) await this.vault.createFolder(folder);
+        }
+      } catch (error) {
+        return failed(`The folder for "${wanted}" could not be made: ${messageOf(error)}`);
+      }
+      const scenes = flattenScenes(this.effectiveBinder(active)).filter((scene) => scene === rel || isInside(rel, scene));
+      const moved = await this.relocate(active, from, to);
+      if ('status' in moved) {
+        if (moved.status === 'noop') return noop(moved.reason, `"${rel}" is no longer in the project.`);
+        return failed(`"${noteTitle(rel)}" could not be moved: ${moved.message}`);
+      }
+      const landed = relativeTo(active.folder, moved.path) ?? wanted;
+      if (scenes.length > 0) {
+        // The vault also reports the move as events; recording it twice is harmless.
+        for (const scene of scenes) this.recordRename(scene, scene === rel ? landed : joinPath(landed, scene.slice(rel.length + 1)));
+        const saved = await this.mutateBinder<undefined>(() => noop('unchanged', ''));
+        if (saved.status === 'failed' || saved.status === 'refused') {
+          return failed(`"${noteTitle(rel)}" was moved to "${landed}", but the binder could not be updated: ${saved.message}`);
+        }
+      }
+      return done({ ...moved, path: landed });
+    }, inProject);
+  }
+
+  /**
+   * The one routine that renames or moves a file or a folder of the open
+   * project, for every rename Spellbook makes. It brings the links to it (to
+   * every file inside a folder) up to date itself, rather than leaving it to
+   * the vault: Obsidian updates them by itself only when the writer has told
+   * it to "Always update internal links", and otherwise stops to ask, holding
+   * the rename (and every save after it) until they answer. So:
+   *  1. the notes that link to it are read, and the links in them that lead
+   *     to it are noted; so are the boards (Canvas files) whose file cards
+   *     show it, or whose text cards link to it;
+   *  2. it is renamed or moved, and nothing else (moveFile);
+   *  3. in each of those notes, those links are pointed at the new place,
+   *     against the note as it is at that moment: in its text (updateLinks)
+   *     and in its properties (updateFrontmatter); in each of those boards,
+   *     the cards (updateBoardText). Only the part of a link that names the
+   *     note changes; a heading, a block and what a link shows stay.
+   * Which notes and boards are changed follows the link scope (see
+   * linkScope): with "project", only those inside the project, and the
+   * others are listed in the result; with "vault", every one.
+   *
+   * The caller has checked both paths: `from` is a file or a folder inside
+   * the project that may be moved, and nothing is at `to`.
+   *
+   * @param from the vault path of the file or folder
+   * @param to   its new vault path
+   * @returns its new vault path, and what came of the links
+   */
+  private async relocate(
+    active: ActiveProject,
+    from: string,
+    to: string,
+  ): Promise<RenamedNote | { status: 'noop'; reason: NoopReason; message: string } | { status: 'failed'; message: string }> {
+    const scope = this.linkScope;
+    const inScope = (path: string): boolean => scope === 'vault' || isInside(active.folder, path);
+
+    // 1. What moves, and which links lead to it, note by note and board by board.
+    const folders = this.vault.listFolders();
+    const isFolder = folders.includes(from);
+    const files = isFolder
+      ? [from, ...folders.filter((folder) => isInside(from, folder))].flatMap((folder) => this.vault.listFiles(folder))
+      : [from];
+    const moved = movedPaths(from, to, files);
+    const sources = new Set<string>();
+    for (const file of moved.keys()) for (const source of this.vault.linkSources(file)) sources.add(source);
+    const outside = new Set<string>();
+    const linking = new Map<string, Map<string, string>>();
+    for (const source of [...sources].sort()) {
+      if (!isMarkdownPath(source)) continue;
+      if (!inScope(source)) {
+        outside.add(source);
+        continue;
+      }
+      let text: string;
+      try {
+        text = await this.vault.readText(source);
+      } catch {
+        continue;
+      }
+      const named = new Map<string, string>();
+      for (const place of linkPlaces(text)) {
+        const target = this.vault.resolveLink(place.path, source);
+        if (target !== null && moved.has(target)) named.set(place.path, target);
+      }
+      if (named.size > 0) linking.set(source, named);
+    }
+    const boards = new Map<string, Map<string, string>>();
+    for (const board of this.canvasFiles()) {
+      let text: string;
+      try {
+        text = await this.vault.readText(board);
+      } catch {
+        continue;
+      }
+      const { files: shown, links } = boardLinks(text);
+      const named = new Map<string, string>();
+      for (const link of links) {
+        const target = this.vault.resolveLink(link, board);
+        if (target !== null && moved.has(target)) named.set(link, target);
+      }
+      if (!shown.some((file) => moved.has(file)) && named.size === 0) continue;
+      if (inScope(board)) boards.set(board, named);
+      else outside.add(board);
+    }
+
+    // 2. The file or folder itself.
+    let newPath: string;
+    try {
+      newPath = await this.vault.moveFile(from, to);
+    } catch (error) {
+      if (error instanceof VaultFileMissingError) return noop('not-found', 'That is no longer in the project.');
+      return failed(messageOf(error));
+    }
+    const landed = newPath === to ? moved : movedPaths(from, newPath, files);
+    const now = (path: string): string => landed.get(path) ?? path;
+
+    // 3. The links to it.
+    let links = 0;
+    let notes = 0;
+    const missed: string[] = [];
+    const retargeter = (at: string, named: ReadonlyMap<string, string>): ((linkPath: string) => string | null) => {
+      const chosen = new Map<string, string>();
+      return (linkPath: string): string | null => {
+        const target = named.get(linkPath);
+        if (target === undefined) return null;
+        let next = chosen.get(linkPath);
+        if (next === undefined) {
+          const wanted = now(target);
+          next = movedLinkPath(linkPath, wanted, (candidate) => this.vault.resolveLink(candidate, at) === wanted);
+          chosen.set(linkPath, next);
+        }
+        return next;
+      };
+    };
+    for (const [source, named] of linking) {
+      const at = now(source);
+      const retarget = retargeter(at, named);
+      let changed = 0;
+      try {
+        await this.vault.updateLinks(at, (current) => {
+          const { head, body } = splitBody(current);
+          const result = retargetLinks(body, retarget);
+          changed = result.count;
+          return result.count > 0 ? head + result.text : null;
+        });
+        const { head } = splitBody(await this.vault.readText(at));
+        if (linkPlaces(head).some((place) => named.has(place.path))) {
+          await this.vault.updateFrontmatter(at, (frontmatter) => {
+            let count = 0;
+            for (const key of Object.keys(frontmatter)) {
+              const result = retargetLinksInValue(frontmatter[key], retarget);
+              if (result.count === 0) continue;
+              frontmatter[key] = result.value;
+              count += result.count;
+            }
+            changed += count;
+            return count > 0;
+          });
+        }
+      } catch {
+        missed.push(noteTitle(at));
+      }
+      if (changed > 0) {
+        links += changed;
+        notes++;
+      }
+    }
+    for (const [board, named] of boards) {
+      const at = now(board);
+      const retarget = retargeter(at, named);
+      let changed = 0;
+      try {
+        await this.vault.updateBoardText(at, (current) => {
+          const result = retargetBoard(current, (file) => (landed.has(file) ? now(file) : null), retarget);
+          changed = result.count;
+          return result.text;
+        });
+      } catch {
+        missed.push(noteTitleOfBoard(at));
+      }
+      if (changed > 0) {
+        links += changed;
+        notes++;
+      }
+    }
+    return { path: newPath, links, notes, scope, outside: [...outside].sort(), missed };
+  }
+
+  /** Every board (Canvas file) in the vault, as vault paths. Cheap; reads no files. */
+  private canvasFiles(): string[] {
+    const ending = `.${BOARD_EXTENSION}`;
+    return ['', ...this.vault.listFolders()]
+      .flatMap((folder) => this.vault.listFiles(folder))
+      .filter((path) => path.toLowerCase().endsWith(ending));
   }
 
   /**
@@ -2576,7 +2760,8 @@ export class ProjectStore {
   }
 
   /**
-   * Rename a board where it is (links to it are updated by the vault). The
+   * Rename a board where it is, and bring the links to it up to date (see
+   * relocate). The
    * name is used exactly as given or not at all, and nothing is replaced:
    * refused for a name that is not a tidy file name as it stands and for
    * one that is taken. Refused for every path that is not a board directly
@@ -2586,8 +2771,8 @@ export class ProjectStore {
    * @param name the new name, without ".canvas"
    * @returns the board's new path relative to the project folder
    */
-  renameBoardFile(path: string, name: string, inProject?: string): Promise<IntentResult<{ path: string }>> {
-    return this.run(async (): Promise<IntentResult<{ path: string }>> => {
+  renameBoardFile(path: string, name: string, inProject?: string): Promise<IntentResult<RenamedNote>> {
+    return this.run(async (): Promise<IntentResult<RenamedNote>> => {
       const active = this.active;
       const blocked = this.whyNotWritable(active);
       if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
@@ -2602,14 +2787,12 @@ export class ProjectStore {
       if (clashKey(target) !== clashKey(from) && this.vault.exists(target)) {
         return refused('exists', `There is already a board called "${name}".`);
       }
-      let newPath: string;
-      try {
-        newPath = await this.vault.rename(from, target);
-      } catch (error) {
-        if (error instanceof VaultFileMissingError) return noop('not-found', 'That board is no longer in the project.');
-        return failed(`"${noteTitleOfBoard(rel)}" could not be renamed: ${messageOf(error)}`);
+      const moved = await this.relocate(active, from, target);
+      if ('status' in moved) {
+        if (moved.status === 'noop') return noop(moved.reason, 'That board is no longer in the project.');
+        return failed(`"${noteTitleOfBoard(rel)}" could not be renamed: ${moved.message}`);
       }
-      return done({ path: relativeTo(active.folder, newPath) ?? wanted });
+      return done({ ...moved, path: relativeTo(active.folder, moved.path) ?? wanted });
     }, inProject);
   }
 

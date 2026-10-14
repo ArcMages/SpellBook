@@ -5,14 +5,14 @@
 
 import { getFrontMatterInfo } from 'obsidian';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ACTIVE_PROJECT_KEY } from '../src/core/devicePrefs';
+import { ACTIVE_PROJECT_KEY, LINK_SCOPE_KEY } from '../src/core/devicePrefs';
 import { ProjectStore } from '../src/core/projectStore';
 import type { SettingsSection } from '../src/features/registry';
 import { SNAPSHOTS_SERVICE, SNAPSHOTS_VIEW_TYPE } from '../src/features/snapshots';
 import { TAKE_TITLE } from '../src/features/snapshots/snapshotsView';
 import SpellbookPlugin from '../src/main';
 import { openNote } from '../src/obsidian/openNote';
-import { SpellbookSettingTab } from '../src/settings';
+import { LINK_SCOPE_DESC_TEXT, LINK_SCOPE_NAME_TEXT, SpellbookSettingTab } from '../src/settings';
 import { ConfirmModal } from '../src/ui/confirmModal';
 import { CreateProjectModal } from '../src/ui/createProjectModal';
 import { FolderPickerModal } from '../src/ui/folderPickerModal';
@@ -813,7 +813,7 @@ describe('editing the binder, through to the notes', () => {
     expect(fake.calls).toEqual(['processFrontMatter Novel/Novel.md']);
   });
 
-  it('renames a scene with Obsidian\'s own rename (which keeps links working), and the binder follows', async () => {
+  it('renames a scene without Obsidian\'s own rename (which may stop to ask about links), and the binder follows', async () => {
     const { fake, pane } = await withBinder(threeScenes());
     menuFor(pane, 'Middle').item('Rename').click();
     expect((lastWindow().contentEl.withClass('spellbook-prompt-input')[0] as FakeElement).value).toBe('Middle');
@@ -821,7 +821,7 @@ describe('editing the binder, through to the notes', () => {
     await until(() => lines(pane).includes('  Crossing 3'), 'the new name to be shown');
 
     expect(fake.calls).toEqual([
-      'renameFile Novel/Manuscript/Middle.md -> Novel/Manuscript/Crossing.md',
+      'vault.rename Novel/Manuscript/Middle.md -> Novel/Manuscript/Crossing.md',
       'processFrontMatter Novel/Novel.md',
     ]);
     expect(binderOf(fake)).toEqual(['Manuscript/Opening.md', 'Manuscript/Crossing.md', 'Manuscript/Ending.md']);
@@ -941,6 +941,22 @@ describe('editing the binder, through to the notes', () => {
     expect(binderOf(fake)).toEqual(['Manuscript/Opening.md', 'Manuscript/Middle.md', 'Manuscript/Ending.md', 'Manuscript/Loose.md']);
     expect(fake.textOf('Novel/Manuscript/Loose.md')).toBe('Not in the binder.'); // not a letter of it changed
     expect(selectedTitle(pane)).toBe('Loose');
+  });
+
+  it('says in the rename window where links are changed, and tells how many notes outside the project keep the old name', async () => {
+    const fake = threeScenes();
+    fake.addNote('Elsewhere/Diary.md', 'Wrote [[Middle]] today.');
+    fake.addNote('Novel/Research/Plan.md', 'Then [[Middle|the middle]].');
+    const { pane } = await withBinder(fake);
+    menuFor(pane, 'Middle').item('Rename').click();
+    const window = lastWindow();
+    const said = (window.contentEl.withClass('spellbook-prompt-note')[0] as FakeElement).text;
+    expect(said).toMatch(/^Every link to it in this project is changed to the new name\. 1 note outside the project links to it, and that link keeps the old name/);
+    answer('Crossing');
+    await until(() => lines(pane).includes('  Crossing 3'), 'the new name to be shown');
+    expect(fake.textOf('Novel/Research/Plan.md')).toBe('Then [[Crossing|the middle]].');
+    expect(fake.textOf('Elsewhere/Diary.md')).toBe('Wrote [[Middle]] today.');
+    expect(notices().some((text) => /^1 note outside the project still links to the old name of "Crossing"\./.test(text))).toBe(true);
   });
 
   it('follows a rename made in Obsidian\'s file explorer, and brings the index up to date', async () => {
@@ -1427,7 +1443,10 @@ describe('the settings page', () => {
       { name: 'Loose', desc: 'At the top of the vault', heading: false },
       { name: 'My Novel', desc: 'Novel', heading: false },
       { name: 'הרומן שלי', desc: 'Hebrew/הרומן שלי', heading: false },
-      // After the projects: the one section a screen added, under its own heading.
+      // After the projects: where the links to a renamed note are updated.
+      { name: 'Renaming', desc: '', heading: true },
+      { name: LINK_SCOPE_NAME_TEXT, desc: LINK_SCOPE_DESC_TEXT, heading: false },
+      // Then the sections the screens added, each under its own heading.
       { name: 'Writing progress', desc: '', heading: true },
       { name: 'Colour scheme', desc: '', heading: true },
       { name: 'Writing modes', desc: '', heading: true },
@@ -1454,11 +1473,47 @@ describe('the settings page', () => {
     expect(one(element, 'spellbook-settings-progress').settings[0]?.toggles[0]?.getValue()).toBe(true);
   });
 
+  it('lets the writer choose where the links to a renamed note are updated, kept on this device', async () => {
+    const fake = novelVault();
+    fake.addNote('Novel/World/Characters/Mara.md', 'Her story.');
+    fake.addNote('Elsewhere/Diary.md', 'Met [[Mara]] today.');
+    const { plugin, stub } = loadReady(fake);
+    const { tab, element } = page(stub);
+    tab.display();
+    const row = element.settings.find((setting) => setting.nameEl.text === LINK_SCOPE_NAME_TEXT);
+    const dropdown = row?.components[0] as DropdownComponent;
+    expect([...dropdown.options.entries()]).toEqual([
+      ['project', 'This project only'],
+      ['vault', 'The whole vault'],
+    ]);
+    expect(dropdown.getValue()).toBe('project');
+    expect(plugin.store?.linkScope).toBe('project');
+    expect(fake.localStorage.has(LINK_SCOPE_KEY)).toBe(false); // nothing is stored while it is as it comes
+
+    dropdown.choose('vault');
+    expect(plugin.store?.linkScope).toBe('vault');
+    expect(fake.loadLocalStorage(LINK_SCOPE_KEY)).toBe('vault');
+    tab.display();
+    const again = element.settings.find((setting) => setting.nameEl.text === LINK_SCOPE_NAME_TEXT);
+    expect((again?.components[0] as DropdownComponent).getValue()).toBe('vault');
+
+    // A rename now brings the note outside the project up to date too.
+    const store = plugin.store;
+    if (!store) throw new Error('no store');
+    await store.openProject('Novel/Novel.md');
+    const renamed = await store.renameWorldNote('World/Characters/Mara.md', 'Mara Voss');
+    expect(renamed).toMatchObject({ status: 'done', value: { scope: 'vault', links: 1, notes: 1, outside: [] } });
+    expect(fake.textOf('Elsewhere/Diary.md')).toBe('Met [[Mara Voss]] today.');
+
+    dropdown.choose('project');
+    expect(fake.localStorage.has(LINK_SCOPE_KEY)).toBe(false);
+  });
+
   it('explains how to make a project when there are none', () => {
     const { stub } = loadReady();
     const { tab, rows } = page(stub);
     tab.display();
-    expect(rows().map((row) => row.name)).toEqual(['Spellbook', 'Projects in this vault', '', 'Writing progress', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots', 'Plot grid', 'Welcome and help', 'Templates']);
+    expect(rows().map((row) => row.name)).toEqual(['Spellbook', 'Projects in this vault', '', 'Renaming', LINK_SCOPE_NAME_TEXT, 'Writing progress', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots', 'Plot grid', 'Welcome and help', 'Templates']);
     expect(rows()[2]?.name).toBe('');
     expect(rows()[2]?.desc).toMatch(/No projects yet/);
     expect(rows()[2]?.desc).toMatch(/"Spellbook: Create project"/);
@@ -1483,12 +1538,12 @@ describe('the settings page', () => {
       return next < 0 ? after : after.slice(0, next);
     };
     tab.display();
-    expect(rows()).toHaveLength(12);
+    expect(rows()).toHaveLength(14);
     expect(projects().map((row) => row.name)).toEqual(['']); // "No projects yet"
 
     await plugin.createProject('First');
     expect(projects()).toEqual([{ name: 'First', desc: 'First', heading: false }]);
-    expect(rows().filter((row) => row.heading).map((row) => row.name)).toEqual(['Projects in this vault', 'Writing progress', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots', 'Plot grid', 'Welcome and help', 'Templates']);
+    expect(rows().filter((row) => row.heading).map((row) => row.name)).toEqual(['Projects in this vault', 'Renaming', 'Writing progress', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots', 'Plot grid', 'Welcome and help', 'Templates']);
 
     tab.display(); // opened again: still one listener's worth of rows
     await plugin.createProject('Second');

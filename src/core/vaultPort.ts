@@ -132,20 +132,17 @@ export interface VaultPort {
   createFolder(path: string): Promise<void>;
 
   /**
-   * Rename or move a file, updating links to it. Rejects when the file is
-   * missing or the new path is taken. Resolves with the file's new path.
-   */
-  rename(from: string, to: string): Promise<string>;
-
-  /**
-   * Rename a file and nothing else: the links to it are left as they are,
-   * and the vault asks the writer nothing. Rejects when the file is missing
-   * or the new path is taken. Resolves with the file's new path.
+   * Rename or move a file or a folder (with everything in it), and nothing
+   * else: the links to it are left as they are, and the vault asks the
+   * writer nothing. Rejects with VaultFileMissingError when there is nothing
+   * at `from`, and with another error when the new path is taken. Resolves
+   * with the new path.
    *
-   * Only the project store calls it, for an entity's note, and brings the
-   * links to it up to date itself: see renameWorldNote there. (Obsidian's
-   * own rename stops to ask about links when the writer has not told it to
-   * "Always update internal links", and a rename waits until they answer.)
+   * Only the project store calls it, in relocate, and brings the links up to
+   * date itself: every rename and move Spellbook makes goes through there.
+   * (Obsidian's own rename, fileManager.renameFile, is not used: it stops to
+   * ask about links when the writer has not told Obsidian to "Always update
+   * internal links", and the rename waits until they answer.)
    */
   moveFile(from: string, to: string): Promise<string>;
 
@@ -162,8 +159,8 @@ export interface VaultPort {
    * to a note that was renamed. Nothing is ever created: rejects with
    * VaultFileMissingError when there is no such file.
    *
-   * The project store is the only caller, in renameWorldNote, and the change
-   * it hands in alters nothing but the stretches of links that name the
+   * The project store is the only caller, in relocate, and the change it
+   * hands in alters nothing but the stretches of links that name the
    * renamed note (see retargetLinks in src/core/links.ts), and never the
    * properties block.
    *
@@ -230,9 +227,10 @@ export interface VaultPort {
    * board is accepted: rejects with VaultFileMissingError when there is no
    * such file, and with another error for a file that is not a board.
    *
-   * The project store is the only caller, and it accepts nothing but a board
-   * directly inside the open project's Boards folder: see updateBoardFile
-   * there. A note's text is never reached this way.
+   * The project store is the only caller: in updateBoardFile, which accepts
+   * nothing but a board directly inside the open project's Boards folder, and
+   * in relocate, which points a board's cards at a note that was renamed or
+   * moved and changes nothing else. A note's text is never reached this way.
    *
    * `change` receives the current text and returns the new text, or null to
    * leave the file exactly as it is (nothing is written).

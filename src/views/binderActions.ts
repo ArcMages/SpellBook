@@ -30,6 +30,7 @@ import type { IntentResult, NodeRef, Placement, ProjectSnapshot } from '../core/
 import { ConfirmModal } from '../ui/confirmModal';
 import { FolderPickerModal } from '../ui/folderPickerModal';
 import { MISSING_LABEL } from '../ui/missingNote';
+import { renameWindowText, renamedLinksNotice } from '../ui/renameLinks';
 import { TextPromptModal } from '../ui/textPromptModal';
 import type { BinderServices } from './binderView';
 
@@ -263,15 +264,18 @@ export class BinderActions {
 
   // ---------------------------------------------------------------- renaming
 
-  /** Ask for a new name for a scene. Its note is renamed; links to it keep working. */
+  /** Ask for a new name for a scene. Its note is renamed, and Spellbook points the links to it at the new name. */
   renameScene(inProject: string, path: string): void {
-    if (!this.writable(inProject)) return;
+    const scope = this.writable(inProject);
+    if (!scope) return;
     const current = noteTitle(path);
+    const links = scope.services.store;
     new TextPromptModal(this.host.app, {
       title: 'Rename scene',
       label: 'Name of the scene',
       value: current,
       confirm: 'Rename',
+      note: renameWindowText(links.linkScope, links.linksFromOutside(path).length),
       submit: async (typed) => {
         const name = checkSceneName(typed);
         if (!name.ok) return name.message;
@@ -282,6 +286,8 @@ export class BinderActions {
         if (result.status === 'noop' && result.reason === 'unchanged') return null;
         if (!this.report(result)) return null;
         this.sayNameIfChanged('scene', typed, noteTitle(result.value.path));
+        const told = renamedLinksNotice(noteTitle(result.value.path), result.value);
+        if (told !== null) new Notice(told, PROBLEM_NOTICE_MS);
         this.select(inProject, sceneRef(result.value.path));
         return null;
       },

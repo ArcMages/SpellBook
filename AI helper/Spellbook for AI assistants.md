@@ -1146,7 +1146,7 @@ binder:
 4. Do not add an `order` to the scene and do not renumber the others. Spellbook writes the numbers the next time the binder is changed in Obsidian.
 5. Read the index back and check it against section 17.
 
-Never do by hand, even when asked, without first explaining the risk: adding, renaming, moving or removing a binder **folder**; moving or removing a scene's entry; renaming or deleting a scene file. All of these are one click in Spellbook's binder, which also keeps links, order numbers and snapshots right. Ask the writer to do them there.
+Never do by hand, even when asked, without first explaining the risk: adding, renaming, moving or removing a binder **folder**; moving or removing a scene's entry; renaming or deleting a scene file. All of these are one click in Spellbook's binder, which also keeps links (in the project, or the whole vault if the writer chose so in Spellbook's settings), order numbers and snapshots right. Ask the writer to do them there.
 
 ## 15. Rules
 

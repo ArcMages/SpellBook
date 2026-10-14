@@ -52,6 +52,15 @@
   display: none;
 }
 
+/* A line under the field that says what else the window will do (a rename: what happens to the links). */
+.spellbook-prompt .spellbook-prompt-note {
+  margin-block-start: var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+  text-align: start;
+}
+
 /* The window that asks before a scene is deleted. */
 .spellbook-confirm .spellbook-confirm-message {
   margin-block: 0 var(--size-4-4);

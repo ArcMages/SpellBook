@@ -15,6 +15,13 @@
 // Links inside code ("`[[Mara]]`", or between ``` lines) are not links, and
 // are left alone, as Obsidian leaves them.
 
+/**
+ * Where the links to a note that Spellbook renames or moves are brought up
+ * to date: in the notes and boards of the open project only, or in every
+ * note and board of the vault.
+ */
+export type LinkScope = 'project' | 'vault';
+
 /** Where a link names its note, in a text. */
 export interface LinkPlace {
   /** The stretch of the text that names the note, without a heading, a block or a shown text. */
@@ -172,4 +179,53 @@ export function retargetLinksInValue(value: unknown, retarget: (path: string) =>
     return { value: count === 0 ? value : Object.fromEntries(entries), count };
   }
   return { value, count: 0 };
+}
+
+/** The last part of a path ("World/Mara.md" -> "Mara.md"). */
+function lastPart(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1);
+}
+
+/**
+ * How a link is to name a note (or another file) that was renamed or moved,
+ * written the way the link was: "Mara" stays a bare name ("Mara Voss"), a
+ * path stays a path of as many steps ("Characters/Mara" -> "People/Mara"),
+ * and a ".md" ending is written only where it was. The
+ * first way that `resolves` (asked with the link as it would be written,
+ * from where the link is) says leads to the file is taken; when none does,
+ * the file's whole vault path.
+ *
+ * @param linkPath the note as the link names it now ("Mara", "World/Mara.md")
+ * @param newPath the file's new vault path ("Novel/World/Mara Voss.md")
+ */
+export function movedLinkPath(linkPath: string, newPath: string, resolves: (candidate: string) => boolean): string {
+  const note = /\.md$/i.test(newPath);
+  // A note's ending is written only where the link wrote it; any other file's always.
+  const keepEnding = !note || /\.md$/i.test(linkPath);
+  const name = keepEnding ? lastPart(newPath) : lastPart(newPath).replace(/\.md$/i, '');
+  const whole = keepEnding ? newPath : newPath.replace(/\.md$/i, '');
+  const slash = linkPath.lastIndexOf('/');
+  const candidates: string[] = [];
+  if (slash < 0) candidates.push(name);
+  else {
+    // The same folders as before (a rename where it is), or else as many steps of the new path as the link had.
+    candidates.push(`${linkPath.slice(0, slash + 1)}${name}`);
+    const steps = linkPath.split('/').length;
+    const parts = whole.split('/');
+    if (parts.length > steps) candidates.push(parts.slice(-steps).join('/'));
+  }
+  for (const candidate of candidates) {
+    if (resolves(candidate)) return candidate;
+  }
+  return whole;
+}
+
+/** Where every file inside a moved folder (or the moved file itself) lands: old vault path -> new vault path. */
+export function movedPaths(from: string, to: string, files: readonly string[]): Map<string, string> {
+  const moved = new Map<string, string>();
+  for (const file of files) {
+    if (file === from) moved.set(file, to);
+    else if (file.startsWith(`${from}/`)) moved.set(file, `${to}${file.slice(from.length)}`);
+  }
+  return moved;
 }

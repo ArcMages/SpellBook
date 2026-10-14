@@ -181,6 +181,8 @@ Each scene of a structure comes with a title and a synopsis that says what it is
 
 **Deleting.** "Delete scene" asks first, then takes the scene out of the binder and moves its note to the trash. Nothing is deleted outright.
 
+**Renaming.** "Rename" on a scene renames its note, and Spellbook itself points every link to it at the new name: in the text and properties of your notes, and on idea boards (their note cards and the links in their text cards). A heading, a block, an embed and the text a link shows stay as they were. Obsidian is not asked to do it, so a rename never waits on its "Update links" question, whatever "Automatically update internal links" says in Obsidian's settings. The window says where links are changed: in this project only (as it comes), or in the whole vault, as you chose under "When a note is renamed, update links in" in Spellbook's settings (see [Settings](#settings)). With this project only, the window and a notice afterwards say how many notes outside the project still link to the old name. The same goes for renaming a board and a World entry. Renaming a binder folder changes only its name in the binder: binder folders are not folders on disk.
+
 **Commands that act on the binder.** **New scene**, **New folder**, **Move scene up**, **Move scene down** and **Reveal active scene in binder** (shows the binder with the row of the note you are working on selected). They are only offered while they can do something.
 
 **On a phone.** Long-press a row to pick it up and drag it. Everything a drag does, the row's menu does too.
@@ -727,9 +729,9 @@ Command **Board: around this entity** (for the World entry open in the editor, o
 
 **Rename everywhere.** For a character, a place or any other World entry: **Rename everywhere** in its menu (the "…" button of its card or row), on its sheet, or as a command while its note is open. The window shows what will change before anything does:
 
-- the note gets the new name, through Obsidian's own rename, so links to it follow;
+- the note gets the new name, and Spellbook points every link to it at the new name: in this project, or in the whole vault, as you chose in Spellbook's settings (see [Binder](#binder), "Renaming");
 - **Keep the old name as another name** (ticked to begin with) adds the old name to its other names (aliases);
-- every place in the manuscript's text where the old name stands, as a whole word with its capitals, each with a tick. A Hebrew name is also found with letters joined to its front; only the name is changed there, and those places start unticked, so look at them first. The name inside a link is left to Obsidian's rename.
+- every place in the manuscript's text where the old name stands, as a whole word with its capitals, each with a tick. A Hebrew name is also found with letters joined to its front; only the name is changed there, and those places start unticked, so look at them first. The name inside a link is changed with the links, not here.
 
 **Rename** asks once more, then does it with the same protection as Find and replace: a "Before rename" snapshot of each scene first, and a scene changed since the window opened is left alone.
 
@@ -796,7 +798,7 @@ Press **Export**. The file is saved as a new file in the project's Exports folde
 
 ## Settings
 
-Open Obsidian's Settings and choose **Spellbook**. The page shows the installed version, the **Projects in this vault**, and these sections, each described above: **Writing progress** (with the bottom bar), **Colour scheme**, **Writing modes**, **Prose checks**, **Snapshots**, **Plot grid** ("Mark long gaps" and "Shade before and after"), **Welcome and help** ("Show the welcome page again" and "Show what is new after updates") and **Templates** (the list of templates, with **Open** and **Delete**), and a row for the writing report's words on a page.
+Open Obsidian's Settings and choose **Spellbook**. The page shows the installed version, the **Projects in this vault**, **Renaming** ("When a note is renamed, update links in": **This project only**, as it comes, or **The whole vault**; see [Binder](#binder), "Renaming"), and these sections, each described above: **Writing progress** (with the bottom bar), **Colour scheme**, **Writing modes**, **Prose checks**, **Snapshots**, **Plot grid** ("Mark long gaps" and "Shade before and after"), **Welcome and help** ("Show the welcome page again" and "Show what is new after updates") and **Templates** (the list of templates, with **Open** and **Delete**), and a row for the writing report's words on a page.
 
 [Making Spellbook your own](customising.md) goes through these settings one by one, and ends with a table of where each setting lives.
 
@@ -935,10 +937,11 @@ Timeline events carry `date`, an optional `end`, `timelines` (their lanes), `sce
 
 - **The text of a scene is yours.** Spellbook changes a scene's properties, and never its text, with two exceptions, both after you confirm and both after a snapshot of the scene: when you press **Restore** on a snapshot (the scene's text is replaced by the snapshot's, after a "Before restore" snapshot), and when you **Replace** in Find and replace or **Rename** in Rename everywhere (only the places you ticked are changed, after a "Before replace" or "Before rename" snapshot, and never in a scene that changed since the search). The properties are never changed by a replace.
 - **The same goes for your event, world and research notes**: Spellbook changes their properties only.
+- **Links follow a rename.** When you rename a scene, a board or a World entry in Spellbook, the links to it are pointed at the new name, in the text and properties of the notes that hold them and on idea boards. Only the name inside each link changes. This reaches the notes of the project only, unless you chose "The whole vault" in Spellbook's settings.
 - **`To-do.md` is the one note whose lines Spellbook edits**, and only the line you acted on: ticking, adding, re-dating, moving or removing a to-do in the planner. Every other line is kept exactly as it was.
 - **The word logs, the snapshots, the exports, the AI helper note, the idea boards and the templates** are files Spellbook writes for itself. Turning a board's cards into notes changes that board's file: each card is swapped for one that shows its new note. An export is always a new file. The AI helper note is only written when you run its command, and a copy you changed is not replaced without asking.
 - **Nothing is deleted outright.** Scenes, world notes and snapshots you delete go to the trash (Obsidian's or the system's, as your Obsidian settings say).
-- **Notes outside a project folder are never changed.** The one thing Spellbook writes outside a project folder is a new note in "Spellbook templates", when you run **Save project as template**.
+- **Notes outside a project folder are never changed**, with two exceptions: a new note in "Spellbook templates", when you run **Save project as template**, and, only if you chose "The whole vault" under "When a note is renamed, update links in", the links in them to a note you renamed in Spellbook.
 
 ## Sync and several devices
 
@@ -960,6 +963,7 @@ These are remembered separately on every device and do not sync:
 - which prose checks are on, and their settings;
 - the layout of the bottom bar, and "Count pasted text";
 - the snapshot settings (automatic snapshots, and how many to keep);
+- where links are updated when a note is renamed (this project only, or the whole vault);
 - the corkboard's card size, and the outliner's columns, sorting and filters;
 - whether the World screen shows cards or a list;
 - the plot grid's kind of columns, chosen entities, folded folders, synopsis line, gap length and shading before and after;
