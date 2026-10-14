@@ -7,11 +7,12 @@
 // These tests cannot show how it looks: that needs Obsidian itself.
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { LAYOUT_KEY, UNREADABLE_FIELD_TEXT } from '../../../src/features/world/host';
+import { LAYOUT_KEY, UNREADABLE_ALIASES_TEXT, UNREADABLE_FIELD_TEXT } from '../../../src/features/world/host';
 import { ImagePickerModal, NO_IMAGES_TEXT } from '../../../src/features/world/imagePicker';
 import { NOT_AN_ENTITY_TEXT } from '../../../src/features/world/index';
 import { NO_PICTURE_CLASS, NO_PROJECT_TEXT } from '../../../src/features/world/parts';
 import { RelationPickerModal } from '../../../src/features/world/relationModal';
+import { fittedHeight } from '../../../src/features/world/sheet';
 import { MemoryVault } from '../../memoryVault';
 import { Menu as StubMenu, Modal as StubModal, Notice as StubNotice, Platform, resetFakeDocument, resetPlatform } from '../../obsidianStub';
 import type { FakeElement } from '../../obsidianStub';
@@ -74,10 +75,10 @@ function pictureVault(): MemoryVault {
   return vault;
 }
 
-/** Open the browser and the sheet of the entity of this name, through the "Sheet" button on its card. */
+/** Open the browser and the sheet of the entity of this name, through a tap on its card. */
 async function sheetOf(s: Wired, name: string, width = 900): Promise<{ pane: FakeElement; sheet: () => FakeElement; root: FakeElement }> {
   const { pane } = await openWorld(s, width);
-  one(cardNamed(pane, name), 'spellbook-world-card-sheet').fire('click');
+  cardNamed(pane, name).fire('click');
   return { pane, sheet: () => one(pane, 'spellbook-world-detail'), root: one(pane, 'spellbook-world') };
 }
 
@@ -95,6 +96,11 @@ async function fill(s: Wired, field: FakeElement, text: string): Promise<void> {
   field.fire('blur');
   field.fire('change');
   await calm(s);
+}
+
+/** The other names on a sheet, as their boxes say them (without the box to add one). */
+function aliasesOn(sheet: FakeElement): string[] {
+  return sheet.withClass('spellbook-world-alias').map((item) => one(item, 'spellbook-world-alias-box').value);
 }
 
 /** The frames that show a picture (or an icon in its place) inside an element: [address of the picture or null, shows the icon]. */
@@ -117,7 +123,7 @@ describe('the sheet of one entity', () => {
     expect(cardNamed(pane, 'Mara').hasClass('is-selected')).toBe(true);
     expect(one(sheet(), 'spellbook-world-detail-name').text).toBe('Mara');
     expect(one(sheet(), 'spellbook-world-detail-type').text).toBe('Character');
-    expect(one(sheet(), 'spellbook-world-detail-aliases').text).toBe('the keeper');
+    expect(aliasesOn(sheet())).toEqual(['the keeper']);
     expect(one(sheet(), 'spellbook-world-detail-summary').value).toBe('Keeps the light, and a secret.');
     expect(sheet().withClass('spellbook-world-field-name').map((name) => name.text)).toEqual([
       'role',
@@ -130,10 +136,11 @@ describe('the sheet of one entity', () => {
       'arc',
     ]);
     expect(sheet().withClass('spellbook-world-field-box').map((field) => field.value)).toEqual(['Lighthouse keeper', '34', '', '', '', '', '', '']);
-    // The parts of the sheet, in order: the picture and the words beside it, the summary, the fields, the rest.
-    expect(sheet().children.map((child) => [...child.classes].find((cls) => /^spellbook-world-(detail-head|sheet-hero|detail-summary|fields|sheet-rest)$/.test(cls)))).toEqual([
+    // The parts of the sheet, in order: the picture and the words beside it, the other names, the summary, the fields, the rest.
+    expect(sheet().children.map((child) => [...child.classes].find((cls) => /^spellbook-world-(detail-head|sheet-hero|aliases|detail-summary|fields|sheet-rest)$/.test(cls)))).toEqual([
       'spellbook-world-detail-head',
       'spellbook-world-sheet-hero',
+      'spellbook-world-aliases',
       'spellbook-world-detail-summary',
       'spellbook-world-fields',
       'spellbook-world-sheet-rest',
@@ -181,9 +188,12 @@ describe('the sheet of one entity', () => {
     });
     const s = await stage(vault);
     const { sheet } = await sheetOf(s, MARA_HE);
-    for (const cls of ['spellbook-world-detail-name', 'spellbook-world-detail-aliases', 'spellbook-world-detail-summary', 'spellbook-world-relation-label']) {
+    for (const cls of ['spellbook-world-detail-name', 'spellbook-world-detail-summary', 'spellbook-world-relation-label']) {
       expect(one(sheet(), cls).getAttr('dir'), cls).toBe('auto');
     }
+    // Every other name, and the box to add one, takes the direction of what is typed in it.
+    expect(aliasesOn(sheet())).toEqual(['השומרת']);
+    for (const name of sheet().withClass('spellbook-world-alias-box')) expect(name.getAttr('dir')).toBe('auto');
     for (const field of sheet().withClass('spellbook-world-box')) expect(field.getAttr('dir')).toBe('auto');
     for (const name of sheet().withClass('spellbook-world-field-name')) expect(name.getAttr('dir')).toBe('auto');
     expect(box(sheet(), 'role').value).toBe('שומרת');
@@ -251,6 +261,9 @@ describe('the sheet of one entity', () => {
     const s = await stage(vault);
     const { sheet } = await sheetOf(s, 'Mara');
     expect(sheet().withClass('spellbook-world-box')).toEqual([]);
+    // The other names are there to read, and nothing to type them in.
+    expect(one(sheet(), 'spellbook-world-detail-aliases').text).toBe('the keeper');
+    expect(sheet().withClass('spellbook-world-alias-box')).toEqual([]);
     expect(one(sheet(), 'spellbook-world-detail-summary').text).toBe('Keeps the light, and a secret.');
     expect(sheet().withClass('spellbook-world-field-name').map((name) => name.text)).toEqual(['role', 'age']);
     expect(sheet().withClass('spellbook-world-field-value').map((value) => value.text)).toEqual(['Lighthouse keeper', '34']);
@@ -398,6 +411,155 @@ describe('changing a field on the sheet', () => {
   });
 });
 
+describe('the other names on the sheet', () => {
+  const MARA_BODY = '## Description\n\nHer story so far.\n';
+  const namesOf = (s: Wired, path = MARA): unknown => s.vault.frontmatterOf(inNovel(path))?.['aliases'];
+  const addBox = (sheet: FakeElement): FakeElement => one(sheet, 'spellbook-world-alias-add');
+
+  it('adds a name from the box at the end, as one more entry of the note\'s "aliases" list and nothing else', async () => {
+    const s = await stage();
+    const { sheet } = await sheetOf(s, 'Mara');
+    expect(one(sheet(), 'spellbook-world-aliases-head').text).toBe('Other names');
+    const before = { ...s.vault.frontmatterOf(inNovel(MARA)) };
+    await fill(s, addBox(sheet()), '  Mara   of the light ');
+    expect(s.vault.writes).toEqual([{ op: 'updateFrontmatter', path: inNovel(MARA) }]);
+    expect(s.vault.frontmatterOf(inNovel(MARA))).toEqual({ ...before, aliases: ['the keeper', 'Mara of the light'] });
+    expect(Object.keys(s.vault.frontmatterOf(inNovel(MARA)) ?? {})).toEqual(Object.keys(before));
+    expect(s.vault.bodyOf(inNovel(MARA))).toBe(MARA_BODY);
+    expect(aliasesOn(sheet())).toEqual(['the keeper', 'Mara of the light']);
+    expect(addBox(sheet()).value).toBe('');
+  });
+
+  it('adds a Hebrew name, which keeps its own direction, to an entity that had none', async () => {
+    const s = await stage();
+    const { sheet } = await sheetOf(s, 'Lamp');
+    expect(aliasesOn(sheet())).toEqual([]);
+    await fill(s, addBox(sheet()), 'המנורה');
+    expect(namesOf(s, LAMP)).toEqual(['המנורה']);
+    const name = one(one(sheet(), 'spellbook-world-alias'), 'spellbook-world-alias-box');
+    expect(name.value).toBe('המנורה');
+    expect(name.getAttr('dir')).toBe('auto');
+    expect(name.getAttr('aria-label')).toBe('Other name: המנורה');
+  });
+
+  it('changes a name in its own box, on Enter or when the box is left; Escape puts back what the note says', async () => {
+    const s = await stage();
+    const { sheet } = await sheetOf(s, 'Mara');
+    const first = (): FakeElement => one(one(sheet(), 'spellbook-world-alias'), 'spellbook-world-alias-box');
+    first().fire('focus');
+    typeInto(first(), 'the old keeper');
+    first().fire('keydown', { key: 'Escape' });
+    expect(first().value).toBe('the keeper');
+    first().fire('blur');
+    await calm(s);
+    expect(s.vault.writes).toEqual([]);
+
+    await fill(s, first(), 'the old keeper');
+    expect(namesOf(s)).toEqual(['the old keeper']);
+    expect(aliasesOn(sheet())).toEqual(['the old keeper']);
+    expect(s.vault.writes).toHaveLength(1);
+    // The same text again writes nothing.
+    await fill(s, first(), ' the old keeper ');
+    expect(s.vault.writes).toHaveLength(1);
+  });
+
+  it('removes a name with its button, or by emptying its box, and keeps "aliases" a list when none is left', async () => {
+    const vault = novelVault();
+    vault.external.editFrontmatter(inNovel(MARA), (frontmatter) => {
+      frontmatter['aliases'] = ['the keeper', 'M', 'השומרת'];
+    });
+    const s = await stage(vault);
+    const { sheet } = await sheetOf(s, 'Mara');
+    const items = (): FakeElement[] => sheet().withClass('spellbook-world-alias');
+    expect(one(items()[1] as FakeElement, 'spellbook-world-alias-remove').getAttr('aria-label')).toBe('Remove the name: M');
+    one(items()[1] as FakeElement, 'spellbook-world-alias-remove').fire('click');
+    await calm(s);
+    expect(namesOf(s)).toEqual(['the keeper', 'השומרת']);
+    await fill(s, one(items()[0] as FakeElement, 'spellbook-world-alias-box'), '   ');
+    expect(namesOf(s)).toEqual(['השומרת']);
+    one(items()[0] as FakeElement, 'spellbook-world-alias-remove').fire('click');
+    await calm(s);
+    expect(namesOf(s)).toEqual([]);
+    expect(aliasesOn(sheet())).toEqual([]);
+    expect(s.vault.bodyOf(inNovel(MARA))).toBe(MARA_BODY);
+  });
+
+  it('drops a name that is there already, and turns one name written by itself into a list', async () => {
+    const vault = novelVault();
+    vault.external.editFrontmatter(inNovel(MARA), (frontmatter) => {
+      frontmatter['aliases'] = 'the keeper';
+    });
+    const s = await stage(vault);
+    const { sheet } = await sheetOf(s, 'Mara');
+    expect(aliasesOn(sheet())).toEqual(['the keeper']);
+    await fill(s, addBox(sheet()), 'the keeper');
+    expect(s.vault.writes).toEqual([]);
+    await fill(s, addBox(sheet()), 'M');
+    expect(namesOf(s)).toEqual(['the keeper', 'M']);
+  });
+
+  it('adds one name after the other with Enter, the box keeping the keyboard, and loses none', async () => {
+    // Seen in Obsidian: a second name typed straight after the first took the first one's place.
+    const s = await stage();
+    const { sheet } = await sheetOf(s, 'Mara');
+    const add = addBox(sheet());
+    add.fire('focus');
+    typeInto(add, 'M');
+    add.fire('keydown', { key: 'Enter' });
+    expect(add.value).toBe('');
+    typeInto(add, 'השומרת');
+    add.fire('keydown', { key: 'Enter' });
+    await calm(s);
+    expect(addBox(sheet())).toBe(add);
+    expect(namesOf(s)).toEqual(['the keeper', 'M', 'השומרת']);
+    expect(aliasesOn(sheet())).toEqual(['the keeper', 'M', 'השומרת']);
+  });
+
+  it('makes each change to the names the note has at that moment, not to the ones the sheet last showed', async () => {
+    const s = await stage();
+    const { sheet } = await sheetOf(s, 'Mara');
+    const first = one(one(sheet(), 'spellbook-world-alias'), 'spellbook-world-alias-box');
+    first.fire('focus');
+    typeInto(first, 'the old keeper');
+    // Another device adds a name while this one is being typed.
+    s.vault.external.editFrontmatter(inNovel(MARA), (frontmatter) => {
+      frontmatter['aliases'] = ['the keeper', 'M'];
+    });
+    await calm(s);
+    expect(first.value).toBe('the old keeper'); // left alone while it is typed in
+    first.fire('blur');
+    await calm(s);
+    expect(namesOf(s)).toEqual(['the old keeper', 'M']);
+    expect(aliasesOn(sheet())).toEqual(['the old keeper', 'M']);
+  });
+
+  it('says so, and changes nothing, when "aliases" holds something that is not a list of names', async () => {
+    const s = await stage();
+    const { sheet } = await sheetOf(s, 'Mara');
+    s.vault.external.editFrontmatter(inNovel(MARA), (frontmatter) => {
+      frontmatter['aliases'] = { first: 'the keeper' };
+    }, { silent: true });
+    await fill(s, addBox(sheet()), 'M');
+    expect(s.vault.frontmatterOf(inNovel(MARA))?.['aliases']).toEqual({ first: 'the keeper' });
+    expect(last(StubNotice.shown).message).toBe(UNREADABLE_ALIASES_TEXT);
+  });
+
+  it('keeps the name that is being typed while the rest of the sheet follows the vault', async () => {
+    const s = await stage();
+    const { sheet } = await sheetOf(s, 'Mara');
+    const add = addBox(sheet());
+    add.fire('focus');
+    typeInto(add, 'half a na');
+    s.vault.external.editFrontmatter(inNovel(MARA), (frontmatter) => {
+      frontmatter['role'] = 'Keeper, retired';
+    });
+    await calm(s);
+    expect(box(sheet(), 'role').value).toBe('Keeper, retired');
+    expect(addBox(sheet())).toBe(add);
+    expect(add.value).toBe('half a na');
+  });
+});
+
 describe('a picture', () => {
   it('shows on the card and on the sheet; an entity without one shows the icon of its type in both', async () => {
     const s = await stage(pictureVault());
@@ -411,7 +573,7 @@ describe('a picture', () => {
     expect(pictures(cardNamed(pane, 'Mara'))).toEqual([[null, true]]);
     expect(one(card, 'spellbook-world-badge').icon).toBe('user');
     expect(card.hasClass('spellbook-world-color-blue')).toBe(true);
-    one(cardNamed(pane, 'Mara'), 'spellbook-world-card-sheet').fire('click');
+    cardNamed(pane, 'Mara').fire('click');
     expect(pictures(one(sheet(), 'spellbook-world-sheet-hero'))).toEqual([[null, true]]);
     expect(one(one(sheet(), 'spellbook-world-sheet-picture'), 'spellbook-world-badge').icon).toBe('user');
     expect(sheet().withClass('spellbook-world-remove-picture')).toEqual([]);
@@ -735,6 +897,14 @@ describe('cards and list', () => {
     pane.withClass('spellbook-world-table-entity')[0]?.fire('click', { metaKey: true });
     await calm(s);
     expect(s.opened).toEqual([{ path: inNovel(LAMP), where: 'tab' }]);
+    // The name in a row opens the note, and the sheet stays as it was.
+    const saltwick = pane.withClass('spellbook-world-table-entity').find((candidate) => candidate.getAttr('data-path') === SALTWICK) as FakeElement;
+    const name = one(saltwick.withClass('spellbook-world-table-name')[0] as FakeElement, 'spellbook-world-table-text');
+    expect(name.tag).toBe('button');
+    name.fire('click');
+    await calm(s);
+    expect(s.opened.slice(1)).toEqual([{ path: inNovel(SALTWICK), where: false }]);
+    expect(one(one(pane, 'spellbook-world-detail'), 'spellbook-world-detail-name').text).toBe(MARA_HE);
   });
 
   it('remembers cards or list on this device, and nowhere else', async () => {
@@ -772,3 +942,15 @@ describe('cards and list', () => {
 function tableOf(pane: FakeElement): string[][] {
   return pane.withClass('spellbook-world-table-entity').map((row) => row.withClass('spellbook-world-table-text').map((cell) => cell.text));
 }
+
+describe('how tall a box of the sheet is made', () => {
+  it('adds the border to what the box holds, so that no scrollbar hides the last words', () => {
+    // Seen in Obsidian: 57 pixels of text in a box with a one-pixel border all round was given 57 pixels, two short.
+    expect(fittedHeight({ scrollHeight: 57, offsetHeight: 44, clientHeight: 42 })).toBe(59);
+    expect(fittedHeight({ scrollHeight: 25, offsetHeight: 25, clientHeight: 25 })).toBe(25);
+  });
+
+  it('has nothing to say for a box that is not on the screen yet', () => {
+    expect(fittedHeight({ scrollHeight: 0, offsetHeight: 0, clientHeight: 0 })).toBeNull();
+  });
+});

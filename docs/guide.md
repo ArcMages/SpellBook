@@ -454,7 +454,7 @@ At the top of the screen:
 - **Cards** and **List**, under "Show as". Cards show each entity's picture or icon, its name, one or two key facts and its summary, in a group for each type. The list is one table of them all with the columns **Name**, **Type**, **Kind** and **Scenes**; tap a heading to sort by it, and again to turn the order round.
 - **New**, and the button for **Entity types**.
 
-On a card, tap the card to open the entity's note. **Sheet**, or the number of scenes, opens its sheet. In the list, tap a row to open its sheet. Each card has a menu: **Open**, **Open in new tab**, **Open sheet**, **Rename**, **Delete** (to the trash).
+Tap a card to open the entity's sheet; the number of scenes on the card does the same. Tap the entity's name on the card to open its note instead (on a computer the name shows as a link under the pointer). In the list it is the same: tap a row to open the sheet, tap the name to open the note. With a keyboard, Enter on a card or a row opens the sheet. Each card has a menu: **Open note**, **Open note in new tab**, **Open sheet**, **Rename**, **Delete** (to the trash).
 
 ### The entity sheet
 
@@ -465,6 +465,7 @@ On a card, tap the card to open the entity's note. **Sheet**, or the number of s
 The sheet is one entity laid out to read and to fill in. It opens beside the list in a wide pane. The command **Open entity sheet** opens the sheet of the entity whose note is open in the editor.
 
 - **Picture.** **Choose picture** lists the image files in your vault; tap one. **Remove picture** takes it off again. The picture file itself is never moved or changed. An entity without a picture shows its type's icon.
+- **Other names.** See below.
 - **Summary and fields.** Type in a field and press Enter, or tap elsewhere, to save it. Each field is one property of the note; the note's text is never touched. A property that holds a list is shown but is changed in the note itself.
 - **Open note** opens the note, where you write as much as you like under its headings.
 - **Related.** Press **Add**, type how the two have to do with each other ("sister", "keeps", "born there"; you may leave it empty), and tap the other entity. Relations are grouped by type. Each has a button to change its label and one to remove it. A relation is written in one note only; the other entity's sheet shows it by itself under **Mentioned by**.
@@ -480,7 +481,7 @@ The sheet is one entity laid out to read and to fill in. It opens beside the lis
 
 *A piece of lore written in Hebrew: the name, the fields and the Hebrew scene titles read right to left.*
 
-**Other names.** An entity's other names are Obsidian's own `aliases` property. Add them in the note's properties; "Find mentions" looks for them too.
+**Other names.** Under the picture, **Other names** lists the other names the entity goes by, each in a small box of its own. Type in **Add a name** and press Enter, or tap elsewhere, to add one; tap a name to change it; press the button beside a name, or empty its box, to remove it. They are saved as Obsidian's own `aliases` property of the note, as a list, so Obsidian's links and search know them as well, and "Find mentions" looks for them too. A Hebrew name reads right to left in its box.
 
 **Linking to scenes and events.** In the [inspector](#inspector), under **In this scene**, press **Add**. On the timeline, use **Entities** in an event's menu.
 

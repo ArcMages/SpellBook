@@ -48,10 +48,13 @@ export {
   newEntityFrontmatter,
   readAliases,
   readEntities,
+  editAliases,
+  setAliases,
   setEntityField,
+  tidyAliases,
   sheetFields,
 } from './entity';
-export type { Entity, EntityField, FieldChange, SheetField, WorldNote } from './entity';
+export type { AliasEdit, Entity, EntityField, FieldChange, SheetField, WorldNote } from './entity';
 
 export { imageLink, readImageTarget, resolveImage, searchImages, setImage } from './image';
 
