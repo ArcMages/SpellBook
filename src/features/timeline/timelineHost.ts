@@ -35,6 +35,17 @@ export interface TimelineData {
   readonly calendar?: unknown;
   /** The paths of the notes in the project's World/ folder (its entities), written the same way as the other paths. */
   readonly world?: readonly string[];
+  /**
+   * The notes of the World/ folder that say anything about time or about
+   * their type, each with the properties that matter here ("type", "date",
+   * "end", "moments") and nothing else. Written the same way as the other
+   * paths. Without it the timeline has no world lanes.
+   */
+  readonly worldNotes?: readonly TimelineNote[];
+  /** The value stored under the "entityTypes" key of the project index, exactly as it is stored. */
+  readonly entityTypes?: unknown;
+  /** What this device shows of the world on the timeline. Nothing here means: no world lanes. */
+  readonly worldLanes?: WorldLaneChoice;
   /** Every note in the project's Timeline/ folder, with its properties as they are. */
   readonly events: readonly TimelineNote[];
   /** Every scene of the manuscript, with its properties. Scenes without a date are simply not shown. */
@@ -45,6 +56,14 @@ export interface TimelineData {
   readonly hiddenLanes: readonly string[];
   /** Today as a day number (whole days since 1 January 1970): where an empty timeline is centred. */
   readonly today: number;
+}
+
+/** What one device shows of the world on the timeline: a choice about a screen, never kept in the project. */
+export interface WorldLaneChoice {
+  /** True when the world lanes are shown at all. */
+  readonly on: boolean;
+  /** The ids of the entity types whose lanes are hidden while the others show. */
+  readonly hidden: readonly string[];
 }
 
 /** A change to the properties of one note. */
@@ -134,4 +153,14 @@ export interface TimelineHost {
 
   /** Remember, on this device only, which lanes are hidden; then announce the change. */
   setHiddenLanes(names: readonly string[]): void;
+
+  /** Remember, on this device only, what is shown of the world; then announce the change. A host without it has no world lanes. */
+  setWorldLanes?(choice: WorldLaneChoice): void;
+
+  /**
+   * Show an entity's sheet (the World browser's), for a tap on an entity of
+   * a world lane. False when nobody offers one: the screen then opens the
+   * entity's note instead.
+   */
+  showEntity?(path: string): boolean;
 }

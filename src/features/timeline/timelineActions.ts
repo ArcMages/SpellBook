@@ -10,6 +10,7 @@ import { Notice } from 'obsidian';
 import type { PaneType } from 'obsidian';
 import { tidyDisplayName } from '../../core/names';
 import {
+  MANUSCRIPT_LANE,
   OTHER_LANE,
   addEventToLanePatch,
   addLane,
@@ -47,6 +48,7 @@ import { TextPromptModal } from '../../ui/textPromptModal';
 import { CalendarModal } from './calendarModal';
 import { EntityPickerModal } from './entityPicker';
 import { EventModal } from './eventModal';
+import type { WorldLane } from '../../core/world';
 import type { NoteChange, TimelineHost } from './timelineHost';
 import { allLanes } from './timelineScene';
 import type { TimeMode, TimelineContent } from './timelineScene';
@@ -294,6 +296,52 @@ export class TimelineActions {
     const others = hidden.filter((name) => laneKey(name) !== lane.key);
     safely('Hide lane', () => {
       this.host.setHiddenLanes(others.length === hidden.length ? [...hidden, lane.name] : others);
+    });
+  }
+
+  // ------------------------------------------------------------- world lanes
+
+  /** True when this device shows the world lanes. */
+  worldOn(): boolean {
+    return this.current()?.world.on === true;
+  }
+
+  /** Every lane the world has: one per type that has an entity with a date, the hidden ones included. */
+  worldLanes(): readonly WorldLane[] {
+    return this.current()?.world.lanes ?? [];
+  }
+
+  /** Show the world lanes on this device, or stop showing them. Which types are hidden is kept either way. */
+  setWorld(on: boolean): void {
+    const choice = this.current()?.data.worldLanes ?? { on: false, hidden: [] };
+    if (choice.on === on) return;
+    safely('World lanes', () => {
+      this.host.setWorldLanes?.({ on, hidden: choice.hidden });
+    });
+  }
+
+  /** Hide the lane of one type of entity on this device, or show it again. */
+  toggleWorldLane(lane: WorldLane): void {
+    const choice = this.current()?.data.worldLanes ?? { on: false, hidden: [] };
+    const others = choice.hidden.filter((id) => id !== lane.typeId);
+    safely('World lanes', () => {
+      this.host.setWorldLanes?.({ on: choice.on, hidden: others.length === choice.hidden.length ? [...choice.hidden, lane.typeId] : others });
+    });
+  }
+
+  /**
+   * The world's history: the world lanes on, and the lane of the scenes
+   * off. Both are choices of this device, and both can be undone in the
+   * window that lists the lanes.
+   */
+  showWorldHistory(): void {
+    const content = this.current();
+    if (content === null) return;
+    this.setWorld(true);
+    const hidden = content.data.hiddenLanes;
+    if (hidden.some((name) => laneKey(name) === laneKey(MANUSCRIPT_LANE))) return;
+    safely('World history', () => {
+      this.host.setHiddenLanes([...hidden, MANUSCRIPT_LANE]);
     });
   }
 

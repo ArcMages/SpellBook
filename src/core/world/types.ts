@@ -51,6 +51,20 @@ export const ENTITIES_KEY = 'entities';
 export const IMAGE_KEY = 'image';
 /** The property of an entity note that lists the entities it has to do with: links, each with a short label. */
 export const RELATED_KEY = 'related';
+/** The property of an entity note that says when it begins: a birth, a founding, when a legend is set. Written like an event's date. */
+export const DATE_KEY = 'date';
+/** The property of an entity note that says when it ends: a death, a fall, when it was lost. Written like an event's end. */
+export const END_KEY = 'end';
+/** The property of an entity note that lists more points in its life: each a date and a short label. */
+export const MOMENTS_KEY = 'moments';
+
+/** What the two dates of an entity are called: "Born" and "Died" for a character. */
+export interface DateWords {
+  /** The word for the "date" property: when it begins. */
+  readonly from: string;
+  /** The word for the "end" property: when it ends. */
+  readonly until: string;
+}
 
 /** The icons a type can have, by their names in Obsidian's icon set; the first is what a new type gets. */
 export const ENTITY_ICONS = [
@@ -94,6 +108,11 @@ export interface EntityType {
   readonly icon: string;
   /** True for the types every project has. */
   readonly builtIn: boolean;
+  /**
+   * What the writer chose to call the two dates of an entity of this type.
+   * Left out when they have the usual words (see `dateWords` in time.ts).
+   */
+  readonly dateWords?: DateWords;
 }
 
 /** The types every project has. */
@@ -125,6 +144,9 @@ export const BUILT_IN_TYPES: readonly EntityType[] = Object.freeze([
   { id: 'culture', name: 'Culture', folder: 'Cultures', fields: ['kind', 'region', SUMMARY_KEY], color: 'cyan', icon: 'users', builtIn: true },
 ] satisfies EntityType[]);
 
+/** What a stored type says its two dates are called, when the writer chose the words: a list of two. */
+export const DATE_WORDS_KEY = 'dateWords';
+
 /** What a stored list says on a built-in type whose fields were written by this version. */
 export const FIELDS_VERSION_KEY = 'fieldsVersion';
 /** The version of the built-in types' fields: 1 had fewer for a character and a place. */
@@ -137,7 +159,26 @@ const FIRST_FIELDS: Readonly<Record<string, readonly string[]>> = {
 };
 
 /** Properties that are not a type's to list: they have a meaning of their own. */
-const RESERVED_FIELDS: ReadonlySet<string> = new Set([TYPE_KEY, ALIASES_KEY, ENTITIES_KEY, IMAGE_KEY, RELATED_KEY]);
+const RESERVED_FIELDS: ReadonlySet<string> = new Set([TYPE_KEY, ALIASES_KEY, ENTITIES_KEY, IMAGE_KEY, RELATED_KEY, DATE_KEY, END_KEY, MOMENTS_KEY]);
+
+/** The longest a word for a date can be. */
+export const DATE_WORD_MAX = 24;
+
+/**
+ * Read the words for the two dates of a type: a list of two, one line with a
+ * comma between them ("Born, Died", what the writer types), or the two under
+ * "from" and "until". Null for anything that does not give two words.
+ */
+export function readDateWords(value: unknown): DateWords | null {
+  let pair: unknown[];
+  if (typeof value === 'string') pair = value.split(',');
+  else if (Array.isArray(value)) pair = value;
+  else if (typeof value === 'object' && value !== null) pair = [(value as Record<string, unknown>)['from'], (value as Record<string, unknown>)['until']];
+  else return null;
+  if (pair.length !== 2) return null;
+  const [from, until] = pair.map((word) => (typeof word === 'string' ? tidyDisplayName(word).slice(0, DATE_WORD_MAX).trim() : ''));
+  return from === undefined || until === undefined || from === '' || until === '' ? null : { from, until };
+}
 
 /** How a type is told from another: its id without regard to capitals or spaces around it. */
 export function typeKey(id: string): string {
@@ -217,6 +258,7 @@ export function readEntityTypes(raw: unknown): EntityType[] {
     const icon = typeof item['icon'] === 'string' && item['icon'].trim() !== '' ? item['icon'].trim() : (builtIn?.icon ?? ENTITY_ICONS[0]);
     seen.add(id);
     folders.add(clashKey(folder));
+    const words = readDateWords(item[DATE_WORDS_KEY]);
     types.push({
       id,
       name,
@@ -226,6 +268,7 @@ export function readEntityTypes(raw: unknown): EntityType[] {
       color: item['color'] === undefined && builtIn ? builtIn.color : readColor(item['color']),
       icon,
       builtIn: builtIn !== null,
+      ...(words === null ? {} : { dateWords: words }),
     });
   }
   for (const builtIn of BUILT_IN_TYPES) {
@@ -248,6 +291,8 @@ export function writeEntityTypes(types: readonly EntityType[]): unknown[] {
     ...(type.builtIn && FIRST_FIELDS[type.id] !== undefined ? { [FIELDS_VERSION_KEY]: FIELDS_VERSION } : {}),
     color: type.color,
     icon: type.icon,
+    // Only the words the writer chose are stored: the usual ones are known without.
+    ...(type.dateWords === undefined ? {} : { [DATE_WORDS_KEY]: [type.dateWords.from, type.dateWords.until] }),
   }));
 }
 
@@ -268,6 +313,8 @@ export interface TypeDetails {
   readonly fields?: readonly string[] | string;
   readonly color?: CardColor | null;
   readonly icon?: string;
+  /** The words for its two dates: two words, or one line with a comma between them. "" brings the usual words back. */
+  readonly dateWords?: DateWords | string;
 }
 
 function no(message: string): TypeEdit {
@@ -335,6 +382,15 @@ export function changeType(types: readonly EntityType[], id: string, details: Ty
   if (details.fields !== undefined) next = { ...next, fields: readFields(details.fields) };
   if (details.color !== undefined) next = { ...next, color: details.color };
   if (details.icon !== undefined && details.icon.trim() !== '') next = { ...next, icon: details.icon.trim() };
+  if (details.dateWords !== undefined) {
+    const { dateWords: _had, ...rest } = next;
+    if (typeof details.dateWords === 'string' && details.dateWords.trim() === '') next = rest;
+    else {
+      const words = readDateWords(details.dateWords);
+      if (words === null) return no('Give two words with a comma between them, for example "Born, Died".');
+      next = { ...rest, dateWords: words };
+    }
+  }
   return { ok: true, types: types.map((other) => (other.id === type.id ? next : other)) };
 }
 

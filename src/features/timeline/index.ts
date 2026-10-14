@@ -8,12 +8,14 @@
 
 import { Notice } from 'obsidian';
 import type { App } from 'obsidian';
+import { WORLD_HISTORY_SERVICE } from '../../core/world';
+import type { WorldHistoryService } from '../../core/world';
 import { iconName } from '../../ui/icons';
 import type { Feature, FeatureContext } from '../registry';
 import { TimelineActions } from './timelineActions';
 import { TIMELINE_ICONS } from './timelineMenus';
 import { readContent } from './timelineScene';
-import { TIMELINE_VIEW_TYPE, createTimelineView } from './timelineView';
+import { TIMELINE_VIEW_TYPE, TimelineView, createTimelineView } from './timelineView';
 import { TimelineWiring } from './timelineWiring';
 
 export { TIMELINE_VIEW_NAME, TIMELINE_VIEW_TYPE, TimelineView, createTimelineView } from './timelineView';
@@ -30,6 +32,9 @@ export const TIMELINE_NOT_OPENED = 'The timeline could not be opened.';
 /** The command that opens the window in which the project's story calendar is defined. */
 export const EDIT_CALENDAR_COMMAND = 'edit-story-calendar';
 export const EDIT_CALENDAR_NAME = 'Edit story calendar';
+/** The command that opens the timeline as the history of the world: the world lanes on, the scenes' lane off. */
+export const OPEN_WORLD_HISTORY_COMMAND = 'open-world-history';
+export const OPEN_WORLD_HISTORY_NAME = 'Open world history';
 
 /** How long a notice about something that went wrong stays up, in milliseconds. */
 const PROBLEM_NOTICE_MS = 10000;
@@ -94,5 +99,23 @@ export const timelineFeature: Feature = {
       },
     });
     context.plugin.addRibbonIcon(iconName(...TIMELINE_ICONS.view) ?? 'calendar', OPEN_TIMELINE_TOOLTIP, open);
+
+    // The world's history: the timeline, with the world lanes on and the
+    // scenes' lane off, fitted to the range of the world's dates. The World
+    // browser's "History" button asks for it by name.
+    const openWorldHistory = (): void => {
+      if (host.isReleased) return;
+      opening ??= showTimeline(context.app).finally(() => {
+        opening = null;
+      });
+      void opening.then(() => {
+        if (host.isReleased) return;
+        const view: unknown = context.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE)[0]?.view;
+        if (view instanceof TimelineView) view.showWorldHistory();
+      });
+    };
+    const history: WorldHistoryService = { show: openWorldHistory };
+    context.services.provide(WORLD_HISTORY_SERVICE, history);
+    context.plugin.addCommand({ id: OPEN_WORLD_HISTORY_COMMAND, name: OPEN_WORLD_HISTORY_NAME, callback: openWorldHistory });
   },
 };

@@ -8,7 +8,7 @@
 // Dates are typed the way they are stored: 1923, 1923-04 or 1923-04-12. The
 // timeline engine reads them; this window only says what it could not read.
 // In a project with an invented calendar nothing is typed: the era, the
-// year, the month and the day are picked (dateFields.ts), and what was
+// year, the month and the day are picked (src/ui/dateFields.ts, which the entity sheet shares), and what was
 // picked is checked against the calendar by the same engine.
 //
 // The window can also list the entities the event involves (notes of the
@@ -21,14 +21,11 @@ import { readStoryDate, storyDateToDayNumber } from '../../core/timeline';
 import type { EventEntity, StoryCalendar, StoryDate } from '../../core/timeline';
 import { showIcon } from '../../ui/icons';
 import { isInputMethodKey } from '../../ui/keys';
-import { drawDateFields } from './dateFields';
-import type { DateFields } from './dateFields';
+import { DATE_HELP, DATE_PLACEHOLDER, PICKED_DATE_HELP, drawDateFields } from '../../ui/dateFields';
+import type { DateFields } from '../../ui/dateFields';
 import { EntityPickerModal } from './entityPicker';
 
-export const DATE_PLACEHOLDER = '1923, 1923-04 or 1923-04-12';
-export const DATE_HELP = 'Write the date as a year, a year and month, or a full date: 1923, 1923-04 or 1923-04-12.';
-export const PICKED_DATE_HELP =
-  'Choose an era and give a year of that era; the month and the day may be left out. The day must be one the month has.';
+export { DATE_HELP, DATE_PLACEHOLDER, PICKED_DATE_HELP } from '../../ui/dateFields';
 export const ENTITIES_LABEL = 'Entities';
 export const CHOOSE_ENTITIES_LABEL = 'Choose entities';
 export const NO_ENTITIES_CHOSEN = 'None';

@@ -66,10 +66,12 @@ describe('the source of the world-building feature', () => {
       'relationModal.ts',
       'sceneService.ts',
       'sheet.ts',
+      'timeModal.ts',
+      'timePart.ts',
       'typesModal.ts',
       'worldView.ts',
     ]);
-    expect(readdirSync(coreDir).sort()).toEqual(['browse.ts', 'entity.ts', 'image.ts', 'index.ts', 'links.ts', 'mentions.ts', 'relations.ts', 'services.ts', 'types.ts']);
+    expect(readdirSync(coreDir).sort()).toEqual(['browse.ts', 'entity.ts', 'image.ts', 'index.ts', 'links.ts', 'mentions.ts', 'relations.ts', 'services.ts', 'time.ts', 'timeLanes.ts', 'types.ts']);
     expect(STYLE_FILES).toContain('world.css');
     expect(FEATURES).toContain(worldFeature);
     expect(worldFeature.id).toBe('world');

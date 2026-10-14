@@ -1,3 +1,12 @@
+// The fields a story date is given in, shared by every window that asks for
+// one: the timeline's event window, and the windows of an entity's dates and
+// moments on its sheet.
+//
+// In the real-world calendar a date is typed the way it is stored: 1923,
+// 1923-04 or 1923-04-12. `drawDateEntry` draws the right fields for a
+// project, and `readDateEntry` reads what they say with the timeline
+// engine's own rule.
+//
 // A date of an invented calendar, picked rather than typed: the era, the
 // year, the month and the day, each in a field of its own.
 //
@@ -15,8 +24,14 @@ import {
   readStoryDate,
   runningYearOf,
   storyDateToDayNumber,
-} from '../../core/timeline';
-import type { StoryCalendar, StoryDate } from '../../core/timeline';
+} from '../core/timeline';
+import type { StoryCalendar, StoryDate } from '../core/timeline';
+
+/** What the field of a typed date shows while it is empty. */
+export const DATE_PLACEHOLDER = '1923, 1923-04 or 1923-04-12';
+export const DATE_HELP = 'Write the date as a year, a year and month, or a full date: 1923, 1923-04 or 1923-04-12.';
+export const PICKED_DATE_HELP =
+  'Choose an era and give a year of that era; the month and the day may be left out. The day must be one the month has.';
 
 export const NO_MONTH_LABEL = '(no month)';
 export const NO_DAY_LABEL = '(no day)';
@@ -175,6 +190,66 @@ export function drawDateFields(
     focus: () => {
       year.focus();
       year.select();
+    },
+  };
+}
+
+/** What a date field says, read: a date, nothing at all, or why it will not do. */
+export type DateEntryReading =
+  | { readonly ok: true; readonly date: StoryDate | null }
+  | { readonly ok: false; readonly message: string };
+
+/**
+ * Read what a date field says (see `DateFields.text`), by the rule the
+ * timeline reads a note's date with. Nothing typed is no date, which is no
+ * mistake.
+ *
+ * @param calendar the project's invented calendar, or null for the real-world one
+ */
+export function readDateEntry(text: string, calendar: StoryCalendar | null): DateEntryReading {
+  const typed = text.trim();
+  if (typed === '') return { ok: true, date: null };
+  const date = readStoryDate(typed, calendar);
+  if (date !== null) return { ok: true, date };
+  return { ok: false, message: calendar === null ? DATE_HELP : `That date does not exist in the calendar. ${PICKED_DATE_HELP}` };
+}
+
+/**
+ * Draw the fields for one date of a project: one box to type it in for the
+ * real-world calendar, or the era, year, month and day to pick for an
+ * invented one.
+ *
+ * @param label    what the date is: "Date", "Born"
+ * @param cls      a class for the field, so that the dates of a window can be told apart
+ * @param initial  the date the fields start with, as a note holds it; "" for none
+ * @param onChange called whenever the writer changes a field
+ */
+export function drawDateEntry(
+  parent: HTMLElement,
+  calendar: StoryCalendar | null,
+  label: string,
+  cls: string,
+  initial: string,
+  onChange: () => void,
+): DateFields {
+  if (calendar !== null) {
+    // A date that this calendar cannot read starts out empty: the writer picks it anew.
+    return drawDateFields(parent, calendar, label, cls, readStoryDate(initial, calendar), onChange);
+  }
+  const field = parent.createDiv({ cls: 'spellbook-prompt-field' });
+  field.createDiv({ cls: 'spellbook-timeline-field-label', text: label });
+  // Dates are digits and dashes: they read the same way in every language.
+  const input = field.createEl('input', {
+    cls: ['spellbook-prompt-input', cls],
+    attr: { type: 'text', 'aria-label': label, placeholder: DATE_PLACEHOLDER, enterkeyhint: 'done' },
+  });
+  input.value = initial;
+  input.addEventListener('input', onChange);
+  return {
+    text: () => input.value,
+    focus: () => {
+      input.focus();
+      input.select();
     },
   };
 }

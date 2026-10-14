@@ -1085,3 +1085,140 @@
     color: var(--text-normal);
   }
 }
+
+/* ------------------------------------------------------------- world lanes */
+
+/* The world on the timeline: one lane per type of entity, after the other
+   lanes. An entity is a row drawn to scale: a bar from its date to its end,
+   or a point, with its moments as small points on the same row and its name
+   on it. The view puts the bar and the points where their days are. */
+.spellbook-timeline-card.spellbook-timeline-world {
+  padding-inline-start: 0;
+  border-color: transparent;
+  border-inline-start-width: var(--border-width);
+  background: none;
+}
+
+.spellbook-timeline-world-bar {
+  position: absolute;
+  inset-block: var(--size-4-2);
+  box-sizing: border-box;
+  border: var(--border-width) solid var(--spellbook-lane-color, var(--background-modifier-border-hover));
+  border-radius: var(--radius-m);
+  background-color: var(--background-modifier-hover);
+  background-color: color-mix(in srgb, var(--spellbook-lane-color, var(--background-secondary)) 30%, var(--background-primary));
+  pointer-events: none;
+}
+
+/* An entity with one date only: a point where that date is. */
+.spellbook-timeline-world-mark {
+  position: absolute;
+  inset-block-start: 50%;
+  box-sizing: border-box;
+  inline-size: var(--size-4-3);
+  block-size: var(--size-4-3);
+  margin-block-start: calc(var(--size-4-3) / -2);
+  border-radius: 50%;
+  background-color: var(--spellbook-lane-color, var(--text-muted));
+  pointer-events: none;
+}
+
+/* Only its end is known: the point is hollow. */
+.spellbook-timeline-world-mark.spellbook-is-end {
+  border: 2px solid var(--spellbook-lane-color, var(--text-muted));
+  background-color: var(--background-primary);
+}
+
+/* A moment: a small point on the row. */
+.spellbook-timeline-world-dot {
+  position: absolute;
+  inset-block-end: var(--size-2-1);
+  box-sizing: border-box;
+  inline-size: var(--size-4-2);
+  block-size: var(--size-4-2);
+  margin-inline-start: calc(var(--size-4-2) / -2);
+  border: var(--border-width) solid var(--background-primary);
+  border-radius: 50%;
+  background-color: var(--text-normal);
+}
+
+/* The name stands over the bar, at its start. */
+.spellbook-timeline-world-text {
+  position: relative;
+  padding-inline: var(--size-4-2);
+}
+
+/* Beside a point, the name leaves the point free. */
+.spellbook-timeline-world.spellbook-is-point .spellbook-timeline-world-text {
+  padding-inline-start: var(--size-4-4);
+}
+
+/* On a narrow pane an entity is a card like an event's, in its type's colour. */
+.spellbook-timeline.spellbook-is-vertical .spellbook-timeline-card.spellbook-timeline-world {
+  padding-inline-start: var(--size-4-2);
+  border-color: var(--background-modifier-border);
+  border-inline-start: 3px solid var(--spellbook-lane-color, var(--text-faint));
+  background-color: var(--background-secondary);
+}
+
+.spellbook-timeline-world-moments {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The window that lists the lanes: the world's part comes after the lanes,
+   set apart by a line; each type of entity is a row like a lane's. */
+.spellbook-timeline-lanes-window .spellbook-timeline-world-row {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding-block: var(--size-4-1);
+  border-block-end: var(--border-width) solid var(--background-modifier-border);
+}
+
+.spellbook-timeline-lanes-window .spellbook-timeline-world-head {
+  margin-block-start: var(--size-4-3);
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-timeline-lanes-window .spellbook-timeline-world-type {
+  padding-inline-start: var(--size-4-4);
+}
+
+.spellbook-timeline-world-words {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* A type's name may be the writer's own text: it lines up at the start of its
+   own direction and is cut short at its end. */
+.spellbook-timeline-world-name {
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-timeline-world-row.spellbook-is-hidden-world .spellbook-timeline-world-name {
+  color: var(--text-faint);
+}
+
+.spellbook-timeline-world-note {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-normal);
+  text-align: start;
+}
+
+.spellbook-timeline-world-toggle {
+  flex: 0 0 auto;
+}
+
+@media (pointer: coarse) {
+  .spellbook-timeline-lanes-window .spellbook-timeline-world-toggle {
+    min-block-size: var(--spellbook-timeline-target);
+    min-inline-size: var(--spellbook-timeline-target);
+  }
+}

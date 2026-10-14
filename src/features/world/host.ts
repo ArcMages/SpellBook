@@ -26,14 +26,23 @@ import { Notice } from 'obsidian';
 import type { PaneType } from 'obsidian';
 import { sanitiseFileName } from '../../core/names';
 import { isImagePath, noteTitle, pathKey, relativeTo } from '../../core/paths';
+import { CALENDAR_KEY, readCalendar } from '../../core/timeline';
+import type { StoryCalendar, StoryDate } from '../../core/timeline';
 import type { Frontmatter, IntentResult, TreeNode } from '../../core/types';
 import type { VaultEvent } from '../../core/vaultPort';
 import {
+  DATE_KEY,
+  END_KEY,
   ENTITY_TYPES_KEY,
   addEntityLink,
+  addMoment,
   addRelation,
   buildRelations,
   buildWorldLinks,
+  changeMoment,
+  checkEntityDates,
+  dateWords,
+  entityHistory,
   fieldText,
   findType,
   imageLink,
@@ -44,25 +53,33 @@ import {
   parseLink,
   parseRelation,
   readEntities,
+  readEntityTime,
   readEntityTypes,
   readLayout,
   relabelRelation,
   relationTo,
   removeEntityLink,
+  removeMoment,
   removeRelation,
   resolveImage,
   sceneMention,
+  setEntityDate,
   setEntityField,
   setImage,
   writeEntityTypes,
 } from '../../core/world';
 import type {
   Entity,
+  EntityHistory,
+  EntityTime,
   EntityType,
   FieldChange,
+  HistoryNote,
   LinkChange,
   LinkingNote,
   MentionSnippet,
+  Moment,
+  TimeChange,
   TypeEdit,
   WorldLayout,
   WorldLinks,
@@ -83,6 +100,8 @@ export const UNREADABLE_RELATED_TEXT =
   'The "related" property of that note is not a list of links, so it was left as it is. Put it right in the note itself.';
 export const NOT_A_PICTURE_TEXT = 'That file is no longer in the vault, or it is not a picture.';
 export const SELF_RELATION_TEXT = 'A note cannot be related to itself.';
+export const UNREADABLE_MOMENTS_TEXT =
+  'The "moments" property of that note is not a list, so it was left as it is. Put it right in the note itself.';
 
 /** Where this device keeps how the browser is laid out: "cards" or "list". */
 export const LAYOUT_KEY = 'spellbook-world-layout';
@@ -133,6 +152,10 @@ interface Model {
   readonly indexed: ReadonlyMap<string, Readonly<Frontmatter> | null>;
   /** The properties of every note the model was read from, as text: for telling a change from none. */
   readonly known: ReadonlyMap<string, string>;
+  /** The project's invented calendar; null for the real-world one. */
+  readonly calendar: StoryCalendar | null;
+  /** When each entity is, by its path: worked out the first time it is asked for. */
+  readonly times: Map<string, EntityTime>;
 }
 
 const NO_LINKS: WorldLinks = { linksOf: () => [], scenesOf: () => [], eventsOf: () => [] };
@@ -299,6 +322,8 @@ export class WorldHost {
       relations,
       indexed,
       known,
+      calendar: readCalendar(store.projectData(CALENDAR_KEY)).calendar,
+      times: new Map(),
     };
     return this.model;
   }
@@ -713,6 +738,96 @@ export class WorldHost {
     this.changed();
     return problem ?? answerOf(result);
   }
+
+  // --------------------------------------------------------------------- time
+
+  /** The project's invented calendar; null for the real-world one (and when no project is open). */
+  get calendar(): StoryCalendar | null {
+    return this.current()?.calendar ?? null;
+  }
+
+  /** When an entity is: its two dates and its moments, read in the project's calendar. */
+  timeOf(entity: Entity): EntityTime {
+    const model = this.current();
+    if (!model) return readEntityTime(entity.frontmatter, null);
+    const key = pathKey(entity.path);
+    let time = model.times.get(key);
+    if (time === undefined) {
+      time = readEntityTime(entity.frontmatter, model.calendar);
+      model.times.set(key, time);
+    }
+    return time;
+  }
+
+  /**
+   * An entity's history: its own dates and moments, the timeline events
+   * that list it and the scenes it is in, in order of time, with whatever
+   * has no date after.
+   */
+  historyOf(entity: Entity): EntityHistory {
+    const model = this.current();
+    const note = (appearance: { readonly path: string; readonly title: string }): HistoryNote => ({
+      path: appearance.path,
+      title: appearance.title,
+      frontmatter: model?.indexed.get(pathKey(appearance.path)) ?? null,
+    });
+    return entityHistory({
+      entityPath: entity.path,
+      time: this.timeOf(entity),
+      words: dateWords(this.typeOf(entity)),
+      events: this.links.eventsOf(entity.path).map(note),
+      scenes: this.links.scenesOf(entity.path).map(note),
+      calendar: model?.calendar ?? null,
+    });
+  }
+
+  /** One read-change-save step on an entity's dates or moments: only what `change` touches is written. */
+  private async changeTime(entityPath: string, change: (frontmatter: Frontmatter) => TimeChange): Promise<string | null> {
+    const project = this.writable();
+    if (typeof project === 'string') return project;
+    if (this.entity(entityPath) === null) return NOT_FOUND_TEXT;
+    let outcome: TimeChange = 'unchanged';
+    const result = await this.context.store.updateNoteProperties(
+      entityPath,
+      (frontmatter) => {
+        outcome = change(frontmatter);
+        return outcome === 'changed';
+      },
+      project.id,
+    );
+    this.changed();
+    return (outcome as TimeChange) === 'unreadable' ? UNREADABLE_MOMENTS_TEXT : answerOf(result);
+  }
+
+  /**
+   * Set when an entity begins ("date") or ends ("end"), or take that date
+   * away (null). Only that one property of the note changes. An end that is
+   * not later than the beginning is turned down.
+   */
+  async setDate(entityPath: string, key: typeof DATE_KEY | typeof END_KEY, date: StoryDate | null): Promise<string | null> {
+    const entity = this.entity(entityPath);
+    if (entity !== null && date !== null) {
+      const time = this.timeOf(entity);
+      const problem = checkEntityDates(key === DATE_KEY ? date : time.start, key === END_KEY ? date : time.end, dateWords(this.typeOf(entity)));
+      if (problem !== null) return problem;
+    }
+    return this.changeTime(entityPath, (frontmatter) => setEntityDate(frontmatter, key, date));
+  }
+
+  /** Add a moment to an entity: a date and a short label, at the end of its "moments" list. */
+  addMoment(entityPath: string, date: StoryDate, label: string): Promise<string | null> {
+    return this.changeTime(entityPath, (frontmatter) => addMoment(frontmatter, date, label));
+  }
+
+  /** Give one moment of an entity another date or label, or take it out of the list (null). */
+  changeMoment(entityPath: string, moment: Moment, to: { readonly date: StoryDate; readonly label: string } | null): Promise<string | null> {
+    return this.changeTime(entityPath, (frontmatter) =>
+      to === null ? removeMoment(frontmatter, moment.index, moment.text) : changeMoment(frontmatter, moment.index, moment.text, to.date, to.label),
+    );
+  }
+
+  /** Set by the feature: opens the timeline as the history of the world. Null while no timeline offers it. */
+  showWorldHistory: (() => boolean) | null = null;
 
   // ----------------------------------------------------------------- mentions
 

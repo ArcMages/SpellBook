@@ -16,6 +16,9 @@ import type { TimelineHost } from './timelineHost';
 import { MORE_LABEL, TIMELINE_ICONS, laneMenu } from './timelineMenus';
 
 export const LANES_WINDOW_TITLE = 'Timeline lanes';
+export const WORLD_LANES_HEADING = 'World';
+export const WORLD_LANES_NOTE = 'A lane for each type of entity that has a date';
+export const NO_WORLD_LANES_NOTE = 'No entity has a date yet: give one a date on its sheet, under "Time"';
 
 /** What is said next to the two lanes that are built in. */
 const BUILT_IN_NOTES: Readonly<Record<string, string>> = {
@@ -84,6 +87,51 @@ export class LanesModal extends Modal {
     this.actions.lanes().forEach((lane, index) => {
       this.row(list, lane, index);
     });
+    this.worldRows(list);
+  }
+
+  /**
+   * The world lanes, after the others: the switch for all of them, and for
+   * each type of entity that has a date a button that hides its lane or
+   * shows it again. Their order, names and colours are the types' own (the
+   * World browser's "Entity types" window).
+   */
+  private worldRows(list: HTMLElement): void {
+    const on = this.actions.worldOn();
+    const lanes = this.actions.worldLanes();
+    const head = list.createDiv({ cls: ['spellbook-timeline-world-row', 'spellbook-timeline-world-head'] });
+    head.toggleClass('spellbook-is-hidden-world', !on);
+    const text = head.createDiv({ cls: 'spellbook-timeline-world-words' });
+    text.createDiv({ cls: 'spellbook-timeline-world-name', text: WORLD_LANES_HEADING });
+    text.createDiv({ cls: 'spellbook-timeline-world-note', text: lanes.length === 0 ? NO_WORLD_LANES_NOTE : WORLD_LANES_NOTE });
+    const all = head.createEl('button', {
+      cls: ['spellbook-timeline-world-toggle', 'spellbook-timeline-world-all'],
+      text: on ? 'Hide' : 'Show',
+      attr: { 'aria-pressed': on ? 'true' : 'false', 'aria-label': `${on ? 'Hide' : 'Show'}: ${WORLD_LANES_HEADING}` },
+    });
+    all.addEventListener('click', () => {
+      this.actions.setWorld(!on);
+    });
+    for (const lane of lanes) {
+      const hidden = !on || lane.hidden;
+      const row = list.createDiv({ cls: ['spellbook-timeline-world-row', 'spellbook-timeline-world-type'] });
+      row.toggleClass('spellbook-is-hidden-world', hidden);
+      const swatch = row.createSpan({ cls: 'spellbook-timeline-swatch' });
+      if (lane.color !== null) swatch.addClass(`spellbook-color-${lane.color}`);
+      const words = row.createDiv({ cls: 'spellbook-timeline-world-words' });
+      // A type's name may be the writer's own text.
+      words.createDiv({ cls: 'spellbook-timeline-world-name', text: lane.name, attr: { dir: 'auto' } });
+      const count = lane.rows.length === 1 ? '1 entity with a date' : `${lane.rows.length} entities with a date`;
+      words.createDiv({ cls: 'spellbook-timeline-world-note', text: lane.hidden ? `${count} - Hidden on this device` : count });
+      const toggle = row.createEl('button', {
+        cls: 'spellbook-timeline-world-toggle',
+        text: lane.hidden ? 'Show' : 'Hide',
+        attr: { 'aria-pressed': lane.hidden ? 'true' : 'false' },
+      });
+      toggle.addEventListener('click', () => {
+        this.actions.toggleWorldLane(lane);
+      });
+    }
   }
 
   private row(list: HTMLElement, lane: DisplayLane, index: number): void {

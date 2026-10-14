@@ -29,7 +29,7 @@ import {
 import type { MisfitDate, StoryCalendar, TimelineNote } from '../../core/timeline';
 import { showIcon } from '../../ui/icons';
 import { safely } from '../../ui/safely';
-import { describePickedDate } from './dateFields';
+import { describePickedDate } from '../../ui/dateFields';
 
 export const CALENDAR_WINDOW_TITLE = 'Story calendar';
 export const REAL_WORLD_NOTE = 'Story dates follow the real-world calendar, written as 1923, 1923-04 or 1923-04-12.';

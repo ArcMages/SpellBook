@@ -26,7 +26,7 @@
 import { clashKey, isInside, isMarkdownPath, noteTitle } from '../paths';
 import { WORLD_FOLDER } from '../projectLayout';
 import type { Frontmatter } from '../types';
-import { ALIASES_KEY, ENTITIES_KEY, IMAGE_KEY, RELATED_KEY, SUMMARY_KEY, TYPE_KEY, findType, typeKey } from './types';
+import { ALIASES_KEY, DATE_KEY, END_KEY, ENTITIES_KEY, IMAGE_KEY, MOMENTS_KEY, RELATED_KEY, SUMMARY_KEY, TYPE_KEY, findType, typeKey } from './types';
 import type { EntityType } from './types';
 
 /** A note of the project, as the store lists it. */
@@ -151,7 +151,7 @@ export interface EntityField {
  */
 export function entityFields(entity: Entity, type: EntityType | null): EntityField[] {
   const frontmatter = entity.frontmatter ?? {};
-  const skip = new Set([TYPE_KEY, ALIASES_KEY, SUMMARY_KEY, IMAGE_KEY, RELATED_KEY]);
+  const skip = new Set([TYPE_KEY, ALIASES_KEY, SUMMARY_KEY, IMAGE_KEY, RELATED_KEY, DATE_KEY, END_KEY, MOMENTS_KEY]);
   const names = [...(type?.fields ?? []), ...Object.keys(frontmatter)];
   const fields: EntityField[] = [];
   const seen = new Set<string>();
@@ -167,7 +167,18 @@ export function entityFields(entity: Entity, type: EntityType | null): EntityFie
 // ------------------------------------------------------------------ the sheet
 
 /** The properties shown elsewhere on an entity's sheet, or not a text at all: never among its fields. */
-const NOT_FIELDS: ReadonlySet<string> = new Set([TYPE_KEY, ALIASES_KEY, SUMMARY_KEY, ENTITIES_KEY, IMAGE_KEY, RELATED_KEY]);
+const NOT_FIELDS: ReadonlySet<string> = new Set([
+  TYPE_KEY,
+  ALIASES_KEY,
+  SUMMARY_KEY,
+  ENTITIES_KEY,
+  IMAGE_KEY,
+  RELATED_KEY,
+  // The dates and the moments have the sheet's "Time" part to themselves.
+  DATE_KEY,
+  END_KEY,
+  MOMENTS_KEY,
+]);
 
 /** One line of an entity's sheet: a property, what it holds, and whether it can be changed there. */
 export interface SheetField {
@@ -223,6 +234,8 @@ export type FieldChange = 'changed' | 'unchanged' | 'unreadable';
  */
 export function setEntityField(frontmatter: Frontmatter, name: string, typed: string): FieldChange {
   if (name === TYPE_KEY || name === ALIASES_KEY || name === ENTITIES_KEY || name === IMAGE_KEY || name === RELATED_KEY) return 'unreadable';
+  // Dates are checked against the project's calendar before they are written (time.ts).
+  if (name === DATE_KEY || name === END_KEY || name === MOMENTS_KEY) return 'unreadable';
   const current: unknown = frontmatter[name];
   if (!isPlain(current)) return 'unreadable';
   const text = typed.replace(/\s+/g, ' ').trim();

@@ -667,12 +667,13 @@ describe('cards and list', () => {
     expect(pressed()).toEqual([['Cards', 'false'], ['List', 'true']]);
     expect(root.hasClass('spellbook-world-as-list')).toBe(true);
     expect(pane.withClass('spellbook-world-card')).toEqual([]);
-    expect(pane.withClass('spellbook-world-table-sort').map((heading) => heading.text)).toEqual(['Name', 'Type', 'Kind', 'Scenes']);
+    expect(pane.withClass('spellbook-world-table-sort').map((heading) => heading.text)).toEqual(['Name', 'Type', 'Kind', 'From', 'Until', 'Scenes']);
     expect(tableOf(pane)).toEqual([
-      ['Lamp', 'Item', 'Lamp', '0'],
-      ['Mara', 'Character', 'Lighthouse keeper', '1'],
-      ['Saltwick', 'Place', 'Harbour town', '2'],
-      [MARA_HE, 'Character', '', '0'],
+      // No entity of this small novel has a date: the two columns for them are empty.
+      ['Lamp', 'Item', 'Lamp', '', '', '0'],
+      ['Mara', 'Character', 'Lighthouse keeper', '', '', '1'],
+      ['Saltwick', 'Place', 'Harbour town', '', '', '2'],
+      [MARA_HE, 'Character', '', '', '', '0'],
     ]);
     one(pane, 'spellbook-world-layout-cards').fire('click');
     expect(pane.withClass('spellbook-world-table')).toEqual([]);
@@ -689,15 +690,15 @@ describe('cards and list', () => {
       pane.withClass('spellbook-world-table-sort').find((heading) => heading.text === title)?.fire('click');
     };
     const sorted = (): Array<string | null> => pane.withClass('spellbook-world-table-head')[0]?.children.map((cell) => cell.getAttr('aria-sort')) ?? [];
-    expect(sorted()).toEqual(['ascending', 'none', 'none', 'none']);
+    expect(sorted()).toEqual(['ascending', 'none', 'none', 'none', 'none', 'none']);
     sortBy('Name');
     expect(names()).toEqual([MARA_HE, 'Saltwick', 'Mara', 'Lamp']);
-    expect(sorted()).toEqual(['descending', 'none', 'none', 'none']);
+    expect(sorted()).toEqual(['descending', 'none', 'none', 'none', 'none', 'none']);
     sortBy('Scenes');
     expect(names()).toEqual(['Lamp', MARA_HE, 'Mara', 'Saltwick']);
     sortBy('Scenes');
     expect(names()).toEqual(['Saltwick', 'Mara', 'Lamp', MARA_HE]);
-    expect(sorted()).toEqual(['none', 'none', 'none', 'descending']);
+    expect(sorted()).toEqual(['none', 'none', 'none', 'none', 'none', 'descending']);
     // By type: in the order of the list of types.
     sortBy('Type');
     expect(names()).toEqual(['Mara', MARA_HE, 'Saltwick', 'Lamp']);

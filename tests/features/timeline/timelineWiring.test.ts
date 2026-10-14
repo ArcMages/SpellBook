@@ -93,6 +93,9 @@ describe('what the timeline is shown', () => {
       timelines: LANES,
       // No calendar of its own, and no notes in a World folder.
       world: [],
+      worldNotes: [],
+      // The world lanes are off until this device turns them on.
+      worldLanes: { on: false, hidden: [] },
       // The notes of the Timeline folder, as the store lists them.
       events: ['Loose end', 'Siege', 'Stray', 'The war begins', HEBREW_EVENT].map((name) => ({
         path: event(name),

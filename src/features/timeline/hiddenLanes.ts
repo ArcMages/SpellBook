@@ -13,6 +13,28 @@ import type { DeviceStorage } from '../../core/devicePrefs';
 
 export const HIDDEN_LANES_KEY = 'spellbook-timeline-hidden-lanes';
 
+/**
+ * Where the device keeps what it shows of the world on the timeline: per
+ * project a list of marks, WORLD_ON_MARK when the world lanes are on, and
+ * WORLD_HIDDEN_MARK followed by a type's id for each lane that is hidden.
+ */
+export const WORLD_LANES_KEY = 'spellbook-timeline-world-lanes';
+export const WORLD_ON_MARK = 'on';
+export const WORLD_HIDDEN_MARK = 'hide:';
+
+/** What a list of marks says: whether the world lanes are on, and which types are hidden. */
+export function readWorldMarks(marks: readonly string[]): { readonly on: boolean; readonly hidden: readonly string[] } {
+  return {
+    on: marks.includes(WORLD_ON_MARK),
+    hidden: marks.filter((mark) => mark.startsWith(WORLD_HIDDEN_MARK)).map((mark) => mark.slice(WORLD_HIDDEN_MARK.length)),
+  };
+}
+
+/** The list of marks for a choice. */
+export function writeWorldMarks(choice: { readonly on: boolean; readonly hidden: readonly string[] }): string[] {
+  return [...(choice.on ? [WORLD_ON_MARK] : []), ...choice.hidden.filter((id) => id !== '').map((id) => `${WORLD_HIDDEN_MARK}${id}`)];
+}
+
 /** No more than this many projects have their hidden lanes remembered. */
 export const MAX_PROJECTS = 40;
 /** No more than this many hidden lanes are remembered per project. */
@@ -35,11 +57,18 @@ function tidy(names: readonly unknown[]): readonly string[] {
 
 export class HiddenLanes {
   private readonly storage: DeviceStorage;
+  /** Where the device's storage keeps this list. */
+  private readonly key: string;
   /** Hidden lane names by project index path; null until read from the storage. */
   private projects: Map<string, readonly string[]> | null = null;
 
-  constructor(storage: DeviceStorage) {
+  /**
+   * @param key where the device's storage keeps the list. The timeline keeps a second list of the same shape
+   *   under WORLD_LANES_KEY: what it shows of the world, project by project.
+   */
+  constructor(storage: DeviceStorage, key: string = HIDDEN_LANES_KEY) {
     this.storage = storage;
+    this.key = key;
   }
 
   /** The names of the lanes hidden in a project. The same list is handed out until it changes. */
@@ -92,7 +121,7 @@ export class HiddenLanes {
     const map = new Map<string, readonly string[]>();
     let stored: unknown = null;
     try {
-      stored = this.storage.load(HIDDEN_LANES_KEY);
+      stored = this.storage.load(this.key);
       if (typeof stored === 'string') stored = JSON.parse(stored) as unknown;
     } catch (error) {
       console.error('Spellbook: could not read which timeline lanes this device hides', error);
@@ -115,7 +144,7 @@ export class HiddenLanes {
     for (const [path, names] of all) plain[path] = names;
     try {
       // Saved as text, so that it comes back the same whatever the storage does with objects.
-      this.storage.save(HIDDEN_LANES_KEY, all.size === 0 ? null : JSON.stringify(plain));
+      this.storage.save(this.key, all.size === 0 ? null : JSON.stringify(plain));
     } catch (error) {
       console.error('Spellbook: could not save which timeline lanes this device hides', error);
     }

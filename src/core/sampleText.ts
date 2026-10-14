@@ -607,7 +607,20 @@ export interface SampleEntity {
    * entity's sheet shows it as "mentioned by".
    */
   readonly related?: ReadonlyArray<readonly [name: string, label: string]>;
+  /**
+   * When it begins, the way an event's date is written: a year (1841), a
+   * month (1922-11) or a day (1889-04-17). A character's birth, a place's
+   * founding, when a thing was made, when a tale is set.
+   */
+  readonly date?: string;
+  /** When it ends: a death, a closing, a loss. Later than `date`. */
+  readonly end?: string;
+  /** More points in its life: the date of each and a few words, in order of time. */
+  readonly moments?: ReadonlyArray<readonly [date: string, label: string]>;
 }
+
+/** The year the story is told in: the ages of the characters are counted to it. */
+export const SAMPLE_STORY_YEAR = 1923;
 
 /**
  * The eighteen entities, at least one of every type a project has: six
@@ -616,6 +629,15 @@ export interface SampleEntity {
  * faction, two items, three pieces of lore (a legend, a fishermen's tale,
  * and a saying that is written in Hebrew), one creature of local belief and
  * one people. None has a picture: a seed makes notes, not image files.
+ *
+ * Every one of them has a place in time, so that the sheet's "Time" and
+ * "History", the timeline's world lanes and the world's history have a
+ * coherent past to show around the story's 1923: the village founded in
+ * 1612 and lost in 1723, the town and its office, the lighthouse built in
+ * 1841 and closed in November 1922 (the very month of the event that tells
+ * it), the keeper who kept it for thirty years, the chart made in 1871 and
+ * last corrected on 10 February 1923, and the births the characters' ages
+ * come from. Some have moments as well, one of them written in Hebrew.
  */
 export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
   {
@@ -637,6 +659,11 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
       ['The Harbour Master', 'hired by'],
       ['Tobias', 'surveys the bay with'],
     ],
+    date: '1889-04-17',
+    moments: [
+      ['1911', 'qualifies as a chart maker'],
+      ['1923-10-13', 'is sent to Saltwick to redraw the chart'],
+    ],
   },
   {
     type: 'character',
@@ -654,6 +681,8 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
     },
     description: 'Tobias has taken the ferry across the channel since he was a boy. He counts the boats in every evening.',
     related: [['The Bay Fishers', 'born among']],
+    date: '1882-02',
+    moments: [['1897', 'takes over the ferry from his father']],
   },
   {
     type: 'character',
@@ -675,6 +704,8 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
       ['תמר', 'sister'],
       ['The Archive', 'keeps'],
     ],
+    date: '1894-06-03',
+    moments: [['1923-05', 'takes over the archive in Saltwick']],
   },
   {
     type: 'character',
@@ -691,6 +722,8 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
     aliases: ['Harbour master'],
     description: 'The harbour master runs the harbour office and, most days, the town.',
     related: [['The Harbour Office', 'runs']],
+    date: '1866',
+    moments: [['1909', 'becomes harbour master']],
   },
   {
     type: 'character',
@@ -708,6 +741,12 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
       ['The Old Lighthouse', 'kept it for thirty years'],
       ['The Logbook', 'wrote'],
     ],
+    date: '1858',
+    end: '1923-03',
+    moments: [
+      ['1892', 'takes over the light'],
+      ['1922-11', 'is pensioned off'],
+    ],
   },
   {
     type: 'character',
@@ -720,6 +759,8 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
     },
     aliases: ['אחותי'],
     description: 'תמר אינה מופיעה בסיפור עצמו: היא מי שנועה כותבת אליה, ומי שמחכה לתשובות.',
+    date: '1897',
+    moments: [['1923-06', 'המכתב הראשון מנועה מגיע']],
   },
   {
     type: 'place',
@@ -732,6 +773,8 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
       summary: 'A small harbour town where people say little and remember everything.',
     },
     description: 'One street along the front, a sea wall, a bakery, a chandlery and the harbour office. The ferry is the only quick way in.',
+    date: '1688',
+    moments: [['1923-10-12', 'the winter storm moves the sandbars']],
   },
   {
     type: 'place',
@@ -745,6 +788,8 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
     },
     description: 'A long room by the harbour, with a small room above it. The lower shelves flood.',
     related: [['Saltwick', 'in']],
+    date: '1867',
+    moments: [['1923-05', 'Noa takes it over']],
   },
   {
     type: 'place',
@@ -758,6 +803,9 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
     },
     description: 'It stands at the end of the point. Its light has not been lit since the keeper was pensioned off.',
     related: [['Saltwick', 'on the point by']],
+    date: '1841',
+    end: '1922-11',
+    moments: [['1892', 'its last keeper takes over']],
   },
   {
     type: 'place',
@@ -771,6 +819,8 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
     },
     aliases: ['The village under the water'],
     description: 'At the lowest spring tides the stones of its lane show under the water.',
+    date: '1612',
+    end: '1723',
   },
   {
     type: 'faction',
@@ -781,6 +831,7 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
       summary: 'Pays for the new chart, and decides what the town is told.',
     },
     description: 'The office that keeps the harbour, its dues and its records.',
+    date: '1794',
   },
   {
     type: 'item',
@@ -793,6 +844,8 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
     aliases: ['The old chart'],
     description: 'Last corrected in February 1923. Every pilot in the bay learned from it.',
     related: [['The Harbour Office', 'belongs to']],
+    date: '1871',
+    moments: [['1923-02-10', 'last corrected']],
   },
   {
     type: 'item',
@@ -805,6 +858,8 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
     aliases: ["The keeper's log"],
     description: 'Damp at the edges. The last page says the sea always gives back what it took.',
     related: [['The Archive', 'kept in']],
+    date: '1892',
+    moments: [['1922-11', 'goes to the archive']],
   },
   {
     type: 'lore',
@@ -826,6 +881,7 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
       ['The Drowned Village', 'is about'],
       ['The Bay Fishers', 'told by'],
     ],
+    date: '1723',
   },
   {
     type: 'lore',
@@ -847,6 +903,8 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
       ['Tobias', 'told by'],
       ['Saltwick', 'told in'],
     ],
+    date: '1790',
+    end: '1830',
   },
   {
     type: 'lore',
@@ -867,6 +925,7 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
       ['The Keeper', 'נכתבה בידי'],
       ['The Logbook', 'כתובה בעמוד האחרון של'],
     ],
+    date: '1922-11',
   },
   {
     type: 'creature',
@@ -883,6 +942,7 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
       'The fishers will not put out on a morning it has been seen. The harbour office says it is a seal, and that seals do not forecast the weather.',
     ],
     related: [['The Bay Fishers', 'feared by']],
+    date: '1804',
   },
   {
     type: 'culture',
@@ -899,6 +959,7 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
       'They speak the English of the town with words of their own for the water: every rock, bar and run of the tide has a name that is on no chart.',
     ],
     related: [['Saltwick', 'live in']],
+    date: '1650',
   },
 ];
 
