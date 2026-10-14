@@ -21,6 +21,8 @@ import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 export const SCENE_ENTITIES_HEADING = 'In this scene';
 export const SCENE_ENTITIES_NONE = 'Nobody and nothing yet.';
 export const SCENE_ENTITIES_ADD = 'Add';
+// The dot between a name and an age, built from its number so that this file stays plain ASCII.
+const MIDDLE_DOT = String.fromCharCode(0xb7);
 
 /**
  * Whether what was found under the service's name can be used. It is looked
@@ -64,15 +66,27 @@ function draw(slot: HTMLElement, service: SceneEntitiesService, path: string | n
     // The chip takes its type's colour from the world-building stylesheet.
     item.addClass(typeof chip.color === 'string' ? `spellbook-world-color-${chip.color}` : 'spellbook-world-no-color');
     item.toggleClass('spellbook-entity-chip-lost', chip.found !== true);
+    const age = typeof chip.age === 'number' && Number.isFinite(chip.age) ? chip.age : null;
+    const warning = typeof chip.warning === 'string' && chip.warning !== '' ? chip.warning : null;
+    item.toggleClass('spellbook-entity-chip-warned', warning !== null);
+    // What is read out: the name, its age or its warning, its type.
+    const said = [chip.name, ...(age !== null ? [`age ${age}`] : []), ...(warning !== null ? [warning] : [])].join(', ');
     const open = item.createEl('button', {
       cls: 'spellbook-entity-chip-open',
-      attr: { type: 'button', ...(chip.typeName ? { 'aria-label': `${chip.name} (${chip.typeName})` } : {}) },
+      attr: { type: 'button', ...(chip.typeName || age !== null || warning !== null ? { 'aria-label': chip.typeName ? `${said} (${chip.typeName})` : said } : {}) },
     });
     if (typeof chip.icon === 'string' && chip.icon !== '') {
       showIcon(open.createSpan({ cls: 'spellbook-entity-chip-icon', attr: { 'aria-hidden': 'true' } }), chip.icon, 'circle');
     }
     // An entity's name is the writer's own text.
     open.createSpan({ cls: 'spellbook-entity-chip-name', text: chip.name, attr: { dir: 'auto' } });
+    // Its age at the scene's date: "Wren · 14".
+    if (age !== null) open.createSpan({ cls: 'spellbook-entity-chip-age', text: `${MIDDLE_DOT} ${age}`, attr: { dir: 'ltr', 'aria-hidden': 'true' } });
+    // Not born yet, or already dead, at the scene's date: a small mark, its words as a tooltip.
+    if (warning !== null) {
+      const mark = open.createSpan({ cls: 'spellbook-entity-chip-warning', attr: { 'aria-label': warning, title: warning } });
+      showIcon(mark, 'alert-triangle', 'alert-circle');
+    }
     open.disabled = chip.found !== true;
     open.addEventListener('click', () => {
       safely(chip.name, () => {

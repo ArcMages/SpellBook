@@ -1,8 +1,12 @@
-// Two parts of the entity sheet that are about time.
+// The parts of the entity sheet that are about time.
 //
+//   Life     for a character (any type that has an age): "Born", "Died" and
+//            "Age" together near the top of the sheet. The age is worked out
+//            from the dates: "Died at 63", or the age at the story's present
 //   Time     when the entity begins and when it ends, under the words of its
-//            type ("Born" and "Died" for a character), and its moments: more
-//            points in its life, each a date and a short label
+//            type ("Founded" and "Abandoned" for a place), unless they are
+//            in "Life" above, and its moments: more points in its life, each
+//            a date and a short label
 //   History  everything dated that concerns it, as one list in order of
 //            time: its own dates and moments, the timeline events that list
 //            it and the dated scenes it is in. Whatever has no date is
@@ -19,10 +23,10 @@
 
 import { Keymap } from 'obsidian';
 import type { App } from 'obsidian';
-import { formatStoryDateRange, storyDateToText } from '../../core/timeline';
+import { formatStoryDate, formatStoryDateRange, storyDateToText } from '../../core/timeline';
 import type { StoryDate } from '../../core/timeline';
 import { DATE_KEY, END_KEY, datedMoments, dateWords } from '../../core/world';
-import type { Entity, HistoryKind, HistoryLine, Moment } from '../../core/world';
+import type { Entity, HistoryKind, HistoryLine, Moment, StoryPresent } from '../../core/world';
 import { safely } from '../../ui/safely';
 import type { WorldHost } from './host';
 import { WORLD_ICONS, iconButton, settle, textButton } from './parts';
@@ -41,6 +45,12 @@ export const NO_MOMENTS_TEXT = 'No moments yet. Use "Add moment" for a point in 
 export const NO_HISTORY_TEXT = 'Nothing yet. Give it a date above, or list it in a scene or a timeline event.';
 export const CHANGE_MOMENT_LABEL = 'Change the moment';
 export const REMOVE_MOMENT_LABEL = 'Remove the moment';
+export const AGE_TEXT = 'Age';
+export const STORY_PRESENT_TEXT = "Story's present";
+export const STORY_PRESENT_HINT = 'Ages are worked out at this date. Leave it empty to use the latest date in the story.';
+export const LATEST_DATE_TEXT = 'latest date in the story';
+export const NO_PRESENT_TEXT = "No date in the story yet: give a scene a date, or set the story's present";
+export const NOT_BORN_YET_TEXT = 'Not born yet';
 /** What a moment that is only a date says in the history. */
 export const UNNAMED_MOMENT_TEXT = 'Moment';
 
@@ -61,50 +71,149 @@ function dateSpan(parent: HTMLElement, cls: string, date: StoryDate, end: StoryD
   return span;
 }
 
-/** The "Time" part: the two dates and the moments, each changed in a window of its own. */
+/**
+ * One of the two dates of an entity, as a line: its word ("Born"), the date
+ * (or "Not set", or what cannot be read), and a button that changes it in a
+ * window of its own. Nothing is drawn for a date that is not set where
+ * nothing can be changed.
+ */
+function drawDateRow(
+  app: App,
+  host: WorldHost,
+  part: HTMLElement,
+  entity: Entity,
+  canChange: boolean,
+  key: typeof DATE_KEY | typeof END_KEY,
+  word: string,
+  date: StoryDate | null,
+  unread: string,
+): void {
+  if (!canChange && date === null && unread === '') return;
+  const calendar = host.calendar;
+  const row = part.createDiv({ cls: 'spellbook-world-time-line spellbook-world-time-row', attr: { 'data-date': key } });
+  // The word may be the writer's own: a type's words can be changed.
+  row.createSpan({ cls: 'spellbook-world-time-word', text: word, attr: { dir: 'auto' } });
+  if (date !== null) dateSpan(row, 'spellbook-world-time-value', date);
+  else if (unread !== '') {
+    const value = row.createSpan({ cls: 'spellbook-world-time-value spellbook-world-time-unread' });
+    value.createSpan({ text: unread, attr: { dir: 'auto' } });
+    value.createSpan({ cls: 'spellbook-world-time-problem', text: `(${UNREAD_DATE_TEXT})` });
+  } else row.createSpan({ cls: 'spellbook-world-time-value spellbook-world-time-none', text: NO_DATE_TEXT });
+  if (!canChange) return;
+  const has = date !== null || unread !== '';
+  const button = textButton(row, 'spellbook-world-time-set', has ? CHANGE_DATE_TEXT : SET_DATE_TEXT, () => {
+    new TimeModal(app, {
+      heading: word,
+      note: entity.name,
+      dateLabel: word,
+      date: date !== null ? storyDateToText(date) : unread,
+      label: null,
+      dateNeeded: false,
+      calendar,
+      confirm: 'Save',
+      // An empty field takes the date away.
+      submit: (answer) => host.setDate(entity.path, key, answer.date),
+      ...(has ? { remove: () => host.setDate(entity.path, key, null) } : {}),
+    }).open();
+  });
+  button.setAttr('aria-label', `${has ? CHANGE_DATE_TEXT : SET_DATE_TEXT}: ${word}`);
+}
+
+/** Open the window that names the story's present, or takes it away so that the latest date in the story is used. */
+export function openStoryPresent(app: App, host: WorldHost): void {
+  const present = host.storyPresent;
+  const set = present?.source === 'set';
+  new TimeModal(app, {
+    heading: STORY_PRESENT_TEXT,
+    note: STORY_PRESENT_HINT,
+    dateLabel: STORY_PRESENT_TEXT,
+    date: set && present !== null ? storyDateToText(present.date) : '',
+    label: null,
+    dateNeeded: false,
+    calendar: host.calendar,
+    confirm: 'Save',
+    submit: (answer) => host.setStoryPresent(answer.date),
+    ...(set ? { remove: () => host.setStoryPresent(null) } : {}),
+  }).open();
+}
+
+/** The story's present in words: "14 Oct 1923 (latest date in the story)". */
+export function storyPresentText(present: StoryPresent): string {
+  return present.source === 'latest' ? `${formatStoryDate(present.date)} (${LATEST_DATE_TEXT})` : formatStoryDate(present.date);
+}
+
+/**
+ * The life of an entity whose type has an age (a character), near the top
+ * of its sheet: "Born", "Died" and "Age" together. The age is worked out
+ * from the dates: its age at death, or at the story's present.
+ */
+export function drawLifePart(app: App, host: WorldHost, part: HTMLElement, entity: Entity, canChange: boolean): void {
+  part.empty();
+  const age = host.ageOf(entity);
+  if (age === null) return;
+  const time = host.timeOf(entity);
+  const words = dateWords(host.typeOf(entity));
+  drawDateRow(app, host, part, entity, canChange, DATE_KEY, words.from, time.start, time.unreadStart);
+  drawDateRow(app, host, part, entity, canChange, END_KEY, words.until, time.end, time.unreadEnd);
+  if (age.kind === 'unknown' && !canChange) return;
+
+  const row = part.createDiv({ cls: 'spellbook-world-time-line spellbook-world-age-row' });
+  row.createSpan({ cls: 'spellbook-world-time-word', text: AGE_TEXT });
+  const value = row.createSpan({ cls: 'spellbook-world-age-value' });
+  const present = (): void => {
+    if (canChange) textButton(row, 'spellbook-world-age-present', STORY_PRESENT_TEXT, () => openStoryPresent(app, host));
+  };
+  switch (age.kind) {
+    case 'unknown':
+      value.addClass('spellbook-world-time-none');
+      value.setText(`Set "${words.from}" to work it out`);
+      return;
+    case 'problem':
+      value.addClass('spellbook-world-time-problem');
+      value.setText(`Cannot be worked out: "${words.until}" is not later than "${words.from}"`);
+      return;
+    case 'died':
+      value.createSpan({ cls: 'spellbook-world-age-years', text: `Died at ${age.years}` });
+      return;
+    case 'no-present':
+      value.addClass('spellbook-world-time-none');
+      value.setText(NO_PRESENT_TEXT);
+      present();
+      return;
+    case 'unborn':
+      value.createSpan({ cls: 'spellbook-world-age-years', text: NOT_BORN_YET_TEXT });
+      value.createSpan({ cls: 'spellbook-world-age-when', text: `at ${storyPresentText(age.present)}`, attr: { dir: 'auto' } });
+      present();
+      return;
+    case 'alive':
+      value.createSpan({ cls: 'spellbook-world-age-years', text: String(age.years), attr: { dir: 'ltr' } });
+      value.createSpan({ cls: 'spellbook-world-age-when', text: `at ${storyPresentText(age.present)}`, attr: { dir: 'auto' } });
+      present();
+      return;
+  }
+}
+
+/**
+ * The "Time" part: the two dates and the moments, each changed in a window
+ * of its own. For an entity whose type has an age, the two dates are near
+ * the top of the sheet instead (drawLifePart), and this part has only the
+ * moments.
+ */
 export function drawTimePart(app: App, host: WorldHost, rest: HTMLElement, entity: Entity, canChange: boolean): void {
   const time = host.timeOf(entity);
   const words = dateWords(host.typeOf(entity));
   const calendar = host.calendar;
-  const any = time.start !== null || time.end !== null || time.unreadStart !== '' || time.unreadEnd !== '' || time.moments.length > 0;
+  const datesAbove = host.ageOf(entity) !== null;
+  const any = time.moments.length > 0 || (!datesAbove && (time.start !== null || time.end !== null || time.unreadStart !== '' || time.unreadEnd !== ''));
   // A project that cannot be changed shows what there is, and no empty part.
   if (!canChange && !any) return;
 
   sectionHead(rest, TIME_HEADING, null);
   const part = rest.createDiv({ cls: 'spellbook-world-time' });
-
-  const dateRow = (key: typeof DATE_KEY | typeof END_KEY, word: string, date: StoryDate | null, unread: string): void => {
-    if (!canChange && date === null && unread === '') return;
-    const row = part.createDiv({ cls: 'spellbook-world-time-line spellbook-world-time-row', attr: { 'data-date': key } });
-    // The word may be the writer's own: a type's words can be changed.
-    row.createSpan({ cls: 'spellbook-world-time-word', text: word, attr: { dir: 'auto' } });
-    if (date !== null) dateSpan(row, 'spellbook-world-time-value', date);
-    else if (unread !== '') {
-      const value = row.createSpan({ cls: 'spellbook-world-time-value spellbook-world-time-unread' });
-      value.createSpan({ text: unread, attr: { dir: 'auto' } });
-      value.createSpan({ cls: 'spellbook-world-time-problem', text: `(${UNREAD_DATE_TEXT})` });
-    } else row.createSpan({ cls: 'spellbook-world-time-value spellbook-world-time-none', text: NO_DATE_TEXT });
-    if (!canChange) return;
-    const has = date !== null || unread !== '';
-    const button = textButton(row, 'spellbook-world-time-set', has ? CHANGE_DATE_TEXT : SET_DATE_TEXT, () => {
-      new TimeModal(app, {
-        heading: word,
-        note: entity.name,
-        dateLabel: word,
-        date: date !== null ? storyDateToText(date) : unread,
-        label: null,
-        dateNeeded: false,
-        calendar,
-        confirm: 'Save',
-        // An empty field takes the date away.
-        submit: (answer) => host.setDate(entity.path, key, answer.date),
-        ...(has ? { remove: () => host.setDate(entity.path, key, null) } : {}),
-      }).open();
-    });
-    button.setAttr('aria-label', `${has ? CHANGE_DATE_TEXT : SET_DATE_TEXT}: ${word}`);
-  };
-  dateRow(DATE_KEY, words.from, time.start, time.unreadStart);
-  dateRow(END_KEY, words.until, time.end, time.unreadEnd);
+  if (!datesAbove) {
+    drawDateRow(app, host, part, entity, canChange, DATE_KEY, words.from, time.start, time.unreadStart);
+    drawDateRow(app, host, part, entity, canChange, END_KEY, words.until, time.end, time.unreadEnd);
+  }
 
   // The moments: those with a date in order of time, then those whose date cannot be read.
   const moments: Moment[] = [...datedMoments(time), ...time.moments.filter((moment) => moment.date === null)];

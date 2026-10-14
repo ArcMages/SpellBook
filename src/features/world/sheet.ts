@@ -10,9 +10,15 @@
 //            own (Obsidian's "aliases"), straight under the picture for
 //            every type: each in a box of its own to be changed, with a
 //            button that takes it away, and a box to add one more
+//   life     for a character (any type that has an age): "Born", "Died" and
+//            "Age", the age worked out from the dates (timePart.ts)
 //   form     the summary, then the fields of the type and whatever else the
-//            writer added to the note, each to be changed in place
-//   rest     "Time": when it begins and ends, and its moments (timePart.ts);
+//            writer added to the note, each to be changed in place. Where
+//            an age is worked out, a typed "age" that says the same (or
+//            nothing) is not shown, and one that says otherwise is shown as
+//            "Age (typed)"
+//   rest     "Time": when it begins and ends (unless "life" has them), and
+//            its moments (timePart.ts);
 //            "History", after the events: everything dated that concerns it;
 //            "Related" in groups by type, with "Mentioned by" for the other
 //            side; "Scenes" in binder order with their synopsis; "Events"
@@ -30,8 +36,9 @@
 
 import { Keymap } from 'obsidian';
 import type { App } from 'obsidian';
-import { IMAGE_KEY, OTHER_NAME, SUMMARY_KEY, groupRelations, sheetFields } from '../../core/world';
+import { IMAGE_KEY, OTHER_NAME, SUMMARY_KEY, groupRelations, lifeYears, sheetFields, typedAgeShown } from '../../core/world';
 import type { BackRelation, Entity, EntityType, Relation } from '../../core/world';
+import { showIcon } from '../../ui/icons';
 import { isInputMethodKey } from '../../ui/keys';
 import { safely } from '../../ui/safely';
 import { TextPromptModal } from '../../ui/textPromptModal';
@@ -39,7 +46,8 @@ import type { FoundMention, SheetAppearance, WorldHost } from './host';
 import { openImagePicker } from './imagePicker';
 import { WORLD_ICONS, entityPicture, iconButton, settle, textButton, typeBadge } from './parts';
 import { openRelationPicker } from './relationModal';
-import { drawHistoryPart, drawTimePart } from './timePart';
+import { ageWarning } from './sceneService';
+import { drawHistoryPart, drawLifePart, drawTimePart } from './timePart';
 
 export const OPEN_NOTE_TEXT = 'Open note';
 export const BOARD_AROUND_TEXT = 'Board around it';
@@ -75,6 +83,10 @@ export const SEARCHING_TEXT = 'Reading the scenes...';
 export const NO_MENTIONS_TEXT = 'No other scene names it.';
 export const LINK_SCENE_TEXT = 'Link this scene';
 export const REMOVE_FROM_SCENE_LABEL = 'Take out of this scene';
+export const LIFE_LABEL = 'Life';
+/** The property a character's age is typed in, and what it is called where an age is also worked out. */
+export const AGE_FIELD = 'age';
+export const TYPED_AGE_LABEL = 'Age (typed)';
 
 /** What "Find mentions" has to show for the entity on the sheet. */
 type Mentions =
@@ -119,6 +131,8 @@ interface Built {
   readonly hero: HTMLElement;
   /** The other names; null where nothing can be changed (the hero then shows them). */
   readonly aliases: AliasParts | null;
+  /** Born, Died and Age; null for an entity whose type has no age. */
+  readonly life: HTMLElement | null;
   readonly boxes: FieldBox[];
   readonly rest: HTMLElement;
 }
@@ -169,8 +183,20 @@ export class EntitySheet {
     }
     const type = this.host.typeOf(entity);
     const canChange = this.host.canChange;
-    const fields = sheetFields(entity, type);
-    const signature = JSON.stringify([entity.path, type?.id ?? null, canChange, fields.map((field) => [field.name, field.editable])]);
+    const age = this.host.ageOf(entity);
+    // A typed age is shown as it always was, as "Age (typed)", or not at all (see the top of the file).
+    const fields = sheetFields(entity, type).flatMap((field) => {
+      if (field.name !== AGE_FIELD || age === null) return [field];
+      const shown = typedAgeShown(field.value, lifeYears(age));
+      return shown === 'hidden' ? [] : [{ ...field, label: shown === 'typed' ? TYPED_AGE_LABEL : field.name }];
+    });
+    const signature = JSON.stringify([
+      entity.path,
+      type?.id ?? null,
+      canChange,
+      age !== null,
+      fields.map((field) => [field.name, field.editable, 'label' in field ? field.label : null]),
+    ]);
 
     let built = this.built;
     if (built === null || built.signature !== signature || built.detail !== detail || built.head.parentElement !== detail) {
@@ -179,10 +205,11 @@ export class EntitySheet {
       const head = detail.createDiv({ cls: 'spellbook-world-detail-head' });
       const hero = detail.createDiv({ cls: 'spellbook-world-sheet-hero' });
       const aliases = canChange ? this.buildAliases(detail, entity.path) : null;
+      const life = age === null ? null : detail.createDiv({ cls: 'spellbook-world-life spellbook-world-time', attr: { role: 'group', 'aria-label': LIFE_LABEL } });
       const boxes: FieldBox[] = [];
       this.buildForm(detail, entity, fields, canChange, boxes);
       const rest = detail.createDiv({ cls: 'spellbook-world-sheet-rest' });
-      built = { signature, detail, head, hero, aliases, boxes, rest };
+      built = { signature, detail, head, hero, aliases, life, boxes, rest };
       this.built = built;
     } else {
       // The same sheet: its boxes stay, and say what the note says now. The one being typed in is left alone.
@@ -198,6 +225,7 @@ export class EntitySheet {
     this.drawHead(built.head, entity);
     this.drawHero(built.hero, entity, type, canChange);
     if (built.aliases !== null) this.drawAliases(built.aliases, entity);
+    if (built.life !== null) drawLifePart(this.app, this.host, built.life, entity, canChange);
     this.drawRest(built.rest, entity, canChange);
   }
 
@@ -351,7 +379,7 @@ export class EntitySheet {
   private buildForm(
     detail: HTMLElement,
     entity: Entity,
-    fields: ReturnType<typeof sheetFields>,
+    fields: ReadonlyArray<ReturnType<typeof sheetFields>[number] & { readonly label?: string }>,
     canChange: boolean,
     boxes: FieldBox[],
   ): void {
@@ -367,10 +395,11 @@ export class EntitySheet {
     for (const field of shown) {
       const cell = table.createDiv({ cls: 'spellbook-world-field' });
       // Both the name of a property and what it holds may be the writer's own text.
-      cell.createEl('dt', { cls: 'spellbook-world-field-name', text: field.name, attr: { dir: 'auto' } });
+      const label = field.label ?? field.name;
+      cell.createEl('dt', { cls: 'spellbook-world-field-name', text: label, attr: { dir: 'auto' } });
       const value = cell.createEl('dd', { cls: 'spellbook-world-field-value' });
       if (canChange && field.editable) {
-        this.fieldBox(value, 'spellbook-world-field-box', entity.path, field.name, field.name, field.value, 1, boxes);
+        this.fieldBox(value, 'spellbook-world-field-box', entity.path, field.name, label, field.value, 1, boxes);
       } else {
         value.setText(field.value);
         value.setAttr('dir', 'auto');
@@ -560,6 +589,14 @@ export class EntitySheet {
       open.addEventListener('click', (event) => {
         safely(OPEN_NOTE_TEXT, () => this.host.open(note.path, Keymap.isModEvent(event)));
       });
+      // In a scene with a date: the entity's age then, or a mark when it is not born yet or already dead.
+      if (note.age?.kind === 'age') row.createSpan({ cls: 'spellbook-world-row-age', text: `age ${note.age.years}`, attr: { dir: 'ltr' } });
+      const warning = ageWarning(note.age);
+      if (warning !== null) {
+        const mark = row.createSpan({ cls: 'spellbook-world-row-warning', attr: { 'aria-label': warning, title: warning } });
+        showIcon(mark, 'alert-triangle', 'alert-circle');
+        mark.createSpan({ cls: 'spellbook-world-row-warning-text', text: warning });
+      }
       if (canChange) {
         iconButton(row, 'spellbook-world-row-unlink', REMOVE_FROM_SCENE_LABEL, WORLD_ICONS.unlink, () =>
           settle(this.host.unlink(note.path, { entityPath: entity.path })),

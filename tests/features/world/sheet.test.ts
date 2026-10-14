@@ -136,11 +136,12 @@ describe('the sheet of one entity', () => {
       'arc',
     ]);
     expect(sheet().withClass('spellbook-world-field-box').map((field) => field.value)).toEqual(['Lighthouse keeper', '34', '', '', '', '', '', '']);
-    // The parts of the sheet, in order: the picture and the words beside it, the other names, the summary, the fields, the rest.
-    expect(sheet().children.map((child) => [...child.classes].find((cls) => /^spellbook-world-(detail-head|sheet-hero|aliases|detail-summary|fields|sheet-rest)$/.test(cls)))).toEqual([
+    // The parts of the sheet, in order: the picture and the words beside it, the other names, a character's life, the summary, the fields, the rest.
+    expect(sheet().children.map((child) => [...child.classes].find((cls) => /^spellbook-world-(detail-head|sheet-hero|aliases|life|detail-summary|fields|sheet-rest)$/.test(cls)))).toEqual([
       'spellbook-world-detail-head',
       'spellbook-world-sheet-hero',
       'spellbook-world-aliases',
+      'spellbook-world-life',
       'spellbook-world-detail-summary',
       'spellbook-world-fields',
       'spellbook-world-sheet-rest',
