@@ -21,7 +21,8 @@ import {
 import type { WorldNote } from '../src/core/world';
 import { TODAY } from './storeHarness';
 
-const seed = sampleProject(TODAY);
+const made = sampleProject(TODAY);
+const seed = { world: made.world ?? [], events: made.events ?? [] };
 const notes: WorldNote[] = seed.world.map((entity) => ({ path: `World/${entity.folder}/${entity.title}.md`, frontmatter: entity.frontmatter }));
 const entities = readEntities(notes, BUILT_IN_TYPES);
 const timeOf = (name: string): ReturnType<typeof readEntityTime> => {

@@ -35,12 +35,12 @@ class WorldHost extends FakeHost {
   readonly sheets: string[] = [];
   offersSheets = true;
 
-  override setWorldLanes(choice: WorldLaneChoice): void {
+  setWorldLanes(choice: WorldLaneChoice): void {
     this.choices.push(choice);
     this.set({ worldLanes: choice });
   }
 
-  override showEntity(path: string): boolean {
+  showEntity(path: string): boolean {
     if (!this.offersSheets) return false;
     this.sheets.push(path);
     return true;
@@ -194,7 +194,7 @@ describe('the lanes window and the world\'s history', () => {
     expect(rows().map((row) => row.withClass('spellbook-timeline-world-name')[0]?.text)).toEqual(['World', 'Characters', 'Places']);
     (rows()[2]?.withClass('spellbook-timeline-world-toggle')[0] as FakeElement).fire('click');
     await settle(s);
-    expect(s.host.choices.at(-1)).toEqual({ on: true, hidden: ['place'] });
+    expect(s.host.choices[s.host.choices.length - 1]).toEqual({ on: true, hidden: ['place'] });
     expect(laneNames(s)).not.toContain('Places');
   });
 

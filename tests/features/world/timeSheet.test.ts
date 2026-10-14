@@ -71,7 +71,7 @@ function buttons(): ButtonComponent[] {
 
 /** Press the button that saves (always the last one). */
 async function save(s: Wired): Promise<void> {
-  (buttons().at(-1) as ButtonComponent).click();
+  (buttons()[buttons().length - 1] as ButtonComponent).click();
   await calm(s);
 }
 
@@ -254,7 +254,7 @@ describe('the words for the dates, in the window of types', () => {
     const window = lastWindow();
     const row = window.contentEl.withClass('spellbook-world-type').find((candidate) => candidate.getAttr('data-type') === 'character') as FakeElement;
     one(row, 'spellbook-world-type-more').fire('click');
-    StubMenu.shown.at(-1)?.item('Change date words').click();
+    StubMenu.shown[StubMenu.shown.length - 1]?.item('Change date words').click();
     const input = one(lastWindow().contentEl, 'spellbook-prompt-input');
     expect(input.value).toBe('Born, Died');
     typeInto(input, 'נולדה, נפטרה');
