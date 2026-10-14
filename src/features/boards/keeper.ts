@@ -76,8 +76,8 @@ export interface BoardInfo {
   readonly path: string;
   /** The board's name: the writer's own text. */
   readonly name: string;
-  /** How many cards it has; null while it has not been read, or when it cannot be. */
-  readonly cards: number | null;
+  /** How many cards it has; undefined while it has not been read, null when it cannot be. */
+  readonly cards: number | null | undefined;
 }
 
 /** The open project, as the boards need it. */
@@ -273,7 +273,7 @@ export class BoardKeeper {
     }
     return this.context.store
       .boardFiles()
-      .map((path) => ({ path, name: boardName(path), cards: this.counts.get(pathKey(path)) ?? null }))
+      .map((path) => ({ path, name: boardName(path), cards: this.counts.get(pathKey(path)) }))
       .sort((a, b) => a.name.localeCompare(b.name) || (a.path < b.path ? -1 : 1));
   }
 

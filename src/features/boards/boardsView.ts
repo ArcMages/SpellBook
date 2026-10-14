@@ -44,8 +44,9 @@ export const ENTITY_WEB_TEXT = 'Around an entity';
 const MORE_ICON = ['ellipsis', 'more-horizontal'] as const;
 
 /** What a row says about the number of cards. */
-export function countText(board: BoardInfo, counting: boolean): string {
-  if (board.cards === null) return counting ? COUNTING_TEXT : UNREADABLE_TEXT;
+export function countText(board: BoardInfo): string {
+  if (board.cards === undefined) return COUNTING_TEXT;
+  if (board.cards === null) return UNREADABLE_TEXT;
   return describeCards(board.cards);
 }
 
@@ -134,7 +135,7 @@ export class BoardsView extends ItemView {
     }
     let uncounted = false;
     for (const board of boards) {
-      if (board.cards === null) uncounted = true;
+      if (board.cards === undefined) uncounted = true;
       this.drawRow(list, board, !project.readOnly);
     }
     if (uncounted) this.keeper.countCards();
@@ -145,7 +146,7 @@ export class BoardsView extends ItemView {
     const open = row.createEl('button', { cls: 'spellbook-boards-open', attr: { type: 'button' } });
     showIcon(open.createSpan({ cls: 'spellbook-boards-icon' }), ...BOARDS_ICONS);
     open.createSpan({ cls: 'spellbook-boards-name', text: board.name, attr: { dir: 'auto' } });
-    open.createSpan({ cls: 'spellbook-boards-count', text: countText(board, true) });
+    open.createSpan({ cls: 'spellbook-boards-count', text: countText(board) });
     open.addEventListener('click', (event) => {
       safely(OPEN_TEXT, () => this.actions.open(board.path, Keymap.isModEvent(event)));
     });
