@@ -6,7 +6,7 @@
 //
 // The sample novel is set in Saltwick, a small harbour town. Mara has come to
 // redraw the sea chart after a storm moved the coast, Tobias runs the ferry,
-// and Noa keeps the town archive and writes home to her sister in Hebrew.
+// and Noa keeps the town archive and writes home to her sister Ellen.
 
 /** The three point-of-view characters; scenes are labelled with these names. */
 export const SAMPLE_CHARACTERS = ['Mara', 'Tobias', 'Noa'] as const;
@@ -52,22 +52,22 @@ function scene(
   return text === undefined ? { title, who, status, words, synopsis } : { title, who, status, words, synopsis, text };
 }
 
-// ------------------------------------------------------------- Hebrew scenes
+// ------------------------------------------------------- Noa's own scenes
 
 const LETTER_TO_MY_SISTER = [
-  `אחותי היקרה,`,
-  `אני כותבת לך מהחדר הקטן שמעל הארכיון, ליד חלון שפונה אל הנמל. הים כאן אפור בבוקר וכחול רק לקראת הצהריים, ובערב הוא נעשה כהה כמו דיו. כבר שלושה שבועות אני בעיירה הזאת, ועדיין אינני יודעת אם היא מקבלת אותי או רק סובלת אותי בנימוס.`,
-  `האנשים כאן מדברים מעט, אבל זוכרים הכול. האופה יודעת מי קנה לחם ומי לא, והדייגים יודעים לקרוא את הגאות לפני שהם יודעים לקרוא ספרים. כל ערב אני סופרת את הסירות שחוזרות, ותמיד נדמה לי שחסרה אחת.`,
-  `מצאתי בארכיון מפה ישנה. מצויר בה כפר קטן, עם כנסייה ושבעה בתים, במקום שיש בו היום רק מים. שאלתי עליו את האיש שמשיט את המעבורת, והוא הסתכל על הים ולא ענה. אני חושבת שהעיירה שומרת סוד, והיא שומרת אותו היטב.`,
-  `אל תדאגי לי. אני ישנה טוב, אוכלת לחם טרי כל בוקר, ולומדת את שמות הרוחות. שמרתי לך צדף קטן ולבן, חלק כמו אבן נהר. כשאחזור אספר לך הכול, לאט, ליד השולחן במטבח של אמא.`,
-  `שלך באהבה,\nנועה`,
+  `Dear Ellen,`,
+  `I am writing from the small room above the archive, by a window that faces the harbour. The sea is grey in the morning, blue only towards noon, and dark as ink by evening. Three weeks here, and I still cannot tell whether the town has taken me in or only puts up with me.`,
+  `People here say little and remember everything. Every evening I count the boats coming home, and one always seems missing.`,
+  `I found an old map in the archive. It shows a church and seven houses where there is only water now. I asked the ferryman about it, and he looked at the sea and did not answer. I think the town is keeping a secret.`,
+  `Do not worry about me. I sleep well and eat well. I have kept a small white shell for you. When I come home I will tell you everything, at the table in Mother's kitchen.`,
+  `Love,\nNoa`,
 ].join('\n\n');
 
 const NIGHT_BEFORE_THE_STORM = [
-  `הברומטר במשרד הנמל ירד כל היום, ואיש לא אמר על כך מילה. לקראת ערב קשרו הדייגים את הסירות בחבל כפול, והאופה סגרה את התריסים מוקדם מהרגיל. אני עמדתי ליד החלון וראיתי איך האור נעלם מהשמיים, לאט, כמו מים שיורדים בשפל.`,
-  `בלילה כזה העיירה שקטה מדי. אין צחוק מהפונדק, אין צעדים על הרציף, ורק פעמון המעבורת נשמע מבעד לערפל, פעם ועוד פעם. ספרתי את הצלצולים עד שהתבלבלתי. יש ימים שבהם השקט כבד יותר מכל רוח.`,
-  `הדלקתי נר וקראתי שוב ביומן של שומר המגדלור. בעמוד האחרון הוא כותב שהים תמיד מחזיר את מה שלקח, רק לא באותו מקום ולא באותה צורה. אינני יודעת אם זו נחמה או אזהרה.`,
-  `לפני חצות ראיתי אור בבית הריק שבקצה הרחוב. מישהו הדליק שם פנס והעמיד אותו בחלון, מול הים. רציתי לצאת ולראות מי זה, אבל הרוח כבר התחילה לדפוק על הדלת, ונשארתי במקומי. מחר, אם יהיה מחר שקט, אשאל.`,
+  `The barometer in the harbour office fell all day, and nobody spoke of it. The fishermen doubled their ropes, and the baker shut early. I stood at the window and watched the light go out of the sky like water at the ebb.`,
+  `On a night like this the town is too quiet. No steps on the quay, only the ferry bell through the fog, again and again.`,
+  `I lit a candle and read the keeper's log again. On the last page he writes that the sea always gives back what it took, only not in the same place and not in the same shape. I cannot tell if that is a comfort or a warning.`,
+  `Before midnight a lamp was lit in the empty house. I wanted to go and look, but the wind was already at the door, and I stayed.`,
 ].join('\n\n');
 
 // ------------------------------------------------------------------- outline
@@ -104,11 +104,11 @@ export const SAMPLE_PARTS: readonly SamplePart[] = [
       scene("The Keeper's Log", NOA, REVISED, 810, "Noa finds the old lighthouse keeper's log among the damp ledgers."),
       scene('A Line of Stakes', TOBIAS, FINAL, 480, 'Tobias helps Mara set a line of stakes across the flats before the tide turns.'),
       scene(
-        'מכתב לאחותי',
+        'A Letter to My Sister',
         NOA,
         REVISED,
         0,
-        'נועה כותבת לאחותה על העיירה, על הים ועל מפה ישנה שמצאה בארכיון.',
+        'Noa writes to her sister about the town, the sea and an old map she found in the archive.',
         LETTER_TO_MY_SISTER,
       ),
       scene('Names of the Rocks', MARA, REVISED, 700, 'An old fisherman teaches Mara the local name of every rock in the bay.'),
@@ -140,11 +140,11 @@ export const SAMPLE_PARTS: readonly SamplePart[] = [
     scenes: [
       scene('Glass Falling', MARA, DRAFT, 730, 'The barometer falls all morning and the town begins to tie things down.'),
       scene(
-        'הלילה שלפני הסערה',
+        'The Night Before the Storm',
         NOA,
         DRAFT,
         0,
-        'נועה מחכה לסערה, קוראת ביומן של שומר המגדלור ורואה אור בבית הריק.',
+        "Noa waits for the storm, reads the keeper's log again and sees a light in the empty house.",
         NIGHT_BEFORE_THE_STORM,
       ),
       scene('The Last Crossing Before', TOBIAS, DRAFT, 1010, 'Tobias makes one more crossing than he should.'),
@@ -376,7 +376,7 @@ export const SAMPLE_RESEARCH = [
       [
         '- **Mara** makes sea charts. Sent to redraw the coast; careful, impatient, new to the town.',
         '- **Tobias** runs the ferry. Knows the sandbars by feel and keeps one secret.',
-        '- **Noa** keeps the archive. Writes home to her sister in Hebrew.',
+        '- **Noa** keeps the archive. Writes home to her sister Ellen.',
         '- The harbour master wants the chart finished in six weeks, with one thing left off it.',
         '- The old lighthouse keeper is gone before the story starts. His log is still in the archive.',
       ].join('\n'),
@@ -438,8 +438,8 @@ export interface SampleEvent {
 /**
  * The ten events of the story, in the autumn and winter of 1923. Among them:
  * one that lasts six weeks (the survey), one that sits in two timelines
- * (Mara's arrival), one with a Hebrew title, and two that are only known to
- * the month. Nine of them say which entities of the world are in them.
+ * (Mara's arrival), one that names a tag of its own (the archive), and two
+ * that are only known to the month. Nine of them say which entities of the world are in them.
  */
 export const SAMPLE_EVENTS: readonly SampleEvent[] = [
   {
@@ -486,13 +486,13 @@ export const SAMPLE_EVENTS: readonly SampleEvent[] = [
     body: 'The six weeks the harbour master gives Mara to redraw the chart.',
   },
   {
-    title: 'נועה מוצאת את המפה הישנה',
+    title: 'Noa finds the old map',
     date: '1923-11-05',
     timelines: [MAIN_PLOT],
     scenes: ['The Village on the Old Map'],
-    tags: ['ארכיון'],
+    tags: ['archive'],
     entities: ['Noa', 'The Archive', 'The Drowned Village', 'The Legend of the Drowned Village'],
-    body: 'בארכיון, בין הספרים הלחים: מפה שמצויר בה כפר במקום שיש בו היום רק מים.',
+    body: 'In the archive, among the damp ledgers: a map that shows a village where there is now only water.',
   },
   {
     title: 'The lowest tide of the month',
@@ -534,7 +534,7 @@ export const SAMPLE_SCENE_DATES: Readonly<Record<string, string>> = {
   Prologue: '1923-10-12',
   'The Last Ferry': '1923-10-14',
   'Low Water': '1923-11-08',
-  'הלילה שלפני הסערה': '1923-12-02',
+  'The Night Before the Storm': '1923-12-02',
 };
 
 /**
@@ -554,14 +554,14 @@ export const SAMPLE_SCENE_TARGETS: Readonly<Record<string, number | 'reached'>> 
   'First Soundings': 1200,
   'Lamp in the Empty House': 'reached',
   'Low Water': 1400,
-  'מכתב לאחותי': 'reached',
+  'A Letter to My Sister': 'reached',
   'The Village on the Old Map': 900,
   'An Argument About North': 1000,
   Triangles: 800,
   'The Drowned Lane': 'reached',
   'Mending Nets': 900,
   'The Missing Boat': 800,
-  'הלילה שלפני הסערה': 250,
+  'The Night Before the Storm': 250,
   'What the Keeper Wrote': 1300,
   Adrift: 900,
   'Starting Over': 600,
@@ -625,10 +625,9 @@ export const SAMPLE_STORY_YEAR = 1923;
 /**
  * The eighteen entities, at least one of every type a project has: six
  * characters (the three the scenes are told by, two more of the town, and
- * Noa's sister, whose name and summary are in Hebrew), four places, one
+ * Ellen, Noa's sister, who is only met in a letter), four places, one
  * faction, two items, three pieces of lore (a legend, a fishermen's tale,
- * and a saying that is written in Hebrew), one creature of local belief and
- * one people. None has a picture: a seed makes notes, not image files.
+ * and the keeper's saying), one creature of local belief and one people. None has a picture: a seed makes notes, not image files.
  *
  * Every one of them has a place in time, so that the sheet's "Time" and
  * "History", the timeline's world lanes and the world's history have a
@@ -637,7 +636,7 @@ export const SAMPLE_STORY_YEAR = 1923;
  * 1841 and closed in November 1922 (the very month of the event that tells
  * it), the keeper who kept it for thirty years, the chart made in 1871 and
  * last corrected on 10 February 1923, and the births the characters' ages
- * come from. Some have moments as well, one of them written in Hebrew.
+ * come from. Some have moments as well.
  */
 export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
   {
@@ -693,15 +692,15 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
       occupation: 'Archivist',
       appearance: 'Reading glasses pushed up into her hair.',
       personality: 'Curious and patient, and stubborn about small facts.',
-      voice: 'Careful English in the town; quick, warm Hebrew in her letters home.',
+      voice: 'Careful and exact in the town; quick and warm in her letters home.',
       goal: 'To find out what the town does not say.',
       arc: 'From putting papers in order to deciding what the town should know.',
-      summary: 'Keeps the town archive, and writes home to her sister in Hebrew.',
+      summary: 'Keeps the town archive, and writes home to her sister Ellen.',
     },
-    aliases: ['נועה'],
+    aliases: ['The archivist'],
     description: 'Noa came to Saltwick to put the archive in order. She lives in the small room above it.',
     related: [
-      ['תמר', 'sister'],
+      ['Ellen', 'sister'],
       ['The Archive', 'keeps'],
     ],
     date: '1894-06-03',
@@ -750,17 +749,17 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
   },
   {
     type: 'character',
-    name: 'תמר',
+    name: 'Ellen',
     fields: {
-      role: 'אחותה של נועה',
-      personality: 'סקרנית וחמה, ודואגת יותר ממה שהיא מודה.',
-      voice: 'נשמעת רק דרך מה שנועה עונה לה במכתבים.',
-      summary: 'אחותה הצעירה של נועה. נשארה בבית, ונועה כותבת לה מכתבים מהעיירה.',
+      role: "Noa's sister",
+      personality: 'Curious and warm, and more worried than she admits.',
+      voice: 'Heard only through what Noa writes back to her.',
+      summary: "Noa's younger sister. She stayed at home, and Noa writes her letters from the town.",
     },
-    aliases: ['אחותי'],
-    description: 'תמר אינה מופיעה בסיפור עצמו: היא מי שנועה כותבת אליה, ומי שמחכה לתשובות.',
+    aliases: ['Nell'],
+    description: 'Ellen never appears in the story itself: she is the one Noa writes to, and the one waiting for answers.',
     date: '1897',
-    moments: [['1923-06', 'המכתב הראשון מנועה מגיע']],
+    moments: [['1923-06', 'the first letter from Noa arrives']],
   },
   {
     type: 'place',
@@ -908,22 +907,23 @@ export const SAMPLE_ENTITIES: readonly SampleEntity[] = [
   },
   {
     type: 'lore',
-    name: 'הים מחזיר',
+    name: 'What the Sea Gives Back',
     fields: {
-      kind: 'אמרה',
-      period: 'מימי שומר המגדלור',
-      'told-by': 'שומר המגדלור, בעמוד האחרון של יומנו',
-      summary: 'הים תמיד מחזיר את מה שלקח, רק לא באותו מקום ולא באותה צורה.',
+      kind: 'Saying',
+      period: "From the keeper's time",
+      'told-by': 'The keeper, on the last page of his log',
+      summary: 'The sea always gives back what it took, only not in the same place and not in the same shape.',
     },
-    aliases: ['מה שהים לקח'],
-    description: 'כך כתב שומר המגדלור בעמוד האחרון של היומן: הים תמיד מחזיר את מה שלקח, רק לא באותו מקום ולא באותה צורה. מתחת למשפט אין תאריך ואין מזג אוויר, רק קו ישר.',
+    aliases: ['What the sea took'],
+    description:
+      'So the keeper wrote on the last page of the log: the sea always gives back what it took, only not in the same place and not in the same shape. Under it there is no date and no weather, only a straight line.',
     sections: [
-      'איש בעיירה אינו אומר את המשפט בקול. נועה קוראת אותו ביומן בלילה שלפני הסערה, ואינה יודעת אם זו נחמה או אזהרה.',
-      'הסירה שנעלמה נמצאה ריקה בצד השני של השרטון, והאבנים של הכפר נראות שוב בשפל. את מה שהים החזיר אפשר למדוד; את מה שהשומר התכוון אליו, לא.',
+      'Nobody in the town says it aloud. Noa reads it in the log on the night before the storm, and cannot tell whether it is a comfort or a warning.',
+      'The missing boat was found empty on the far side of the bar, and the stones of the village show again at low water. What the sea gave back can be measured; what the keeper meant cannot.',
     ],
     related: [
-      ['The Keeper', 'נכתבה בידי'],
-      ['The Logbook', 'כתובה בעמוד האחרון של'],
+      ['The Keeper', 'written by'],
+      ['The Logbook', 'written on the last page of'],
     ],
     date: '1922-11',
   },
@@ -982,7 +982,7 @@ export const SAMPLE_SCENE_ENTITIES: Readonly<Record<string, readonly string[]>> 
   'Low Water': ['Mara', 'The Tide Hound'],
   "The Keeper's Log": ['Noa', 'The Keeper', 'The Logbook', 'The Archive'],
   'A Line of Stakes': ['Tobias', 'Mara'],
-  'מכתב לאחותי': ['Noa', 'תמר', 'The Archive', 'The Drowned Village'],
+  'A Letter to My Sister': ['Noa', 'Ellen', 'The Archive', 'The Drowned Village'],
   'Names of the Rocks': ['Mara', 'The Bay Fishers'],
   'The Village on the Old Map': ['Noa', 'The Drowned Village', 'The Legend of the Drowned Village'],
   'Fog on the Crossing': ['Tobias', 'The Bell in the Fog'],
@@ -1000,11 +1000,11 @@ export const SAMPLE_SCENE_ENTITIES: Readonly<Record<string, readonly string[]>> 
   'Under the Floorboards': ['Noa', 'The Logbook', 'The Archive'],
   'Slack Water': ['Tobias', 'The Drowned Village'],
   'Glass Falling': ['Saltwick'],
-  'הלילה שלפני הסערה': ['Noa', 'The Logbook', 'The Keeper', 'הים מחזיר'],
+  'The Night Before the Storm': ['Noa', 'The Logbook', 'The Keeper', 'What the Sea Gives Back'],
   'The Last Crossing Before': ['Tobias'],
   'The Bell Stops': ['The Bell in the Fog'],
   Sandbags: ['Mara', 'Noa', 'The Archive'],
-  'What the Keeper Wrote': ['Noa', 'The Keeper', 'The Logbook', 'הים מחזיר'],
+  'What the Keeper Wrote': ['Noa', 'The Keeper', 'The Logbook', 'What the Sea Gives Back'],
   Adrift: ['Tobias'],
   'The Light': ['The Old Lighthouse'],
   'Between Two Bars': ['Tobias', 'The Tide Hound'],

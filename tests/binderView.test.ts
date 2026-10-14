@@ -262,7 +262,7 @@ describe('the tree', () => {
 });
 
 describe('the sample novel', () => {
-  it('is shown whole: its parts, its Hebrew scene, the note left out of the binder, and the research', async () => {
+  it('is shown whole: its parts, its scenes, the note left out of the binder, and the research', async () => {
     const s = await stage();
     const made = await createSampleProject(s.store, TODAY);
     expect(made.status).toBe('done');
@@ -288,10 +288,10 @@ describe('the sample novel', () => {
     expect(counts.every((count) => /^\d{1,3}(,\d{3})*$/.test(count))).toBe(true);
     expect(number(countOf(s.pane, 'Manuscript'))).toBe(counts.reduce((sum, count) => sum + number(count), 0));
 
-    // The Hebrew scene: its title takes the direction of its own text.
-    const letter = rowOf(s.pane, 'מכתב לאחותי');
+    // A scene's title takes the direction of its own text (a Hebrew title is tried in the stage's own project above).
+    const letter = rowOf(s.pane, 'A Letter to My Sister');
     expect(partOf(letter, 'spellbook-title')?.attrs['dir']).toBe('auto');
-    expect(number(countOf(s.pane, 'מכתב לאחותי'))).toBeGreaterThan(0);
+    expect(number(countOf(s.pane, 'A Letter to My Sister'))).toBeGreaterThan(0);
 
     // Looking at it all wrote nothing more than creating it did.
     const writesAfterCreating = s.vault.writes.length;

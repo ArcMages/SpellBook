@@ -67,8 +67,8 @@ describe('the sample\'s history', () => {
       '1923-10-13 | is sent to Saltwick to redraw the chart',
     ]);
     expect(seed.world.find((entity) => entity.title === 'Noa')?.frontmatter['moments']).toEqual(['1923-05 | takes over the archive in Saltwick']);
-    // One moment is written in Hebrew.
-    expect(seed.world.find((entity) => entity.title === 'תמר')?.frontmatter['moments']).toEqual(['1923-06 | המכתב הראשון מנועה מגיע']);
+    // Noa's sister has hers from the letters.
+    expect(seed.world.find((entity) => entity.title === 'Ellen')?.frontmatter['moments']).toEqual(['1923-06 | the first letter from Noa arrives']);
   });
 
   it('gives the characters births that agree with the ages their notes give in the story\'s year', () => {
@@ -80,7 +80,7 @@ describe('the sample\'s history', () => {
     }
     expect(SAMPLE_STORY_YEAR).toBe(1923);
     // Noa's sister is the younger of the two.
-    expect(day(timeOf('תמר').start)).toBeGreaterThan(day(timeOf('Noa').start));
+    expect(day(timeOf('Ellen').start)).toBeGreaterThan(day(timeOf('Noa').start));
   });
 
   it('agrees with the events: the lighthouse closes the month the event says, the chart was last corrected that day', () => {
@@ -93,7 +93,7 @@ describe('the sample\'s history', () => {
     expect(sent).toBeGreaterThan(day(eventDate('The winter storm')));
     expect(sent).toBeLessThan(day(eventDate('Mara arrives in Saltwick')));
     // Noa takes the archive over before she finds the old map in it, and the archive says so too.
-    expect(day(momentOf('Noa', 'takes over the archive in Saltwick'))).toBeLessThan(day(eventDate('נועה מוצאת את המפה הישנה')));
+    expect(day(momentOf('Noa', 'takes over the archive in Saltwick'))).toBeLessThan(day(eventDate('Noa finds the old map')));
     expect(storyDateToText(momentOf('The Archive', 'Noa takes it over'))).toBe('1923-05');
   });
 
