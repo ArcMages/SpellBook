@@ -12,7 +12,8 @@
 
 import { Notice, Platform } from 'obsidian';
 import type { App, WorkspaceLeaf } from 'obsidian';
-import { SCENE_ENTITIES_SERVICE } from '../../core/world';
+import { ENTITY_SHEET_SERVICE, SCENE_ENTITIES_SERVICE, WORLD_HISTORY_SERVICE } from '../../core/world';
+import type { EntitySheetService, WorldHistoryService } from '../../core/world';
 import { iconName } from '../../ui/icons';
 import type { Feature, FeatureContext } from '../registry';
 import { WorldHost } from './host';
@@ -130,6 +131,24 @@ export const worldFeature: Feature = {
 
     // Who and what is in a scene, for the inspector: looked up by name when it is needed.
     context.services.provide(SCENE_ENTITIES_SERVICE, sceneEntitiesService(app, host));
+
+    // An entity's sheet, for the timeline: a tap on an entity of a world lane shows it here.
+    const sheets: EntitySheetService = {
+      show: (entityPath) => {
+        if (host.isReleased || host.entity(entityPath) === null) return;
+        void pane.reveal().then((leaf) => {
+          const view: unknown = leaf?.view;
+          if (view instanceof WorldView) view.showSheet(entityPath);
+        });
+      },
+    };
+    context.services.provide(ENTITY_SHEET_SERVICE, sheets);
+    // The other way round: the browser's "History" button asks the timeline, when one offers it.
+    host.showWorldHistory = () => {
+      const history = context.services.get<WorldHistoryService>(WORLD_HISTORY_SERVICE);
+      history?.show();
+      return history !== undefined;
+    };
 
     plugin.registerView(WORLD_VIEW_TYPE, (leaf) => createWorldView(leaf, host));
     plugin.addRibbonIcon(iconName(...WORLD_ICONS.view) ?? WORLD_ICON, WORLD_RIBBON_TITLE, () => {

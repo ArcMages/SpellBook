@@ -27,11 +27,13 @@ import type { ProjectStore } from '../../core/projectStore';
 import { CALENDAR_KEY, WORLD_FOLDER, applyFrontmatterPatch, isEmptyPatch, laneKey, readLanes } from '../../core/timeline';
 import type { Lane, LaneChange, TimelineNote } from '../../core/timeline';
 import type { Frontmatter, StoreChange, TreeNode } from '../../core/types';
+import { DATE_KEY, END_KEY, ENTITY_SHEET_SERVICE, ENTITY_TYPES_KEY, MOMENTS_KEY, TYPE_KEY } from '../../core/world';
+import type { EntitySheetService } from '../../core/world';
 import type { VaultEvent } from '../../core/vaultPort';
 import type { DragClock } from '../../ui/dragDrop';
-import type { FeatureContext } from '../registry';
-import { HiddenLanes } from './hiddenLanes';
-import type { CreateEventResult, NewEvent, NoteChange, TimelineData, TimelineHost } from './timelineHost';
+import type { FeatureContext, FeatureServices } from '../registry';
+import { HiddenLanes, WORLD_LANES_KEY, readWorldMarks, writeWorldMarks } from './hiddenLanes';
+import type { CreateEventResult, NewEvent, NoteChange, TimelineData, TimelineHost, WorldLaneChoice } from './timelineHost';
 
 /** The key of the project index that holds the lanes. */
 export const TIMELINES_KEY = 'timelines';
@@ -61,6 +63,20 @@ function sameValue(a: unknown, b: unknown): boolean {
   return a === b || JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 }
 
+/** The properties of an entity note that the timeline shows something of. */
+const WORLD_KEYS = [TYPE_KEY, DATE_KEY, END_KEY, MOMENTS_KEY] as const;
+
+/**
+ * An entity note as the timeline needs it: its type, its two dates and its
+ * moments, and nothing else, so that typing in a summary redraws nothing.
+ */
+function worldNote(note: TimelineNote): TimelineNote {
+  const all = typeof note.frontmatter === 'object' && note.frontmatter !== null ? (note.frontmatter as Record<string, unknown>) : {};
+  const kept: Record<string, unknown> = {};
+  for (const key of WORLD_KEYS) if (all[key] !== undefined) kept[key] = all[key];
+  return { path: note.path, frontmatter: kept };
+}
+
 /**
  * When a change of the lanes was the renaming of one lane, the old name and
  * the new one: the lists are as long as each other and differ in one place.
@@ -86,6 +102,9 @@ export class TimelineWiring implements TimelineHost {
   private readonly today: () => string;
   private readonly show: (path: string, where: PaneType | boolean) => Promise<boolean>;
   private readonly hidden: HiddenLanes;
+  /** What this device shows of the world, project by project: a list of marks (see hiddenLanes.ts). */
+  private readonly worldMarks: HiddenLanes;
+  private readonly services: FeatureServices | null;
   private readonly listeners = new Set<() => void>();
   private stops: Array<() => void> = [];
   private released = false;
@@ -116,6 +135,8 @@ export class TimelineWiring implements TimelineHost {
     this.today = () => context.clock.today();
     this.show = (path, where) => context.openNote(path, where);
     this.hidden = new HiddenLanes(context.storage);
+    this.worldMarks = new HiddenLanes(context.storage, WORLD_LANES_KEY);
+    this.services = context.services ?? null;
     this.stops.push(
       context.store.onChange((change) => {
         this.onStoreChange(change);
@@ -195,12 +216,16 @@ export class TimelineWiring implements TimelineHost {
         next.scenes,
         next.sceneOrder,
         next.hiddenLanes,
+        next.worldNotes ?? null,
+        next.entityTypes ?? null,
+        next.worldLanes ?? null,
       ]);
       if (before === null || signature !== this.signature) {
         this.data = next;
         this.signature = signature;
         this.shown = new Map();
         for (const note of [...next.scenes, ...next.events]) this.shown.set(pathKey(note.path), note.frontmatter);
+        // An entity note is shown in part, so it is never "the same as before": it is looked at again whenever it is reported.
       }
     }
     if (this.data === before) return;
@@ -248,6 +273,10 @@ export class TimelineWiring implements TimelineHost {
       calendar: this.store.projectData(CALENDAR_KEY),
       // The entities are the notes of the World folder; only where they are is needed here.
       world: this.store.projectNotes(WORLD_FOLDER).map((note) => note.path),
+      // ...and, for the world lanes, when each of them is.
+      worldNotes: this.store.projectNotes(WORLD_FOLDER).map((note) => worldNote(withWritten(note))),
+      entityTypes: this.store.projectData(ENTITY_TYPES_KEY),
+      worldLanes: readWorldMarks(this.worldMarks.of(project.indexPath)),
       events,
       scenes,
       sceneOrder,
@@ -264,6 +293,7 @@ export class TimelineWiring implements TimelineHost {
     if (change.movedFrom !== undefined && project) {
       // The same project at another path: what this device hides in it comes along.
       this.hidden.move(change.movedFrom, project.indexPath);
+      this.worldMarks.move(change.movedFrom, project.indexPath);
     } else if (this.data !== null && project?.indexPath !== this.data.projectId) {
       // Another project, or none: what was written a moment ago was for the last one.
       this.written.clear();
@@ -467,6 +497,21 @@ export class TimelineWiring implements TimelineHost {
     const project = this.released ? null : this.store.project;
     if (!project) return;
     if (this.hidden.set(project.indexPath, names)) this.changed();
+  }
+
+  setWorldLanes(choice: WorldLaneChoice): void {
+    const project = this.released ? null : this.store.project;
+    if (!project) return;
+    if (this.worldMarks.set(project.indexPath, writeWorldMarks(choice))) this.changed();
+  }
+
+  showEntity(path: string): boolean {
+    if (this.released || !this.store.project) return false;
+    // The World browser is asked by name at the moment it is needed: the two screens do not know each other.
+    const sheets = this.services?.get<EntitySheetService>(ENTITY_SHEET_SERVICE);
+    if (sheets === undefined) return false;
+    sheets.show(path);
+    return true;
   }
 
   /**

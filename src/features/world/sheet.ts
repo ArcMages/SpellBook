@@ -11,7 +11,9 @@
 //            away, and a box to add one more
 //   form     the summary, then the fields of the type and whatever else the
 //            writer added to the note, each to be changed in place
-//   rest     "Related" in groups by type, with "Mentioned by" for the other
+//   rest     "Time": when it begins and ends, and its moments (timePart.ts);
+//            "History", after the events: everything dated that concerns it;
+//            "Related" in groups by type, with "Mentioned by" for the other
 //            side; "Scenes" in binder order with their synopsis; "Events"
 //            with their date in the story; and "Find mentions"
 //
@@ -36,6 +38,7 @@ import type { FoundMention, SheetAppearance, WorldHost } from './host';
 import { openImagePicker } from './imagePicker';
 import { WORLD_ICONS, entityPicture, iconButton, settle, textButton, typeBadge } from './parts';
 import { openRelationPicker } from './relationModal';
+import { drawHistoryPart, drawTimePart } from './timePart';
 
 export const OPEN_NOTE_TEXT = 'Open note';
 export const BACK_LABEL = 'Back to the list';
@@ -413,12 +416,16 @@ export class EntitySheet {
 
   private drawRest(rest: HTMLElement, entity: Entity, canChange: boolean): void {
     rest.empty();
+    // When it begins and ends, and its moments (timePart.ts).
+    drawTimePart(this.app, this.host, rest, entity, canChange);
     this.drawRelations(rest, entity, canChange);
     const scenes = this.host.sceneRows(entity.path);
     this.drawAppearances(rest, SCENES_HEADING, scenes, entity, canChange);
     if (scenes.length === 0) rest.createDiv({ cls: 'spellbook-world-message spellbook-world-hint', text: NO_SCENES_TEXT });
     const events = this.host.eventRows(entity.path);
     if (events.length > 0) this.drawAppearances(rest, EVENTS_HEADING, events, entity, canChange);
+    // Everything dated that concerns it, in order of time (timePart.ts).
+    drawHistoryPart(this.host, rest, entity, canChange);
     const actions = rest.createDiv({ cls: 'spellbook-world-detail-actions' });
     const find = textButton(actions, 'spellbook-world-find', FIND_MENTIONS_TEXT, () => {
       this.findMentions(entity.path);

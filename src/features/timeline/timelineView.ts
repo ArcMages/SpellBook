@@ -1,7 +1,9 @@
 // The timeline: the project's events on a time axis, lane by lane.
 //
 //   header    the dates in view, and the buttons: By date / By story order,
-//             zoom out, zoom in, Fit, New event, Lanes, Calendar, Entities
+//             zoom out, zoom in, Fit, New event, Lanes, Calendar, Entities,
+//             and World: the switch for the world lanes (one per type of
+//             entity, after the other lanes; see worldCards.ts)
 //   filter    only while the timeline is narrowed to some entities: which
 //             ones, and the button that shows every event again
 //   switcher  on a narrow pane only: the lanes, one of which is shown
@@ -49,7 +51,7 @@ import { TimelineActions } from './timelineActions';
 import { TimelineGestures } from './timelineGestures';
 import type { GesturePoint } from './timelineGestures';
 import type { TimelineData, TimelineHost } from './timelineHost';
-import { MORE_LABEL, TIMELINE_ICONS, eventMenu } from './timelineMenus';
+import { MORE_LABEL, TIMELINE_ICONS, eventMenu, worldMenu } from './timelineMenus';
 import {
   META_FROM_WIDTH,
   MIN_CARD_WIDTH,
@@ -63,10 +65,13 @@ import {
   layoutScene,
   rangeText,
   readContent,
+  worldLaneAt,
+  worldRowOf,
   zoomIntoCluster,
   zoomScale,
 } from './timelineScene';
 import type { PlacedBox, Scene, SceneWindow, TimeMode, TimelineContent } from './timelineScene';
+import { fillWorldCard, placeWorldCard, worldCardDrawn } from './worldCards';
 
 export const TIMELINE_VIEW_TYPE = 'spellbook-timeline';
 export const TIMELINE_VIEW_NAME = 'Timeline';
@@ -81,6 +86,9 @@ export const CALENDAR_LABEL = 'Calendar';
 export const FILTER_LABEL = 'Only events with';
 export const SHOW_ALL_LABEL = 'Show all events';
 export const NO_MATCHING_EVENTS = 'No event names any of these entities.';
+export const WORLD_LABEL = 'World';
+export const WORLD_HINT = 'Show the world on the timeline: a lane for each type of entity';
+export const NO_WORLD_DATES = 'No entity of the world has a date yet. Give one a date on its sheet in the World browser, under "Time".';
 /** A card shows this many entities at most; the rest are counted. */
 export const CARD_ENTITIES = 3;
 /** The space between two chips on a card, in pixels (--size-2-1 in the stylesheet). */
@@ -237,6 +245,10 @@ export class TimelineView extends ItemView {
   private dropBand: HTMLElement | null = null;
   /** Who wants to hear that the data was read again: the window that lists the lanes, while it is open. */
   private watchers = new Set<() => void>();
+  /** The switch for the world lanes. */
+  private worldButton: HTMLElement | null = null;
+  /** Set when the world's history was asked for: at the next layout the view is fitted to the world's dates. */
+  private fitWorld = false;
 
   /** What is waiting to be drawn at the next frame: 0 nothing, 1 reposition, 2 relayout, 3 refresh. */
   private dirty = 0;
@@ -317,6 +329,12 @@ export class TimelineView extends ItemView {
     const filterButton = this.button(toolbar, FILTER_LABEL, TIMELINE_ICONS.filter, () => {
       this.askFilter();
     });
+    // The world on the timeline: a lane per type of entity, on or off.
+    this.worldButton = this.button(toolbar, WORLD_LABEL, null, () => {
+      this.toggleWorld();
+    });
+    this.worldButton.addClass('spellbook-timeline-world-switch');
+    this.worldButton.setAttr('title', WORLD_HINT);
 
     const alerts = root.createDiv({ cls: ['spellbook-timeline-alerts', HIDDEN] });
     const filter = root.createDiv({ cls: ['spellbook-timeline-filter', HIDDEN], attr: { role: 'status' } });
@@ -422,6 +440,8 @@ export class TimelineView extends ItemView {
     this.filterDrawn = '';
     this.dropBand = null;
     this.watchers.clear();
+    this.worldButton = null;
+    this.fitWorld = false;
     this.content = null;
     this.lastData = null;
     this.scene = null;
@@ -568,7 +588,11 @@ export class TimelineView extends ItemView {
     this.drawnPart = null;
     const content = this.content;
     els.root.toggleClass('spellbook-is-empty', content === null);
-    els.empty.toggleClass(HIDDEN, content !== null && content.events.size > 0);
+    // Entities on the world lanes are something to show as well.
+    const worldRows = content !== null && this.mode === 'date' && content.world.shown.some((lane) => lane.rows.length > 0);
+    els.empty.toggleClass(HIDDEN, content !== null && (content.events.size > 0 || worldRows));
+    this.worldButton?.toggleClass('is-active', content?.world.on === true);
+    this.worldButton?.setAttr('aria-pressed', content?.world.on === true ? 'true' : 'false');
     els.empty.setText(content === null ? NO_PROJECT_MESSAGE : content.filteredOut > 0 ? NO_MATCHING_EVENTS : NO_EVENTS_HINT);
     this.drawAlerts();
     this.drawFilter();
@@ -600,6 +624,16 @@ export class TimelineView extends ItemView {
         laneKey: this.laneKey,
         crossLength: this.crossLength,
       });
+    // The world's history was asked for: the view goes to the world's own dates, on the first world lane on a phone.
+    if (this.fitWorld && this.mode === 'date' && content.world.on) {
+      this.fitWorld = false;
+      // A world without a single date has nothing to go to: the view stays where it is.
+      if (content.world.shown.length > 0) {
+        this.crossScroll = 0;
+        if (this.vertical) this.laneKey = content.world.shown[0]?.key ?? this.laneKey;
+        this.scales.date = fitScale(content, 'date', this.vertical, this.alongLength, this.laneKey, true);
+      }
+    }
     // A view that was never set shows the events: all of them, or on a narrow pane those of the lane on show.
     let scale = (this.scales[this.mode] ??= fitScale(content, this.mode, this.vertical, this.alongLength, this.laneKey));
     let scene = lay(scale);
@@ -747,7 +781,8 @@ export class TimelineView extends ItemView {
     }
     if (!scene.vertical) return;
     const current = scene.lanes[0]?.lane.key ?? null;
-    for (const lane of scene.shown) {
+    // The world lanes follow the others, as they do on a wide pane.
+    for (const lane of [...scene.shown, ...scene.world]) {
       const tab = els.switcher.createEl('button', {
         cls: 'spellbook-timeline-lane-tab',
         attr: { 'aria-pressed': lane.key === current ? 'true' : 'false' },
@@ -895,13 +930,24 @@ export class TimelineView extends ItemView {
     const dates = event?.start ? formatStoryDateRange(event.start, event.end) : '';
     const meta = event !== null && (scene.vertical || box.size >= META_FROM_WIDTH);
     const entities = event === null ? '' : (this.content?.entities.get(event.path) ?? []).map((entity) => entity.name).join('\n');
+    // An entity of a world lane is drawn in its own way (worldCards.ts).
+    const world = worldRowOf(this.content, box);
     const drawn =
-      event === null
-        ? `cluster|${box.members.length}|${color ?? ''}`
-        : [event.title, dates, event.tags.join(' '), color, box.isSpan, event.source, meta, event.problems.join(' '), entities].join('|');
+      world !== null
+        ? worldCardDrawn(world, color, scene.vertical)
+        : event === null
+          ? `cluster|${box.members.length}|${color ?? ''}`
+          : [event.title, dates, event.tags.join(' '), color, box.isSpan, event.source, meta, event.problems.join(' '), entities].join('|');
     if (drawn !== card.drawn) {
       card.drawn = drawn;
-      this.fillCard(card, dates, meta);
+      if (world === null) this.fillCard(card, dates, meta);
+      else {
+        this.colour(card.el, color);
+        card.entities = null;
+        const filled = fillWorldCard(card.el, world, scene.vertical);
+        card.text = filled.text;
+        card.more = filled.more;
+      }
     }
 
     const cross = boxCross(scene, lane, box);
@@ -922,6 +968,8 @@ export class TimelineView extends ItemView {
     style.inlineSize = px(scene.vertical ? cross.size : size);
     style.blockSize = px(scene.vertical ? size : cross.size);
     card.width = style.inlineSize;
+    // The bar and the points of an entity stand where their days are, also when a long bar was cut.
+    if (world !== null) placeWorldCard(card.el, world, { pxPerDay: scene.scale.pxPerDay, cut: along - box.along, size });
     // How many chips fit depends on how wide the card is.
     if (card.entities !== null && card.entities.fitted !== card.width) this.toFit.add(card);
   }
@@ -1144,7 +1192,7 @@ export class TimelineView extends ItemView {
     if (card && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
       const picked = card.placed.box.event;
-      if (picked) this.actions.open(picked, Keymap.isModEvent(event));
+      if (picked) this.openCard(card, Keymap.isModEvent(event));
       else this.openCluster(card);
       return;
     }
@@ -1192,7 +1240,7 @@ export class TimelineView extends ItemView {
       const picked = hit.card.placed.box.event;
       if (!picked) return;
       if (hit.more) this.showMenu(hit.card, point);
-      else this.actions.open(picked, Keymap.isModEvent(event));
+      else this.openCard(hit.card, Keymap.isModEvent(event));
       return;
     }
     // An empty place in a lane: a new event there.
@@ -1200,6 +1248,8 @@ export class TimelineView extends ItemView {
     const scale = this.scales[this.mode];
     if (!scene || !scale) return;
     const at = this.local(point);
+    // ...but not in a world lane: an entity is made in the World browser, and no event belongs there.
+    if (scene.vertical ? scene.bands.length === 0 : worldLaneAt(scene, at.cross + this.crossScroll) !== null) return;
     const calendar = this.content?.calendar ?? null;
     const date = this.mode === 'story' ? null : dateAtPosition(scale, at.along, precisionForScale(scale, calendar), calendar);
     const lane = scene.vertical ? (scene.lanes[0]?.lane.key ?? null) : laneAt(scene.bands, at.cross + this.crossScroll);
@@ -1217,7 +1267,9 @@ export class TimelineView extends ItemView {
     const calendar = this.content?.calendar ?? null;
     const date =
       this.mode === 'story' ? null : dateAtPosition(scale, this.alongLength / 2, precisionForScale(scale, calendar), calendar);
-    const lane = scene.vertical ? scene.lanes[0]?.lane : scene.shown.find((candidate) => candidate.kind === 'lane');
+    // On a phone the lane on show may be a world lane, which no event can be in.
+    const own = scene.vertical && scene.bands.length > 0 ? scene.lanes[0]?.lane : undefined;
+    const lane = own ?? scene.shown.find((candidate) => candidate.kind === 'lane');
     this.actions.askNewEvent(date, lane?.key ?? null);
   }
 
@@ -1229,9 +1281,48 @@ export class TimelineView extends ItemView {
     this.relayout();
   }
 
+  /** A tap on a card (or Enter on it): an event's note, or the sheet of an entity of a world lane. */
+  private openCard(card: Card, where: ReturnType<typeof Keymap.isModEvent>): void {
+    const event = card.placed.box.event;
+    if (!event) return;
+    const world = worldRowOf(this.content, card.placed.box);
+    // With the usual key held, the entity's note in a new tab, like any card's; and its note when nobody offers a sheet.
+    if (world !== null && where === false && this.host.showEntity?.(event.path) === true) return;
+    this.actions.open(event, where);
+  }
+
+  /** The switch "World": the world lanes on or off, on this device. */
+  private toggleWorld(): void {
+    const content = this.content;
+    if (content === null) return;
+    const on = !content.world.on;
+    this.actions.setWorld(on);
+    if (on && content.world.lanes.length === 0) new Notice(NO_WORLD_DATES, 8000);
+  }
+
+  /**
+   * Show the world's history: the world lanes on, the scenes' lane off, by
+   * date, fitted to the range of the world's dates.
+   */
+  showWorldHistory(): void {
+    if (this.closed) return;
+    this.mode = 'date';
+    this.fitWorld = true;
+    this.actions.showWorldHistory();
+    if (this.content !== null && this.content.world.lanes.length === 0) new Notice(NO_WORLD_DATES, 8000);
+    // Also when nothing had to be changed: the view goes to the world's dates.
+    this.schedule(3);
+  }
+
   private showMenu(card: Card, at: GesturePoint): void {
     const event = card.placed.box.event;
     if (!event) return;
+    if (worldRowOf(this.content, card.placed.box) !== null) {
+      worldMenu(this.actions, event, () => {
+        this.openCard(card, false);
+      }).showAtPosition(at);
+      return;
+    }
     const menu = eventMenu(this.actions, this.host.clock, event, card.placed.box.laneKey, at);
     if (event.problems.length > 0) {
       menu.addSeparator();
@@ -1269,6 +1360,8 @@ export class TimelineView extends ItemView {
     if (!event || event.start === null || !scene || !scale) return { kind: 'tap' };
     const a = this.local(from);
     const b = this.local(to);
+    // An entity stays in the lane of its type: only its date follows a drag.
+    const fixed = scene.vertical || worldRowOf(this.content, card.placed.box) !== null;
     return resolveDrag({
       start: event.start,
       end: event.end,
@@ -1277,8 +1370,8 @@ export class TimelineView extends ItemView {
       along: this.mode === 'story' ? 0 : b.along - a.along,
       across: b.cross - a.cross,
       scale,
-      bands: scene.vertical ? undefined : scene.bands,
-      pointerAcross: scene.vertical ? undefined : b.cross + this.crossScroll,
+      bands: fixed ? undefined : scene.bands,
+      pointerAcross: fixed ? undefined : b.cross + this.crossScroll,
     });
   }
 

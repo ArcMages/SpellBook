@@ -871,7 +871,7 @@ describe('entity types', () => {
       lastMenu().item(item).click();
     };
     one(rowOf(modal, 'Character'), 'spellbook-world-type-more').fire('click');
-    expect(lastMenu().outline).toEqual(['Rename', 'Change folder', 'Change properties']); // a built-in type cannot be removed
+    expect(lastMenu().outline).toEqual(['Rename', 'Change folder', 'Change properties', 'Change date words']); // a built-in type cannot be removed
     more('Character', 'Change properties');
     expect(one(lastWindow().contentEl, 'spellbook-prompt-input').value).toBe('role, age, occupation, appearance, personality, voice, goal, arc, summary');
     await answer(s, 'role, pronouns, summary, type');
@@ -929,7 +929,7 @@ describe('entity types', () => {
     s.vault.external.create(inNovel('World/Vessel/Kraken.md'), { frontmatter: { type: 'vessel' } });
     await calm(s);
     one(rowOf(modal, 'Vessel'), 'spellbook-world-type-more').fire('click');
-    expect(lastMenu().outline).toEqual(['Rename', 'Change folder', 'Change properties', '---', 'Remove']);
+    expect(lastMenu().outline).toEqual(['Rename', 'Change folder', 'Change properties', 'Change date words', '---', 'Remove']);
     lastMenu().item('Remove').click();
     const confirm = lastWindow();
     expect(one(confirm.contentEl, 'spellbook-confirm-message').text).toMatch(/1 note has this type\. They stay where they are/);

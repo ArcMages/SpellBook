@@ -90,6 +90,7 @@ describe('plugging the timeline in', () => {
     expect(w.plugin.commands.map((command) => [command.id, command.name])).toEqual([
       ['open-timeline', 'Open timeline'],
       ['edit-story-calendar', 'Edit story calendar'],
+      ['open-world-history', 'Open world history'],
     ]);
     expect([OPEN_TIMELINE_COMMAND, OPEN_TIMELINE_NAME]).toEqual(['open-timeline', 'Open timeline']);
     expect(w.plugin.ribbonIcons.map((icon) => [icon.icon, icon.title, icon.shown])).toEqual([

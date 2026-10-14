@@ -48,3 +48,31 @@ export interface SceneEntitiesService {
   /** Be told when what `of` gives may have changed. Returns the function that stops it. */
   onChange(listener: () => void): () => void;
 }
+
+// ------------------------------------------------------------------- time
+//
+// Two more services join the World browser and the timeline, which do not
+// know each other either: the timeline shows an entity's sheet through the
+// first, and the World browser opens the world's history through the second.
+
+/** The name the World browser offers its sheets under. */
+export const ENTITY_SHEET_SERVICE = 'world.entitySheet';
+
+/** Shows an entity's sheet in the World browser. */
+export interface EntitySheetService {
+  /**
+   * Bring the World browser to the front with the sheet of one entity.
+   *
+   * @param entityPath the entity's note, relative to the project folder
+   */
+  show(entityPath: string): void;
+}
+
+/** The name the timeline offers the world's history under. */
+export const WORLD_HISTORY_SERVICE = 'timeline.worldHistory';
+
+/** Opens the timeline as the history of the world. */
+export interface WorldHistoryService {
+  /** Bring the timeline to the front with the world lanes on and the scenes' lane off, fitted to the world's dates. */
+  show(): void;
+}

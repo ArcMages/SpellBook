@@ -9,7 +9,9 @@
 //            the picture (or the type's icon), the name, one or two key
 //            facts, the summary and the number of scenes it is in;
 //            as a list: one table of them all, sorted by the column whose
-//            heading was tapped (name, type, kind, scenes)
+//            heading was tapped (name, type, kind, from, until, scenes);
+//            the cards can be put in order of date instead of name, and
+//            "History" opens the world on the timeline
 //   details  the entity sheet (sheet.ts): one entity as a card to read and
 //            to fill in
 //
@@ -28,10 +30,12 @@
 // Names and summaries are the writer's own text, in any language: each takes
 // the direction of its own text. Nothing depends on hovering or dragging.
 
-import { ItemView, Keymap, Menu, Platform } from 'obsidian';
+import { ItemView, Keymap, Menu, Notice, Platform } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import {
   ALL_TYPES,
+  CARD_ORDERS,
+  DEFAULT_CARD_ORDER,
   DEFAULT_SORT,
   OTHER_NAME,
   OTHER_TYPE,
@@ -41,9 +45,11 @@ import {
   isNarrowPane,
   nextSort,
   sceneCountText,
+  sortByDate,
+  spanText,
   tableRows,
 } from '../../core/world';
-import type { Entity, EntityGroup, WorldLayout, WorldRow, WorldSort } from '../../core/world';
+import type { CardOrder, Entity, EntityGroup, WorldLayout, WorldRow, WorldSort } from '../../core/world';
 import { ConfirmModal } from '../../ui/confirmModal';
 import { ROW_MORE_ICON, iconName, showIcon } from '../../ui/icons';
 import { isInputMethodKey } from '../../ui/keys';
@@ -84,6 +90,11 @@ export const NONE_OF_TYPE_TEXT = 'None yet.';
 export const CARDS_TEXT = 'Cards';
 export const LIST_TEXT = 'List';
 export const LAYOUT_LABEL = 'Show as';
+export const SHEET_TEXT = 'Sheet';
+export const HISTORY_TEXT = 'History';
+export const HISTORY_LABEL = 'Open world history: the world on the timeline';
+export const NO_TIMELINE_TEXT = 'The timeline is not available.';
+export const CARD_ORDER_LABEL = 'Order of the cards';
 export const OPEN_SHEET_TEXT = 'Open sheet';
 export const OPEN_IN_NEW_TAB_TEXT = 'Open note in new tab';
 
@@ -109,6 +120,10 @@ interface Elements {
   /** The two buttons of the switch between cards and list, by the layout each stands for. */
   readonly layouts: ReadonlyMap<WorldLayout, HTMLButtonElement>;
   readonly add: HTMLButtonElement;
+  /** The list that orders the cards by name or by date; out of sight while the table shows. */
+  readonly order: HTMLSelectElement;
+  /** The button that opens the world's history on the timeline. */
+  readonly history: HTMLButtonElement;
   readonly types: HTMLElement;
   readonly list: HTMLElement;
   readonly detail: HTMLElement;
@@ -130,6 +145,8 @@ export class WorldView extends ItemView {
   private selected: string | null = null;
   /** How the table is sorted. It lasts as long as the pane. */
   private sort: WorldSort = DEFAULT_SORT;
+  /** How the cards of each group are ordered. It lasts as long as the pane. */
+  private cardOrder: CardOrder = DEFAULT_CARD_ORDER;
   private readonly sheet: EntitySheet;
 
   constructor(leaf: WorkspaceLeaf, host: WorldHost) {
@@ -220,6 +237,19 @@ export class WorldView extends ItemView {
         }),
       );
     }
+    // The cards by name, or by when each entity begins.
+    const order = bar.createEl('select', { cls: 'dropdown spellbook-world-order', attr: { 'aria-label': CARD_ORDER_LABEL } });
+    for (const choice of CARD_ORDERS) order.createEl('option', { value: choice.id, text: choice.title });
+    order.value = this.cardOrder;
+    order.addEventListener('change', () => {
+      this.cardOrder = order.value === 'date' ? 'date' : 'name';
+      this.drawList();
+    });
+    // The world on the timeline: a lane per type, fitted to the world's dates.
+    const history = textButton(bar, 'spellbook-world-history-button', HISTORY_TEXT, () => {
+      if (this.host.showWorldHistory?.() !== true) new Notice(NO_TIMELINE_TEXT);
+    });
+    history.setAttr('aria-label', HISTORY_LABEL);
     const add = textButton(bar, 'mod-cta spellbook-world-new', NEW_TEXT, (button) => {
       this.showNewMenu(button);
     });
@@ -230,7 +260,7 @@ export class WorldView extends ItemView {
     const body = root.createDiv({ cls: 'spellbook-world-body' });
     const list = body.createDiv({ cls: 'spellbook-world-list' });
     const detail = body.createDiv({ cls: 'spellbook-world-detail' });
-    this.els = { root, search, filter, layouts, add, types, list, detail };
+    this.els = { root, search, filter, layouts, add, order, history, types, list, detail };
 
     if (typeof ResizeObserver === 'function') {
       this.observer = new ResizeObserver(() => {
@@ -295,6 +325,9 @@ export class WorldView extends ItemView {
       button.setAttr('aria-pressed', id === layout ? 'true' : 'false');
     }
     els.root.toggleClass('spellbook-world-as-list', layout === 'list');
+    els.order.disabled = !usable;
+    setShown(els.order, layout !== 'list');
+    els.history.disabled = !usable;
     this.drawFilter();
     if (this.selected !== null && this.host.entity(this.selected) === null) this.select(null, false);
     this.drawList();
@@ -343,7 +376,9 @@ export class WorldView extends ItemView {
       this.drawTable(list);
       return;
     }
-    const groups = groupEntities(entities, this.host.types, this.query, this.typeFilter);
+    // By date: the groups stay, and within each the earliest comes first; those without a date come after.
+    const ordered = this.cardOrder === 'date' ? sortByDate(entities, (entity) => this.host.timeOf(entity)) : entities;
+    const groups = groupEntities(ordered, this.host.types, this.query, this.typeFilter);
     if (groups.length === 0) {
       list.createDiv({ cls: 'spellbook-world-message', text: NOTHING_FOUND_TEXT });
       return;
@@ -386,6 +421,12 @@ export class WorldView extends ItemView {
       for (const fact of facts) {
         line.createSpan({ cls: 'spellbook-world-card-fact', text: fact.value, attr: { dir: 'auto', 'aria-label': `${fact.name}: ${fact.value}` } });
       }
+    }
+    // When it begins and ends, when its note says: "1889", "1841 - 1922".
+    const dates = spanText(this.host.timeOf(entity));
+    if (dates !== '') {
+      // In an invented calendar the names of months and eras are the writer's own text.
+      words.createDiv({ cls: 'spellbook-world-card-dates', text: dates, attr: { dir: this.host.calendar === null ? 'ltr' : 'auto' } });
     }
     iconButton(head, 'spellbook-world-card-more', MORE_LABEL, ROW_MORE_ICON, (button) => {
       this.showCardMenu(entity, button);
@@ -446,7 +487,15 @@ export class WorldView extends ItemView {
 
   /** The entities as one table. A tap on a heading sorts by that column, a second tap the other way round. */
   private drawTable(list: HTMLElement): void {
-    const rows = tableRows(this.host.entities, this.host.types, this.query, this.typeFilter, this.sort, (path) => this.host.links.scenesOf(path).length);
+    const rows = tableRows(
+      this.host.entities,
+      this.host.types,
+      this.query,
+      this.typeFilter,
+      this.sort,
+      (path) => this.host.links.scenesOf(path).length,
+      (entity) => this.host.timeOf(entity),
+    );
     if (rows.length === 0) {
       list.createDiv({ cls: 'spellbook-world-message', text: this.query.trim() === '' ? NONE_OF_TYPE_TEXT : NOTHING_FOUND_TEXT });
       return;
@@ -488,6 +537,10 @@ export class WorldView extends ItemView {
     // The name of a type of the writer's own, and what a field holds, are the writer's text.
     cell('type').createSpan({ cls: 'spellbook-world-table-text', text: row.typeName, attr: { dir: 'auto' } });
     cell('kind').createSpan({ cls: 'spellbook-world-table-text', text: row.kind, attr: { dir: 'auto' } });
+    // When it begins and when it ends. In an invented calendar the names in a date are the writer's own text.
+    const dateDir = this.host.calendar === null ? 'ltr' : 'auto';
+    cell('from').createSpan({ cls: 'spellbook-world-table-text', text: row.fromText, attr: { dir: dateDir } });
+    cell('until').createSpan({ cls: 'spellbook-world-table-text', text: row.untilText, attr: { dir: dateDir } });
     cell('scenes').createSpan({ cls: 'spellbook-world-table-text', text: String(row.scenes), attr: { dir: 'ltr' } });
     // A tap on a row shows the entity's sheet; a tap on the name opens the note.
     const show = this.sheetOpener(entity);

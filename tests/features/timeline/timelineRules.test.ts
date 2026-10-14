@@ -35,7 +35,6 @@ describe('the timeline screen source', () => {
   it('has its files: the screen, and the three that plug it into the plugin', () => {
     expect([...files].sort()).toEqual([
       'calendarModal.ts',
-      'dateFields.ts',
       'entityPicker.ts',
       'eventModal.ts',
       'hiddenLanes.ts',
@@ -48,7 +47,10 @@ describe('the timeline screen source', () => {
       'timelineScene.ts',
       'timelineView.ts',
       'timelineWiring.ts',
+      'worldCards.ts',
     ]);
+    // The date fields are shared with the entity sheet: they live in src/ui.
+    expect(files).not.toContain('dateFields.ts');
     expect(screenFiles).toHaveLength(11);
   });
 

@@ -15,7 +15,7 @@ import {
   calendarPreview,
   draftCalendar,
 } from '../../../src/features/timeline/calendarModal';
-import { NOT_A_DATE, datePartsOf, datePartsText } from '../../../src/features/timeline/dateFields';
+import { NOT_A_DATE, datePartsOf, datePartsText } from '../../../src/ui/dateFields';
 import { readEventForm } from '../../../src/features/timeline/eventModal';
 import type { EventForm } from '../../../src/features/timeline/eventModal';
 import type { TimelineData } from '../../../src/features/timeline/timelineHost';

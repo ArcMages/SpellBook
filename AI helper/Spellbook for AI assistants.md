@@ -207,6 +207,7 @@ Each entry is a type of world entity:
 - `color`: one of the eight colour names, or nothing.
 - `icon`: the name of an icon.
 - `fieldsVersion`: bookkeeping on built-in types. Leave it.
+- `dateWords`: optional, a list of two words: what the entity's `date` and `end` are called on its sheet (section 9). Absent means the usual words.
 
 Seven types are built in and exist even when the index says nothing about them: `character`, `place`, `faction`, `item`, `lore`, `creature`, `culture`. Section 9 lists their folders and fields. When `entityTypes` is present, use the `folder` and `fields` it gives, because the writer may have changed them. The writer can add types of their own.
 
@@ -469,6 +470,10 @@ image: "[[mara.png]]"
 related:
   - "[[Tamar|sister]]"
   - "[[Saltwick|lives in]]"
+date: 1889-04-17
+moments:
+  - 1911 | qualifies as a chart maker
+  - 1923-10-13 | is sent to Saltwick
 ---
 ## Appearance
 
@@ -486,6 +491,9 @@ related:
 | `aliases` | list of text | Other names it goes by. This is Obsidian's own property. "Find mentions" looks for these names too. |
 | `image` | link | The entity's picture: a link to an image file anywhere in the vault, `"[[mara.png]]"`. Optional. |
 | `related` | list of links | The entities it has to do with, each with a short label. Optional. |
+| `date` | story date | When it begins: a birth, a founding, when a thing was made, when a legend is set. Optional. |
+| `end` | story date | When it ends: a death, a fall, a loss. Optional; later than `date`. |
+| `moments` | list of text | More points in its life, each a story date, ` \| ` and a short label. Optional. |
 
 Every other property is a **field**: one line of text or a number. The fields a type starts with are listed below, but the writer can add or remove fields in any single note. A field that holds a list cannot be edited on the entity's sheet in Spellbook, so write fields as plain text.
 
@@ -537,6 +545,24 @@ related:
 - An entry without a label is just related.
 - A relation is written **on one side only**. The other entity's sheet shows it under "Mentioned by", worked out from the notes that list it. Do not write the reverse entry unless the writer wants a different label on that side.
 - An entity is related to another once: do not add a second entry that leads to the same note.
+
+### Time: `date`, `end` and `moments`
+
+An entity can have a place in the story's time, written exactly like a timeline event's dates (section 7), in the project's calendar:
+
+```yaml
+date: 1858
+end: 1923-03
+moments:
+  - 1892 | takes over the light
+  - 1922-11 | is pensioned off
+```
+
+- `date` is when it begins and `end` when it ends. Either may be absent. An `end` that is not later than `date` is ignored. An `end` without a `date` still counts (a thing whose loss is known but not its making).
+- Each entry of `moments` is one line: a story date, then ` | ` (a space, a bar, a space), then a label of at most 80 characters on one line. The bar and the label may be left out: `1911` alone is a moment with no label. In an invented calendar the date has its era: `1210-02 AE | the flood`. Everything up to the first bar is the date; the rest is the label.
+- A year of the real-world calendar is written as a bare number (`date: 1858`); a month or a day as text (`date: 1923-03`). In an invented calendar every date is text.
+- What the two dates are called depends on the type, and is only shown on screen: `character` Born / Died, `place` Founded / Abandoned, `faction` Founded / Dissolved, `item` Made / Lost, `lore` Set in / Until, `creature` and `culture` First known / Last known, a type of the writer's own From / Until. The index's `entityTypes` may give a type other words under `dateWords`.
+- Dated entities show on the timeline in lanes of their own, one per type, when the writer switches them on. They are never in `timelines`, and have no `spellbook: event` marker: do not add either.
 
 ### Pictures: `image`
 
@@ -648,8 +674,11 @@ The same works for `label`.
 2. Collect the events: every note under `Timeline/` whose `entities` leads to the character (matched as above).
 3. Collect the dated scenes: every scene in the binder that has a `date` and whose `entities` leads to the character.
 4. Read each one's `date` (and `end`) as section 7 describes, using the project's calendar.
-5. Sort by date. Put a year-only date at the start of its year and a month-only date at the start of its month. List undated events separately at the end.
-6. For each, give the title, the date as written, the lanes (`timelines`), and for events the linked `scenes`.
+5. Add the character's own `date` and `end` (section 9, "Time"), and each entry of its `moments`, read the same way.
+6. Sort by date. Put a year-only date at the start of its year and a month-only date at the start of its month. On the same day put the character's own `date` first and its `end` last. List undated things separately at the end.
+7. For each, give the title (or for the character's own dates the word for it, for a moment its label), the date as written, the lanes (`timelines`), and for events the linked `scenes`.
+
+This is what the History part of the entity's sheet shows.
 
 Say which entries are story events and which are scenes: the order of the story's events is not the order in which the book tells them.
 
@@ -914,6 +943,33 @@ aliases: []
 ```
 
 A name, a field or a whole note may be in Hebrew: `World/Lore/הים מחזיר.md` with `kind: אמרה` is as valid as any of the above.
+
+### Give an entity a date or a moment
+
+Before, in `World/Characters/Tobias.md`:
+
+```yaml
+summary: Runs the ferry to Saltwick.
+aliases: []
+```
+
+After:
+
+```yaml
+summary: Runs the ferry to Saltwick.
+aliases: []
+date: 1882-02
+moments:
+  - 1897 | takes over the ferry from his father
+```
+
+Steps:
+
+1. Write the date in the project's calendar (section 7): in the real-world calendar a year as a bare number, a month or a day as text; in an invented calendar always as text, with the era's short form.
+2. To set `date` or `end`, change that one key and no other. An `end` must be later than `date`; if it would not be, ask the writer.
+3. To add a moment, append `- <date> | <label>` at the end of `moments`, or add the key with this one entry. If `moments` is a single text, turn it into a list of the old entry and the new one. Do not reorder the writer's entries, and do not add an entry that is already there word for word.
+4. To change or remove a moment, change or remove that one entry only. Remove the `moments` key when its last entry goes.
+5. Do not touch the note's body, and add no property besides these.
 
 ### List an entity on a scene
 

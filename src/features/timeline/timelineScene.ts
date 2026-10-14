@@ -56,6 +56,16 @@ import type {
   TimelineEvent,
   TimelineModel,
 } from '../../core/timeline';
+import {
+  isWorldLaneKey,
+  layoutWorldLaneDown,
+  layoutWorldLanes,
+  readEntities,
+  readEntityTypes,
+  worldExtent,
+  worldLanes,
+} from '../../core/world';
+import type { PlacedWorldRow, WorldLane, WorldLaneLayout, WorldNote, WorldTimeRow } from '../../core/world';
 import type { TimelineData } from './timelineHost';
 
 /** "By date" puts events where their dates are; "By story order" in the order the manuscript tells them. */
@@ -156,6 +166,58 @@ export interface TimelineContent {
   readonly story: readonly NarrativeItem[];
   /** The same events, each standing on a day of its own (day 0, 1, 2 ...), so the engine can lay them out evenly. */
   readonly storyEvents: readonly TimelineEvent[];
+  /** The world on the timeline: a lane per type of entity. */
+  readonly world: WorldContent;
+}
+
+/** The world on the timeline. */
+export interface WorldContent {
+  /** True when this device shows the world lanes. */
+  readonly on: boolean;
+  /** Every lane the world has (one per type that has an entity with a date), the hidden ones included. */
+  readonly lanes: readonly WorldLane[];
+  /** The lanes this device shows; none while the world is off. */
+  readonly shown: readonly WorldLane[];
+  /** The row of every entity that has one, by the entity's path. */
+  readonly rows: ReadonlyMap<string, WorldTimeRow>;
+}
+
+/**
+ * The world lanes of a project: read from the entity notes the host hands
+ * over. When the timeline is narrowed to some entities, only those have a row.
+ */
+function readWorld(data: TimelineData, calendar: StoryCalendar | null, entityIndex: EntityIndex, wanted: ReadonlySet<string>): WorldContent {
+  const choice = data.worldLanes ?? { on: false, hidden: [] };
+  const types = readEntityTypes(data.entityTypes);
+  const notes = (data.worldNotes ?? []).map(
+    (note): WorldNote => ({
+      path: note.path,
+      frontmatter: typeof note.frontmatter === 'object' && note.frontmatter !== null ? (note.frontmatter as Record<string, unknown>) : null,
+    }),
+  );
+  const lanes = worldLanes(readEntities(notes, types), types, calendar, {
+    hidden: choice.hidden,
+    ...(wanted.size === 0 ? {} : { only: (entity) => wanted.has(entityIndex.resolve(entity.path).key) }),
+  });
+  const rows = new Map<string, WorldTimeRow>();
+  for (const lane of lanes) for (const row of lane.rows) rows.set(row.entity.path, row);
+  return { on: choice.on, lanes, shown: choice.on ? lanes.filter((lane) => !lane.hidden) : [], rows };
+}
+
+/** The world lanes that are drawn in a mode: the world has dates, so it shows by date only. */
+function worldShown(content: TimelineContent, mode: TimeMode): readonly WorldLane[] {
+  return mode === 'date' ? content.world.shown : [];
+}
+
+/** A world lane as the screen names it: a type's name is the writer's own text, as a lane's is. */
+function worldDisplay(lane: WorldLane): DisplayLane {
+  return { name: lane.name, color: lane.color, key: lane.key, kind: 'lane' };
+}
+
+/** The entity a card stands for, when it is a row of a world lane; null for an event's card. */
+export function worldRowOf(content: TimelineContent | null, box: Box): WorldTimeRow | null {
+  if (content === null || box.event === null || !isWorldLaneKey(box.laneKey)) return null;
+  return content.world.rows.get(box.event.path) ?? null;
 }
 
 /**
@@ -185,7 +247,8 @@ export function readContent(data: TimelineData, filter: readonly string[] = []):
   const filteredOut = whole.dated.length + whole.undated.length - model.dated.length - model.undated.length;
 
   const frontmatter = new Map<string, unknown>();
-  for (const note of [...data.events, ...data.scenes]) {
+  // An entity's dates are changed like an event's: its properties are known here too.
+  for (const note of [...data.events, ...data.scenes, ...(data.worldNotes ?? [])]) {
     if (!frontmatter.has(note.path)) frontmatter.set(note.path, note.frontmatter);
   }
   const all = [...model.dated, ...model.undated];
@@ -211,6 +274,7 @@ export function readContent(data: TimelineData, filter: readonly string[] = []):
     frontmatter,
     story,
     storyEvents,
+    world: readWorld(data, calendar, entityIndex, wanted),
   };
 }
 
@@ -270,8 +334,11 @@ export interface Scene {
   readonly display: readonly DisplayLane[];
   /** The lanes this device shows. */
   readonly shown: readonly DisplayLane[];
-  /** The lanes that are drawn: all the shown ones, or the one chosen on a phone. */
+  /** The world lanes this device shows, after the others: one per type of entity. Empty in story order. */
+  readonly world: readonly DisplayLane[];
+  /** The lanes that are drawn: all the shown ones (the world lanes last), or the one chosen on a phone. */
   readonly lanes: readonly LaneBoxes[];
+  /** The strips of the lanes an event can be in. The world lanes are not among them: no event is dropped there. */
   readonly bands: readonly LaneBand[];
   /** How much room the lanes take across the time axis. */
   readonly crossSize: number;
@@ -333,6 +400,41 @@ function laneOf(
   return { lane, trackCount, boxes, reach, start, size };
 }
 
+/** A row of a world lane needs room for its name. */
+export const WORLD_MIN_WIDTH = 64;
+const WORLD_CHROME = 30;
+
+/** The room an entity's name needs along a time axis that runs across. */
+export function worldCardWidth(text: string): number {
+  return Math.min(MAX_CARD_WIDTH, Math.max(WORLD_MIN_WIDTH, Math.round(WORLD_CHROME + text.length * LETTER_WIDTH)));
+}
+
+/** One world lane with its rows as cards. */
+function worldLaneBoxes(laid: WorldLaneLayout, start: number, size: number): LaneBoxes {
+  const lane = worldDisplay(laid.lane);
+  const boxes: Box[] = [];
+  const reach: number[] = [];
+  let furthest = Number.NEGATIVE_INFINITY;
+  for (const item of laid.items as readonly PlacedWorldRow[]) {
+    boxes.push({
+      key: `${lane.key}\n${item.row.entity.path}`,
+      laneKey: lane.key,
+      // The entity with its own "date" and "end": what a drag moves.
+      event: item.row.event,
+      members: [],
+      from: null,
+      until: null,
+      track: item.track,
+      along: item.position,
+      size: item.size,
+      isSpan: item.isSpan,
+    });
+    furthest = Math.max(furthest, item.position + item.size);
+    reach.push(furthest);
+  }
+  return { lane, trackCount: laid.trackCount, boxes, reach, start, size };
+}
+
 /** Lay the timeline out for drawing. */
 export function layoutScene(content: TimelineContent, options: SceneOptions): Scene {
   const { mode, vertical, scale } = options;
@@ -340,11 +442,25 @@ export function layoutScene(content: TimelineContent, options: SceneOptions): Sc
   const hidden = content.data.hiddenLanes;
   const display = displayLanes(content.lanes, events);
   const shown = visibleLanes(display, hidden);
-  const base = { mode, vertical, scale, display, shown };
+  const worldOnShow = worldShown(content, mode);
+  const base = { mode, vertical, scale, display, shown, world: worldOnShow.map(worldDisplay) };
 
   if (vertical) {
     const lane = laneOnShow(content, mode, options.laneKey);
     if (lane === null) return { ...base, lanes: [], bands: [], crossSize: 0, trackSize: 0 };
+    const worldLane = worldOnShow.find((candidate) => candidate.key === lane.key);
+    if (worldLane !== undefined) {
+      // A world lane on a phone: one column of cards, each an entity with its dates written on it.
+      const laidWorld = layoutWorldLaneDown(worldLane, { scale, measure: cardHeight, gap: CARD_GAP_DOWN });
+      const crossSize = Math.max(0, options.crossLength);
+      return {
+        ...base,
+        lanes: [worldLaneBoxes(laidWorld, 0, crossSize)],
+        bands: [],
+        crossSize,
+        trackSize: Math.max(0, crossSize - 2 * COLUMN_PAD),
+      };
+    }
     const laid = layoutLaneVertical(events, content.lanes, lane.name, {
       scale,
       measure: cardHeight,
@@ -372,7 +488,31 @@ export function layoutScene(content: TimelineContent, options: SceneOptions): Sc
     return laneOf(content, entry.lane, entry.rowCount, items, band.start, band.size);
   });
   const last = bands[bands.length - 1];
-  return { ...base, lanes, bands, crossSize: last ? last.start + last.size : 0, trackSize: ROW_SIZE };
+  const eventsSize = last ? last.start + last.size : 0;
+  if (worldOnShow.length === 0) return { ...base, lanes, bands, crossSize: eventsSize, trackSize: ROW_SIZE };
+  // The world lanes follow the others, packed the same way: no two rows of a lane overlap.
+  const laidWorld = layoutWorldLanes(worldOnShow, { scale, measure: (text) => worldCardWidth(text) });
+  const worldBands = laneBands(
+    laidWorld.map((entry) => ({ lane: { key: entry.lane.key }, rowCount: entry.trackCount })),
+    LANE_METRICS,
+  );
+  const worldBoxes = laidWorld.map((entry, index) => {
+    const band = worldBands[index] as LaneBand;
+    return worldLaneBoxes(entry, eventsSize + band.start, band.size);
+  });
+  const lastWorld = worldBands[worldBands.length - 1];
+  return {
+    ...base,
+    lanes: [...lanes, ...worldBoxes],
+    bands,
+    crossSize: eventsSize + (lastWorld ? lastWorld.start + lastWorld.size : 0),
+    trackSize: ROW_SIZE,
+  };
+}
+
+/** The world lane at a place across the time axis (in the scene's own measures); null when it is over none. */
+export function worldLaneAt(scene: Scene, cross: number): LaneBoxes | null {
+  return scene.lanes.find((lane) => isWorldLaneKey(lane.lane.key) && cross >= lane.start && cross <= lane.start + lane.size) ?? null;
 }
 
 /** Where a card sits across the time axis, and how thick it is. */
@@ -436,7 +576,8 @@ export function boxesIn(scene: Scene, part: SceneWindow): PlacedBox[] {
  */
 export function laneOnShow(content: TimelineContent, mode: TimeMode, laneKey: string | null): DisplayLane | null {
   const events = placedEvents(content, mode);
-  const shown = visibleLanes(displayLanes(content.lanes, events), content.data.hiddenLanes);
+  const world = worldShown(content, mode).map(worldDisplay);
+  const shown = [...visibleLanes(displayLanes(content.lanes, events), content.data.hiddenLanes), ...world];
   const asked = shown.find((candidate) => candidate.key === laneKey);
   if (asked !== undefined) return asked;
   const filled = new Set<string>();
@@ -447,8 +588,11 @@ export function laneOnShow(content: TimelineContent, mode: TimeMode, laneKey: st
   return shown.find((candidate) => filled.has(candidate.key)) ?? shown[0] ?? null;
 }
 
-/** The events that are placed in a mode and show in one lane. */
+/** The events that are placed in a mode and show in one lane. For a world lane: its entities, each from its first day to its last. */
 function eventsOfLane(content: TimelineContent, mode: TimeMode, laneKey: string): TimelineEvent[] {
+  if (isWorldLaneKey(laneKey)) {
+    return (worldShown(content, mode).find((lane) => lane.key === laneKey)?.rows ?? []).map((row) => row.extent);
+  }
   return placedEvents(content, mode).filter((event) => eventLaneKeys(event, content.lanes).includes(laneKey));
 }
 
@@ -461,7 +605,8 @@ function eventsOfLane(content: TimelineContent, mode: TimeMode, laneKey: string)
  * would often show a long empty stretch, with the lane's own events out of
  * sight.
  *
- * @param laneKey when time runs down: the lane on show (see `laneOnShow`); otherwise not used
+ * @param laneKey   when time runs down: the lane on show (see `laneOnShow`); otherwise not used
+ * @param worldOnly true for the world's history: the view is fitted to the world's own dates, whatever the events cover
  */
 export function fitScale(
   content: TimelineContent | null,
@@ -469,6 +614,7 @@ export function fitScale(
   vertical: boolean,
   length: number,
   laneKey: string | null = null,
+  worldOnly = false,
 ): TimeScale {
   const lane = vertical && content !== null ? laneOnShow(content, mode, laneKey) : null;
   if (mode === 'story') {
@@ -484,8 +630,15 @@ export function fitScale(
   };
   if (content === null) return fitAll(null, length, options);
   const laneExtent = lane === null ? null : timelineExtent(eventsOfLane(content, mode, lane.key));
+  // The world lanes on show count as well: an entity's row is fitted like an event.
+  const world = worldExtent(worldShown(content, mode));
+  const everything = worldOnly && world !== null ? null : timelineExtent(content.model.dated);
+  const whole =
+    world === null || everything === null
+      ? (world ?? everything)
+      : { firstDay: Math.min(world.firstDay, everything.firstDay), lastDay: Math.max(world.lastDay, everything.lastDay) };
   // A lane with no dated event of its own: the whole timeline, as on a wide pane.
-  const extent = laneExtent ?? timelineExtent(content.model.dated);
+  const extent = laneExtent ?? whole;
   // With nothing to show, the real-world calendar opens on today; an invented one on its first year.
   return fitAll(extent, length, { ...options, fallbackDay: content.calendar === null ? content.data.today : 0 });
 }

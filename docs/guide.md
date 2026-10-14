@@ -391,7 +391,10 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 - Each event has a menu: **Open**, **Open in new tab**, **Set date** or **Change date**, **Move earlier**, **Move later**, **Entities**, **Move to lane**, **Also show in lane**, **Remove from this lane**.
 - **Lanes** opens the "Timeline lanes" window: **Add lane**, and for each lane **Rename**, **Colour**, **Move up**, **Move down**, **Remove**, and **Hide** or **Show**. Removing a lane keeps its events; they show in the Other lane.
 - **Calendar** opens the [story calendar](#story-calendar).
-- **Only events with** narrows the timeline to the events that involve chosen characters, places or other entities; **Show all events** undoes it.
+- **Only events with** narrows the timeline to the events that involve chosen characters, places or other entities; **Show all events** undoes it. It narrows the world lanes too.
+- **World** switches the world lanes on or off: one lane for each type of entity that has a date, after your own lanes. An entity with a date and an end is a bar between the two; one with only a date is a point; its moments are small points on the same row, and its name stands on it. Tap an entity to open its sheet in the World screen; its menu has **Open sheet**, **Open note**, **Open note in new tab**, **Move earlier** and **Move later**. Drag it along its lane to change its dates, as you would an event; it stays in the lane of its type. In the "Timeline lanes" window the part called **World** shows or hides all world lanes, and each type's lane on its own.
+
+**World history.** Command **Open world history**, or the **History** button in the World screen, opens the timeline with the world lanes on and the Manuscript lane hidden, fitted to the range of the world's dates. Both are choices of this device: show the Manuscript lane again in the "Timeline lanes" window. The world lanes show in **By date** order only.
 
 **Dates.** A date can be a year, a year and month, or a full date: 1923, 1923-04 or 1923-04-12.
 
@@ -451,7 +454,9 @@ At the top of the screen:
 
 - A search box, which looks in names, other names and summaries.
 - **All types**, to show one type only.
-- **Cards** and **List**, under "Show as". Cards show each entity's picture or icon, its name, one or two key facts and its summary, in a group for each type. The list is one table of them all with the columns **Name**, **Type**, **Kind** and **Scenes**; tap a heading to sort by it, and again to turn the order round.
+- **Cards** and **List**, under "Show as". Cards show each entity's picture or icon, its name, one or two key facts and its summary, in a group for each type. The list is one table of them all with the columns **Name**, **Type**, **Kind**, **From**, **Until** and **Scenes**; tap a heading to sort by it, and again to turn the order round. **From** and **Until** are when each entity begins and ends.
+- **By name** or **By date**, for the order of the cards in each group. By date, the earliest comes first and those without a date come after. A card shows its dates under its key facts.
+- **History**, which opens the [world history](#timeline) on the timeline.
 - **New**, and the button for **Entity types**.
 
 Tap a card to open the entity's sheet; the number of scenes on the card does the same. Tap the entity's name on the card to open its note instead (on a computer the name shows as a link under the pointer). In the list it is the same: tap a row to open the sheet, tap the name to open the note. With a keyboard, Enter on a card or a row opens the sheet. Each card has a menu: **Open note**, **Open note in new tab**, **Open sheet**, **Rename**, **Delete** (to the trash).
@@ -470,7 +475,9 @@ The sheet is one entity laid out to read and to fill in. It opens beside the lis
 - **Open note** opens the note, where you write as much as you like under its headings.
 - **Related.** Press **Add**, type how the two have to do with each other ("sister", "keeps", "born there"; you may leave it empty), and tap the other entity. Relations are grouped by type. Each has a button to change its label and one to remove it. A relation is written in one note only; the other entity's sheet shows it by itself under **Mentioned by**.
 - **Scenes.** The scenes the entity is in, in the order of the book, each with its synopsis and a button to take the entity out of that scene.
+- **Time.** When the entity begins and when it ends, under its type's own words: a character is **Born** and **Died**, a place **Founded** and **Abandoned**, a faction **Founded** and **Dissolved**, an item **Made** and **Lost**, lore **Set in** and **Until**, a creature or a culture **First known** and **Last known**; a type of your own says **From** and **Until**. Press **Set** or **Change** and give the date in the same fields as the timeline's event window (in an invented calendar you pick the era, year, month and day); **Remove** takes the date away. Under **Moments**, **Add moment** adds a point in the entity's life: a date and a few words, such as "comes to Saltwick". Each moment can be changed or removed. Each change saves one property of the note and nothing else.
 - **Events.** The timeline events that list it, each with its date in the story.
+- **History.** Everything dated that concerns the entity, in order of time: its own dates and moments, the timeline events that list it and the dated scenes it is in. Tap a line to open the note it comes from. Whatever has no date is listed after, under **Undated**.
 - **Find mentions.** Lists scenes whose text names the entity, or one of its other names, without listing it, each with a **Link this scene** button.
 
 ![The sheet of a legend, with who tells it and the scenes and events it touches](images/lore-sheet.png)
@@ -485,7 +492,7 @@ The sheet is one entity laid out to read and to fill in. It opens beside the lis
 
 **Linking to scenes and events.** In the [inspector](#inspector), under **In this scene**, press **Add**. On the timeline, use **Entities** in an event's menu.
 
-**Entity types.** The **Entity types** window lets you **Add a type** of your own (for example "Spell") and **Rename**, **Change folder** or **Change properties** of any type, or **Remove** one of your own. Changing a type never changes a note.
+**Entity types.** The **Entity types** window lets you **Add a type** of your own (for example "Spell") and **Rename**, **Change folder**, **Change properties** or **Change date words** of any type, or **Remove** one of your own. **Change date words** takes two words with a comma between them, for example "Launched, Wrecked"; leave it empty for the usual words. Changing a type never changes a note.
 
 **On a phone.** A narrow pane shows one column of cards, and the sheet takes the place of the list, with a button that leads back.
 
@@ -608,6 +615,7 @@ Obsidian shows each of these with "Spellbook:" in front.
 | Open writing report | Shows the writing report. |
 | Open timeline | Shows the timeline. |
 | Edit story calendar | Opens the window that defines the story's calendar. |
+| Open world history | Shows the timeline with the world lanes on and the Manuscript lane off, fitted to the world's dates. |
 | Open world | Shows the World screen. |
 | New character | Makes a character note. |
 | New place | Makes a place note. |

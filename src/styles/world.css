@@ -1250,3 +1250,219 @@
     justify-content: center;
   }
 }
+
+/* ===================================================================== Time */
+
+/* When an entity begins and ends, its moments and its history; the dates in
+   the table and on a card; and the two controls of the bar that go with
+   them. */
+
+/* The bar: "By name" or "By date" for the cards, and "History". */
+.spellbook-world-bar .spellbook-world-order,
+.spellbook-world-bar .spellbook-world-history-button {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* A card: its dates under its key facts. */
+.spellbook-world-card-dates {
+  min-width: 0;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+/* The table has two more columns: when it begins and when it ends. */
+.spellbook-world-table .spellbook-world-table-row {
+  grid-template-columns:
+    minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.1fr) minmax(0, 1.1fr)
+    minmax(4.5em, auto);
+}
+
+/* A narrow pane keeps the name, the two dates and the scenes: the type is
+   told by the icon in front of the name, and the kind is on the sheet. */
+.spellbook-world-narrow .spellbook-world-table .spellbook-world-table-row {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(3em, auto);
+}
+
+.spellbook-world-narrow .spellbook-world-table .spellbook-world-table-kind {
+  display: none;
+}
+
+/* The headings of the two parts, like the sheet's other headings. */
+.spellbook-world-time-head {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  margin-block: var(--size-4-4) var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-world-time-count {
+  color: var(--text-faint);
+  font-weight: var(--font-normal);
+}
+
+.spellbook-world-time-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-1);
+}
+
+.spellbook-world-time-line {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-3);
+  min-width: 0;
+}
+
+/* The sheet's "Time" part: a word, a date, and the button that changes it. */
+.spellbook-world-time {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-1);
+}
+
+.spellbook-world-time-row,
+.spellbook-world-time-moment {
+  padding-inline-start: var(--size-4-2);
+}
+
+.spellbook-world-time-word {
+  flex: 0 0 auto;
+  min-width: 6em;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: start;
+}
+
+.spellbook-world-time-value,
+.spellbook-world-time-said {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.spellbook-world-time-none {
+  color: var(--text-faint);
+}
+
+.spellbook-world-time-problem {
+  color: var(--text-error);
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-world-time-line .spellbook-world-time-set,
+.spellbook-world-time-head .spellbook-world-time-add {
+  flex: 0 0 auto;
+  height: auto;
+  padding: var(--size-2-1) var(--size-4-2);
+  font-size: var(--font-ui-smaller);
+}
+
+.spellbook-world-time-head .spellbook-world-time-add {
+  margin-inline-start: auto;
+}
+
+.spellbook-world-time .spellbook-world-time-moments-head {
+  margin-block-start: var(--size-4-2);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+/* A moment: its date, then what happens. */
+.spellbook-world-time-said {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--size-4-2);
+}
+
+.spellbook-world-time-when,
+.spellbook-world-history-when {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.spellbook-world-time-what,
+.spellbook-world-history-what {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.spellbook-world-time-line .spellbook-world-time-edit,
+.spellbook-world-time-line .spellbook-world-time-remove {
+  flex: 0 0 auto;
+}
+
+/* The sheet's "History" part: a date, what it is, and (for an event or a
+   scene) which of the two. */
+.spellbook-world-time-line .spellbook-world-history-open {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-start;
+  column-gap: var(--size-4-2);
+  min-width: 0;
+  height: auto;
+  padding: var(--size-2-3) var(--size-4-2);
+  box-shadow: none;
+  background-color: transparent;
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+  text-align: start;
+  white-space: normal;
+}
+
+.spellbook-world-time-line .spellbook-world-history-open:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.spellbook-world-history-kind {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  font-style: italic;
+}
+
+/* The entity's own dates stand out a little from what merely happens to it. */
+.spellbook-world-history-from .spellbook-world-history-what,
+.spellbook-world-history-until .spellbook-world-history-what {
+  font-weight: var(--font-semibold);
+}
+
+.spellbook-world-sheet-rest .spellbook-world-history-undated-head {
+  margin-block-start: var(--size-4-2);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+/* Everything that is tapped is tall enough for a finger. */
+.spellbook-world.spellbook-is-mobile .spellbook-world-order,
+.spellbook-world.spellbook-is-mobile .spellbook-world-history-button,
+.spellbook-world.spellbook-is-mobile .spellbook-world-time-set,
+.spellbook-world.spellbook-is-mobile .spellbook-world-time-add,
+.spellbook-world.spellbook-is-mobile .spellbook-world-history-open {
+  min-height: var(--spellbook-world-touch);
+}
+
+@media (pointer: coarse) {
+  .spellbook-world .spellbook-world-order,
+  .spellbook-world .spellbook-world-history-button,
+  .spellbook-world .spellbook-world-time-set,
+  .spellbook-world .spellbook-world-time-add,
+  .spellbook-world .spellbook-world-history-open {
+    min-height: var(--spellbook-world-touch);
+  }
+}
+
+.spellbook-world-time-unread .spellbook-world-time-problem {
+  margin-inline-start: var(--size-2-2);
+}

@@ -18,7 +18,7 @@ import { Menu, Modal, Notice } from 'obsidian';
 import type { App } from 'obsidian';
 import { CARD_COLORS } from '../../core/cards';
 import type { CardColor } from '../../core/cards';
-import { ENTITY_ICONS, addType, changeType, moveType, removeType } from '../../core/world';
+import { ENTITY_ICONS, addType, changeType, dateWords, moveType, removeType, usualDateWords } from '../../core/world';
 import type { EntityType, TypeDetails } from '../../core/world';
 import { ConfirmModal } from '../../ui/confirmModal';
 import { ROW_MORE_ICON, iconName } from '../../ui/icons';
@@ -46,6 +46,8 @@ export const ENTITY_TYPES_TEXT =
   'Each type keeps its notes in a folder of its own inside World, and gives a new note its properties. Changing a type never changes a note.';
 export const ADD_TYPE_TEXT = 'Add a type';
 export const FIELDS_HINT = 'Properties a new note starts with, with commas between them';
+export const DATE_WORDS_TEXT = 'Change date words';
+export const DATE_WORDS_HINT = 'The words for when it begins and when it ends, with a comma between them';
 
 /** What an icon is called in the menu: its name in Obsidian's icon set, spelled as words. */
 export function iconLabel(icon: string): string {
@@ -204,6 +206,19 @@ export class EntityTypesModal extends Modal {
     });
     item('Change properties', WORLD_ICONS.fields, () => {
       this.ask(`Properties of "${type.name}"`, FIELDS_HINT, type.fields.join(', '), 'Save', (fields) => this.change(type, { fields }), FIELDS_HINT);
+    });
+    // What the two dates of an entity of this type are called on its sheet: "Born, Died".
+    item(DATE_WORDS_TEXT, WORLD_ICONS.dates, () => {
+      const now = dateWords(type);
+      const usual = usualDateWords(type);
+      this.ask(
+        `Date words of "${type.name}"`,
+        `${DATE_WORDS_HINT}. Leave empty for "${usual.from}, ${usual.until}".`,
+        `${now.from}, ${now.until}`,
+        'Save',
+        (words) => this.change(type, { dateWords: words }),
+        `${usual.from}, ${usual.until}`,
+      );
     });
     if (!type.builtIn) {
       menu.addSeparator();

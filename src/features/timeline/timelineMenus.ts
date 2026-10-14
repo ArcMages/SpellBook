@@ -178,6 +178,57 @@ export function eventMenu(
   return menu;
 }
 
+/**
+ * The menu of an entity of a world lane: its sheet, its note, and the ways
+ * to move it in time without dragging it.
+ *
+ * @param event     the entity as the timeline moves an event: its own "date" and "end"
+ * @param showSheet shows the entity's sheet (its note, when no sheet is on offer)
+ */
+export function worldMenu(actions: TimelineActions, event: TimelineEvent, showSheet: () => void): Menu {
+  const menu = new Menu();
+  menu.addItem((item) => {
+    item
+      .setTitle('Open sheet')
+      .setIcon(iconName(...TIMELINE_ICONS.entities))
+      .onClick(showSheet);
+  });
+  menu.addItem((item) => {
+    item
+      .setTitle('Open note')
+      .setIcon(iconName(...TIMELINE_ICONS.open))
+      .onClick(() => {
+        actions.open(event, false);
+      });
+  });
+  menu.addItem((item) => {
+    item
+      .setTitle('Open note in new tab')
+      .setIcon(iconName(...TIMELINE_ICONS.openInNewTab))
+      .onClick(() => {
+        actions.open(event, 'tab');
+      });
+  });
+  menu.addSeparator();
+  menu.addItem((item) => {
+    item
+      .setTitle('Move earlier')
+      .setDisabled(event.start === null)
+      .onClick(() => {
+        actions.shift(event, -1);
+      });
+  });
+  menu.addItem((item) => {
+    item
+      .setTitle('Move later')
+      .setDisabled(event.start === null)
+      .onClick(() => {
+        actions.shift(event, 1);
+      });
+  });
+  return menu;
+}
+
 /** The colours a lane can have, with the one it has ticked. */
 export function colourMenu(current: LaneColor | null, pick: (color: LaneColor | null) => void): Menu {
   const menu = new Menu();

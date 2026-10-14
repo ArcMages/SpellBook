@@ -573,7 +573,9 @@ describe('the sample project, its world', () => {
       expect(entity.folder, entity.title).toBe(type.folder);
       // What the sheet's "Related" adds comes last, and only for an entity that has relations. No sample entity has a picture.
       const related = entity.frontmatter['related'] === undefined ? [] : ['related'];
-      expect(Object.keys(entity.frontmatter), entity.title).toEqual([...Object.keys(newEntityFrontmatter(type)), ...related]);
+      // Last, what the sheet's "Time" adds: when it begins, when it ends, and its moments, for an entity that has them.
+      const time = ['date', 'end', 'moments'].filter((key) => entity.frontmatter[key] !== undefined);
+      expect(Object.keys(entity.frontmatter), entity.title).toEqual([...Object.keys(newEntityFrontmatter(type)), ...related, ...time]);
       expect(entity.frontmatter, entity.title).not.toHaveProperty('image');
       expect(Array.isArray(entity.frontmatter['aliases']), entity.title).toBe(true);
       expect(String(entity.frontmatter['summary']).length, entity.title).toBeGreaterThan(20);
@@ -608,6 +610,8 @@ describe('the sample project, its world', () => {
       summary: 'Sent to Saltwick to redraw the sea chart after the storm. Careful, impatient, new to the town.',
       aliases: [],
       related: ['[[The Harbour Master|hired by]]', '[[Tobias|surveys the bay with]]'],
+      date: '1889-04-17',
+      moments: ['1911 | qualifies as a chart maker', '1923-10-13 | is sent to Saltwick to redraw the chart'],
     });
   });
 

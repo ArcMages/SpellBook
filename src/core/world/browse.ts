@@ -3,8 +3,12 @@
 // table that can be sorted; and the one or two facts a card shows besides
 // the name and the summary.
 
+import { formatStoryDate, storyDateToDayNumber } from '../timeline';
+import type { StoryDate } from '../timeline';
 import { fieldText } from './entity';
 import type { Entity } from './entity';
+import { compareByDate } from './time';
+import type { EntityTime } from './time';
 import { SUMMARY_KEY, findType } from './types';
 import type { EntityType } from './types';
 
@@ -152,13 +156,38 @@ export function kindOf(entity: Entity, type: EntityType | null): string {
 }
 
 /** The columns of the table, in order; each can be sorted by. */
-export type WorldColumn = 'name' | 'type' | 'kind' | 'scenes';
+export type WorldColumn = 'name' | 'type' | 'kind' | 'from' | 'until' | 'scenes';
 export const WORLD_COLUMNS: ReadonlyArray<{ readonly id: WorldColumn; readonly title: string }> = [
   { id: 'name', title: 'Name' },
   { id: 'type', title: 'Type' },
   { id: 'kind', title: 'Kind' },
+  // When it begins and when it ends: a character's birth and death, a place's founding and its fall.
+  { id: 'from', title: 'From' },
+  { id: 'until', title: 'Until' },
   { id: 'scenes', title: 'Scenes' },
 ];
+
+/** How the cards of a group are ordered: by name, or by when each entity begins. */
+export type CardOrder = 'name' | 'date';
+export const CARD_ORDERS: ReadonlyArray<{ readonly id: CardOrder; readonly title: string }> = [
+  { id: 'name', title: 'By name' },
+  { id: 'date', title: 'By date' },
+];
+export const DEFAULT_CARD_ORDER: CardOrder = 'name';
+
+/**
+ * The entities in order of date, earliest first: by when each begins, or
+ * else its first date of any kind. Those without a date come after, and
+ * entities that are equal stay in the order they came in (by name).
+ *
+ * @param timeOf when an entity is (see `readEntityTime`)
+ */
+export function sortByDate(entities: readonly Entity[], timeOf: (entity: Entity) => EntityTime): Entity[] {
+  return entities
+    .map((entity, index) => ({ entity, index, time: timeOf(entity) }))
+    .sort((a, b) => compareByDate(a.time, b.time) || a.index - b.index)
+    .map((entry) => entry.entity);
+}
 
 /** How the table is sorted. */
 export interface WorldSort {
@@ -182,6 +211,12 @@ export interface WorldRow {
   readonly kind: string;
   /** How many scenes list it. */
   readonly scenes: number;
+  /** When it begins, and when it ends; null for a date its note does not have. */
+  readonly from: StoryDate | null;
+  readonly until: StoryDate | null;
+  /** The two as the table shows them: "12 Apr 1923", "1889"; "" for none. */
+  readonly fromText: string;
+  readonly untilText: string;
 }
 
 /**
@@ -192,6 +227,7 @@ export interface WorldRow {
  *
  * @param typeId     ALL_TYPES, a type's id, or OTHER_TYPE
  * @param sceneCount how many scenes list an entity, by its path
+ * @param timeOf     when an entity is (see `readEntityTime`); without it no row has a date
  */
 export function tableRows(
   entities: readonly Entity[],
@@ -200,13 +236,27 @@ export function tableRows(
   typeId: string,
   sort: WorldSort,
   sceneCount: (entityPath: string) => number,
+  timeOf?: (entity: Entity) => EntityTime,
 ): WorldRow[] {
   const rows: WorldRow[] = [];
   for (const entity of entities) {
     const type = findType(types, entity.typeId);
     if (typeId !== ALL_TYPES && typeId !== (type?.id ?? OTHER_TYPE)) continue;
     if (!matchesSearch(entity, query)) continue;
-    rows.push({ entity, type, typeName: type?.name ?? OTHER_NAME, kind: kindOf(entity, type), scenes: sceneCount(entity.path) });
+    const time = timeOf?.(entity);
+    const from = time?.start ?? null;
+    const until = time?.end ?? null;
+    rows.push({
+      entity,
+      type,
+      typeName: type?.name ?? OTHER_NAME,
+      kind: kindOf(entity, type),
+      scenes: sceneCount(entity.path),
+      from,
+      until,
+      fromText: from === null ? '' : formatStoryDate(from),
+      untilText: until === null ? '' : formatStoryDate(until),
+    });
   }
   const byName = (a: WorldRow, b: WorldRow): number =>
     a.entity.name.localeCompare(b.entity.name) || (a.entity.path < b.entity.path ? -1 : a.entity.path > b.entity.path ? 1 : 0);
@@ -215,12 +265,18 @@ export function tableRows(
     if ((a === '') !== (b === '')) return a === '' ? 1 : -1;
     return turn * a.localeCompare(b);
   };
+  const dates = (a: StoryDate | null, b: StoryDate | null): number => {
+    if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1;
+    return turn * (storyDateToDayNumber(a) - storyDateToDayNumber(b));
+  };
   const typeOrder = (row: WorldRow): number => (row.type === null ? types.length : types.indexOf(row.type));
   return rows.sort((a, b) => {
     let order = 0;
     if (sort.column === 'name') order = turn * byName(a, b);
     else if (sort.column === 'type') order = turn * (typeOrder(a) - typeOrder(b));
     else if (sort.column === 'kind') order = words(a.kind, b.kind);
+    else if (sort.column === 'from') order = dates(a.from, b.from);
+    else if (sort.column === 'until') order = dates(a.until, b.until);
     else order = turn * (a.scenes - b.scenes);
     return order || byName(a, b);
   });

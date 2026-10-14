@@ -38,12 +38,13 @@ import {
 } from './sampleText';
 import type { SampleEntity, SampleEvent, SampleScene } from './sampleText';
 import { SCENE_STATUSES } from './scene';
-import { EVENT_MARKER_KEY, EVENT_MARKER_VALUE } from './timeline';
+import { EVENT_MARKER_KEY, EVENT_MARKER_VALUE, readStoryDate, storyDateToFrontmatter } from './timeline';
 import { countWords } from './wordCount';
 import { newEntityBody, newEntityFrontmatter } from './world/entity';
 import { nameLink } from './world/links';
 import { writeRelation } from './world/relations';
-import { ALIASES_KEY, BUILT_IN_TYPES, ENTITIES_KEY, RELATED_KEY } from './world/types';
+import { momentText } from './world/time';
+import { ALIASES_KEY, BUILT_IN_TYPES, DATE_KEY, END_KEY, ENTITIES_KEY, MOMENTS_KEY, RELATED_KEY } from './world/types';
 
 /** The name of the sample project; a second one becomes "Sample Novel 2". */
 export const SAMPLE_PROJECT_NAME = 'Sample Novel';
@@ -226,9 +227,10 @@ function eventSeed(event: SampleEvent): EventSeed {
  * An entity's note, as "New character" and the like would make it (its type,
  * the type's properties in order, its other names; the type's headings), with
  * the properties filled in and a text under the first heading, and for some
- * under the others too. An entity that has to do with others lists them last,
+ * under the others too. An entity that has to do with others lists them
  * the way the sheet's "Related" writes them: links, with the label as the
- * name each link shows.
+ * name each link shows. Last comes its place in time: "date", "end" and
+ * "moments", as the sheet's "Time" part writes them.
  */
 function worldSeed(entity: SampleEntity): WorldSeed {
   const type = BUILT_IN_TYPES.find((candidate) => candidate.id === entity.type);
@@ -240,6 +242,15 @@ function worldSeed(entity: SampleEntity): WorldSeed {
   }
   if (entity.aliases !== undefined) frontmatter[ALIASES_KEY] = [...entity.aliases];
   if (entity.related !== undefined) frontmatter[RELATED_KEY] = entity.related.map(([name, label]) => writeRelation(name, label));
+  // Then when it is, the way the sheet's "Time" part writes it: a year as a number, a moment as a date, a bar and a few words.
+  const dated = (text: string): NonNullable<ReturnType<typeof readStoryDate>> => {
+    const date = readStoryDate(text);
+    if (date === null) throw new Error(`The sample has a date that is not one: "${text}" (${entity.name}).`);
+    return date;
+  };
+  if (entity.date !== undefined) frontmatter[DATE_KEY] = storyDateToFrontmatter(dated(entity.date));
+  if (entity.end !== undefined) frontmatter[END_KEY] = storyDateToFrontmatter(dated(entity.end));
+  if (entity.moments !== undefined) frontmatter[MOMENTS_KEY] = entity.moments.map(([date, label]) => momentText(dated(date), label));
   // Each heading, then its text when the entity has one. (The template ends with an empty piece, which keeps the note's last line empty.)
   const texts = [entity.description, ...(entity.sections ?? [])];
   const body = newEntityBody(type)
@@ -289,8 +300,9 @@ function todoText(today: string): string {
  * it), two marks on the calendar and the writing targets; and a world of
  * eighteen characters, places, groups, things, tales, creatures and peoples,
  * at least one of every type a project has, which most scenes and events
- * link to and which are related to each other. The world keeps the types
- * every project has, and the story the ordinary calendar.
+ * link to and which are related to each other, each with a place in time
+ * (see SAMPLE_ENTITIES). The world keeps the types every project has, and
+ * the story the ordinary calendar.
  *
  * It has no writing history: no word log is made up.
  *
