@@ -591,6 +591,7 @@ At the top of the screen:
 - **Cards** and **List**, under "Show as". Cards show each entity's picture or icon, its name, one or two key facts and its summary, in a group for each type. The list is one table of them all with the columns **Name**, **Type**, **Kind**, **From**, **Until** and **Scenes**; tap a heading to sort by it, and again to turn the order round. **From** and **Until** are when each entity begins and ends.
 - **By name** or **By date**, for the order of the cards in each group. By date, the earliest comes first and those without a date come after. A card shows its dates under its key facts.
 - **History**, which opens the [world history](#timeline) on the timeline.
+- The **Story's present** button (a calendar with a clock), which sets the date the characters' ages are worked out at. See [Ages](#ages).
 
 ![The sheet of the Keeper with its History part: born, takes over the light, pensioned off, the lighthouse closed, died](images/world-history-sheet.png)
 
@@ -610,11 +611,12 @@ The sheet is one entity laid out to read and to fill in. It opens beside the lis
 
 - **Picture.** **Choose picture** lists the image files in your vault; tap one. **Remove picture** takes it off again. The picture file itself is never moved or changed. An entity without a picture shows its type's icon.
 - **Nicknames and other names.** Straight under the picture, for every type. See below.
+- **Born, Died and Age.** On a character's sheet, right after the other names. See [Ages](#ages).
 - **Summary and fields.** Type in a field and press Enter, or tap elsewhere, to save it. Each field is one property of the note; the note's text is never touched. A property that holds a list is shown but is changed in the note itself.
 - **Open note** opens the note, where you write as much as you like under its headings.
 - **Related.** Press **Add**, type how the two have to do with each other ("sister", "keeps", "born there"; you may leave it empty), and tap the other entity. Relations are grouped by type. Each has a button to change its label and one to remove it. A relation is written in one note only; the other entity's sheet shows it by itself under **Mentioned by**.
-- **Scenes.** The scenes the entity is in, in the order of the book, each with its synopsis and a button to take the entity out of that scene.
-- **Time.** When the entity begins and when it ends, under its type's own words: a character is **Born** and **Died**, a place **Founded** and **Abandoned**, a faction **Founded** and **Dissolved**, an item **Made** and **Lost**, lore **Set in** and **Until**, a creature or a culture **First known** and **Last known**; a type of your own says **From** and **Until**. Press **Set** or **Change** and give the date in the same fields as the timeline's event window (in an invented calendar you pick the era, year, month and day); **Remove** takes the date away. Under **Moments**, **Add moment** adds a point in the entity's life: a date and a few words, such as "comes to Saltwick". Each moment can be changed or removed. Each change saves one property of the note and nothing else.
+- **Scenes.** The scenes the entity is in, in the order of the book, each with its synopsis and a button to take the entity out of that scene. For a character, a scene with a date shows the character's age then.
+- **Time.** When the entity begins and when it ends (for a character these are at the top of the sheet instead), under its type's own words: a character is **Born** and **Died**, a place **Founded** and **Abandoned**, a faction **Founded** and **Dissolved**, an item **Made** and **Lost**, lore **Set in** and **Until**, a creature or a culture **First known** and **Last known**; a type of your own says **From** and **Until**. Press **Set** or **Change** and give the date in the same fields as the timeline's event window (in an invented calendar you pick the era, year, month and day); **Remove** takes the date away. Under **Moments**, **Add moment** adds a point in the entity's life: a date and a few words, such as "comes to Saltwick". Each moment can be changed or removed. Each change saves one property of the note and nothing else.
 - **Events.** The timeline events that list it, each with its date in the story.
 - **History.** Everything dated that concerns the entity, in order of time: its own dates and moments, the timeline events that list it and the dated scenes it is in. Tap a line to open the note it comes from. Whatever has no date is listed after, under **Undated**.
 - **Find mentions.** Lists scenes whose text names the entity, or one of its other names, without listing it, each with a **Link this scene** button.
@@ -624,6 +626,17 @@ The sheet is one entity laid out to read and to fill in. It opens beside the lis
 *The sheet of a legend: its kind, its period, who tells it, and the scenes and events it touches.*
 
 **Nicknames and other names.** Straight under the name and the picture, before the summary and the fields, **Nicknames and other names** lists what else the entity is called: a character's nickname, a title, a short name, the name in another language. It is there for every type, on a phone as well. Each name is in a small box of its own. Type in **Add a nickname** and press Enter, or tap elsewhere, to add one; tap a name to change it; press the button beside a name, or empty its box, to remove it. They are saved as Obsidian's own `aliases` property of the note, as a list, so Obsidian's links and search know them as well, and "Find mentions" looks for them too. A Hebrew name reads right to left in its box.
+
+### Ages
+
+Give a character a **Born** date and Spellbook works out the age; nothing has to be typed.
+
+- **Age** sits under **Born** and **Died** near the top of the sheet. With a death date it says, for example, **Died at 63**. Without one it gives the age at the **story's present**, and says which date that is.
+- **The story's present** is the latest date of any scene or timeline event, shown as "(latest date in the story)", until you set one. Set it with the **Story's present** button at the top of the World screen, or the one beside the age; leave the date empty, or press **Remove**, to go back to the latest date. It is kept in the project's index note, so it syncs with the project.
+- **In a scene.** When a scene has a date, its characters' ages at that date show on the inspector's chips under **In this scene** (for example "Wren · 14") and in the sheet's list of scenes. A character who is not born yet, or already dead, at the scene's date gets a small warning mark instead; hold the pointer over it, or read the sheet's list of scenes, to see which: "not born yet in this scene" or "died before this scene".
+- **The typed age.** The character's **age** field stays as it was while there is no Born date. Once there is, a typed age that says the same as the worked-out age (or nothing) is hidden, and one that says something else ("about forty") is shown as **Age (typed)**.
+- **Calendars.** Ages work in an invented calendar too, counted in its own years. When a date gives only the year, the age counts whole years; the month and day count when both dates give them.
+- **Which types.** Characters always have an age. Any other type has one when its date words begin with "Born": for example, give creatures the date words "Born, Died" in **Entity types**. A place that is **Founded** has no age.
 
 **Linking to scenes and events.** In the [inspector](#inspector), under **In this scene**, press **Add**. On the timeline, use **Entities** in an event's menu.
 

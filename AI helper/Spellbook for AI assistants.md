@@ -106,6 +106,7 @@ The index is the note with `spellbook: project`. All structure is in its frontma
 | `timelines` | list | The lanes of the timeline, in display order. |
 | `calendar` | map | An invented story calendar. Absent for the real-world calendar. |
 | `entityTypes` | list | The types of world entity. Absent until the writer changes them. |
+| `storyPresent` | date | The story's present: the date characters' ages are worked out at, written like an event's date. Absent: the latest date of any scene or event. |
 | `author` | text | The author's name for exports. Optional. |
 
 Any other key was put there by the writer or by a newer version. Leave it exactly as it is.
