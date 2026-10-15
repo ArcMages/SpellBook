@@ -38,9 +38,13 @@ export interface TourScreen {
   readonly layer: HTMLElement;
   /** Listen to the window. Returns a function that stops listening. */
   listen(type: 'resize' | 'keydown', handler: (event: Event) => void): () => void;
-  /** Whether this is a phone (some stops are for a phone only, some never on one). */
+  /**
+   * Whether this is a phone (some stops are for a phone only, some never on
+   * one). This is what the device is, not the layout setting: a phone's
+   * sidebars slide in over the page and it has no bottom bar either way.
+   */
   readonly isPhone: boolean;
-  /** Whether this is a phone or a tablet: the buttons are made large enough for a finger. */
+  /** Whether the touch layout is on (src/ui/layout.ts): the buttons are made large enough for a finger. */
   readonly isMobile: boolean;
   /**
    * On a phone: slide out the sidebar that holds a pane of this kind, and

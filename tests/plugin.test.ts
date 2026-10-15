@@ -6,16 +6,18 @@
 import { getFrontMatterInfo } from 'obsidian';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACTIVE_PROJECT_KEY, LINK_SCOPE_KEY } from '../src/core/devicePrefs';
+import { LAYOUT_KEY } from '../src/core/layout';
 import { ProjectStore } from '../src/core/projectStore';
 import type { SettingsSection } from '../src/features/registry';
 import { SNAPSHOTS_SERVICE, SNAPSHOTS_VIEW_TYPE } from '../src/features/snapshots';
 import { TAKE_TITLE } from '../src/features/snapshots/snapshotsView';
 import SpellbookPlugin from '../src/main';
 import { openNote } from '../src/obsidian/openNote';
-import { LINK_SCOPE_DESC_TEXT, LINK_SCOPE_NAME_TEXT, SpellbookSettingTab } from '../src/settings';
+import { LAYOUT_DESC_TEXT, LAYOUT_NAME_TEXT, LINK_SCOPE_DESC_TEXT, LINK_SCOPE_NAME_TEXT, SpellbookSettingTab } from '../src/settings';
 import { ConfirmModal } from '../src/ui/confirmModal';
 import { CreateProjectModal } from '../src/ui/createProjectModal';
 import { FolderPickerModal } from '../src/ui/folderPickerModal';
+import { layoutChoice } from '../src/ui/layout';
 import { TextPromptModal } from '../src/ui/textPromptModal';
 import { SNAPSHOT_ACTIONS } from '../src/views/binderActions';
 import { BinderView } from '../src/views/binderView';
@@ -1439,6 +1441,8 @@ describe('the settings page', () => {
 
     expect(rows()).toEqual([
       { name: 'Spellbook', desc: 'Version 0.1.0', heading: false },
+      // Near the top: the layout on this device.
+      { name: LAYOUT_NAME_TEXT, desc: LAYOUT_DESC_TEXT, heading: false },
       { name: 'Projects in this vault', desc: '', heading: true },
       { name: 'Loose', desc: 'At the top of the vault', heading: false },
       { name: 'My Novel', desc: 'Novel', heading: false },
@@ -1458,7 +1462,7 @@ describe('the settings page', () => {
       { name: 'Templates', desc: '', heading: true },
     ]);
     // titles and folders are the writer's own text: each picks its own direction
-    for (const row of element.settings.slice(2, 5)) {
+    for (const row of element.settings.slice(3, 6)) {
       expect(row.nameEl.attrs['dir']).toBe('auto');
       expect(row.descEl.attrs['dir']).toBe('auto');
     }
@@ -1509,23 +1513,71 @@ describe('the settings page', () => {
     expect(fake.localStorage.has(LINK_SCOPE_KEY)).toBe(false);
   });
 
+  it('lets the writer choose the layout on this device; open screens and the bottom bar follow at once', async () => {
+    const fake = novelVault();
+    const { plugin, stub } = loadReady(fake);
+    await plugin.openBinder();
+    const view = fake.workspace.getLeavesOfType('spellbook-binder')[0]?.view as unknown as BinderView;
+    const binder = one(view.contentEl as unknown as FakeElement, 'spellbook-binder');
+    await until(() => stub.statusBar.children.length > 0, 'the bottom bar');
+    const bar = stub.statusBar.children[0];
+    const { tab, element } = page(stub);
+    tab.display();
+    const row = element.settings.find((setting) => setting.nameEl.text === LAYOUT_NAME_TEXT);
+    const dropdown = row?.components[0] as DropdownComponent;
+    expect([...dropdown.options.entries()]).toEqual([
+      ['auto', 'Automatic'],
+      ['touch', 'Touch layout'],
+      ['desktop', 'Desktop layout'],
+    ]);
+    expect(dropdown.getValue()).toBe('auto');
+    expect(fake.localStorage.has(LAYOUT_KEY)).toBe(false); // nothing is stored while it is as it comes
+    expect(binder.hasClass('spellbook-is-mobile')).toBe(false);
+
+    // A touch-screen laptop: big targets, in the binder already open and in the bottom bar.
+    dropdown.choose('touch');
+    expect(fake.loadLocalStorage(LAYOUT_KEY)).toBe('touch');
+    expect(binder.hasClass('spellbook-is-mobile')).toBe(true);
+    expect(bar?.hasClass('spellbook-is-mobile')).toBe(true);
+
+    dropdown.choose('desktop');
+    expect(binder.hasClass('spellbook-is-mobile')).toBe(false);
+    expect(binder.hasClass('spellbook-is-desktop-layout')).toBe(true);
+    expect(bar?.hasClass('spellbook-is-mobile')).toBe(false);
+
+    // Kept on this device: the next start reads it before any screen opens.
+    plugin.unload();
+    expect(layoutChoice()).toBe('auto'); // let go of on unload
+    const again = load(fake);
+    expect(layoutChoice()).toBe('desktop');
+    const next = page(again.stub);
+    next.tab.display();
+    const nextRow = next.element.settings.find((setting) => setting.nameEl.text === LAYOUT_NAME_TEXT);
+    expect((nextRow?.components[0] as DropdownComponent).getValue()).toBe('desktop');
+    // Its place: right under the version, before the projects.
+    expect(next.rows().map((r) => r.name).slice(0, 3)).toEqual(['Spellbook', LAYOUT_NAME_TEXT, 'Projects in this vault']);
+
+    (nextRow?.components[0] as DropdownComponent).choose('auto');
+    expect(fake.localStorage.has(LAYOUT_KEY)).toBe(false);
+  });
+
   it('explains how to make a project when there are none', () => {
     const { stub } = loadReady();
     const { tab, rows } = page(stub);
     tab.display();
-    expect(rows().map((row) => row.name)).toEqual(['Spellbook', 'Projects in this vault', '', 'Renaming', LINK_SCOPE_NAME_TEXT, 'Writing progress', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots', 'Plot grid', 'Welcome and help', 'Templates']);
-    expect(rows()[2]?.name).toBe('');
-    expect(rows()[2]?.desc).toMatch(/No projects yet/);
-    expect(rows()[2]?.desc).toMatch(/"Spellbook: Create project"/);
-    expect(rows()[2]?.desc).toMatch(/"Spellbook: Create sample project"/);
+    expect(rows().map((row) => row.name)).toEqual(['Spellbook', LAYOUT_NAME_TEXT, 'Projects in this vault', '', 'Renaming', LINK_SCOPE_NAME_TEXT, 'Writing progress', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots', 'Plot grid', 'Welcome and help', 'Templates']);
+    expect(rows()[3]?.name).toBe('');
+    expect(rows()[3]?.desc).toMatch(/No projects yet/);
+    expect(rows()[3]?.desc).toMatch(/"Spellbook: Create project"/);
+    expect(rows()[3]?.desc).toMatch(/"Spellbook: Create sample project"/);
   });
 
   it('says so while Obsidian is still starting', () => {
     const { stub } = load(novelVault());
     const { tab, rows } = page(stub);
     tab.display();
-    expect(rows().map((row) => row.name)).toEqual(['Spellbook', 'Projects in this vault', '']);
-    expect(rows()[2]?.desc).toMatch(/still starting/);
+    expect(rows().map((row) => row.name)).toEqual(['Spellbook', LAYOUT_NAME_TEXT, 'Projects in this vault', '']);
+    expect(rows()[3]?.desc).toMatch(/still starting/);
   });
 
   it('follows the vault while it is open, and stops when it is closed', async () => {
@@ -1533,12 +1585,12 @@ describe('the settings page', () => {
     const { tab, rows } = page(stub);
     /** The rows between the "Projects in this vault" heading and the first heading a screen added. */
     const projects = (): Row[] => {
-      const after = rows().slice(2);
+      const after = rows().slice(3);
       const next = after.findIndex((row) => row.heading);
       return next < 0 ? after : after.slice(0, next);
     };
     tab.display();
-    expect(rows()).toHaveLength(14);
+    expect(rows()).toHaveLength(15);
     expect(projects().map((row) => row.name)).toEqual(['']); // "No projects yet"
 
     await plugin.createProject('First');

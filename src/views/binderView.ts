@@ -36,6 +36,7 @@
 // itself.
 
 import { ItemView, Keymap, Menu, Notice, Platform } from 'obsidian';
+import { followLayout } from '../ui/layout';
 import type { PaneType, UserEvent, WorkspaceLeaf } from 'obsidian';
 import {
   binderTotals,
@@ -346,9 +347,9 @@ export class BinderView extends ItemView {
     pane.addClass('spellbook-binder-pane');
 
     const root = pane.createDiv({ cls: 'spellbook-binder' });
-    // Touch needs taller rows. Platform.isMobile covers phones and tablets;
+    // Touch needs taller rows. The touch layout (src/ui/layout.ts) decides;
     // the stylesheet also covers touch screens on desktop.
-    root.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    followLayout(this, root);
     // On a phone, Obsidian's own bar floats over the bottom of the drawer:
     // the stylesheet leaves room for it under the last row.
     root.toggleClass('spellbook-is-phone', Platform.isPhone);

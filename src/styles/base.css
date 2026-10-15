@@ -13,6 +13,12 @@
  *   - sides are named "start" and "end", never left and right, so that
  *     everything mirrors when Obsidian itself runs right to left;
  *   - nothing may depend on hover alone, and every layout must work at phone width.
+ *   - the touch layout is the class "spellbook-is-mobile" on a screen's root,
+ *     set by src/ui/layout.ts from the "Layout" setting. Rules in
+ *     the coarse-pointer media queries that only make targets bigger guard their
+ *     root with :not(:where(.spellbook-is-desktop-layout)), so that the
+ *     desktop layout chosen on a tablet keeps desktop sizes (a test checks
+ *     this). Rules about hovering are left alone: a finger cannot hover.
  *
  * This file holds what the screens share: the small windows, and what is
  * shown while something is dragged.

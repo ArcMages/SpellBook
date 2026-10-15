@@ -4,6 +4,7 @@
 // "Open welcome page" whenever the writer wants it.
 
 import { ItemView, Platform } from 'obsidian';
+import { followLayout } from '../../ui/layout';
 import type { WorkspaceLeaf } from 'obsidian';
 import { showIcon } from '../../ui/icons';
 import {
@@ -55,7 +56,7 @@ export class WelcomeView extends ItemView {
     pane.empty();
     pane.addClass('spellbook-welcome-pane');
     const root = pane.createDiv({ cls: 'spellbook-welcome' });
-    root.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    followLayout(this, root);
     root.toggleClass('spellbook-is-phone', Platform.isPhone);
 
     root.createEl('h1', { cls: 'spellbook-welcome-title', text: WELCOME_TITLE });

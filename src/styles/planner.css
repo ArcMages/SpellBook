@@ -919,25 +919,25 @@
 }
 
 @media (pointer: coarse) {
-  .spellbook-planner .spellbook-planner-tab,
-  .spellbook-planner .spellbook-calendar-today,
-  .spellbook-planner .spellbook-day,
-  .spellbook-planner .spellbook-todo-row,
-  .spellbook-planner .spellbook-todo-input,
-  .spellbook-planner .spellbook-todo-date,
-  .spellbook-planner .spellbook-todo-add-button,
-  .spellbook-planner .spellbook-mark-label,
-  .spellbook-planner .spellbook-mark-remove,
-  .spellbook-planner .spellbook-todos-done-toggle {
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-planner-tab,
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-calendar-today,
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-day,
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-todo-row,
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-todo-input,
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-todo-date,
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-todo-add-button,
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-mark-label,
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-mark-remove,
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-todos-done-toggle {
     min-height: var(--spellbook-planner-touch);
   }
 
-  .spellbook-planner .spellbook-calendar-step,
-  .spellbook-planner .spellbook-detail-close,
-  .spellbook-planner .spellbook-todos-open,
-  .spellbook-planner .spellbook-todo-more,
-  .spellbook-planner .spellbook-todo-tick,
-  .spellbook-planner .spellbook-mark-swatch {
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-calendar-step,
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-detail-close,
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-todos-open,
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-todo-more,
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-todo-tick,
+  .spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .spellbook-mark-swatch {
     min-width: var(--spellbook-planner-touch);
     min-height: var(--spellbook-planner-touch);
   }

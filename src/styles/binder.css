@@ -514,20 +514,20 @@
 }
 
 @media (pointer: coarse) {
-  .spellbook-binder .spellbook-row-self,
-  .spellbook-binder .spellbook-binder-heading .spellbook-project-switch,
-  .spellbook-binder .spellbook-binder-create,
-  .spellbook-binder .spellbook-banner-button {
+  .spellbook-binder:not(:where(.spellbook-is-desktop-layout)) .spellbook-row-self,
+  .spellbook-binder:not(:where(.spellbook-is-desktop-layout)) .spellbook-binder-heading .spellbook-project-switch,
+  .spellbook-binder:not(:where(.spellbook-is-desktop-layout)) .spellbook-binder-create,
+  .spellbook-binder:not(:where(.spellbook-is-desktop-layout)) .spellbook-banner-button {
     min-height: var(--spellbook-touch-target);
   }
 
-  .spellbook-binder .spellbook-toolbar-button,
-  .spellbook-binder .spellbook-row-self > .spellbook-row-more {
+  .spellbook-binder:not(:where(.spellbook-is-desktop-layout)) .spellbook-toolbar-button,
+  .spellbook-binder:not(:where(.spellbook-is-desktop-layout)) .spellbook-row-self > .spellbook-row-more {
     min-width: var(--spellbook-touch-target);
     min-height: var(--spellbook-touch-target);
   }
 
-  .spellbook-binder .spellbook-row-self > .spellbook-row-more-space {
+  .spellbook-binder:not(:where(.spellbook-is-desktop-layout)) .spellbook-row-self > .spellbook-row-more-space {
     min-width: var(--spellbook-touch-target);
   }
 }

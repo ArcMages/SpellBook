@@ -4,6 +4,7 @@
 // registered, so it is always complete.
 
 import { ItemView, Platform } from 'obsidian';
+import { followLayout } from '../../ui/layout';
 import type { WorkspaceLeaf } from 'obsidian';
 import type { CommandHelp, TutorialStep } from '../../core/welcome/index';
 import { iconName } from '../../ui/icons';
@@ -68,7 +69,7 @@ export class HelpView extends ItemView {
     pane.empty();
     pane.addClass('spellbook-help-pane');
     const root = pane.createDiv({ cls: 'spellbook-help' });
-    root.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    followLayout(this, root);
     root.toggleClass('spellbook-is-phone', Platform.isPhone);
 
     root.createEl('h1', { cls: 'spellbook-help-title', text: HELP_TITLE });

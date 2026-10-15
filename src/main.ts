@@ -24,6 +24,7 @@ import { ObsidianVault } from './obsidian/obsidianVault';
 import { openNote } from './obsidian/openNote';
 import { localToday, nextFrame, nowMs, setTimer, untilTomorrow } from './obsidian/systemClock';
 import { SpellbookSettingTab } from './settings';
+import { startLayout, stopLayout } from './ui/layout';
 import { CreateProjectModal } from './ui/createProjectModal';
 import type { ProjectStart } from './ui/createProjectModal';
 import { BINDER_ICON } from './ui/icons';
@@ -110,6 +111,10 @@ export default class SpellbookPlugin extends Plugin implements BinderHost, Actio
   }
 
   override onload(): void {
+    // The "Layout" setting is needed by the first screen that opens, which
+    // can be before the layout is ready: it is read from this device now.
+    startLayout(new ObsidianDeviceStorage(this.app));
+    this.register(stopLayout);
     this.addSettingTab(new SpellbookSettingTab(this.app, this));
 
     this.registerView(BINDER_VIEW_TYPE, (leaf) => new BinderView(leaf, this));

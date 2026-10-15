@@ -606,25 +606,25 @@
 /* On a touch screen, every row and everything that is tapped is tall enough
    for a finger. */
 @media (pointer: coarse) {
-  .spellbook-outliner .spellbook-outliner-cell {
+  .spellbook-outliner:not(:where(.spellbook-is-desktop-layout)) .spellbook-outliner-cell {
     height: var(--spellbook-outliner-touch);
   }
 
-  .spellbook-outliner .spellbook-outliner-head-button {
+  .spellbook-outliner:not(:where(.spellbook-is-desktop-layout)) .spellbook-outliner-head-button {
     min-height: var(--spellbook-outliner-touch);
   }
 
-  .spellbook-outliner .spellbook-outliner-more,
-  .spellbook-outliner .spellbook-outliner-fold {
+  .spellbook-outliner:not(:where(.spellbook-is-desktop-layout)) .spellbook-outliner-more,
+  .spellbook-outliner:not(:where(.spellbook-is-desktop-layout)) .spellbook-outliner-fold {
     min-width: var(--spellbook-outliner-touch);
     min-height: var(--spellbook-outliner-touch);
   }
 
-  .spellbook-outliner .spellbook-outliner-search,
-  .spellbook-outliner .spellbook-outliner-filter,
-  .spellbook-outliner .spellbook-outliner-columns,
-  .spellbook-outliner .spellbook-outliner-chip,
-  .spellbook-outliner .spellbook-outliner-input {
+  .spellbook-outliner:not(:where(.spellbook-is-desktop-layout)) .spellbook-outliner-search,
+  .spellbook-outliner:not(:where(.spellbook-is-desktop-layout)) .spellbook-outliner-filter,
+  .spellbook-outliner:not(:where(.spellbook-is-desktop-layout)) .spellbook-outliner-columns,
+  .spellbook-outliner:not(:where(.spellbook-is-desktop-layout)) .spellbook-outliner-chip,
+  .spellbook-outliner:not(:where(.spellbook-is-desktop-layout)) .spellbook-outliner-input {
     min-height: var(--spellbook-outliner-touch);
   }
 }

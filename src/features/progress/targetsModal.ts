@@ -10,6 +10,7 @@
 // done with the answer is up to the function it is given.
 
 import { Modal, Platform, Setting } from 'obsidian';
+import { applyLayoutClasses } from '../../ui/layout';
 import type { App, ButtonComponent } from 'obsidian';
 import { MAX_TARGET_WORDS, readWordTarget, validateTargets } from '../../core/progress/index';
 import type { Targets } from '../../core/progress/index';
@@ -79,7 +80,7 @@ export class TargetsModal extends Modal {
     this.fields.clear();
     this.titleEl.setText('Writing targets');
     this.modalEl.addClass('spellbook-targets');
-    if (Platform.isMobile) this.modalEl.addClass('spellbook-is-mobile');
+    applyLayoutClasses(this.modalEl);
 
     // The project's title is the writer's own text, in any language.
     contentEl.createEl('p', { cls: 'spellbook-targets-project', text: form.projectTitle, attr: { dir: 'auto' } });

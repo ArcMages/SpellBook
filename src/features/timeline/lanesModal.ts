@@ -6,7 +6,8 @@
 // draws its list again whenever the timeline behind it has read its data
 // again, so the two always show the same lanes, as they are stored.
 
-import { Modal, Platform } from 'obsidian';
+import { Modal } from 'obsidian';
+import { applyLayoutClasses } from '../../ui/layout';
 import type { App } from 'obsidian';
 import type { DisplayLane } from '../../core/timeline';
 import { showIcon } from '../../ui/icons';
@@ -58,7 +59,7 @@ export class LanesModal extends Modal {
     this.titleEl.setText(LANES_WINDOW_TITLE);
     this.modalEl.addClass('spellbook-timeline-lanes-window');
     // Phones and tablets: rows and buttons big enough for a finger (timeline.css).
-    this.modalEl.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    applyLayoutClasses(this.modalEl);
     this.list = contentEl.createDiv({ cls: 'spellbook-timeline-lane-list' });
     const add = contentEl.createEl('button', { cls: ['mod-cta', 'spellbook-timeline-lane-add'], text: 'Add lane' });
     add.addEventListener('click', () => {

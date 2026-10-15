@@ -128,7 +128,8 @@ describe('src/styles/planner.css', () => {
     const selectors = touchRules.flatMap((rule) => rule.selectors);
     for (const cls of tapped) {
       expect(selectors, cls).toContain(`.spellbook-planner.spellbook-is-mobile .${cls}`);
-      expect(selectors, cls).toContain(`.spellbook-planner .${cls}`);
+      // On touch screens, unless the desktop layout was chosen (src/ui/layout.ts).
+      expect(selectors, cls).toContain(`.spellbook-planner:not(:where(.spellbook-is-desktop-layout)) .${cls}`);
     }
   });
 
@@ -192,6 +193,8 @@ describe('src/styles/planner.css', () => {
     const sources = [
       ...readdirSync(plannerDir).map((name) => read(path.join(plannerDir, name))),
       read(path.join(root, 'src', 'ui', 'dragDrop.ts')),
+      // The touch and desktop layout classes, put on by src/ui/layout.ts.
+      read(path.join(root, 'src', 'ui', 'layout.ts')),
     ].join('\n');
     const known = new Set([...sources.matchAll(/spellbook-[a-z0-9-]+/g)].map((match) => match[0]));
     for (const cls of MARK_CLASSES) known.add(cls);

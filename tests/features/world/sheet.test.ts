@@ -15,6 +15,7 @@ import { RelationPickerModal } from '../../../src/features/world/relationModal';
 import { ADD_ALIAS_PLACEHOLDER, ALIASES_HEADING, ALIASES_HINT, fittedHeight } from '../../../src/features/world/sheet';
 import { MemoryVault } from '../../memoryVault';
 import { Menu as StubMenu, Modal as StubModal, Notice as StubNotice, Platform, resetFakeDocument, resetPlatform } from '../../obsidianStub';
+import { setLayoutChoice, stopLayout } from '../../../src/ui/layout';
 import type { FakeElement } from '../../obsidianStub';
 import {
   LAMP,
@@ -58,6 +59,7 @@ beforeEach(() => {
 
 afterEach(() => {
   for (const made of stages.splice(0)) made.switchOff();
+  stopLayout();
   resetPlatform();
 });
 
@@ -199,6 +201,25 @@ describe('the sheet of one entity', () => {
     for (const name of sheet().withClass('spellbook-world-field-name')) expect(name.getAttr('dir')).toBe('auto');
     expect(box(sheet(), 'role').value).toBe('שומרת');
     expect(relationsOn(sheet())).toEqual([['Saltwick', 'גרה ב']]);
+  });
+
+  it('follows the "Layout" setting: big targets in the touch layout, desktop sizes in the desktop layout, the narrow page by the pane alone', async () => {
+    const s = await stage();
+    const { root } = await sheetOf(s, 'Mara', 900);
+    expect(root.hasClass('spellbook-is-mobile')).toBe(false);
+    setLayoutChoice('touch'); // a touch-screen laptop: at once, in the open sheet
+    expect(root.hasClass('spellbook-is-mobile')).toBe(true);
+    expect(root.hasClass('spellbook-world-narrow')).toBe(false); // a wide pane stays wide
+
+    // An iPad with a keyboard: the desktop layout, but a narrow pane is still a page of its own.
+    Object.assign(Platform, { isDesktop: false, isMobile: true, isPhone: false });
+    setLayoutChoice('desktop');
+    const tablet = await stage();
+    const narrow = await sheetOf(tablet, 'Mara', 380);
+    expect(narrow.root.hasClass('spellbook-is-mobile')).toBe(false);
+    expect(narrow.root.hasClass('spellbook-is-desktop-layout')).toBe(true);
+    expect(narrow.root.hasClass('spellbook-world-narrow')).toBe(true);
+    expect(one(narrow.sheet(), 'spellbook-world-detail-back').getAttr('aria-label')).toBe('Back to the list');
   });
 
   it('is a page of its own in a narrow pane, with a button that leads back; beside the list in a wide one', async () => {

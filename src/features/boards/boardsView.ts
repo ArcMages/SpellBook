@@ -9,6 +9,7 @@
 // button or a menu item, nothing depends on hovering or on dragging.
 
 import { ItemView, Keymap, Menu, Platform } from 'obsidian';
+import { followLayout } from '../../ui/layout';
 import type { WorkspaceLeaf } from 'obsidian';
 import { iconName, showIcon } from '../../ui/icons';
 import { safely } from '../../ui/safely';
@@ -82,7 +83,7 @@ export class BoardsView extends ItemView {
     const pane = this.contentEl;
     pane.empty();
     const root = pane.createDiv({ cls: 'spellbook-boards' });
-    root.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    followLayout(this, root);
     root.toggleClass('spellbook-is-phone', Platform.isPhone);
     this.header = root.createDiv({ cls: 'spellbook-boards-header' });
     this.list = root.createDiv({ cls: 'spellbook-boards-list', attr: { role: 'list' } });

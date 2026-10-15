@@ -434,7 +434,7 @@
 }
 
 @media (pointer: coarse) {
-  .spellbook-plotgrid .spellbook-plotgrid-mark {
+  .spellbook-plotgrid:not(:where(.spellbook-is-desktop-layout)) .spellbook-plotgrid-mark {
     min-height: var(--spellbook-plotgrid-touch);
   }
 }

@@ -906,26 +906,26 @@
 }
 
 @media (pointer: coarse) {
-  .spellbook-world .spellbook-world-search,
-  .spellbook-world .spellbook-world-filter,
-  .spellbook-world .spellbook-world-new,
-  .spellbook-world .spellbook-world-open,
-  .spellbook-world .spellbook-world-find,
-  .spellbook-world .spellbook-world-row-open,
-  .spellbook-world .spellbook-world-mention-link,
-  .spellbook-world .spellbook-world-layout-button,
-  .spellbook-world .spellbook-world-choose-picture,
-  .spellbook-world .spellbook-world-remove-picture,
-  .spellbook-world .spellbook-world-relate,
-  .spellbook-world .spellbook-world-box,
-  .spellbook-world .spellbook-world-alias-box,
-  .spellbook-world .spellbook-world-table-sort,
-  .spellbook-world .spellbook-world-table-entity,
-  .spellbook-world .spellbook-world-card-scenes {
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-search,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-filter,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-new,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-open,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-find,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-row-open,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-mention-link,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-layout-button,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-choose-picture,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-remove-picture,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-relate,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-box,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-alias-box,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-table-sort,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-table-entity,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-card-scenes {
     min-height: var(--spellbook-world-touch);
   }
 
-  .spellbook-world .clickable-icon {
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .clickable-icon {
     min-width: var(--spellbook-world-touch);
     min-height: var(--spellbook-world-touch);
   }
@@ -1212,13 +1212,13 @@
 }
 
 @media (pointer: coarse) {
-  .spellbook-inspector .spellbook-entity-chip-open,
-  .spellbook-inspector .spellbook-entity-chip-remove,
-  .spellbook-inspector .spellbook-inspector-entities-add {
+  .spellbook-inspector:not(:where(.spellbook-is-desktop-layout)) .spellbook-entity-chip-open,
+  .spellbook-inspector:not(:where(.spellbook-is-desktop-layout)) .spellbook-entity-chip-remove,
+  .spellbook-inspector:not(:where(.spellbook-is-desktop-layout)) .spellbook-inspector-entities-add {
     min-height: var(--spellbook-inspector-touch);
   }
 
-  .spellbook-inspector .spellbook-entity-chip-remove {
+  .spellbook-inspector:not(:where(.spellbook-is-desktop-layout)) .spellbook-entity-chip-remove {
     min-width: var(--spellbook-inspector-touch);
     justify-content: center;
   }
@@ -1427,11 +1427,11 @@
 }
 
 @media (pointer: coarse) {
-  .spellbook-world .spellbook-world-order,
-  .spellbook-world .spellbook-world-history-button,
-  .spellbook-world .spellbook-world-time-set,
-  .spellbook-world .spellbook-world-time-add,
-  .spellbook-world .spellbook-world-history-open {
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-order,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-history-button,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-time-set,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-time-add,
+  .spellbook-world:not(:where(.spellbook-is-desktop-layout)) .spellbook-world-history-open {
     min-height: var(--spellbook-world-touch);
   }
 }

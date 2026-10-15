@@ -28,6 +28,7 @@
 // choose their own direction; dates, counts and buttons do not.
 
 import { ItemView, Keymap, Menu, Notice, Platform } from 'obsidian';
+import { followLayout } from '../../ui/layout';
 import type { WorkspaceLeaf } from 'obsidian';
 import {
   BUILT_IN_VIEWS,
@@ -308,7 +309,7 @@ export class TimelineView extends ItemView {
 
     const root = pane.createDiv({ cls: 'spellbook-timeline' });
     // Touch needs bigger targets; the stylesheet also covers touch screens on desktop.
-    root.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    followLayout(this, root);
     root.toggleClass('spellbook-is-phone', Platform.isPhone);
 
     const header = root.createDiv({ cls: 'spellbook-timeline-header' });

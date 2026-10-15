@@ -103,6 +103,8 @@ describe('the source of the corkboard feature', () => {
       /^\.\.\/\.\.\/core\/(binderModel|dropTarget|names|types)$/,
       // missingNote: the wording of the warning on an entry whose note is missing, shared with the binder.
       /^\.\.\/\.\.\/ui\/(confirmModal|dragDrop|icons|keys|missingNote|notices|safely|textPromptModal)$/,
+      // layout: which layout the writer chose for this device (it only reads the choice).
+      /^\.\.\/\.\.\/ui\/layout$/,
     ];
     for (const name of screens) {
       const code = codeOf(name);
@@ -307,7 +309,8 @@ describe('corkboard.css', () => {
       '.spellbook-tags .spellbook-tag-button',
       '.spellbook-tags .spellbook-tag-color',
     ]) {
-      expect(coarse, selector).toContain(selector);
+      // Unless the desktop layout was chosen (src/ui/layout.ts).
+      expect(coarse, selector).toContain(selector.replace(' ', ':not(:where(.spellbook-is-desktop-layout)) '));
     }
   });
 
