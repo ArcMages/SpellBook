@@ -161,6 +161,21 @@ describe('a mixed book, written out', () => {
     expect(html.split('book-part"').length - 1).toBe(parts.length);
   });
 
+  it('as a web page: a part heading is set larger than a chapter heading, with large titles or without', () => {
+    // The last font size the stylesheet gives a rule that starts with the selector.
+    const size = (css: string, selector: string): number => {
+      const found = css.split('\n').filter((line) => line.startsWith(selector) && /font-size: [\d.]+em/.test(line));
+      const last = found[found.length - 1];
+      return last === undefined ? 1 : Number(/font-size: ([\d.]+)em/.exec(last)?.[1]);
+    };
+    for (const preset of ['reading', 'manuscript'] as const) {
+      const { manuscript, options } = build({ ...withPreset(DEFAULT_EXPORT_OPTIONS, preset), format: 'html', contents: true });
+      const css = toHtml(manuscript, options).split('</style>')[0] ?? '';
+      const chapter = Math.max(size(css, 'h1, h2, h3, h4'), size(css, 'h2, h3'));
+      expect(size(css, '.book-part')).toBeGreaterThan(chapter);
+    }
+  });
+
   it('as a print page, the same', () => {
     const { manuscript, options } = build({ format: 'print', contents: true });
     expectInOrder(toHtml(manuscript, options), IN_ORDER);

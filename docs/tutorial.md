@@ -73,9 +73,9 @@ A vault can hold several projects, and all the screens show one of them at a tim
 
 ## 4. Build the book in the binder
 
-![The binder on the left, a scene open in the middle and the inspector on the right](images/binder-scene-inspector.png)
+![The binder of the sample novel on the left, the scene "The Last Ferry" open in the middle and the inspector on the right](images/tutorial-binder.png)
 
-*The binder in the left sidebar, a scene open in the editor, and the inspector in the right sidebar.*
+*The sample novel: the binder in the left sidebar, a scene open in the editor, and the inspector in the right sidebar.*
 
 In Spellbook a chapter is a folder in the binder, and a scene is a note inside it.
 
@@ -99,6 +99,10 @@ Good to know:
 
 Not every chapter has to be a folder of scenes. If you would rather write a chapter as one note, make a note at the top of the manuscript (for example "The crossing"), open its menu and choose **Treat as a chapter**. A small bookmark appears on its row, and in an export its title becomes a chapter heading on a new page, listed in the contents. You can mix the two ways in one book: here Chapter 1 and Chapter 2 are folders of scenes, and "The crossing" is a chapter in one note.
 
+![The binder with the notes of Part one marked as chapters, and the corkboard of Part one with "Chapter" above the title of each card](images/chapters-binder-corkboard.png)
+
+*The sample novel with the notes of Part one treated as chapters: a bookmark on each row, and "Chapter" on each card.*
+
 If you write mostly in whole chapters, choose **I usually write in chapters** in the binder's "More options" menu: the toolbar button then says **New chapter**. A folder that holds chapter notes becomes a part of the book ("Part One") in an export. See [Chapters or scenes, or both](guide.md#chapters-or-scenes-or-both).
 
 ## 5. Write a scene and fill in its inspector
@@ -117,7 +121,7 @@ Leave **Include in compile** on. Switching it off leaves a scene out of an expor
 
 ## 6. Plan on the corkboard
 
-![The corkboard with index cards showing titles, synopses, statuses and coloured labels](images/corkboard.png)
+![The corkboard of Part one of the sample novel, with index cards showing titles, synopses, statuses and coloured labels](images/tutorial-corkboard.png)
 
 *The corkboard: one index card per scene, with its title, synopsis, status, coloured label and word count.*
 
@@ -169,9 +173,9 @@ Your to-dos are plain checkbox lines in the note `To-do.md` in the project folde
 
 ## 9. Put story events on the timeline
 
-![The timeline with coloured lanes and event cards along a time axis](images/timeline.png)
+![The timeline of the sample novel: the Manuscript lane, Main plot and Mara's survey, with event cards in autumn 1923](images/tutorial-timeline.png)
 
-*The timeline: named, coloured lanes on one time axis, with events as cards.*
+*The timeline of the sample novel: named, coloured lanes on one time axis, with events as cards.*
 
 The timeline is for what happens in the story and when, which is not always the order the book tells it in.
 
@@ -183,6 +187,7 @@ The timeline is for what happens in the story and when, which is not always the 
 6. Open an event's menu and choose **Move to lane** to put it in another lane, or **Also show in lane** to show it in two.
 7. Use **Zoom in**, **Zoom out** and **Fit** to see more or less time at once.
 8. Press **By story order** to see things in the order the book tells them, and **By date** to go back.
+9. Press **Filter by tags** (the tag button) to see only what carries a tag, and save what you see with **Save current view...** in the first button's menu, **Views**.
 
 Each event is a note in the project's Timeline folder. Open it (tap it, or **Open** in its menu) to write as much about the event as you like.
 
@@ -192,7 +197,7 @@ If your story is set in an invented world with its own months, see [An invented 
 
 ## 10. Build the world
 
-![The World screen with cards for characters, places and items](images/world.png)
+![The World screen of the sample novel with cards for characters, places and factions](images/tutorial-world.png)
 
 *The World screen: a card for each character, place, faction, item, piece of lore, creature and culture of the story.*
 
@@ -204,15 +209,15 @@ The world is everything the story is about that is not a scene: its people, its 
 2. Run **New place** and add a place the same way.
 3. Run **Open world**. You should see a card for each of them. Use the search box, or show one type at a time, when the world grows. **Cards** and **List** switch between cards and a table that you can sort by name, type, kind or number of scenes.
 
-![The World screen as a list: one row per entity, with its type, kind and number of scenes](images/world-list.png)
+![The World screen as a list: one row per entity, with its type, kind, dates and number of scenes](images/tutorial-world-list.png)
 
 *The same world as a list.*
 
 **Fill in the sheet**
 
-![The World screen with a character's sheet open: fields, related entities and scenes](images/entity-sheet.png)
+![Noa's sheet beside the World cards: her nickname "The archivist", Born 3 Jun 1894, Age 29, then her summary and fields](images/tutorial-entity-sheet.png)
 
-*A character's sheet: the picture, the summary, the fields, then the people and places she is related to and the scenes she is in.*
+*A character's sheet: the picture, the nicknames, Born, Died and Age, the summary and the fields. Further down: the people and places she is related to and the scenes she is in.*
 
 4. Tap the character's card. The sheet opens beside the cards. (Its **Open note** button opens the note itself.)
 5. Type a line in **Summary**, then fill in the fields you know: tap a field, type, and press Enter or tap elsewhere. Each is saved as you leave it. Leave empty what you do not know yet. If the character goes by another name (a nickname, a title, the name in another language), type it under **Nicknames and other names**, just below the picture, in **Add a nickname**, and press Enter. Spellbook finds these names in your scenes too.
@@ -233,7 +238,7 @@ The world is everything the story is about that is not a scene: its people, its 
 
 **Add a legend**
 
-![The sheet of a legend, with who tells it and the scenes and events it touches](images/lore-sheet.png)
+![The sheet of the legend of the drowned village, with its kind, period and who tells it, its date and the place it is about](images/lore-sheet.png)
 
 *A legend has a sheet like any other entity: what kind of tale it is, when it is from, who tells it.*
 
@@ -263,7 +268,7 @@ Besides characters, places and lore there are factions, items, creatures and cul
 
 ## 11. Read the book through
 
-![The novel view showing several scenes as one continuous page](images/novel-view.png)
+![The novel view of the sample novel: the Prologue and the start of The Last Ferry as one continuous page](images/tutorial-novel-view.png)
 
 *The novel view: the scenes one after another as a single page, each under a small divider with its title and word count.*
 
@@ -338,7 +343,11 @@ Under the pages figure, **Words on a page** sets what counts as one page. It sta
 5. Choose the **Paper**: A4 or US Letter.
 6. Press **Export**.
 
-You should see the window say how many scenes and words were saved, and which scenes were left out because their "Include in compile" switch is off. Press **Open** to open the file. On a computer there is also a button that shows the file in its folder.
+You should see a window called "Manuscript exported". It says how many scenes and words were saved, which scenes were left out because their "Include in compile" switch is off, the name of the file and the folder it is in. Press **Open** to open the file, **Show in file list** to see it in Obsidian's file list, or **OK** to close the window.
+
+![The "Manuscript exported" window: saved 9 chapters and 43 scenes, 28,527 words, with the file's name and folder and the buttons Show in file list, Open and OK](images/export-done.png)
+
+*The window after an export, here of the sample novel as a web page.*
 
 The file is in the project's Exports folder. Every export is a new file; an export never replaces an earlier one.
 
@@ -437,7 +446,7 @@ Spellbook supports Hebrew and English, including right-to-left text. Its menus a
 
 **Right-to-left scenes.** There is nothing to switch on. Write a scene in Hebrew and it reads right to left. Titles, synopses, labels, statuses, character names, lane names, to-dos and day marks each take the direction of their own language wherever they are shown: in the binder, on cards, in the outliner, on the timeline and in the World screen.
 
-**Mixed projects.** One project can hold Hebrew scenes and English scenes, and one card can have a Hebrew title and an English synopsis. Each piece of text is laid out on its own, so Hebrew sits right to left next to English that sits left to right. The sample project has scenes in both languages to try this on.
+**Mixed projects.** One project can hold Hebrew scenes and English scenes, and one card can have a Hebrew title and an English synopsis. Each piece of text is laid out on its own, so Hebrew sits right to left next to English that sits left to right. Write a scene of your own in Hebrew to try this; the sample novel is in English.
 
 **Word counts.** Words are counted the same way in both languages, so targets, the bottom bar, the calendar and the report all work for Hebrew.
 

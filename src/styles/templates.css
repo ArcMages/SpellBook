@@ -66,8 +66,14 @@
   gap: var(--size-2-3);
 }
 
-/* "I usually write in" sits in a box of its own, so it keeps the line that sets a row apart from the one above. */
-.spellbook-create-project .spellbook-create-writes-in .setting-item {
-  border-top: 1px solid var(--background-modifier-border);
-  padding-top: var(--size-4-3);
+/* "I usually write in" and "Structure" each sit first in a box of their own, where Obsidian's
+   window style takes away the line above a first row. Put it back: the window's own class, repeated,
+   outweighs Obsidian's rule, so the rows are set apart like the others. */
+.spellbook-create-project.spellbook-create-project.spellbook-create-project.spellbook-create-project .spellbook-create-writes-in > .setting-item,
+.spellbook-create-project.spellbook-create-project.spellbook-create-project.spellbook-create-project .spellbook-create-structure > .setting-item:first-child {
+  border-top: var(--border-width) solid var(--background-modifier-border);
+  padding-top: var(--size-4-4);
+}
+.spellbook-create-project.spellbook-create-project.spellbook-create-project.spellbook-create-project .spellbook-create-writes-in > .setting-item {
+  padding-bottom: var(--size-4-4);
 }

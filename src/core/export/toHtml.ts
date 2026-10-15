@@ -125,7 +125,8 @@ function styles(manuscript: Manuscript, options: HtmlOptions, preset: Preset): s
   const width = inches(paper.width / MARGIN_TWIPS - 2 * preset.margins.side);
   const look = [
     preset.justify ? '\np[dir] { text-align: justify; }' : '',
-    preset.largeChapterTitles ? '\nh2, h3 { font-size: 1.5em; font-weight: normal; margin-bottom: 1em; }' : '',
+    // Large chapter titles: a part's heading stays the largest of all.
+    preset.largeChapterTitles ? '\nh2, h3 { font-size: 1.5em; font-weight: normal; margin-bottom: 1em; }\n.book-part { font-size: 2em; }' : '',
     preset.id === 'proof' ? '\n.chapter, .scene-title { border-block-start: 1px dashed gray; }' : '',
   ].join('');
   return `@page { size: ${paper.css}; margin: ${marginsCss(preset)};${header} }${firstPage}
