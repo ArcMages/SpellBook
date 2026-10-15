@@ -97,6 +97,8 @@ export const LAYOUT_LABEL = 'Show as';
 export const HISTORY_TEXT = 'History';
 export const HISTORY_LABEL = 'Open world history: the world on the timeline';
 export const NO_TIMELINE_TEXT = 'The timeline is not available.';
+/** The button that opens the Story calendar window (the timeline's). */
+export const STORY_CALENDAR_TEXT = 'Story calendar';
 export const CARD_ORDER_LABEL = 'Order of the cards';
 export const OPEN_SHEET_TEXT = 'Open sheet';
 export const OPEN_IN_NEW_TAB_TEXT = 'Open note in new tab';
@@ -129,6 +131,7 @@ interface Elements {
   readonly history: HTMLButtonElement;
   /** Names the story's present, at which the characters' ages are worked out. */
   readonly present: HTMLElement;
+  readonly calendar: HTMLElement;
   readonly types: HTMLElement;
   readonly list: HTMLElement;
   readonly detail: HTMLElement;
@@ -259,6 +262,10 @@ export class WorldView extends ItemView {
     const present = iconButton(bar, 'spellbook-world-present', STORY_PRESENT_TEXT, WORLD_ICONS.present, () => {
       openStoryPresent(this.app, this.host);
     });
+    // The calendar the story's dates are counted in: the timeline's Story calendar window.
+    const calendar = iconButton(bar, 'spellbook-world-calendar', STORY_CALENDAR_TEXT, WORLD_ICONS.calendar, () => {
+      if (this.host.editStoryCalendar?.() !== true) new Notice(NO_TIMELINE_TEXT);
+    });
     const add = textButton(bar, 'mod-cta spellbook-world-new', NEW_TEXT, (button) => {
       this.showNewMenu(button);
     });
@@ -269,7 +276,7 @@ export class WorldView extends ItemView {
     const body = root.createDiv({ cls: 'spellbook-world-body' });
     const list = body.createDiv({ cls: 'spellbook-world-list' });
     const detail = body.createDiv({ cls: 'spellbook-world-detail' });
-    this.els = { root, search, filter, layouts, add, order, history, present, types, list, detail };
+    this.els = { root, search, filter, layouts, add, order, history, present, calendar, types, list, detail };
 
     if (typeof ResizeObserver === 'function') {
       this.observer = new ResizeObserver(() => {
@@ -338,6 +345,7 @@ export class WorldView extends ItemView {
     setShown(els.order, layout !== 'list');
     els.history.disabled = !usable;
     setShown(els.present, usable && !project.readOnly);
+    setShown(els.calendar, usable && !project.readOnly);
     const present = usable ? this.host.storyPresent : null;
     els.present.setAttr('aria-label', present === null ? STORY_PRESENT_TEXT : `${STORY_PRESENT_TEXT}: ${storyPresentText(present)}`);
     this.drawFilter();

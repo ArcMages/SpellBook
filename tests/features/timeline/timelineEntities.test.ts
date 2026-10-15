@@ -8,11 +8,14 @@ import type { EventEntity, StoryCalendar } from '../../../src/core/timeline';
 import { CALENDAR_WINDOW_TITLE } from '../../../src/features/timeline/calendarModal';
 import { NO_ENTITIES_MESSAGE, NO_MATCH_MESSAGE, searchEntities } from '../../../src/features/timeline/entityPicker';
 import { NO_ENTITIES_CHOSEN } from '../../../src/features/timeline/eventModal';
-import { EDIT_CALENDAR_COMMAND } from '../../../src/features/timeline/index';
+import { STORY_CALENDAR_SERVICE } from '../../../src/core/world';
+import type { StoryCalendarService } from '../../../src/core/world';
+import { EDIT_CALENDAR_COMMAND, STORY_CALENDAR_SETTING_DESC, STORY_CALENDAR_TEXT } from '../../../src/features/timeline/index';
+import { CALENDAR_NO_PROJECT } from '../../../src/features/timeline/timelineActions';
 import type { TimelineData } from '../../../src/features/timeline/timelineHost';
 import { FILTER_LABEL, NO_MATCHING_EVENTS, SHOW_ALL_LABEL } from '../../../src/features/timeline/timelineView';
-import { resetPlatform } from '../../obsidianStub';
-import type { FakeElement } from '../../obsidianStub';
+import { FakeElement, resetPlatform } from '../../obsidianStub';
+import type { ButtonComponent } from '../../obsidianStub';
 import { EVENTS, FakeHost, SCENES, note, sample } from './fakeHost';
 import {
   PHONE,
@@ -504,10 +507,54 @@ describe('plugged into the project', () => {
     expect(one(s.pane, 'spellbook-timeline-count').text).toBe('7');
   });
 
-  it('says so, and opens nothing, when no project is open', () => {
+  it('says to open a project first, and opens nothing, when no project is open', () => {
     const w = wire();
     w.plugin.commands.find((candidate) => candidate.id === EDIT_CALENDAR_COMMAND)?.callback?.();
     expect(openWindows()).toBe(0);
-    expect(notices()).toEqual(['No Spellbook project is open.']);
+    expect(notices()).toEqual([CALENDAR_NO_PROJECT]);
+    expect(CALENDAR_NO_PROJECT).toBe('Open a Spellbook project first: the story calendar belongs to a project.');
+  });
+
+  /** The "Story calendar" button of the timeline's section in the settings, drawn into a place of its own. */
+  function settingsButton(w: ReturnType<typeof wire>): ButtonComponent {
+    const section = w.registered.settingsSections.find((candidate) => candidate.id === 'timeline');
+    if (!section) throw new Error('the timeline added no settings section');
+    const place = new FakeElement('div');
+    section.render(place as unknown as HTMLElement);
+    expect(place.settings.map((row) => [row.nameEl.text, row.descEl.text])).toEqual([[STORY_CALENDAR_TEXT, STORY_CALENDAR_SETTING_DESC]]);
+    const found = place.settings[0]?.components[0] as ButtonComponent | undefined;
+    if (!found) throw new Error('the section has no button');
+    expect(found.buttonEl.text).toBe('Story calendar');
+    return found;
+  }
+
+  it('opens the Calendar window from the button in the settings, for the open project', async () => {
+    const w = await wireOpen();
+    settingsButton(w).click();
+    expect(openWindows()).toBe(1);
+    expect(openWindow().titleEl.text).toBe(CALENDAR_WINDOW_TITLE);
+    expect(w.panes()).toHaveLength(0); // the timeline is not opened for it
+    expect(w.vault.writes).toEqual([]); // nor is anything written by opening it
+  });
+
+  it('says to open a project first when the settings button is pressed with none open', () => {
+    const w = wire();
+    settingsButton(w).click();
+    expect(openWindows()).toBe(0);
+    expect(notices()).toEqual([CALENDAR_NO_PROJECT]);
+  });
+
+  it('offers the same window to the World browser by name', async () => {
+    const w = await wireOpen();
+    const calendar = w.context.services.get<StoryCalendarService>(STORY_CALENDAR_SERVICE);
+    expect(calendar).toBeDefined();
+    calendar?.open();
+    expect(openWindows()).toBe(1);
+    expect(openWindow().titleEl.text).toBe(CALENDAR_WINDOW_TITLE);
+    // Not after the plugin is switched off.
+    clearScreen();
+    w.unload();
+    calendar?.open();
+    expect(openWindows()).toBe(0);
   });
 });

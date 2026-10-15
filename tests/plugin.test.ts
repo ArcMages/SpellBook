@@ -249,6 +249,7 @@ describe('loading and unloading', () => {
     // The writing progress is the one screen with settings of its own.
     expect(plugin.features?.settingsSections.map((section) => [section.id, section.title])).toEqual([
       ['progress', 'Writing progress'],
+      ['timeline', 'Timeline'],
       ['schemes', 'Colour scheme'],
       ['modes', 'Writing modes'],
       ['report', 'Writing report'],
@@ -1455,6 +1456,7 @@ describe('the settings page', () => {
       { name: LINK_SCOPE_NAME_TEXT, desc: LINK_SCOPE_DESC_TEXT, heading: false },
       // Then the sections the screens added, each under its own heading.
       { name: 'Writing progress', desc: '', heading: true },
+      { name: 'Timeline', desc: '', heading: true },
       { name: 'Colour scheme', desc: '', heading: true },
       { name: 'Writing modes', desc: '', heading: true },
       { name: 'Writing report', desc: '', heading: true },
@@ -1607,7 +1609,7 @@ describe('the settings page', () => {
     const { stub } = loadReady();
     const { tab, rows } = page(stub);
     tab.display();
-    expect(rows().map((row) => row.name)).toEqual(['Spellbook', LAYOUT_NAME_TEXT, SHOW_WORDS_NAME_TEXT, 'Projects in this vault', '', 'Renaming', LINK_SCOPE_NAME_TEXT, 'Writing progress', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots', 'Plot grid', 'Welcome and help', 'Templates']);
+    expect(rows().map((row) => row.name)).toEqual(['Spellbook', LAYOUT_NAME_TEXT, SHOW_WORDS_NAME_TEXT, 'Projects in this vault', '', 'Renaming', LINK_SCOPE_NAME_TEXT, 'Writing progress', 'Timeline', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots', 'Plot grid', 'Welcome and help', 'Templates']);
     expect(rows()[4]?.name).toBe('');
     expect(rows()[4]?.desc).toMatch(/No projects yet/);
     expect(rows()[4]?.desc).toMatch(/"Spellbook: Create project"/);
@@ -1632,12 +1634,12 @@ describe('the settings page', () => {
       return next < 0 ? after : after.slice(0, next);
     };
     tab.display();
-    expect(rows()).toHaveLength(16);
+    expect(rows()).toHaveLength(17);
     expect(projects().map((row) => row.name)).toEqual(['']); // "No projects yet"
 
     await plugin.createProject('First');
     expect(projects()).toEqual([{ name: 'First', desc: 'First', heading: false }]);
-    expect(rows().filter((row) => row.heading).map((row) => row.name)).toEqual(['Projects in this vault', 'Renaming', 'Writing progress', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots', 'Plot grid', 'Welcome and help', 'Templates']);
+    expect(rows().filter((row) => row.heading).map((row) => row.name)).toEqual(['Projects in this vault', 'Renaming', 'Writing progress', 'Timeline', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots', 'Plot grid', 'Welcome and help', 'Templates']);
 
     tab.display(); // opened again: still one listener's worth of rows
     await plugin.createProject('Second');

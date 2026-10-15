@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CALENDAR_PRESETS, calendarToIndexValue } from '../../../src/core/timeline';
 import type { StoryCalendar } from '../../../src/core/timeline';
-import { WORLD_HISTORY_SERVICE } from '../../../src/core/world';
+import { STORY_CALENDAR_SERVICE, WORLD_HISTORY_SERVICE } from '../../../src/core/world';
 import { MemoryVault } from '../../memoryVault';
 import { Menu as StubMenu, Modal as StubModal, Notice as StubNotice, resetFakeDocument, resetPlatform } from '../../obsidianStub';
 import type { ButtonComponent, FakeElement } from '../../obsidianStub';
@@ -243,6 +243,24 @@ describe('the World browser by date', () => {
     s.features.services.provide(WORLD_HISTORY_SERVICE, { show: () => asked++ });
     one(pane, 'spellbook-world-history-button').fire('click');
     expect(asked).toBe(1);
+  });
+
+  it('opens the Story calendar window from the toolbar, next to "Story\'s present", through the timeline\'s service', async () => {
+    const s = await stage(datedVault());
+    const { pane } = await openWorld(s);
+    const button = one(pane, 'spellbook-world-calendar');
+    expect(button.getAttr('aria-label')).toBe('Story calendar');
+    // It stands right after the "Story's present" button.
+    const toolbar = button.parent as FakeElement;
+    const at = toolbar.children.indexOf(button);
+    expect(toolbar.children[at - 1]?.hasClass('spellbook-world-present')).toBe(true);
+    let asked = 0;
+    button.fire('click');
+    expect(StubNotice.shown.map((notice) => notice.message)).toEqual(['The timeline is not available.']);
+    s.features.services.provide(STORY_CALENDAR_SERVICE, { open: () => asked++ });
+    button.fire('click');
+    expect(asked).toBe(1);
+    expect(s.vault.writes).toEqual([]);
   });
 });
 

@@ -178,7 +178,7 @@ export type { PlacedWorldRow, WorldLane, WorldLaneLayout, WorldLaneOptions, Worl
 export { MIN_MENTION_LENGTH, SNIPPET_REACH, findMention, mentionNames, sceneMention, snippetAround } from './mentions';
 export type { Mention, MentionSnippet } from './mentions';
 
-export { ENTITY_SHEET_SERVICE, SCENE_ENTITIES_SERVICE, WORLD_HISTORY_SERVICE } from './services';
-export type { EntitySheetService, SceneEntitiesService, SceneEntityChip, WorldHistoryService } from './services';
+export { ENTITY_SHEET_SERVICE, SCENE_ENTITIES_SERVICE, STORY_CALENDAR_SERVICE, WORLD_HISTORY_SERVICE } from './services';
+export type { EntitySheetService, SceneEntitiesService, SceneEntityChip, StoryCalendarService, WorldHistoryService } from './services';
 
 export { WORLD_FOLDER } from '../projectLayout';
