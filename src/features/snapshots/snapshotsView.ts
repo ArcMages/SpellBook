@@ -23,6 +23,7 @@
 // depends on hovering or on dragging.
 
 import { ItemView, Menu, Notice, Platform } from 'obsidian';
+import { followLayout, isPhoneLayout } from '../../ui/layout';
 import type { WorkspaceLeaf } from 'obsidian';
 import { formatCount } from '../../core/binderModel';
 import { pathKey } from '../../core/paths';
@@ -158,10 +159,10 @@ export class SnapshotsView extends ItemView {
     pane.addClass('spellbook-snapshots-pane');
 
     const root = pane.createDiv({ cls: 'spellbook-snapshots' });
-    root.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    followLayout(this, root);
     root.toggleClass('spellbook-is-phone', Platform.isPhone);
-    // Until the pane has been measured, a phone is taken to be narrow.
-    this.narrow = Platform.isPhone;
+    // Until the pane has been measured, the phone layout is taken to be narrow.
+    this.narrow = isPhoneLayout(root.win);
     root.toggleClass('spellbook-is-narrow', this.narrow);
 
     const header = root.createDiv({ cls: 'spellbook-snapshots-header' });

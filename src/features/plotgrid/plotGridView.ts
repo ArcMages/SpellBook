@@ -22,6 +22,7 @@
 // computer can be put on a second line with a tap.
 
 import { ItemView, Keymap, Menu, Notice, Platform } from 'obsidian';
+import { followLayout, isPhoneLayout } from '../../ui/layout';
 import type { WorkspaceLeaf } from 'obsidian';
 import { CARD_COLORS } from '../../core/cards';
 import type { CardColor } from '../../core/cards';
@@ -150,10 +151,10 @@ export class PlotGridView extends ItemView {
     pane.addClass('spellbook-plotgrid-pane');
 
     const root = pane.createDiv({ cls: 'spellbook-plotgrid' });
-    root.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    followLayout(this, root);
     root.toggleClass('spellbook-is-phone', Platform.isPhone);
-    // Until the pane has been measured, a phone is taken to be narrow.
-    this.narrow = Platform.isPhone;
+    // Until the pane has been measured, the phone layout is taken to be narrow.
+    this.narrow = isPhoneLayout(root.win);
     root.toggleClass('spellbook-is-narrow', this.narrow);
 
     const header = root.createDiv({ cls: 'spellbook-plotgrid-header' });

@@ -11,7 +11,8 @@
 // only the piece whose figure changed is touched: nothing else is redrawn, so
 // a button keeps the keyboard's focus and typing never rebuilds the bar.
 
-import { Platform, getIcon, setIcon } from 'obsidian';
+import { getIcon, setIcon } from 'obsidian';
+import { applyLayoutClasses, onLayoutChange } from '../../ui/layout';
 import type { StatusSegment } from '../../core/progress/index';
 
 export const STATUS_CLASS = 'spellbook-status';
@@ -128,6 +129,8 @@ export class StatusBar {
   };
   /** Tells when the bar gets another width (the window was made narrower). */
   private watcher: ResizeObserver | null = null;
+  /** Stops following the layout setting. */
+  private stopLayout: (() => void) | null = null;
 
   /**
    * @param element the status bar item Obsidian made for the plugin
@@ -139,7 +142,11 @@ export class StatusBar {
     this.onOpen = onOpen;
     this.onRun = onRun;
     element.addClass(STATUS_CLASS, 'mod-clickable');
-    if (Platform.isMobile) element.addClass('spellbook-is-mobile');
+    // Bigger buttons in the touch layout, following the setting while the bar is there.
+    applyLayoutClasses(element);
+    this.stopLayout = onLayoutChange(() => {
+      applyLayoutClasses(element);
+    });
     element.setAttr('role', 'button');
     element.setAttr('tabindex', 0);
     element.setAttr('aria-label', 'Writing progress. Click to set writing targets.');
@@ -207,6 +214,8 @@ export class StatusBar {
     this.element.removeEventListener('wheel', this.wheel);
     this.element.removeEventListener('scroll', this.scrolled);
     this.watcher?.disconnect();
+    this.stopLayout?.();
+    this.stopLayout = null;
     this.watcher = null;
     this.element.remove();
   }

@@ -24,6 +24,7 @@
 // direction of its own text. The target is a number and reads left to right.
 
 import { ItemView, Platform } from 'obsidian';
+import { followLayout } from '../../ui/layout';
 import type { WorkspaceLeaf } from 'obsidian';
 import { applyFrontmatterPatch, buildInspector, inspectorPatch, isEmptyPatch } from '../../core/cards';
 import type {
@@ -149,7 +150,7 @@ export class InspectorView extends ItemView {
     pane.addClass('spellbook-inspector-pane');
 
     const root = pane.createDiv({ cls: 'spellbook-inspector' });
-    root.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    followLayout(this, root);
     // On a phone, Obsidian's own bar floats over the bottom of the drawer.
     root.toggleClass('spellbook-is-phone', Platform.isPhone);
     const slot = root.createDiv({ cls: SUMMARY_SLOT_CLASS });

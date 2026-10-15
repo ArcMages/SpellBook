@@ -24,6 +24,7 @@
 // never by the kind of device.
 
 import { ItemView, Menu, Platform } from 'obsidian';
+import { followLayout, isPhoneLayout } from '../../ui/layout';
 import type { WorkspaceLeaf } from 'obsidian';
 import { formatCount } from '../../core/binderModel';
 import { WORDS_PER_MINUTE } from '../../core/outliner/readTime';
@@ -175,13 +176,13 @@ export class ReportView extends ItemView {
     pane.addClass('spellbook-report-pane');
 
     const root = pane.createDiv({ cls: 'spellbook-report' });
-    // Touch needs larger buttons. Platform.isMobile covers phones and tablets.
-    root.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    // Touch needs larger buttons. The touch layout (src/ui/layout.ts) decides.
+    followLayout(this, root);
     // On a phone, Obsidian's own bar floats over the bottom of the pane: the
     // stylesheet keeps the last lines clear of it.
     root.toggleClass('spellbook-is-phone', Platform.isPhone);
-    // Until the pane has been measured, a phone is taken to be narrow.
-    this.narrow = Platform.isPhone;
+    // Until the pane has been measured, the phone layout is taken to be narrow.
+    this.narrow = isPhoneLayout(root.win);
     root.toggleClass('spellbook-is-narrow', this.narrow);
 
     const header = root.createDiv({ cls: 'spellbook-report-header' });

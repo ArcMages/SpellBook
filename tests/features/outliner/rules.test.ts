@@ -97,6 +97,8 @@ describe('the source of the outliner', () => {
       /^\.\.\/\.\.\/core\/(cards|outliner)$/,
       /^\.\.\/\.\.\/core\/(binderModel|dropTarget|projectLayout|types)$/,
       /^\.\.\/\.\.\/ui\/(dragDrop|icons|keys|missingNote|notices|ownText|safely)$/,
+      // layout: which layout the writer chose for this device (it only reads the choice).
+      /^\.\.\/\.\.\/ui\/layout$/,
     ];
     for (const name of ['cells.ts', 'outlinerView.ts', 'parts.ts']) {
       const code = codeOf(name);
@@ -294,6 +296,9 @@ describe('outliner.css', () => {
     for (const column of BUILT_IN_COLUMNS) used.add(columnClass(column));
     // Put on by the drag engine (src/ui/dragDrop.ts) on what a drop would go into.
     used.add('spellbook-is-drop-target');
+    // Put on by src/ui/layout.ts: the touch layout, and the desktop layout chosen on a touch screen.
+    used.add('spellbook-is-mobile');
+    used.add('spellbook-is-desktop-layout');
     for (const rule of rules) {
       for (const selector of rule.selectors) {
         const classes = [...selector.matchAll(/\.(spellbook-[\w-]+)/g)].map((match) => match[1] ?? '');
@@ -428,9 +433,10 @@ describe('outliner.css', () => {
       '.spellbook-outliner .spellbook-outliner-columns',
       '.spellbook-outliner .spellbook-outliner-chip',
     ]) {
-      expect(coarse, selector).toContain(selector);
+      // Unless the desktop layout was chosen (src/ui/layout.ts).
+      expect(coarse, selector).toContain(selector.replace(' ', ':not(:where(.spellbook-is-desktop-layout)) '));
     }
-    expect(rulesOf(coarse).find((rule) => rule.selectors.includes('.spellbook-outliner .spellbook-outliner-cell'))?.body).toMatch(
+    expect(rulesOf(coarse).find((rule) => rule.selectors.includes('.spellbook-outliner:not(:where(.spellbook-is-desktop-layout)) .spellbook-outliner-cell'))?.body).toMatch(
       /height:\s*var\(--spellbook-outliner-touch\)/,
     );
   });

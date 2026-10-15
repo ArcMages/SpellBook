@@ -15,6 +15,7 @@
 // depends on hovering or on dragging.
 
 import { ItemView, Notice, Platform } from 'obsidian';
+import { followLayout } from '../../ui/layout';
 import type { WorkspaceLeaf } from 'obsidian';
 import { formatCount } from '../../core/binderModel';
 import { pathKey } from '../../core/paths';
@@ -116,7 +117,7 @@ export class RevisionView extends ItemView {
     pane.empty();
     pane.addClass('spellbook-revision-pane');
     const root = pane.createDiv({ cls: 'spellbook-revision' });
-    root.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    followLayout(this, root);
     root.toggleClass('spellbook-is-phone', Platform.isPhone);
     const header = root.createDiv({ cls: 'spellbook-revision-header' });
     header.createDiv({ cls: 'spellbook-revision-heading', text: REVISION_VIEW_NAME });

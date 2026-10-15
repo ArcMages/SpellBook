@@ -12,7 +12,8 @@
 //
 // Only the project index is written (through the host). No note is touched.
 
-import { Modal, Platform, Setting } from 'obsidian';
+import { Modal, Setting } from 'obsidian';
+import { applyLayoutClasses } from '../../ui/layout';
 import type { App, ButtonComponent } from 'obsidian';
 import {
   CALENDAR_PRESETS,
@@ -152,7 +153,7 @@ export class CalendarModal extends Modal {
     this.titleEl.setText(CALENDAR_WINDOW_TITLE);
     this.modalEl.addClass('spellbook-prompt', 'spellbook-timeline-calendar-window');
     // Phones and tablets: rows and buttons big enough for a finger (timeline.css).
-    this.modalEl.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    applyLayoutClasses(this.modalEl);
     this.body = contentEl.createDiv({ cls: 'spellbook-timeline-calendar-body' });
     this.preview = contentEl.createDiv({ cls: 'spellbook-timeline-calendar-preview', attr: { dir: 'auto', 'aria-live': 'polite' } });
     this.misfits = contentEl.createDiv({ cls: 'spellbook-timeline-calendar-misfits' });

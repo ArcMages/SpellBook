@@ -1050,31 +1050,31 @@
 }
 
 @media (pointer: coarse) {
-  .spellbook-timeline .spellbook-timeline-button,
-  .spellbook-timeline .spellbook-timeline-lane-tab,
-  .spellbook-timeline .spellbook-timeline-undated-toggle,
-  .spellbook-timeline .spellbook-timeline-undated-title,
-  .spellbook-timeline .spellbook-timeline-set-date,
-  .spellbook-timeline-lanes-window .spellbook-timeline-lane-toggle,
-  .spellbook-timeline-lanes-window .spellbook-timeline-lane-more,
-  .spellbook-timeline-lanes-window .spellbook-timeline-lane-add,
-  .spellbook-timeline .spellbook-timeline-filter-clear,
-  .spellbook-timeline-event-window .spellbook-timeline-entity-choose,
-  .spellbook-timeline-event-window .spellbook-timeline-entity-remove,
-  .spellbook-timeline-event-window .spellbook-timeline-date-row .dropdown,
-  .spellbook-timeline-entity-window .spellbook-timeline-entity-row,
-  .spellbook-timeline-calendar-window .spellbook-timeline-calendar-preset,
-  .spellbook-timeline-calendar-window .spellbook-timeline-calendar-add,
-  .spellbook-timeline-calendar-window .spellbook-timeline-calendar-row-button {
+  .spellbook-timeline:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-button,
+  .spellbook-timeline:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-lane-tab,
+  .spellbook-timeline:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-undated-toggle,
+  .spellbook-timeline:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-undated-title,
+  .spellbook-timeline:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-set-date,
+  .spellbook-timeline-lanes-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-lane-toggle,
+  .spellbook-timeline-lanes-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-lane-more,
+  .spellbook-timeline-lanes-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-lane-add,
+  .spellbook-timeline:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-filter-clear,
+  .spellbook-timeline-event-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-entity-choose,
+  .spellbook-timeline-event-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-entity-remove,
+  .spellbook-timeline-event-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-date-row .dropdown,
+  .spellbook-timeline-entity-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-entity-row,
+  .spellbook-timeline-calendar-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-calendar-preset,
+  .spellbook-timeline-calendar-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-calendar-add,
+  .spellbook-timeline-calendar-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-calendar-row-button {
     min-block-size: var(--spellbook-timeline-target);
   }
 
-  .spellbook-timeline .spellbook-timeline-button,
-  .spellbook-timeline .spellbook-timeline-card-more,
-  .spellbook-timeline-lanes-window .spellbook-timeline-lane-toggle,
-  .spellbook-timeline-lanes-window .spellbook-timeline-lane-more,
-  .spellbook-timeline-event-window .spellbook-timeline-entity-remove,
-  .spellbook-timeline-calendar-window .spellbook-timeline-calendar-row-button {
+  .spellbook-timeline:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-button,
+  .spellbook-timeline:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-card-more,
+  .spellbook-timeline-lanes-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-lane-toggle,
+  .spellbook-timeline-lanes-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-lane-more,
+  .spellbook-timeline-event-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-entity-remove,
+  .spellbook-timeline-calendar-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-calendar-row-button {
     min-inline-size: var(--spellbook-timeline-target);
   }
 }
@@ -1244,7 +1244,7 @@
 }
 
 @media (pointer: coarse) {
-  .spellbook-timeline-lanes-window .spellbook-timeline-world-toggle {
+  .spellbook-timeline-lanes-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-world-toggle {
     min-block-size: var(--spellbook-timeline-target);
     min-inline-size: var(--spellbook-timeline-target);
   }
@@ -1314,7 +1314,7 @@
 }
 
 @media (pointer: coarse) {
-  .spellbook-timeline-tags-window .spellbook-timeline-tag-match .spellbook-timeline-button {
+  .spellbook-timeline-tags-window:not(:where(.spellbook-is-desktop-layout)) .spellbook-timeline-tag-match .spellbook-timeline-button {
     min-block-size: var(--spellbook-timeline-target);
   }
 }

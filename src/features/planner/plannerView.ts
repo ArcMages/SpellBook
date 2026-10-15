@@ -22,6 +22,7 @@
 // drag engine of the list) is taken down again when the view closes.
 
 import { ItemView, Notice, Platform } from 'obsidian';
+import { followLayout } from '../../ui/layout';
 import type { ViewStateResult, WorkspaceLeaf } from 'obsidian';
 import { parseMarks, parseTodo } from '../../core/planner';
 import type { MarksEdit, TodoEdit, TodoFile } from '../../core/planner';
@@ -129,9 +130,9 @@ export class PlannerView extends ItemView implements PlannerOwner {
     pane.addClass('spellbook-planner-pane');
 
     const root = pane.createDiv({ cls: 'spellbook-planner' });
-    // Touch needs bigger targets. Platform.isMobile covers phones and
-    // tablets; the stylesheet also covers touch screens on desktop.
-    root.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    // Touch needs bigger targets. The touch layout (see
+    // src/ui/layout.ts) decides; the stylesheet also covers touch screens on desktop.
+    followLayout(this, root);
     // On a phone, Obsidian's own bar floats over the bottom of the pane: the
     // stylesheet leaves room for it under whatever scrolls.
     root.toggleClass('spellbook-is-phone', Platform.isPhone);

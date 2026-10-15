@@ -12,6 +12,7 @@
 // the help texts are bundled in the plugin (bundledText.ts).
 
 import { Notice, Platform } from 'obsidian';
+import { isTouchLayout } from '../../ui/layout';
 import type { Modal } from 'obsidian';
 import {
   COMMANDS_SERVICE,
@@ -110,7 +111,9 @@ export const welcomeFeature: Feature = {
         () => {
           cancelTourTimer = null;
           if (released || typeof activeDocument === 'undefined') return;
-          const screen = pageScreen(activeDocument, Platform.isPhone, Platform.isMobile, app.workspace);
+          // The phone's own stops (its sliding sidebars, no bottom bar) go by
+          // what the device is; the size of the buttons by the layout setting.
+          const screen = pageScreen(activeDocument, Platform.isPhone, isTouchLayout(), app.workspace);
           const started = new Tour(screen, TOUR_STOPS, () => {
             if (tour === started) tour = null;
           });
@@ -223,6 +226,7 @@ export const welcomeFeature: Feature = {
         console.error('Spellbook: the welcome could not decide what to show', error);
       }
     };
+    // How slow the device is to start: what it is, not the layout setting.
     const quiet = quietBeforeDeciding(Platform.isMobile);
     const waitForQuiet = (): void => {
       if (decided || released) return;

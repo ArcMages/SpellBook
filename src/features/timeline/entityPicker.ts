@@ -6,7 +6,8 @@
 // it, so it works the same with a finger as with a mouse. Nothing is written
 // here: the window hands the ticked entities to whoever opened it.
 
-import { Modal, Platform, Setting } from 'obsidian';
+import { Modal, Setting } from 'obsidian';
+import { applyLayoutClasses } from '../../ui/layout';
 import type { App, ButtonComponent } from 'obsidian';
 import { clashKey } from '../../core/paths';
 import type { EventEntity } from '../../core/timeline';
@@ -67,7 +68,7 @@ export class EntityPickerModal extends Modal {
     this.titleEl.setText(form.heading);
     this.modalEl.addClass('spellbook-prompt', 'spellbook-timeline-entity-window');
     // Phones and tablets: rows and buttons big enough for a finger (timeline.css).
-    this.modalEl.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    applyLayoutClasses(this.modalEl);
     if (form.note !== undefined) {
       contentEl.createEl('p', { cls: 'spellbook-timeline-window-note', text: form.note, attr: { dir: 'auto' } });
     }

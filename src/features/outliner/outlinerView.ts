@@ -29,6 +29,7 @@
 // width, never by the kind of device.
 
 import { ItemView, Keymap, Menu, Notice, Platform } from 'obsidian';
+import { followLayout, isPhoneLayout } from '../../ui/layout';
 import type { MenuPositionDef, PaneType, UserEvent, WorkspaceLeaf } from 'obsidian';
 import { describeCount } from '../../core/binderModel';
 import { buildInspector } from '../../core/cards';
@@ -264,16 +265,16 @@ export class OutlinerView extends ItemView {
     pane.addClass('spellbook-outliner-pane');
 
     const root = pane.createDiv({ cls: 'spellbook-outliner' });
-    // Touch needs larger rows. Platform.isMobile covers phones and tablets;
+    // Touch needs larger rows. The touch layout (src/ui/layout.ts) decides;
     // the stylesheet also covers touch screens on desktop.
-    root.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    followLayout(this, root);
     // On a phone, Obsidian's own bar floats over the bottom of the pane: the
     // stylesheet keeps the table clear of it.
     root.toggleClass('spellbook-is-phone', Platform.isPhone);
     // On a computer Obsidian's bottom bar lies over the foot of the pane.
     root.toggleClass('spellbook-has-status-bar', !Platform.isMobile);
-    // Until the pane has been measured, a phone is taken to be narrow.
-    this.narrow = Platform.isPhone;
+    // Until the pane has been measured, the phone layout is taken to be narrow.
+    this.narrow = isPhoneLayout(root.win);
     root.toggleClass('spellbook-is-narrow', this.narrow);
 
     const header = root.createDiv({ cls: 'spellbook-outliner-header' });

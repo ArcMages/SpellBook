@@ -509,10 +509,10 @@
 }
 
 @media (pointer: coarse) {
-  .spellbook-board .spellbook-card-more,
-  .spellbook-board .spellbook-board-more,
-  .spellbook-board .spellbook-board-size,
-  .spellbook-board .spellbook-crumb {
+  .spellbook-board:not(:where(.spellbook-is-desktop-layout)) .spellbook-card-more,
+  .spellbook-board:not(:where(.spellbook-is-desktop-layout)) .spellbook-board-more,
+  .spellbook-board:not(:where(.spellbook-is-desktop-layout)) .spellbook-board-size,
+  .spellbook-board:not(:where(.spellbook-is-desktop-layout)) .spellbook-crumb {
     min-width: var(--spellbook-board-touch);
     min-height: var(--spellbook-board-touch);
   }
@@ -787,9 +787,9 @@
 }
 
 @media (pointer: coarse) {
-  .spellbook-inspector .spellbook-field-input,
-  .spellbook-inspector .spellbook-field-compile .spellbook-field-label,
-  .spellbook-inspector .spellbook-inspector-lists {
+  .spellbook-inspector:not(:where(.spellbook-is-desktop-layout)) .spellbook-field-input,
+  .spellbook-inspector:not(:where(.spellbook-is-desktop-layout)) .spellbook-field-compile .spellbook-field-label,
+  .spellbook-inspector:not(:where(.spellbook-is-desktop-layout)) .spellbook-inspector-lists {
     min-height: var(--spellbook-inspector-touch);
   }
 }
@@ -907,10 +907,10 @@
 }
 
 @media (pointer: coarse) {
-  .spellbook-tags .spellbook-tag-color,
-  .spellbook-tags .spellbook-tag-button,
-  .spellbook-tags .spellbook-tags-adopt,
-  .spellbook-tags .spellbook-tags-add {
+  .spellbook-tags:not(:where(.spellbook-is-desktop-layout)) .spellbook-tag-color,
+  .spellbook-tags:not(:where(.spellbook-is-desktop-layout)) .spellbook-tag-button,
+  .spellbook-tags:not(:where(.spellbook-is-desktop-layout)) .spellbook-tags-adopt,
+  .spellbook-tags:not(:where(.spellbook-is-desktop-layout)) .spellbook-tags-add {
     min-width: var(--spellbook-tags-touch);
     min-height: var(--spellbook-tags-touch);
   }

@@ -8,7 +8,8 @@
 // entities. Nothing is written here: the window hands the filter to whoever
 // opened it.
 
-import { Modal, Platform, Setting } from 'obsidian';
+import { Modal, Setting } from 'obsidian';
+import { applyLayoutClasses } from '../../ui/layout';
 import type { App } from 'obsidian';
 import { NO_TAG_FILTER, searchTags, tagKey } from '../../core/timeline';
 import type { TagCount, TagFilter, TagMatch } from '../../core/timeline';
@@ -61,7 +62,7 @@ export class TagFilterModal extends Modal {
     this.titleEl.setText(TAGS_WINDOW_TITLE);
     this.modalEl.addClass('spellbook-prompt', 'spellbook-timeline-entity-window', 'spellbook-timeline-tags-window');
     // Phones and tablets: rows and buttons big enough for a finger (timeline.css).
-    this.modalEl.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    applyLayoutClasses(this.modalEl);
 
     const modes = contentEl.createDiv({ cls: 'spellbook-timeline-modes spellbook-timeline-tag-match', attr: { role: 'group', 'aria-label': 'Match' } });
     this.matchButtons = (['any', 'all'] as const).map((match) => {

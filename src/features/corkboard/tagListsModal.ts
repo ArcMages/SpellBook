@@ -12,7 +12,8 @@
 // Nothing here depends on dragging or on hovering: every control is a button
 // that can be tapped, and reached and pressed from the keyboard.
 
-import { Menu, Modal, Notice, Platform } from 'obsidian';
+import { Menu, Modal, Notice } from 'obsidian';
+import { applyLayoutClasses } from '../../ui/layout';
 import type { App, MenuPositionDef } from 'obsidian';
 import { formatCount } from '../../core/binderModel';
 import {
@@ -95,8 +96,8 @@ export class TagListsModal extends Modal {
     this.closed = false;
     this.titleEl.setText(TAG_LISTS_TITLE);
     this.modalEl.addClass('spellbook-tags');
-    // Touch needs larger buttons: on phones and tablets, and (in the stylesheet) on any touch screen.
-    this.modalEl.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    // Touch needs larger buttons: in the touch layout (src/ui/layout.ts), and (in the stylesheet) on any touch screen.
+    applyLayoutClasses(this.modalEl);
     this.stop = this.host.onChange((change) => {
       // A scene that changed may use another status now: the names under the lists follow.
       if (change.type === 'project' || change.type === 'scenes') this.render();

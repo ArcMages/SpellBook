@@ -1,14 +1,17 @@
-// The line at the top of the inspector on phones and tablets: the open
-// scene's word count and dates, and the session and project totals, and after
-// them the shortcut buttons the writer put in the bottom bar.
+// The line at the top of the inspector in the touch layout: the open scene's
+// word count and dates, and the session and project totals, and after them
+// the shortcut buttons the writer put in the bottom bar.
 //
 // On a desktop Obsidian shows that line in its bottom bar. A phone has no
-// bottom bar, so there the inspector shows it instead. The line itself belongs
+// bottom bar, so there the inspector always shows it, whatever the layout
+// setting (that is about what the device has, not about the layout). In the
+// touch layout elsewhere it is shown there too, as on a tablet. The line itself belongs
 // to another screen of the plugin (the writing progress), which offers it to
 // the others under a name; this file only puts it on the screen. When nobody
 // offers it, nothing is shown.
 
 import { Platform, getIcon, setIcon } from 'obsidian';
+import { isTouchLayout, onLayoutChange } from '../../ui/layout';
 // The line's name and its shape are declared once, in the core, for the
 // screen that offers it and for this one that shows it.
 import { SCENE_LINE_SERVICE } from '../../core/progress/index';
@@ -156,7 +159,8 @@ function drawButtons(slot: HTMLElement, line: SceneLineService, drawing: Drawing
 
 /**
  * Fill the empty place at the top of the inspector with the line, and keep it
- * up to date. Does nothing on a desktop, and nothing when no line is offered.
+ * up to date. Shows nothing in the desktop layout on a device with a bottom
+ * bar, and nothing when no line is offered.
  *
  * @param slot the empty element at the top of the inspector
  * @returns the function to call when the inspector closes
@@ -166,8 +170,39 @@ export function mountSceneLine(
   services: Pick<FeatureServices, 'get'>,
   clock: Pick<FeatureClock, 'setTimer'>,
 ): () => void {
-  if (!Platform.isMobile) return () => undefined;
+  let unmount: (() => void) | null = null;
+  const follow = (): void => {
+    const wanted = sceneLineInInspector();
+    if (wanted && !unmount) unmount = showSceneLine(slot, services, clock);
+    else if (!wanted && unmount) {
+      unmount();
+      unmount = null;
+    }
+  };
+  follow();
+  // The layout setting can change while the inspector is open.
+  const stopFollowing = onLayoutChange(follow);
+  return () => {
+    stopFollowing();
+    unmount?.();
+    unmount = null;
+  };
+}
 
+/**
+ * Whether the inspector shows the line: on a phone, which has no bottom bar
+ * (a CAPABILITY: Platform.isPhone, whatever the layout), and in the touch
+ * layout (a LAYOUT choice).
+ */
+export function sceneLineInInspector(): boolean {
+  return Platform.isPhone || isTouchLayout();
+}
+
+function showSceneLine(
+  slot: HTMLElement,
+  services: Pick<FeatureServices, 'get'>,
+  clock: Pick<FeatureClock, 'setTimer'>,
+): () => void {
   let stopped = false;
   let stopListening: (() => void) | null = null;
   let stopWaiting: (() => void) | null = null;

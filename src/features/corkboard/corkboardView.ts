@@ -32,6 +32,7 @@
 // of device.
 
 import { ItemView, Keymap, Menu, Notice, Platform } from 'obsidian';
+import { followLayout } from '../../ui/layout';
 import type { MenuPositionDef, PaneType, UserEvent, ViewStateResult, WorkspaceLeaf } from 'obsidian';
 import { describeCount } from '../../core/binderModel';
 import {
@@ -286,9 +287,9 @@ export class CorkboardView extends ItemView {
     pane.addClass('spellbook-board-pane');
 
     const root = pane.createDiv({ cls: 'spellbook-board' });
-    // Touch needs larger buttons. Platform.isMobile covers phones and tablets;
+    // Touch needs larger buttons. The touch layout (src/ui/layout.ts) decides;
     // the stylesheet also covers touch screens on desktop.
-    root.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    followLayout(this, root);
     // On a phone, Obsidian's own bar floats over the bottom of the pane: the
     // stylesheet leaves room for it under the last card.
     root.toggleClass('spellbook-is-phone', Platform.isPhone);

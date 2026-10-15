@@ -32,6 +32,7 @@
 // the direction of its own text. Nothing depends on hovering or dragging.
 
 import { ItemView, Keymap, Menu, Notice, Platform } from 'obsidian';
+import { followLayout } from '../../ui/layout';
 import type { WorkspaceLeaf } from 'obsidian';
 import {
   ALL_TYPES,
@@ -196,7 +197,7 @@ export class WorldView extends ItemView {
     pane.addClass('spellbook-world-pane');
 
     const root = pane.createDiv({ cls: 'spellbook-world' });
-    root.toggleClass('spellbook-is-mobile', Platform.isMobile);
+    followLayout(this, root);
     // On a phone, Obsidian's own bar floats over the bottom of the pane.
     root.toggleClass('spellbook-is-phone', Platform.isPhone);
 
