@@ -2,7 +2,7 @@
 
 What changed in each version of Spellbook, newest first.
 
-## Unreleased
+## 1.0.0 (15 October 2026)
 
 New:
 - Revision tools: notes on passages (a dotted underline and a bubble), the Revision pane, Find and replace in the manuscript, and Rename everywhere for World entries. Each changed scene is saved as a snapshot first.

@@ -1,7 +1,7 @@
 {
   "id": "spellbook-novel-writer",
   "name": "Spellbook",
-  "version": "0.10.0",
+  "version": "1.0.0",
   "minAppVersion": "1.8.7",
   "description": "Plan and write novels: binder, corkboard, outliner, novel view, writing modes, prose checks, word targets, calendar, timelines, world notes, snapshots and export. Hebrew and English.",
   "author": "DandiMage",
