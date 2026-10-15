@@ -4,6 +4,32 @@ What changed in each version of Spellbook, newest first.
 
 ## Unreleased
 
+New:
+- Revision tools: notes on passages (a dotted underline and a bubble), the Revision pane, Find and replace in the manuscript, and Rename everywhere for World entries. Each changed scene is saved as a snapshot first.
+- Chapters and scenes: a note can be a whole chapter, marked in the binder and on the corkboard. A project says whether you usually write in scenes or chapters. The novel view and the export give chapter notes their own headings, and a folder of chapters becomes a part.
+- Ages: Born, Died and Age at the top of a character's sheet, worked out at the story's present. Scenes show each character's age, and a warning when someone is not born yet or already dead.
+- Timeline: Filter by tags, and Views (Story, World history, and views you save).
+- Plot grid: each plotline is shaded before its first scene and after its last, with a setting to turn it off.
+- World sheet: "Nicknames and other names" under the picture.
+- Export: type the book's own headings, and a "Manuscript exported" window with the file's name and folder.
+- Settings: Layout (Automatic, Touch, Desktop) for each device; where renames update links (this project or the whole vault); where Hemingway mode allows undo.
+
+Changed:
+- Renames never stall: Spellbook points every link at the new name itself, so Obsidian's "Update links" question never comes up.
+- Revision notes are kept in one file per project, "Revision notes.json", instead of in the scenes.
+- A tap on a World card or row, its name included, opens the sheet.
+- Dragging an entity on the timeline moves its moments with it.
+- The tour on a phone slides out the drawers and says where each pane is.
+- One rule everywhere: the week starts on the same day in the calendar and "This week", reading time is 250 words a minute, and a hyphenated word counts as one word on every device.
+- The sample novel has 25 scenes in its timeline lanes, so the plot grid's lanes have something to show.
+
+Fixed:
+- Board cards turned into notes are no longer undone by a board open in Canvas, and relationship-map labels have room.
+- Taking out the last lane or entity removes the property instead of leaving an empty list.
+- A part heading in a web page stays larger than a chapter heading.
+- The "Create project" window keeps the line above "I usually write in" and "Structure".
+- Smaller fixes on the timeline and in the export window.
+
 Faster:
 - Tested on a full-length novel: about 80,000 words in 290 scenes, with 200 World entries and 300 timeline events.
 - Obsidian now starts in under a second with Spellbook on such a book, where it used to freeze for about three seconds.
