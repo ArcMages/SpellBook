@@ -173,6 +173,10 @@ Because a project is plain notes, an AI assistant can read it and help: summaris
 
 Spellbook itself contains no AI and sends nothing anywhere. The file is only text for an assistant of your choosing to read.
 
+## Speed
+
+Spellbook is tested on a full-length novel: about 80,000 words in 290 scenes, with 200 World entries and 300 timeline events. On such a book Obsidian starts in under a second with Spellbook on, every screen opens in about half a second or less, and typing stays smooth with prose checks, typewriter scrolling and the bottom bar all on.
+
 ## Hebrew and English
 
 Spellbook supports Hebrew and English, including right-to-left text. Menus and buttons are in English. Your own text (titles, synopses, names, labels) can be in Hebrew, English or both: each piece of text takes the direction of its own language, so Hebrew reads right to left next to English that reads left to right. Word counts handle both languages. The Word and web-page exports mark Hebrew text as right to left.

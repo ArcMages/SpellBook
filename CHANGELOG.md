@@ -2,6 +2,15 @@
 
 What changed in each version of Spellbook, newest first.
 
+## Unreleased
+
+Faster:
+- Tested on a full-length novel: about 80,000 words in 290 scenes, with 200 World entries and 300 timeline events.
+- Obsidian now starts in under a second with Spellbook on such a book, where it used to freeze for about three seconds.
+- Opening the inspector and working with the World open no longer pause for one or two seconds; they now take a tenth of a second or less.
+- Every screen opens in about half a second or less, and typing stays smooth (well under a hundredth of a second a key) with prose checks, typewriter and the bottom bar all on.
+- Replacing a word across the whole book is quicker, and the stylesheet is half the size.
+
 ## 0.10.0 (14 October 2026)
 
 New:
