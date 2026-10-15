@@ -4,6 +4,9 @@ import type { DevicePrefs } from './core/devicePrefs';
 import type { LinkScope } from './core/links';
 import type { ProjectStore } from './core/projectStore';
 import type { RegisteredFeatures } from './features/registry';
+import { parseLayoutChoice } from './core/layout';
+import type { LayoutChoice } from './core/layout';
+import { layoutChoice, setLayoutChoice } from './ui/layout';
 
 /** What the settings tab needs from the plugin. */
 export type SettingsHost = Plugin & {
@@ -13,6 +16,20 @@ export type SettingsHost = Plugin & {
   readonly features: Pick<RegisteredFeatures, 'settingsSections'> | null;
   /** What this device remembers (where the links to a renamed note are updated); null until Obsidian has finished starting up. */
   readonly prefs?: DevicePrefs | null;
+};
+
+export const LAYOUT_NAME_TEXT = 'Layout';
+export const LAYOUT_DESC_TEXT =
+  'How Spellbook\'s screens are laid out on this device. ' +
+  '"Automatic" follows the device: the touch layout on phones and tablets, the desktop layout on computers. ' +
+  '"Touch layout" gives big buttons and rows for a finger, for example on a touch-screen laptop or a small window. ' +
+  '"Desktop layout" gives the full desktop screens, for example on an iPad with a keyboard and trackpad. ' +
+  'What the device itself can or cannot do stays as it is: printing is offered on computers only, and a phone keeps its sliding sidebars and shows the word figures in the inspector. ' +
+  'Open screens change at once. This choice is kept on this device only.';
+export const LAYOUT_OPTIONS: Readonly<Record<LayoutChoice, string>> = {
+  auto: 'Automatic',
+  touch: 'Touch layout',
+  desktop: 'Desktop layout',
 };
 
 export const LINKS_HEADING_TEXT = 'Renaming';
@@ -27,7 +44,8 @@ export const LINK_SCOPE_OPTIONS: Readonly<Record<LinkScope, string>> = {
 };
 
 /**
- * Settings tab. It shows which build is installed and the Spellbook projects
+ * Settings tab. It shows which build is installed, the layout chosen for this
+ * device (see src/ui/layout.ts), and the Spellbook projects
  * found in this vault, followed by one section for every feature that added
  * one (see addSettingsSection in src/features/registry.ts). The list of
  * projects follows the vault while the tab is open.
@@ -69,6 +87,7 @@ export class SpellbookSettingTab extends PluginSettingTab {
 
     const { name, version } = this.plugin.manifest;
     new Setting(containerEl).setName(name).setDesc(`Version ${version}`);
+    this.renderLayout(containerEl);
 
     new Setting(containerEl).setName('Projects in this vault').setHeading();
     this.renderProjects(containerEl);
@@ -98,6 +117,21 @@ export class SpellbookSettingTab extends PluginSettingTab {
       row.nameEl.setAttr('dir', 'auto');
       row.descEl.setAttr('dir', 'auto');
     }
+  }
+
+  /** Touch or desktop layout on this device. Kept by src/ui/layout.ts, which is there from the start. */
+  private renderLayout(containerEl: HTMLElement): void {
+    new Setting(containerEl)
+      .setName(LAYOUT_NAME_TEXT)
+      .setDesc(LAYOUT_DESC_TEXT)
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOptions({ ...LAYOUT_OPTIONS })
+          .setValue(layoutChoice())
+          .onChange((value) => {
+            setLayoutChoice(parseLayoutChoice(value));
+          });
+      });
   }
 
   /** Where the links to a note that Spellbook renames are brought up to date. */
