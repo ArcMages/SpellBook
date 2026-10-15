@@ -268,6 +268,35 @@ export function kindOfNote(tree: readonly TreeNode[], path: string): NoteKind {
 }
 
 /**
+ * What a column of a table that lists the notes of the binder is headed:
+ * "Scene" when they are all scenes, "Chapter" when they are all chapters,
+ * "Chapter / scene" for a book that mixes the two.
+ */
+export function notesHeading(tree: readonly TreeNode[]): string {
+  let chapters = 0;
+  let scenes = 0;
+  const walk = (nodes: readonly TreeNode[]): void => {
+    for (const node of nodes) {
+      if (node.kind === 'folder') walk(node.children);
+      else if (node.chapter === true) chapters++;
+      else scenes++;
+    }
+  };
+  walk(tree);
+  if (chapters === 0) return 'Scene';
+  return scenes === 0 ? 'Chapter' : 'Chapter / scene';
+}
+
+/**
+ * Whether a note of the project is a whole chapter, by its vault path.
+ * False for a note outside the project or not in the binder.
+ */
+export function isChapterNote(project: Pick<ProjectSnapshot, 'tree' | 'folder'>, vaultPath: string): boolean {
+  const rel = project.folder === '' ? vaultPath : relativeTo(project.folder, vaultPath);
+  return rel !== null && kindOfNote(project.tree, rel) === 'chapter';
+}
+
+/**
  * What a new note at `placement` should be. Next to a note: the same as that
  * note, so that "New ... below" a scene inside a chapter folder makes another
  * scene. At the end of a folder: the same as the last note in it. Otherwise

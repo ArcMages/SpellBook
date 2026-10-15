@@ -745,7 +745,7 @@ export class CorkboardView extends ItemView {
 
     let summary = '';
     if (board) {
-      summary = describeScenes(board.sceneCount);
+      summary = describeScenes(board.sceneCount, board.chapterCount ?? 0);
       // The sum is not known while a scene is still being counted.
       if (board.words !== null) summary += `, ${describeCount(board.words)}`;
     }

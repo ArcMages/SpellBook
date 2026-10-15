@@ -79,6 +79,8 @@ export interface SceneCard {
   readonly missing: boolean;
   /** Whether the scene goes into the compiled manuscript. */
   readonly compile: boolean;
+  /** True for a note that is a whole chapter. Absent: a scene. */
+  readonly chapter?: boolean;
 }
 
 /**

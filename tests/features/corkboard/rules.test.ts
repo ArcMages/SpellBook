@@ -100,7 +100,7 @@ describe('the source of the corkboard feature', () => {
       /^obsidian$/,
       /^\.\/\w+$/,
       /^\.\.\/\.\.\/core\/cards$/,
-      /^\.\.\/\.\.\/core\/(binderModel|dropTarget|names|types)$/,
+      /^\.\.\/\.\.\/core\/(binderModel|dropTarget|names|noteKind|types)$/,
       // missingNote: the wording of the warning on an entry whose note is missing, shared with the binder.
       /^\.\.\/\.\.\/ui\/(confirmModal|dragDrop|icons|keys|missingNote|notices|safely|textPromptModal)$/,
     ];

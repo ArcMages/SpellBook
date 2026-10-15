@@ -67,6 +67,8 @@ export interface StatusLineInput {
   readonly dailyTarget?: number | null;
   /** The open scene's title. */
   readonly sceneTitle?: string | null;
+  /** True when the open note is a whole chapter: its title is then labelled "Chapter". */
+  readonly chapter?: boolean;
   /** The open scene's status: its name, and its colour when it has one. */
   readonly status?: { readonly name: string; readonly color?: string | null } | null;
   /** The to-dos that are not done: how many are due today, and how many were due before today. */
@@ -162,7 +164,7 @@ function piece(id: BarItemId, input: StatusLineInput, withTarget: boolean): Stat
     }
     case 'title': {
       const title = input.sceneTitle;
-      return typeof title === 'string' && title.trim() !== '' ? { id, label: 'Scene', value: title.trim(), ownText: true } : null;
+      return typeof title === 'string' && title.trim() !== '' ? { id, label: input.chapter === true ? 'Chapter' : 'Scene', value: title.trim(), ownText: true } : null;
     }
     default:
       return null;

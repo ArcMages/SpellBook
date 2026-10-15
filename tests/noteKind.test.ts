@@ -60,7 +60,8 @@ describe('the chapters list', () => {
     expect(describeKinds(3, 2)).toBe('3 chapters and 2 scenes');
     expect(describeKinds(1, 0)).toBe('1 chapter');
     expect(describeKinds(0, 1)).toBe('1 scene');
-    expect(describeKinds(0, 0)).toBe('no scenes');
+    expect(describeKinds(0, 0)).toBe('0 scenes');
+    expect(describeKinds(0, 1234)).toBe('1,234 scenes');
   });
 });
 

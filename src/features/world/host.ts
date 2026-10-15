@@ -27,6 +27,7 @@ import type { PaneType } from 'obsidian';
 import type { EntityBoardService } from '../../core/boards';
 import type { RenameEverywhereService } from '../../core/revision';
 import { sanitiseFileName } from '../../core/names';
+import { kindOfNote } from '../../core/binderModel';
 import { isImagePath, noteTitle, pathKey, relativeTo } from '../../core/paths';
 import { entityStart, worldTemplates } from '../../core/templates';
 import type { TemplateEntry } from '../../core/templates';
@@ -478,6 +479,12 @@ export class WorldHost {
   }
 
   /** The title of a scene of the binder; null when the binder has no such scene. */
+  /** Whether a note of the binder is a whole chapter rather than a scene. */
+  isChapter(path: string): boolean {
+    const project = this.context.store.project;
+    return project !== null && kindOfNote(project.tree, path) === 'chapter';
+  }
+
   sceneTitle(path: string): string | null {
     const key = pathKey(path);
     return this.current()?.scenes.find((scene) => pathKey(scene.path) === key)?.title ?? null;

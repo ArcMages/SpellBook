@@ -48,6 +48,7 @@ import type {
 } from './host';
 import { PROBLEM_NOTICE_MS } from './parts';
 import { mountSceneEntities } from './sceneEntities';
+import { kindOfNote } from '../../core/binderModel';
 import { mountSceneLine } from './summaryLine';
 
 /** Where this device remembers the size of the cards. */
@@ -185,7 +186,11 @@ export class StoreCardsHost implements CorkboardHost {
       // On phones and tablets: the word count line, when the writing progress screen offers one.
       mountSummary: (slot) => mountSceneLine(slot, context.services, context.clock),
       // Who and what is in the scene, when the world-building screen offers it.
-      mountEntities: (slot, scenePath) => mountSceneEntities(slot, context.services, context.clock, scenePath),
+      mountEntities: (slot, scenePath) =>
+        mountSceneEntities(slot, context.services, context.clock, scenePath, (path) => {
+          const project = context.store.project;
+          return project !== null && kindOfNote(project.tree, path) === 'chapter';
+        }),
     };
   }
 

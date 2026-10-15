@@ -126,13 +126,17 @@ export function kindTitle(kind: NoteKind, count = 1): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
-/** A count of notes said naturally: "1 scene", "3 chapters and 2 scenes", "no scenes". */
+/** A whole number with commas between the thousands: "12,345". */
+function grouped(count: number): string {
+  return String(Math.max(0, Math.round(count))).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+/** A count of notes said naturally: "1 scene", "3 chapters and 2 scenes", "0 scenes". */
 export function describeKinds(chapters: number, scenes: number): string {
-  if (chapters > 0 && scenes > 0) {
-    return `${chapters} ${kindWord('chapter', chapters)} and ${scenes} ${kindWord('scene', scenes)}`;
-  }
-  if (chapters > 0) return `${chapters} ${kindWord('chapter', chapters)}`;
-  return `${scenes === 0 ? 'no' : scenes} ${kindWord('scene', scenes)}`;
+  const said = (count: number, kind: NoteKind): string => `${grouped(count)} ${kindWord(kind, count)}`;
+  if (chapters > 0 && scenes > 0) return `${said(chapters, 'chapter')} and ${said(scenes, 'scene')}`;
+  if (chapters > 0) return said(chapters, 'chapter');
+  return said(scenes, 'scene');
 }
 
 /** Counts the kinds of a list of notes and says it naturally (see describeKinds). */

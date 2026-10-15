@@ -25,7 +25,7 @@ import type { NameOccurrence, SearchOptions } from '../../core/revision/index';
 import { ConfirmModal } from '../../ui/confirmModal';
 import { isInputMethodKey } from '../../ui/keys';
 import type { RevisionKeeper } from './keeper';
-import { JOINED_TEXT, TickedResults, changesText } from './results';
+import { JOINED_TEXT, TickedResults, changesText, notesText } from './results';
 import { reportText } from './reports';
 import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
@@ -172,7 +172,7 @@ export class FindReplaceModal extends Modal {
   private showButton(): void {
     const ticked = this.results?.ticked.ticked;
     this.replaceButton?.setDisabled(this.busy || !ticked || ticked.changes === 0);
-    this.replaceButton?.setButtonText(ticked && ticked.changes > 0 ? `${REPLACE_TEXT} ${changesText(ticked.changes, ticked.scenes)}` : REPLACE_TEXT);
+    this.replaceButton?.setButtonText(ticked && ticked.changes > 0 ? `${REPLACE_TEXT} ${changesText(ticked.changes, ticked.scenes, ticked.chapters ?? 0)}` : REPLACE_TEXT);
   }
 
   /** Look for the words, and show what was found. */
@@ -186,14 +186,14 @@ export class FindReplaceModal extends Modal {
     this.say(SEARCHING_TEXT);
     const found = await this.keeper.search(find, this.options, this.folder);
     if (this.closed || asked !== this.searchCount) return;
-    const ticked = new TickedResults(found, (match) => !match.joined);
+    const ticked = new TickedResults(found, (match) => !match.joined, (path) => this.keeper.isChapter(path));
     ticked.onChange(() => {
       this.showButton();
     });
     this.results = { find, matchCase: this.options.matchCase, ticked };
     if (this.list) ticked.draw(this.list, (match) => (match.joined ? JOINED_TEXT : null));
-    const { places, scenes } = ticked.found;
-    this.say(places === 0 ? NOTHING_FOUND_TEXT : `Found ${places} ${places === 1 ? 'time' : 'times'} in ${scenes} ${scenes === 1 ? 'scene' : 'scenes'}.`);
+    const { places, scenes, chapters } = ticked.found;
+    this.say(places === 0 ? NOTHING_FOUND_TEXT : `Found ${places} ${places === 1 ? 'time' : 'times'} in ${notesText(scenes, chapters ?? 0)}.`);
     this.showButton();
   }
 
@@ -201,12 +201,12 @@ export class FindReplaceModal extends Modal {
     const results = this.results;
     if (!results || this.busy) return;
     const replace = this.replaceBox?.value ?? '';
-    const { changes, scenes } = results.ticked.ticked;
+    const { changes, scenes, chapters } = results.ticked.ticked;
     if (changes === 0) return;
     new ConfirmModal(this.app, {
-      title: `Replace ${changesText(changes, scenes)}?`,
+      title: `Replace ${changesText(changes, scenes, chapters ?? 0)}?`,
       message:
-        `"${results.find}" will be replaced by ${replace === '' ? 'nothing' : `"${replace}"`} in ${changesText(changes, scenes)}. ` +
+        `"${results.find}" will be replaced by ${replace === '' ? 'nothing' : `"${replace}"`} in ${changesText(changes, scenes, chapters ?? 0)}. ` +
         (results.matchCase ? '' : 'Each replacement takes the capitals of the words it replaces. ') +
         'Each scene is saved as a snapshot first, so that it can be restored. A scene that was changed since the search is left as it is.',
       confirm: REPLACE_TEXT,

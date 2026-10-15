@@ -5,6 +5,7 @@
 // tick of a scene ticks or unticks all its places at once. Only the ticked
 // places are ever changed.
 
+import { describeKinds } from '../../core/noteKind';
 import { formatCount } from '../../core/binderModel';
 import { directionOf } from '../../core/export/direction';
 import { contextOf } from '../../core/revision/index';
@@ -17,9 +18,14 @@ export const JOINED_TEXT = 'joined letter';
 /** The most places drawn in the list; the others are counted and can still be ticked as a scene. */
 export const MOST_DRAWN = 600;
 
-/** "3 changes in 2 scenes". */
-export function changesText(changes: number, scenes: number): string {
-  return `${formatCount(changes)} ${changes === 1 ? 'change' : 'changes'} in ${formatCount(scenes)} ${scenes === 1 ? 'scene' : 'scenes'}`;
+/** "2 scenes"; with chapter notes among them, "1 chapter and 1 scene". */
+export function notesText(scenes: number, chapters = 0): string {
+  return chapters > 0 ? describeKinds(chapters, scenes - chapters) : `${formatCount(scenes)} ${scenes === 1 ? 'scene' : 'scenes'}`;
+}
+
+/** "3 changes in 2 scenes", or "3 changes in 1 chapter and 1 scene". */
+export function changesText(changes: number, scenes: number, chapters = 0): string {
+  return `${formatCount(changes)} ${changes === 1 ? 'change' : 'changes'} in ${notesText(scenes, chapters)}`;
 }
 
 /** The places found, and which are ticked. */
@@ -31,8 +37,15 @@ export class TickedResults<M extends TextMatch = TextMatch> {
   /**
    * @param ticked whether a place starts out ticked (default: all are)
    */
-  constructor(groups: ReadonlyArray<SceneMatches<M>>, ticked: (match: M) => boolean = () => true) {
+  private readonly isChapter: (path: string) => boolean;
+
+  /**
+   * @param ticked    whether a place starts out ticked (default: all are)
+   * @param isChapter whether a note is a whole chapter, for the counts (default: none is)
+   */
+  constructor(groups: ReadonlyArray<SceneMatches<M>>, ticked: (match: M) => boolean = () => true, isChapter: (path: string) => boolean = () => false) {
     this.groups = groups;
+    this.isChapter = isChapter;
     this.ticks = groups.map((group) => group.matches.map((match) => ticked(match)));
   }
 
@@ -58,20 +71,26 @@ export class TickedResults<M extends TextMatch = TextMatch> {
   }
 
   /** How many places were found, and in how many scenes. */
-  get found(): { readonly places: number; readonly scenes: number } {
-    return { places: this.groups.reduce((sum, group) => sum + group.matches.length, 0), scenes: this.groups.length };
+  get found(): { readonly places: number; readonly scenes: number; readonly chapters?: number } {
+    const places = this.groups.reduce((sum, group) => sum + group.matches.length, 0);
+    const chapters = this.groups.filter((group) => this.isChapter(group.scene.path)).length;
+    return chapters > 0 ? { places, scenes: this.groups.length, chapters } : { places, scenes: this.groups.length };
   }
 
   /** How many places are ticked, and in how many scenes. */
-  get ticked(): { readonly changes: number; readonly scenes: number } {
+  get ticked(): { readonly changes: number; readonly scenes: number; readonly chapters?: number } {
     let changes = 0;
     let scenes = 0;
-    for (const row of this.ticks) {
+    let chapters = 0;
+    this.ticks.forEach((row, at) => {
       const count = row.filter(Boolean).length;
       changes += count;
-      if (count > 0) scenes++;
-    }
-    return { changes, scenes };
+      if (count === 0) return;
+      scenes++;
+      const path = this.groups[at]?.scene.path;
+      if (path !== undefined && this.isChapter(path)) chapters++;
+    });
+    return chapters > 0 ? { changes, scenes, chapters } : { changes, scenes };
   }
 
   /** The changes to make: one plan for each scene with a ticked place, each place's words replaced by `insert`. */

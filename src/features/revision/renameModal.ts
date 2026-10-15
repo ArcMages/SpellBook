@@ -140,7 +140,7 @@ export class RenameEverywhereModal extends Modal {
   private async findPlaces(name: string): Promise<void> {
     const found = await this.keeper.findName(name);
     if (this.closed) return;
-    const results = new TickedResults(found, (match) => !match.joined);
+    const results = new TickedResults(found, (match) => !match.joined, (path) => this.keeper.isChapter(path));
     results.onChange(() => {
       this.showChanges();
     });
