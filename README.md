@@ -4,6 +4,8 @@ Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writi
 
 Made by Daniel at DandiMage.
 
+**New here?** Read [Spellbook in five minutes](docs/quick-guide.md).
+
 **Status:** version 0.10.0, pre-release. Every screen has been looked at on a Mac in a test copy of Obsidian, and most of them in Obsidian's phone layout at phone size. Nothing has been tried on a real iPhone or iPad yet. Spellbook is not in Obsidian's community plugin list. See [Known limits](docs/guide.md#known-limits).
 
 ## Learn
