@@ -18,6 +18,7 @@ import {
 import { SynopsisModal } from '../../../src/features/corkboard/synopsisModal';
 import { TagListsModal } from '../../../src/features/corkboard/tagListsModal';
 import { MISSING_LABEL } from '../../../src/views/binderView';
+import { HIDES_WORD_COUNTS_CLASS, setShowWordCounts, stopWordFigures } from '../../../src/ui/wordFigures';
 import { Modal as StubModal, Platform as StubPlatform, fakeDocument, resetPlatform } from '../../obsidianStub';
 import type { FakeElement } from '../../obsidianStub';
 import {
@@ -264,6 +265,37 @@ describe('the cards', () => {
     // A scene that is not on this board: no card is marked.
     host.setActive(LETTER);
     expect(marked()).toEqual([]);
+  });
+});
+
+describe('with "Show word counts" switched off on this device', () => {
+  afterEach(() => {
+    stopWordFigures();
+  });
+
+  it('hides the counts on the cards and the words in the summary at once, and brings them back', async () => {
+    const host = novelHost();
+    const { pane } = await openBoard(host);
+    const board = one(pane, 'spellbook-board');
+    expect(board.hasClass(HIDES_WORD_COUNTS_CLASS)).toBe(false);
+
+    setShowWordCounts(false);
+    // The stylesheet hides the cards' counts and target bars under this class.
+    expect(board.hasClass(HIDES_WORD_COUNTS_CLASS)).toBe(true);
+    expect(one(pane, 'spellbook-board-summary').text).toBe('5 scenes');
+    // Counting goes on: the card still knows its count, for when they come back.
+    expect(seen(cardOf(pane, 'Closing'), 'spellbook-card-words')).toBe('40 words');
+
+    setShowWordCounts(true);
+    expect(board.hasClass(HIDES_WORD_COUNTS_CLASS)).toBe(false);
+    expect(one(pane, 'spellbook-board-summary').text).toBe('5 scenes, 311 words');
+  });
+
+  it('opens without the words when they were switched off before', async () => {
+    setShowWordCounts(false);
+    const { pane } = await openBoard(novelHost());
+    expect(one(pane, 'spellbook-board').hasClass(HIDES_WORD_COUNTS_CLASS)).toBe(true);
+    expect(one(pane, 'spellbook-board-summary').text).toBe('5 scenes');
   });
 });
 

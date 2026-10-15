@@ -233,6 +233,17 @@ export function barItemIds(layout: BarLayout): BarItemId[] {
   return layout.entries.flatMap((entry) => (entry.kind === 'item' ? [entry.id] : []));
 }
 
+/**
+ * The figures that are numbers of words (or worked out from them, like the
+ * reading time). The "Show word counts" setting leaves them out of the bar.
+ */
+export const WORD_BAR_ITEMS: ReadonlySet<BarItemId> = new Set<BarItemId>(['scene', 'target', 'session', 'today', 'project', 'reading']);
+
+/** The figures of a list that are not numbers of words, in the same order. */
+export function withoutWordItems(items: readonly BarItemId[]): BarItemId[] {
+  return items.filter((id) => !WORD_BAR_ITEMS.has(id));
+}
+
 /** The figures a layout does not hold yet, in the order the settings offer them. */
 export function missingBarItems(layout: BarLayout): BarItemInfo[] {
   const there = new Set(barItemIds(layout));

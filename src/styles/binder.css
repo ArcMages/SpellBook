@@ -394,6 +394,11 @@
   margin: 0;
 }
 
+/* "Show word counts" is off on this device: the counts go (src/ui/wordFigures.ts). */
+.spellbook-binder.spellbook-hides-word-counts .spellbook-count-outer {
+  display: none;
+}
+
 .spellbook-binder .spellbook-count {
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);

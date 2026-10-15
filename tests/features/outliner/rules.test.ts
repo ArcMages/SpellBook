@@ -97,8 +97,9 @@ describe('the source of the outliner', () => {
       /^\.\.\/\.\.\/core\/(cards|outliner)$/,
       /^\.\.\/\.\.\/core\/(binderModel|dropTarget|projectLayout|types)$/,
       /^\.\.\/\.\.\/ui\/(dragDrop|icons|keys|missingNote|notices|ownText|safely)$/,
-      // layout: which layout the writer chose for this device (it only reads the choice).
-      /^\.\.\/\.\.\/ui\/layout$/,
+      // layout and wordFigures: which layout the writer chose for this device,
+      // and whether word counts are shown on it (they only read the choice).
+      /^\.\.\/\.\.\/ui\/(layout|wordFigures)$/,
     ];
     for (const name of ['cells.ts', 'outlinerView.ts', 'parts.ts']) {
       const code = codeOf(name);

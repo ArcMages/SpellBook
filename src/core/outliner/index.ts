@@ -25,6 +25,7 @@ export {
   isBuiltInColumn,
   isColumnId,
   isNumberColumn,
+  isWordColumn,
   isOwnTextTitle,
   isShown,
   moveColumn,

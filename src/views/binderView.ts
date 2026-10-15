@@ -37,6 +37,7 @@
 
 import { ItemView, Keymap, Menu, Notice, Platform } from 'obsidian';
 import { followLayout } from '../ui/layout';
+import { followWordCounts } from '../ui/wordFigures';
 import type { PaneType, UserEvent, WorkspaceLeaf } from 'obsidian';
 import {
   binderTotals,
@@ -360,6 +361,8 @@ export class BinderView extends ItemView {
     // Touch needs taller rows. The touch layout (src/ui/layout.ts) decides;
     // the stylesheet also covers touch screens on desktop.
     followLayout(this, root);
+    // Word counts can be switched off on this device: the stylesheet then hides them.
+    followWordCounts(this, root);
     // On a phone, Obsidian's own bar floats over the bottom of the drawer:
     // the stylesheet leaves room for it under the last row.
     root.toggleClass('spellbook-is-phone', Platform.isPhone);

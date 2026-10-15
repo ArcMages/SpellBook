@@ -302,6 +302,10 @@ export {
   sameBarLayout,
   /** The figures of a layout, in order. */
   barItemIds,
+  /** The figures of a list that are not numbers of words (for the "Show word counts" setting). */
+  withoutWordItems,
+  /** The figures that are numbers of words. */
+  WORD_BAR_ITEMS,
   /** The figures a layout does not hold yet. */
   missingBarItems,
   /** The name of a figure as the settings show it. */

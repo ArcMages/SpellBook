@@ -22,6 +22,7 @@ import {
   TARGETS_KEY,
   addToTotals,
   barItemIds,
+  withoutWordItems,
   buildStatusLine,
   countsOn,
   firstDayOfWeekOf,
@@ -60,6 +61,7 @@ import type { TargetsChoice } from './targetsModal';
 import { WordLedger } from './wordLedger';
 import type { EditorEdit } from './wordLedger';
 import { PROBLEM_NOTICE_MS } from '../../ui/notices';
+import { onWordCountsChange, showsWordCounts } from '../../ui/wordFigures';
 
 /** How long after a note was last saved its words are counted again from the vault. */
 export const RECOUNT_AFTER_MS = 1000;
@@ -227,6 +229,8 @@ export class WritingProgress {
       context.wordCounts.onChange((paths) => this.onWordCounts(paths)),
       // The writer changed the bar in the settings: draw it anew.
       this.barPrefs.onChange(() => this.refresh()),
+      // Word counts were switched on or off on this device: the same.
+      onWordCountsChange(() => this.refresh()),
     );
 
     plugin.addCommand({
@@ -643,8 +647,10 @@ export class WritingProgress {
     const project = store.project;
     if (project === null || this.closed) return [];
 
-    // Only what the bar shows is worked out.
-    const items = barItemIds(this.barPrefs.layout);
+    // Only what the bar shows is worked out. With word counts hidden on this
+    // device, the figures that are words are left out (they are still counted).
+    const chosen = barItemIds(this.barPrefs.layout);
+    const items = showsWordCounts() ? chosen : withoutWordItems(chosen);
     const wants = (...ids: BarItemId[]): boolean => ids.some((id) => items.includes(id));
     if (items.length === 0) return [];
 

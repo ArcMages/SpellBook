@@ -30,6 +30,7 @@
 
 import { ItemView, Keymap, Menu, Notice, Platform } from 'obsidian';
 import { followLayout, isPhoneLayout } from '../../ui/layout';
+import { followWordCounts, showsWordCounts } from '../../ui/wordFigures';
 import type { MenuPositionDef, PaneType, UserEvent, WorkspaceLeaf } from 'obsidian';
 import { describeCount } from '../../core/binderModel';
 import { buildInspector } from '../../core/cards';
@@ -48,6 +49,7 @@ import {
   hasFilterTag,
   isFilterOn,
   isOwnTextTitle,
+  isWordColumn,
   moveColumn,
   nextSort,
   otherPropertyKeys,
@@ -268,6 +270,10 @@ export class OutlinerView extends ItemView {
     // Touch needs larger rows. The touch layout (src/ui/layout.ts) decides;
     // the stylesheet also covers touch screens on desktop.
     followLayout(this, root);
+    // Word counts can be switched off on this device: the table is drawn again without them.
+    followWordCounts(this, root, () => {
+      this.render();
+    });
     // On a phone, Obsidian's own bar floats over the bottom of the pane: the
     // stylesheet keeps the table clear of it.
     root.toggleClass('spellbook-is-phone', Platform.isPhone);
@@ -520,8 +526,12 @@ export class OutlinerView extends ItemView {
     this.drawTotal(els, outline, options);
 
     els.heading.setText(project.title);
-    const words = outline.whole.words === null ? COUNTING_TEXT : describeCount(outline.whole.words);
-    els.summary.setText(`${words} · ${describeScenes(outline.whole.scenes)}`);
+    const scenes = describeScenes(outline.whole.scenes);
+    if (!showsWordCounts()) els.summary.setText(scenes);
+    else {
+      const words = outline.whole.words === null ? COUNTING_TEXT : describeCount(outline.whole.words);
+      els.summary.setText(`${words} · ${scenes}`);
+    }
     this.drawChips(els, outline);
     const text = outline.whole.scenes === 0 ? EMPTY_TEXT : outline.total.scenes === 0 ? NO_MATCH_TEXT : '';
     els.message.setText(text);
@@ -539,7 +549,11 @@ export class OutlinerView extends ItemView {
   private takeColumns(): void {
     const prefs = this.host.columns;
     this.columnLayout = this.narrow ? prefs.narrow : prefs.wide;
-    const ids = shownColumns(this.columnLayout);
+    // With word counts switched off on this device, the columns of words
+    // (Words, Target and Read time) are left out; the writer's choice of
+    // columns is kept for when they are switched on again.
+    const chosen = shownColumns(this.columnLayout);
+    const ids = showsWordCounts() ? chosen : chosen.filter((id) => !isWordColumn(id));
     if (ids.join('\n') !== this.columnIds.join('\n')) {
       this.columnIds = ids;
       this.columnsVersion++;

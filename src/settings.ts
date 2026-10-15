@@ -7,6 +7,7 @@ import type { RegisteredFeatures } from './features/registry';
 import { parseLayoutChoice } from './core/layout';
 import type { LayoutChoice } from './core/layout';
 import { layoutChoice, setLayoutChoice } from './ui/layout';
+import { setShowWordCounts, showsWordCounts } from './ui/wordFigures';
 
 /** What the settings tab needs from the plugin. */
 export type SettingsHost = Plugin & {
@@ -31,6 +32,13 @@ export const LAYOUT_OPTIONS: Readonly<Record<LayoutChoice, string>> = {
   touch: 'Touch layout',
   desktop: 'Desktop layout',
 };
+
+export const SHOW_WORDS_NAME_TEXT = 'Show word counts';
+export const SHOW_WORDS_DESC_TEXT =
+  'Show the number of words in the binder, on the corkboard, in the outliner, the inspector, the bottom bar and the Novel view. ' +
+  'Switch it off to write without seeing the numbers. ' +
+  'Counting goes on; the Writing report, targets and calendar still show them. ' +
+  'This choice is kept on this device only.';
 
 export const LINKS_HEADING_TEXT = 'Renaming';
 export const LINK_SCOPE_NAME_TEXT = 'When a note is renamed, update links in';
@@ -88,6 +96,7 @@ export class SpellbookSettingTab extends PluginSettingTab {
     const { name, version } = this.plugin.manifest;
     new Setting(containerEl).setName(name).setDesc(`Version ${version}`);
     this.renderLayout(containerEl);
+    this.renderWordCounts(containerEl);
 
     new Setting(containerEl).setName('Projects in this vault').setHeading();
     this.renderProjects(containerEl);
@@ -131,6 +140,18 @@ export class SpellbookSettingTab extends PluginSettingTab {
           .onChange((value) => {
             setLayoutChoice(parseLayoutChoice(value));
           });
+      });
+  }
+
+  /** Whether the everyday screens show word counts on this device. Kept by src/ui/wordFigures.ts. */
+  private renderWordCounts(containerEl: HTMLElement): void {
+    new Setting(containerEl)
+      .setName(SHOW_WORDS_NAME_TEXT)
+      .setDesc(SHOW_WORDS_DESC_TEXT)
+      .addToggle((toggle) => {
+        toggle.setValue(showsWordCounts()).onChange((value) => {
+          setShowWordCounts(value);
+        });
       });
   }
 

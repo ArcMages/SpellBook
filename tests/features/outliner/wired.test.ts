@@ -28,6 +28,7 @@ import {
 } from '../../obsidianStub';
 import type { FakeElement } from '../../obsidianStub';
 import { INDEX_BODY, MemoryDeviceStorage, binderOnDisk, picture, tick } from '../../storeHarness';
+import { setShowWordCounts, stopWordFigures } from '../../../src/ui/wordFigures';
 import {
   CLOSING,
   CLOSING_BODY,
@@ -319,6 +320,31 @@ describe('the sums', () => {
     expect(textOf(pane, 'Part one', 'words')).toBe(formatCount(now + WORDS.night));
     expect(textOf(pane, 'Total', 'words')).toBe(formatCount(TOTAL_WORDS - WORDS.letter + now));
     expect(one(pane, 'spellbook-outliner-summary').text).toBe(`${describeCount(TOTAL_WORDS - WORDS.letter + now)} · 5 scenes`);
+  });
+});
+
+describe('with "Show word counts" switched off on this device', () => {
+  afterEach(() => {
+    stopWordFigures();
+  });
+
+  it('leaves out the Words, Target and Read time columns and the words above the table, at once, and keeps the choice of columns', async () => {
+    const s = await stage();
+    const { pane } = await openOutliner(s);
+    expect(headersOf(pane)).toEqual(WIDE_HEADERS);
+
+    setShowWordCounts(false);
+    expect(headersOf(pane)).toEqual(['#', 'Name', 'Status', 'Label', 'Synopsis', 'Tags', 'Tasks', 'Compile']);
+    expect(one(pane, 'spellbook-outliner-summary').text).toBe('5 scenes');
+    // The Total row has no words left in it either.
+    expect(totalRow(pane).fullText).not.toContain(formatCount(TOTAL_WORDS));
+    // The columns the writer chose are kept on this device as they were.
+    expect(s.storage.saves.filter(([key]) => key === COLUMNS_KEY)).toEqual([]);
+
+    setShowWordCounts(true);
+    expect(headersOf(pane)).toEqual(WIDE_HEADERS);
+    expect(one(pane, 'spellbook-outliner-summary').text).toBe(`${describeCount(TOTAL_WORDS)} · 5 scenes`);
+    expect(textOf(pane, 'Total', 'words')).toBe(formatCount(TOTAL_WORDS));
   });
 });
 
