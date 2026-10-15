@@ -18,11 +18,16 @@ import {
   nodeTitle,
   placementForNewFolder,
   placementForNewScene,
+  chapterCount,
+  kindForNewNote,
+  kindOfNote,
   sceneCount,
 } from '../core/binderModel';
 import { folderRef, sceneRef } from '../core/binderTree';
 import type { StepDirection } from '../core/binderTree';
 import { checkFolderName, checkSceneName, tidyDisplayName } from '../core/names';
+import { describeKinds, kindWord } from '../core/noteKind';
+import type { NoteKind } from '../core/noteKind';
 import { noteTitle } from '../core/paths';
 import { sceneStart, sceneTemplates } from '../core/templates';
 import type { NoteStart } from '../core/templates';
@@ -43,6 +48,8 @@ const READ_ONLY = 'This project is read-only because its index could not be unde
 
 /** The first choice of "Start from" in the New scene window, when the project has scene templates. */
 export const EMPTY_SCENE_CHOICE = 'Empty scene';
+/** The same, when the new note is a whole chapter. */
+export const EMPTY_CHAPTER_CHOICE = 'Empty chapter';
 
 /** What the actions need from the plugin. */
 export interface ActionsHost {
@@ -180,25 +187,27 @@ export class BinderActions {
    * window also asks which one the scene starts from; an empty scene is
    * chosen at first.
    */
-  newScene(inProject: string, placement: Placement): void {
+  newScene(inProject: string, placement: Placement, kind?: NoteKind): void {
     const scope = this.writable(inProject);
     if (!scope) return;
+    const noteKind = kind ?? kindForNewNote(scope.project.tree, placement, scope.project.writesIn ?? 'scene');
+    const noun = kindWord(noteKind);
     const templates = sceneTemplates(scope.services.store.templateNotes());
     new TextPromptModal(this.host.app, {
-      title: 'New scene',
-      label: 'Name of the scene',
-      placeholder: 'Name of the scene',
+      title: `New ${noun}`,
+      label: `Name of the ${noun}`,
+      placeholder: `Name of the ${noun}`,
       confirm: 'Create',
       ...(templates.length === 0
         ? {}
         : {
             choice: {
               label: 'Start from',
-              options: [{ value: '', text: EMPTY_SCENE_CHOICE }, ...templates.map((template) => ({ value: template.path, text: template.name }))],
+              options: [{ value: '', text: noteKind === 'chapter' ? EMPTY_CHAPTER_CHOICE : EMPTY_SCENE_CHOICE }, ...templates.map((template) => ({ value: template.path, text: template.name }))],
             },
           }),
       submit: async (typed, chosen) => {
-        const name = checkSceneName(typed);
+        const name = checkSceneName(typed, noun);
         if (!name.ok) return name.message;
         const store = this.host.services?.store;
         if (!store) return NOT_STARTED;
@@ -209,15 +218,35 @@ export class BinderActions {
           if (read.status !== 'done') return read.message;
           start = sceneStart(read.value, { title: name.name, date: store.today(), project: store.project?.title ?? scope.project.title });
         }
-        const result = await store.addScene(name.name, placement, inProject, start);
+        const result = await store.addScene(name.name, placement, inProject, start, noteKind);
         if (!this.report(result)) return null;
         const path = result.value.path;
-        this.sayNameIfChanged('scene', typed, noteTitle(path));
+        this.sayNameIfChanged(noun, typed, noteTitle(path));
         this.select(inProject, sceneRef(path));
         void this.openNote(inProject, path, false);
         return null;
       },
     }).open();
+  }
+
+  /** Mark a note of the binder as a whole chapter, or as a scene again. */
+  async setKind(inProject: string, path: string, kind: NoteKind): Promise<void> {
+    const scope = this.writable(inProject);
+    if (!scope) return;
+    const result = await scope.services.store.setNoteKind(path, kind, inProject);
+    if (result.status === 'noop' && result.reason === 'unchanged') return;
+    this.report(result);
+  }
+
+  /** Say what the project usually writes in: what "New ..." makes from here on. */
+  async setWritesIn(inProject: string, kind: NoteKind): Promise<void> {
+    const scope = this.writable(inProject);
+    if (!scope) return;
+    const result = await scope.services.store.setWritesIn(kind, inProject);
+    if (result.status === 'noop' && result.reason === 'unchanged') return;
+    if (this.report(result)) {
+      new Notice(kind === 'chapter' ? 'New notes in this project are chapters from now on.' : 'New notes in this project are scenes from now on.');
+    }
   }
 
   /** Ask for a name, add a binder folder at `placement` and select it. */
@@ -268,14 +297,15 @@ export class BinderActions {
     if (!scope) return;
     const current = noteTitle(path);
     const links = scope.services.store;
+    const noun = kindWord(kindOfNote(scope.project.tree, path));
     new TextPromptModal(this.host.app, {
-      title: 'Rename scene',
-      label: 'Name of the scene',
+      title: `Rename ${noun}`,
+      label: `Name of the ${noun}`,
       value: current,
       confirm: 'Rename',
       note: renameWindowText(links.linkScope, links.linksFromOutside(path).length),
       submit: async (typed) => {
-        const name = checkSceneName(typed);
+        const name = checkSceneName(typed, noun);
         if (!name.ok) return name.message;
         if (name.name === current) return null; // nothing was changed: the same as Cancel
         const store = this.host.services?.store;
@@ -283,7 +313,7 @@ export class BinderActions {
         const result = await store.renameScene(path, name.name, inProject);
         if (result.status === 'noop' && result.reason === 'unchanged') return null;
         if (!this.report(result)) return null;
-        this.sayNameIfChanged('scene', typed, noteTitle(result.value.path));
+        this.sayNameIfChanged(noun, typed, noteTitle(result.value.path));
         const told = renamedLinksNotice(noteTitle(result.value.path), result.value);
         if (told !== null) new Notice(told, PROBLEM_NOTICE_MS);
         this.select(inProject, sceneRef(result.value.path));
@@ -372,12 +402,14 @@ export class BinderActions {
 
   /** Ask first, then take a scene out of the binder and move its note to the trash. */
   deleteScene(inProject: string, path: string): void {
-    if (!this.writable(inProject)) return;
+    const scope = this.writable(inProject);
+    if (!scope) return;
     const title = noteTitle(path);
+    const noun = kindWord(kindOfNote(scope.project.tree, path));
     new ConfirmModal(this.host.app, {
       title: `Delete "${title}"?`,
       message:
-        'The scene is taken out of the binder and its note is moved to the trash ' +
+        `The ${noun} is taken out of the binder and its note is moved to the trash ` +
         '(where deleted notes go is set in Obsidian, under Settings, Files and links, Deleted files).',
       confirm: 'Delete',
       onConfirm: () => {
@@ -411,7 +443,13 @@ export class BinderActions {
     scope.services.selection.drop(inProject, folderRef(id));
     if (!node) return;
     const scenes = sceneCount(node);
-    const kept = scenes === 0 ? '' : scenes === 1 ? ' Its scene was kept.' : ` Its ${scenes} scenes were kept.`;
+    const chapters = chapterCount(node);
+    const kept =
+      scenes === 0
+        ? ''
+        : scenes === 1
+          ? ` Its ${chapters === 1 ? 'chapter' : 'scene'} was kept.`
+          : ` Its ${describeKinds(chapters, scenes - chapters)} were kept.`;
     new Notice(`Removed the folder "${nodeTitle(node)}".${kept}`);
   }
 

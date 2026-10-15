@@ -57,6 +57,22 @@ function openModal(choices: readonly StartChoice[] = STRUCTURES): Opened {
   };
 }
 
+describe('the Create project window: scenes or chapters', () => {
+  it('asks what the writer usually writes in, scenes at first, and hands the answer over', async () => {
+    const window = openModal();
+    const place = window.modal.contentEl.withClass('spellbook-create-writes-in')[0] as FakeElement;
+    expect(place.settings[0]?.nameEl.text).toBe('I usually write in');
+    const dropdown = place.settings[0]?.components[0] as DropdownComponent;
+    expect(dropdown.getValue()).toBe('scene');
+    expect(dropdown.selectEl.children.map((option) => option.text)).toEqual(['Scenes', 'Chapters']);
+    dropdown.choose('chapter');
+    window.name.type('Book');
+    window.create.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(window.calls[0]?.[2]).toMatchObject({ writesIn: 'chapter' });
+  });
+});
+
 describe('the Create project window with starting structures', () => {
   it('keeps its own rows (name, location, buttons), and offers the structures in a place of their own, Blank first', () => {
     const window = openModal();
@@ -92,7 +108,7 @@ describe('the Create project window with starting structures', () => {
     window.name.type('ספר');
     window.create.click();
     await tick();
-    expect(window.calls).toEqual([['ספר', '', { choice: 'chapters', chapters: 3 }]]);
+    expect(window.calls).toEqual([['ספר', '', { choice: 'chapters', chapters: 3, writesIn: 'scene' }]]);
   });
 
   it('will not create with a number of chapters that will not do, and says why', async () => {
@@ -112,7 +128,7 @@ describe('the Create project window with starting structures', () => {
     window.name.type('Book');
     window.create.click();
     await tick();
-    expect(window.calls).toEqual([['Book', '', { choice: 'blank', chapters: 12 }]]);
+    expect(window.calls).toEqual([['Book', '', { choice: 'blank', chapters: 12, writesIn: 'scene' }]]);
   });
 
   it('shows no structure at all when given none, and hands over the blank one', async () => {
@@ -121,7 +137,7 @@ describe('the Create project window with starting structures', () => {
     window.name.type('Book');
     window.create.click();
     await tick();
-    expect(window.calls[0]?.[2]).toEqual({ choice: 'blank', chapters: 12 });
+    expect(window.calls[0]?.[2]).toEqual({ choice: 'blank', chapters: 12, writesIn: 'scene' });
   });
 });
 
@@ -164,7 +180,7 @@ describe('creating a project with a structure, in the plugin', () => {
   it('makes the folders and scenes of the chosen structure and opens the first scene', async () => {
     const fake = new FakeObsidian();
     const { plugin } = loadReady(fake);
-    expect(await plugin.createProject('Book', '', { choice: 'fifteen-steps', chapters: 12 })).toBe(true);
+    expect(await plugin.createProject('Book', '', { choice: 'fifteen-steps', chapters: 12, writesIn: 'scene' })).toBe(true);
     expect(draw(plugin.store?.project?.tree ?? [])).toMatch(/^Beginning\[First glimpse The question/);
     expect(plugin.store?.project?.tree.length).toBe(3);
     expect(notices()).toEqual(['Created the project "Book" with 15 scenes.']);
@@ -175,10 +191,20 @@ describe('creating a project with a structure, in the plugin', () => {
   it('with the blank structure, or none, is what it always was', async () => {
     const fake = new FakeObsidian();
     const { plugin } = loadReady(fake);
-    expect(await plugin.createProject('One', '', { choice: 'blank', chapters: 12 })).toBe(true);
+    expect(await plugin.createProject('One', '', { choice: 'blank', chapters: 12, writesIn: 'scene' })).toBe(true);
     expect(await plugin.createProject('Two')).toBe(true);
     expect(notices()).toEqual(['Created the project "One".', 'Created the project "Two".']);
     expect(draw(plugin.store?.project?.tree ?? [])).toBe('Scene 1');
+  });
+
+  it('starts a project written in chapters with "Chapter 1", marked as a chapter', async () => {
+    const fake = new FakeObsidian();
+    const { plugin } = loadReady(fake);
+    expect(await plugin.createProject('Book', '', { choice: 'blank', chapters: 12, writesIn: 'chapter' })).toBe(true);
+    const project = plugin.store?.project;
+    expect(draw(project?.tree ?? [])).toBe('Chapter 1');
+    expect(project?.writesIn).toBe('chapter');
+    expect(project?.tree[0]).toMatchObject({ kind: 'scene', chapter: true });
   });
 
   it('offers the project templates of the vault in the window, and makes a project from one', async () => {
@@ -214,7 +240,7 @@ describe('creating a project with a structure, in the plugin', () => {
   it('says so, and creates nothing, when the chosen template has gone', async () => {
     const fake = new FakeObsidian();
     const { plugin } = loadReady(fake);
-    expect(await plugin.createProject('Book', '', { choice: `library:${LIBRARY_FOLDER}/Gone.md`, chapters: 12 })).toBe(false);
+    expect(await plugin.createProject('Book', '', { choice: `library:${LIBRARY_FOLDER}/Gone.md`, chapters: 12, writesIn: 'scene' })).toBe(false);
     expect(notices()[0]).toMatch(/no longer there/);
     expect(fake.vault.getFolderByPath('Book')).toBeNull();
   });

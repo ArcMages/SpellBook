@@ -3,9 +3,11 @@
 // the moment it is asked for, and hands its choices to the binder's actions.
 
 import { Menu } from 'obsidian';
-import { canStep } from '../core/binderModel';
+import { canStep, chapterCount, findNode, kindForNewNote, kindOfNote, sceneCount } from '../core/binderModel';
+import { kindWord } from '../core/noteKind';
+import type { NoteKind } from '../core/noteKind';
 import { folderRef, sceneRef } from '../core/binderTree';
-import type { NodeRef, ProjectSnapshot } from '../core/types';
+import type { NodeRef, Placement, ProjectSnapshot } from '../core/types';
 import { ACTION_ICONS, iconName } from '../ui/icons';
 import { safely } from '../ui/safely';
 import type { BinderActions } from './binderActions';
@@ -58,18 +60,46 @@ function addArranging(menu: Menu, { actions, project }: MenuContext, ref: NodeRe
   });
 }
 
+/** What the menu offers to make a scene a whole chapter. */
+export const TREAT_AS_CHAPTER = 'Treat as a chapter';
+/** What the menu offers to make a chapter note a scene again. */
+export const TREAT_AS_SCENE = 'Treat as a scene';
+
+/** What the project usually writes in. */
+function usualKind(project: ProjectSnapshot): NoteKind {
+  return project.writesIn ?? 'scene';
+}
+
+/** What removing a folder keeps, in a word: "scenes", "chapters", or "notes" for a mix. */
+function keptWord(project: ProjectSnapshot, id: string): string {
+  const node = findNode(project.tree, folderRef(id));
+  if (!node) return kindWord(usualKind(project), 2);
+  const all = sceneCount(node);
+  const chapters = chapterCount(node);
+  if (all === 0) return kindWord(usualKind(project), 2);
+  if (chapters === 0) return 'scenes';
+  return chapters === all ? 'chapters' : 'notes';
+}
+
 /** The menu of a scene whose note exists. `path` is relative to the project folder. */
 export function sceneMenu(context: MenuContext, path: string): Menu {
   const { actions, project } = context;
   const at = project.indexPath;
   const ref = sceneRef(path);
+  const kind = kindOfNote(project.tree, path);
+  const below: Placement = { at: 'after', sibling: ref };
   const menu = new Menu();
   add(menu, 'Open in new tab', ACTION_ICONS.openInNewTab, () => actions.openNote(at, path, 'tab'));
-  add(menu, 'New scene below', ACTION_ICONS.newScene, () => {
-    actions.newScene(at, { at: 'after', sibling: ref });
+  add(menu, `New ${kindWord(kindForNewNote(project.tree, below, usualKind(project)))} below`, ACTION_ICONS.newScene, () => {
+    actions.newScene(at, below);
   });
   menu.addSeparator();
   addArranging(menu, context, ref);
+  if (kind === 'chapter') {
+    add(menu, TREAT_AS_SCENE, ACTION_ICONS.treatAsScene, () => actions.setKind(at, path, 'scene'));
+  } else {
+    add(menu, TREAT_AS_CHAPTER, ACTION_ICONS.treatAsChapter, () => actions.setKind(at, path, 'chapter'));
+  }
   // Offered when the snapshots are there to take and show them.
   const snapshots = actions.snapshots;
   if (snapshots) {
@@ -84,7 +114,7 @@ export function sceneMenu(context: MenuContext, path: string): Menu {
   menu.addSeparator();
   add(
     menu,
-    'Delete scene',
+    `Delete ${kindWord(kind)}`,
     ACTION_ICONS.deleteScene,
     () => {
       actions.deleteScene(at, path);
@@ -102,8 +132,9 @@ export function folderMenu(context: MenuContext, id: string): Menu {
   // Offered when the corkboard is there to show the folder on.
   const show = actions.showOnCorkboard;
   if (show) add(menu, 'Show on corkboard', ['layout-grid'], () => show(at, id));
-  add(menu, 'New scene inside', ACTION_ICONS.newScene, () => {
-    actions.newScene(at, { at: 'end', parentId: id });
+  const inside: Placement = { at: 'end', parentId: id };
+  add(menu, `New ${kindWord(kindForNewNote(project.tree, inside, usualKind(project)))} inside`, ACTION_ICONS.newScene, () => {
+    actions.newScene(at, inside);
   });
   add(menu, 'New folder inside', ACTION_ICONS.newFolder, () => {
     actions.newFolder(at, { at: 'end', parentId: id });
@@ -111,7 +142,7 @@ export function folderMenu(context: MenuContext, id: string): Menu {
   menu.addSeparator();
   addArranging(menu, context, folderRef(id));
   menu.addSeparator();
-  add(menu, 'Remove folder (keeps scenes)', ACTION_ICONS.removeFolder, () => actions.removeFolder(at, id));
+  add(menu, `Remove folder (keeps ${keptWord(project, id)})`, ACTION_ICONS.removeFolder, () => actions.removeFolder(at, id));
   return menu;
 }
 

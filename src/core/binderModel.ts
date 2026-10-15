@@ -6,6 +6,7 @@ import { locate, refOf, stepPlacement } from './binderTree';
 import type { StepDirection } from './binderTree';
 import { noteTitle, pathKey, relativeTo } from './paths';
 import { RESEARCH_FOLDER } from './projectLayout';
+import type { NoteKind } from './noteKind';
 import type { NodeRef, Placement, ProjectSnapshot, TreeNode } from './types';
 
 // ------------------------------------------------------------------ research
@@ -239,6 +240,12 @@ export function sceneCount(node: TreeNode): number {
   return node.children.reduce((sum, child) => sum + sceneCount(child), 0);
 }
 
+/** How many of the notes a binder entry stands for are whole chapters. */
+export function chapterCount(node: TreeNode): number {
+  if (node.kind === 'scene') return node.chapter === true ? 1 : 0;
+  return node.children.reduce((sum, child) => sum + chapterCount(child), 0);
+}
+
 /**
  * Whether "Move up" (or "Move down") would move a binder entry. It would not
  * for the first (or last) entry of the top level, or for something that is
@@ -249,6 +256,36 @@ export function canStep(tree: readonly TreeNode[], ref: NodeRef, direction: Step
 }
 
 const END_OF_BINDER: Placement = { at: 'end', parentId: null };
+
+/** Whether a binder entry is a note that is a whole chapter. */
+export function isChapterNode(node: TreeNode | null | undefined): boolean {
+  return node?.kind === 'scene' && node.chapter === true;
+}
+
+/** The kind of a note of the binder by its path: chapter when it is marked so, scene otherwise. */
+export function kindOfNote(tree: readonly TreeNode[], path: string): NoteKind {
+  return isChapterNode(findNode(tree, { kind: 'scene', path })) ? 'chapter' : 'scene';
+}
+
+/**
+ * What a new note at `placement` should be. Next to a note: the same as that
+ * note, so that "New ... below" a scene inside a chapter folder makes another
+ * scene. At the end of a folder: the same as the last note in it. Otherwise
+ * (an empty folder, the top level): what the project usually writes in.
+ */
+export function kindForNewNote(tree: readonly TreeNode[], placement: Placement, usual: NoteKind): NoteKind {
+  if (placement.at === 'before' || placement.at === 'after') {
+    const sibling = findNode(tree, placement.sibling);
+    if (sibling?.kind === 'scene') return sibling.chapter === true ? 'chapter' : 'scene';
+    return usual;
+  }
+  if (placement.parentId === null) return usual;
+  const folder = findNode(tree, { kind: 'folder', id: placement.parentId });
+  if (folder?.kind !== 'folder') return usual;
+  const notes = folder.children.filter((child) => child.kind === 'scene');
+  const last = notes[notes.length - 1];
+  return last === undefined ? usual : last.chapter === true ? 'chapter' : 'scene';
+}
 
 /**
  * Where a new scene goes: inside the chosen folder (at its end), straight

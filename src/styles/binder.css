@@ -485,6 +485,20 @@
   color: var(--text-warning);
 }
 
+/* The small mark of a note that is a whole chapter. */
+.spellbook-binder .spellbook-row-self > .spellbook-chapter-mark.spellbook-chapter-mark {
+  color: var(--text-accent);
+}
+
+.spellbook-binder .spellbook-chapter-mark svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.spellbook-binder .spellbook-is-chapter .spellbook-title {
+  font-weight: var(--font-semibold);
+}
+
 .spellbook-binder .spellbook-missing-icon svg {
   width: var(--icon-xs);
   height: var(--icon-xs);

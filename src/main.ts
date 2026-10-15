@@ -25,6 +25,7 @@ import { openNote } from './obsidian/openNote';
 import { localToday, nextFrame, nowMs, setTimer, untilTomorrow } from './obsidian/systemClock';
 import { SpellbookSettingTab } from './settings';
 import { CreateProjectModal } from './ui/createProjectModal';
+import { FIRST_CHAPTER_TITLE, kindWord } from './core/noteKind';
 import type { ProjectStart } from './ui/createProjectModal';
 import { BINDER_ICON } from './ui/icons';
 import { BinderActions } from './views/binderActions';
@@ -479,12 +480,14 @@ export default class SpellbookPlugin extends Plugin implements BinderHost, Actio
       }
       seed = found;
     }
+    const writesIn = start?.writesIn ?? 'scene';
+    const starter = seed ?? (writesIn === 'chapter' ? { binder: [{ title: FIRST_CHAPTER_TITLE }] } : undefined);
     return this.createWith(
-      (store) => createStarterProject(store, name, parentFolder, seed),
+      (store) => createStarterProject(store, name, parentFolder, starter, writesIn),
       (made) =>
         seed === undefined
           ? `Created the project "${made.project.title}".`
-          : `Created the project "${made.project.title}" with ${made.project.scenes.length} ${made.project.scenes.length === 1 ? 'scene' : 'scenes'}.`,
+          : `Created the project "${made.project.title}" with ${made.project.scenes.length} ${kindWord(writesIn, made.project.scenes.length)}.`,
     );
   }
 
