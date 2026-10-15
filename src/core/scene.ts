@@ -13,6 +13,9 @@ export const DEFAULT_STATUS: string = SCENE_STATUSES[0];
 /** File name for a scene created without a usable title. */
 export const DEFAULT_SCENE_NAME = 'Untitled scene';
 
+/** File name for a chapter note created without a usable title. */
+export const DEFAULT_CHAPTER_NAME = 'Untitled chapter';
+
 /** The properties of a new scene that a caller may fill in; the rest are fixed. */
 export interface SceneDetails {
   readonly synopsis?: string;

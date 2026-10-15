@@ -75,6 +75,11 @@ export type TreeNode =
       readonly title: string;
       /** True when the binder lists the scene but its note is not in the vault (yet). */
       readonly missing: boolean;
+      /**
+       * True when the note is a whole chapter by itself rather than a scene
+       * (see noteKind.ts). Absent or false: a scene.
+       */
+      readonly chapter?: boolean;
     }
   | {
       readonly kind: 'folder';
@@ -103,6 +108,11 @@ export interface ProjectSnapshot extends ProjectSummary {
    * "<Project> 2.md", left by a sync service), as vault paths. Usually empty.
    */
   readonly conflicts: readonly string[];
+  /**
+   * What the writer usually writes in: what "New ..." makes and the kind new
+   * notes get. Absent: scenes (projects made before chapters existed).
+   */
+  readonly writesIn?: 'scene' | 'chapter';
   /** Goes up by one each time the snapshot changes. */
   readonly revision: number;
 }
