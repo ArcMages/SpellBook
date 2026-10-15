@@ -456,6 +456,8 @@ With **Chosen entities**, press **Choose** to open the "Choose entities" window,
 
 **The daily word log.** While you write, Spellbook keeps a log of the words added and deleted each day, split into the manuscript and other notes of the project. The calendar and the "today" figures are worked out from it. See [How your writing is stored](#how-your-writing-is-stored).
 
+**Hiding the numbers.** If you would rather not see how many words you have, switch off **Show word counts** in the settings (see [Settings](#settings)). The binder, the corkboard, the outliner, the inspector, the bottom bar and the novel view then show no word numbers. Spellbook goes on counting: the daily log, streaks and targets are kept as before, and the writing report, the Writing targets window, the planner's calendar and the export result still show their numbers.
+
 **Limits.** A long bar takes at most 60% of the window's width and scrolls sideways. Link addresses and code blocks count as words. The layout of the bar is remembered on each device separately.
 
 ## Writing targets
@@ -580,7 +582,7 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 
 **What it is for.** A story set in an invented world can have its own calendar, and the timeline then counts in it.
 
-**How to open it.** Command **Edit story calendar**, or the **Calendar** button on the timeline. The window is called "Story calendar".
+**How to open it.** Command **Edit story calendar**, the **Calendar** button on the timeline, the **Story calendar** button at the top of the [World](#world) screen, or the **Story calendar** button in Spellbook's settings (under "Timeline"). The window is called "Story calendar". It opens for the project that is open; with none open, Spellbook says to open one first.
 
 **What you can set.** Under **Start from**, choose the real-world calendar or a ready-made one such as "Twelve months of thirty days", then make it your own: a **Name**; the **Months**, each with its name and number of days; the **Days of the week** (optional); the **Eras**, each with a name, a short form and the year it begins; **An era before the first**; **Year zero**; and **Leap years**. Press **Use this calendar**.
 
@@ -628,6 +630,7 @@ At the top of the screen:
 - **By name** or **By date**, for the order of the cards in each group. By date, the earliest comes first and those without a date come after. A card shows its dates under its key facts.
 - **History**, which opens the [world history](#timeline) on the timeline.
 - The **Story's present** button (a calendar with a clock), which sets the date the characters' ages are worked out at. See [Ages](#ages).
+- The **Story calendar** button (a calendar with a cog) next to it, which opens the [story calendar](#story-calendar) of the project.
 
 ![The History part of Wren Ashby's sheet: born in 1189, then the events and scenes of spring 1203, each marked event or scene](images/world-history-sheet.png)
 
@@ -903,7 +906,7 @@ Press **Export**. The file is saved as a new file in the project's Exports folde
 
 ## Settings
 
-Open Obsidian's Settings and choose **Spellbook**. The page shows the installed version, **Layout** (see below), the **Projects in this vault**, **Renaming** ("When a note is renamed, update links in": **This project only**, as it comes, or **The whole vault**; see [Binder](#binder), "Renaming"), and these sections, each described above: **Writing progress** (with the bottom bar), **Colour scheme**, **Writing modes**, **Prose checks**, **Snapshots**, **Plot grid** ("Mark long gaps" and "Shade before and after"), **Welcome and help** ("Show the welcome page again" and "Show what is new after updates") and **Templates** (the list of templates, with **Open** and **Delete**), and a row for the writing report's words on a page.
+Open Obsidian's Settings and choose **Spellbook**. The page shows the installed version, **Layout** and **Show word counts** (see below), the **Projects in this vault**, **Renaming** ("When a note is renamed, update links in": **This project only**, as it comes, or **The whole vault**; see [Binder](#binder), "Renaming"), and these sections, each described above: **Writing progress** (with the bottom bar), **Timeline** (a **Story calendar** button that opens the [story calendar](#story-calendar) of the open project), **Colour scheme**, **Writing modes**, **Prose checks**, **Snapshots**, **Plot grid** ("Mark long gaps" and "Shade before and after"), **Welcome and help** ("Show the welcome page again" and "Show what is new after updates") and **Templates** (the list of templates, with **Open** and **Delete**), and a row for the writing report's words on a page.
 
 ![Spellbook's settings page with the Layout setting at the top, set to Automatic](images/setting-layout.png)
 
@@ -916,6 +919,8 @@ Open Obsidian's Settings and choose **Spellbook**. The page shows the installed 
 - **Desktop layout**: the full desktop screens with their compact rows. For an iPad with a keyboard and trackpad.
 
 Screens that are open change at once; nothing needs to be restarted. Some things go by what the device can do, whatever the layout: printing is offered on computers only; on a phone or tablet the word figures stay at the top of the inspector, because Obsidian gives plugins no bottom bar there; on a phone the sidebars still slide in over the page, and the screens still leave room for the phone's own bar at the bottom. On a touch screen, things you would point at with a mouse stay shown in the desktop layout too, because a finger cannot point without tapping.
+
+**Show word counts.** On as it comes. Switch it off to write without seeing the numbers: the word counts go from the binder, the corkboard's cards and the line above them (which then says, for example, "9 chapters" only), the outliner (its **Words**, **Target** and **Read time** columns, also in the Total row, and the words above the table), the inspector and the bottom bar (scene, session, today and project words, the scene target and the reading time; dates, status, to-dos, the scene title and your shortcut buttons stay), and the novel view. Counting goes on; the writing report, the Writing targets window, the planner's calendar and the export result still show the numbers. Open screens change at once. This choice is kept on this device only.
 
 [Making Spellbook your own](customising.md) goes through these settings one by one, and ends with a table of where each setting lives.
 
@@ -1076,7 +1081,7 @@ These are remembered separately on every device and do not sync:
 
 - which project is open, and which binder folders are folded shut;
 - the colour scheme;
-- the layout (Automatic, Touch layout or Desktop layout);
+- the layout (Automatic, Touch layout or Desktop layout), and whether word counts are shown;
 - which writing modes are on, and their settings;
 - which prose checks are on, and their settings;
 - the layout of the bottom bar, and "Count pasted text";

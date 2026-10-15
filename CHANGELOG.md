@@ -13,6 +13,8 @@ New:
 - World sheet: "Nicknames and other names" under the picture.
 - Export: type the book's own headings, and a "Manuscript exported" window with the file's name and folder.
 - Settings: Layout (Automatic, Touch, Desktop) for each device; where renames update links (this project or the whole vault); where Hemingway mode allows undo.
+- Settings: "Show word counts", to write without seeing the numbers in the binder, corkboard, outliner, inspector, bottom bar and novel view. Counting goes on, and the writing report, targets and calendar still show them.
+- Story calendar: a button in the settings and in the World screen's toolbar opens it.
 
 Changed:
 - Renames never stall: Spellbook points every link at the new name itself, so Obsidian's "Update links" question never comes up.
