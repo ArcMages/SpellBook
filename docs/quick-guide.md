@@ -26,7 +26,7 @@ Zen mode, letter box, typewriter scrolling and Hemingway mode (no deleting, only
 
 ## Track your words
 
-Word counts for the scene, the session, the day and the project sit in a bottom bar you arrange, with targets, a deadline, a writing calendar and a writing report. Rather not see the numbers while you write? Take any figure off the bar, or all of them.
+Word counts for the scene, the session, the day and the project sit in a bottom bar you arrange, with targets, a deadline, a writing calendar and a writing report. Rather not see the numbers while you write? Turn off "Show word counts" in the settings: counting goes on quietly, and the writing report still has them.
 
 ![The writing report for the whole manuscript of The Ember Crown: 78,222 words, 313 pages, 5 hours 13 minutes of reading, and the most used words](images/writing-report.png)
 
