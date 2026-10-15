@@ -111,7 +111,11 @@ interface Section {
   title: string;
   /** Null when the binder lists the scene but its note is not in the vault. */
   vaultPath: string | null;
+  /** True for a note that is a whole chapter. */
+  chapter: boolean;
   readonly el: HTMLElement;
+  /** The chapter heading above a note that is a whole chapter; hidden for a scene. */
+  readonly headingEl: HTMLElement;
   readonly titleEl: HTMLElement;
   readonly countEl: HTMLElement;
   readonly editEl: HTMLElement;
@@ -141,8 +145,13 @@ function placeUnder(anchor: HTMLElement): { x: number; y: number; width: number 
   return { x: box.left, y: box.bottom, width: box.width };
 }
 
-/** "1 scene", "12 scenes". */
-export function describeScenes(count: number): string {
+/** "1 scene", "12 scenes"; with chapter notes among them, "3 chapters and 9 scenes". */
+export function describeScenes(count: number, chapters = 0): string {
+  if (chapters > 0) {
+    const scenes = count - chapters;
+    const chapterWords = `${formatCount(chapters)} ${chapters === 1 ? 'chapter' : 'chapters'}`;
+    return scenes > 0 ? `${chapterWords} and ${formatCount(scenes)} ${scenes === 1 ? 'scene' : 'scenes'}` : chapterWords;
+  }
   return `${formatCount(count)} ${count === 1 ? 'scene' : 'scenes'}`;
 }
 
@@ -454,6 +463,8 @@ export class ScriveningsView extends ItemView {
 
   private makeSection(list: HTMLElement, scene: HostScene): Section {
     const el = list.createEl('section', { cls: SCENE_CLASS });
+    // A note that is a whole chapter has its title above it, as a chapter heading.
+    const headingEl = el.createEl('h2', { cls: 'spellbook-scrivenings-chapter', attr: { dir: 'auto' } });
     const divider = el.createDiv({ cls: DIVIDER_CLASS });
     // The title is the writer's own text: it takes the direction of its own words.
     const titleEl = divider.createEl('button', { cls: 'spellbook-scrivenings-title', text: scene.title, attr: { type: 'button', dir: 'auto' } });
@@ -464,7 +475,9 @@ export class ScriveningsView extends ItemView {
       path: scene.path,
       title: scene.title,
       vaultPath: scene.vaultPath,
+      chapter: scene.chapter === true,
       el,
+      headingEl,
       titleEl,
       countEl,
       editEl,
@@ -503,6 +516,7 @@ export class ScriveningsView extends ItemView {
     section.path = scene.path;
     section.title = scene.title;
     section.vaultPath = scene.vaultPath;
+    section.chapter = scene.chapter === true;
     this.label(section);
     if (scene.vaultPath === null) {
       if (hadNote || !section.drawn) this.showNote(section, MISSING_LABEL, false);
@@ -514,6 +528,9 @@ export class ScriveningsView extends ItemView {
 
   /** The words on a scene's divider: its title, its count, and what its buttons are called. */
   private label(section: Section): void {
+    section.headingEl.setText(section.chapter ? section.title : '');
+    section.headingEl.toggleClass('spellbook-scrivenings-is-off', !section.chapter);
+    section.el.toggleClass('spellbook-scrivenings-is-chapter', section.chapter);
     section.titleEl.setText(section.title);
     section.titleEl.setAttr('aria-label', `Open "${section.title}"`);
     section.editEl.setAttr('aria-label', `${EDIT_TEXT} "${section.title}"`);
@@ -851,7 +868,8 @@ export class ScriveningsView extends ItemView {
       const count = section.vaultPath === null ? null : this.host.wordsOf(section.vaultPath);
       if (typeof count === 'number') words += count;
     }
-    els.summary.setText(`${describeScenes(this.sections.length)}, ${describeCount(words)}`);
+    const chapters = this.sections.filter((section) => section.chapter).length;
+    els.summary.setText(`${describeScenes(this.sections.length, chapters)}, ${describeCount(words)}`);
   }
 
   private showScopeMenu(button: HTMLElement): void {

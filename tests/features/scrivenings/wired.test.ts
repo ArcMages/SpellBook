@@ -774,3 +774,19 @@ describe('the pane itself', () => {
     expect(view.getViewType()).toBe(SCRIVENINGS_VIEW_TYPE);
   });
 });
+
+describe('chapter notes in the novel view', () => {
+  it('shows a chapter note with its title as a heading above it, and counts it as a chapter', async () => {
+    const vault = novelVault();
+    const index = vault.frontmatterOf(NOVEL_INDEX) ?? {};
+    vault.seed(NOVEL_INDEX, { frontmatter: { ...index, chapters: [CLOSING] }, body: INDEX_BODY });
+    const s = await stage(vault);
+    const { pane } = await openPane(s);
+    const closing = sceneCalled(pane, 'Closing');
+    const heading = one(closing, 'spellbook-scrivenings-chapter');
+    expect(heading.text).toBe('Closing');
+    expect(heading.classes.has('spellbook-scrivenings-is-off')).toBe(false);
+    expect(one(sceneCalled(pane, 'Opening'), 'spellbook-scrivenings-chapter').classes.has('spellbook-scrivenings-is-off')).toBe(true);
+    expect(summaryOf(pane)).toBe('1 chapter and 4 scenes, 54 words');
+  });
+});

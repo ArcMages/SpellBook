@@ -16,6 +16,7 @@
 // nothing in the vault. Editing is done in Obsidian's own editor, which the
 // host opens on the scene (and the line) that was tapped.
 
+import { kindOfNote } from '../../core/binderModel';
 import { Notice } from 'obsidian';
 import type { PaneType } from 'obsidian';
 import { noteTitle } from '../../core/paths';
@@ -59,6 +60,8 @@ export interface HostScene {
   readonly title: string;
   /** Where the scene's note is in the vault; null when the binder lists it but the note is not there. */
   readonly vaultPath: string | null;
+  /** True for a note that is a whole chapter: its title is shown above it as a heading. */
+  readonly chapter?: boolean;
 }
 
 /** What a scope comes to as the binder is now. */
@@ -191,11 +194,10 @@ export class ScriveningsHost {
     const { store } = this.context;
     return {
       kind: 'scenes',
-      scenes: listed.map((scene) => ({
-        path: scene.path,
-        title: scene.title,
-        vaultPath: scene.missing ? null : store.vaultPathOf(scene.path),
-      })),
+      scenes: listed.map((scene) => {
+        const shown = { path: scene.path, title: scene.title, vaultPath: scene.missing ? null : store.vaultPathOf(scene.path) };
+        return kindOfNote(project.tree, scene.path) === 'chapter' ? { ...shown, chapter: true } : shown;
+      }),
     };
   }
 
