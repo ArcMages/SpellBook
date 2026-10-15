@@ -145,6 +145,7 @@ h1, h2, h3, h4 { font-size: 1em; font-weight: bold; text-align: center; margin: 
 h4 { text-align: start; }
 .chapter, .new-page { break-before: page; page-break-before: always; }
 .chapter { padding-top: 2em; }
+.book-part { padding-top: 2.5in; font-size: 1.3em; }
 .title-page { text-align: center; padding: 3in 0 2em; break-after: page; page-break-after: always; }
 .title-page h1 { margin: 0; }
 .contents { break-after: page; page-break-after: always; }
@@ -219,7 +220,7 @@ export function toHtml(manuscript: Manuscript, options: HtmlOptions, forPrinting
     if (part.kind === 'chapter') {
       const tag = `h${Math.min(3, part.level) + 1}`;
       body.push(
-        `<${tag} class="${pageIsNew || afterFront ? 'chapter-first' : 'chapter'}${afterFront ? ' new-page' : ''} level-${part.level}" id="${part.id}" dir="${part.direction}">${escapeHtml(part.title)}</${tag}>`,
+        `<${tag} class="${pageIsNew || afterFront ? 'chapter-first' : 'chapter'}${afterFront ? ' new-page' : ''} level-${part.level}${part.bookPart === true ? ' book-part' : ''}" id="${part.id}" dir="${part.direction}">${escapeHtml(part.title)}</${tag}>`,
       );
       pageIsNew = true;
       afterFront = false;

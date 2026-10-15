@@ -1263,6 +1263,7 @@
 /* "(filtered)" after the view's name, while a filter by tags is laid over the view. */
 .spellbook-timeline-view-filtered {
   color: var(--text-muted);
+  margin-inline-start: 0.3em;
 }
 
 /* The strip of the filter by tags: what it shows is a button that opens the filter's window. */

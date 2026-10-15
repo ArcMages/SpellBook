@@ -136,6 +136,7 @@ interface CardRecord {
     readonly text: unknown;
     readonly words: unknown;
     readonly missing: boolean;
+    readonly chapter: boolean;
     readonly lists: CardLists;
   } | null;
   /** A scene's card as the engine last worked it out, with its synopsis. */
@@ -670,19 +671,23 @@ export class CorkboardView extends ItemView {
       from.text === data.text &&
       from.words === data.words &&
       from.missing === card.missing &&
+      from.chapter === (card.chapter === true) &&
       from.lists === project.lists
     ) {
       return false;
     }
-    const model = buildSceneCard(
+    const built = buildSceneCard(
       { path: card.path, frontmatter: data.frontmatter, text: data.text, words: data.words, missing: card.missing },
       project.lists,
     );
+    // Whether the note is a whole chapter comes from the binder, not from the note.
+    const model = card.chapter === true ? { ...built, chapter: true } : built;
     record.from = {
       frontmatter: data.frontmatter,
       text: data.text,
       words: data.words,
       missing: card.missing,
+      chapter: card.chapter === true,
       lists: project.lists,
     };
     record.model = model;

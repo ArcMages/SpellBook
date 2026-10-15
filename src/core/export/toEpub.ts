@@ -306,7 +306,7 @@ export function epubParts(manuscript: Manuscript, options: EpubOptions, extras: 
     if (part.kind === 'chapter') {
       current = start(part.title);
       const level = Math.min(6, part.level);
-      current.body.push(`<h${level} class="chapter" id="${part.id}" dir="${part.direction}">${escapeXml(part.title)}</h${level}>`);
+      current.body.push(`<h${level} class="chapter${part.bookPart === true ? ' book-part' : ''}" id="${part.id}" dir="${part.direction}">${escapeXml(part.title)}</h${level}>`);
       toc.push({ level: part.level, title: part.title, href: `${current.file}#${part.id}`, direction: part.direction });
       continue;
     }

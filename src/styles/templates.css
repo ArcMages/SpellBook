@@ -65,3 +65,9 @@
   flex-wrap: wrap;
   gap: var(--size-2-3);
 }
+
+/* "I usually write in" sits in a box of its own, so it keeps the line that sets a row apart from the one above. */
+.spellbook-create-project .spellbook-create-writes-in .setting-item {
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: var(--size-4-3);
+}

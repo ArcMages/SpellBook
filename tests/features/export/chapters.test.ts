@@ -152,6 +152,15 @@ describe('a mixed book, written out', () => {
     }
   });
 
+  it('as a web page: the heading of a part is marked as a part, and no other', () => {
+    const { manuscript, options } = build({ format: 'html', contents: true });
+    const html = toHtml(manuscript, options);
+    const parts = manuscript.parts.filter((part) => part.kind === 'chapter' && part.bookPart === true);
+    expect(parts.length).toBeGreaterThan(0);
+    for (const part of parts) expect(html).toMatch(new RegExp(`class="[^"]*book-part[^"]*" id="${part.id}"`));
+    expect(html.split('book-part"').length - 1).toBe(parts.length);
+  });
+
   it('as a print page, the same', () => {
     const { manuscript, options } = build({ format: 'print', contents: true });
     expectInOrder(toHtml(manuscript, options), IN_ORDER);
