@@ -24,6 +24,7 @@ In this guide:
 - [Welcome and help](#welcome-and-help)
 - [Templates](#templates)
 - [Binder](#binder)
+- [Chapters or scenes, or both](#chapters-or-scenes-or-both)
 - [Corkboard](#corkboard)
 - [Inspector](#inspector)
 - [Statuses and labels](#statuses-and-labels)
@@ -64,8 +65,9 @@ Run the command **Create sample project**. Spellbook makes a folder called "Samp
 1. Run the command **Create project**.
 2. In the window, type a **Name**. The project gets its own folder with this name.
 3. Choose a **Location**: the folder to create the project in.
-4. Choose a **Structure** if you like (see [Templates](#templates)). **Blank**, the first choice, gives one empty scene.
-5. Press **Create**.
+4. Choose what **I usually write in**: **Scenes** (one note per scene) or **Chapters** (one note per chapter). See [Chapters or scenes, or both](#chapters-or-scenes-or-both).
+5. Choose a **Structure** if you like (see [Templates](#templates)). **Blank**, the first choice, gives one empty scene (or "Chapter 1" when you write in chapters).
+6. Press **Create**.
 
 Spellbook makes the folder with its first scene, or with the folders and scenes of the structure you chose, and opens the first scene. To see the project as a tree, open the binder with the command **Open binder** or the ribbon button "Open Spellbook binder".
 
@@ -163,7 +165,7 @@ Each scene of a structure comes with a title and a synopsis that says what it is
 **What you see.**
 
 - The project's name at the top. When the vault has more than one project, pressing it lets you choose another.
-- A toolbar with **New scene**, **New folder** and a "More options" menu with **Collapse all**, **Expand all**, **Create project** and **Create sample project**.
+- A toolbar with **New scene** (or **New chapter**, see [Chapters or scenes, or both](#chapters-or-scenes-or-both)), **New folder** and a "More options" menu with **Collapse all**, **Expand all**, **I usually write in scenes**, **I usually write in chapters**, **Create project** and **Create sample project**.
 - **Manuscript**: your scenes and folders. Each row shows its word count.
 - **Unfiled**: notes that are in the Manuscript folder but not in the binder yet (for example, notes you made in Obsidian's own file list).
 - **Research**: the notes in the Research folder.
@@ -172,7 +174,7 @@ Each scene of a structure comes with a title and a synopsis that says what it is
 
 - Tap a scene to open it.
 - Every row has a "More options" button that opens its menu; a right-click opens the same menu.
-  - A scene: **Rename**, **Move up**, **Move down**, **Move to folder**, **Open in new tab**, **New scene below**, **Take snapshot**, **Snapshots**, **Delete scene**.
+  - A scene: **Rename**, **Move up**, **Move down**, **Move to folder**, **Treat as a chapter**, **Open in new tab**, **New scene below**, **Take snapshot**, **Snapshots**, **Delete scene**. On a chapter note the menu says **Treat as a scene**, **New chapter below** and **Delete chapter**.
   - A folder: **Show on corkboard**, **New scene inside**, **New folder inside**, **Rename**, **Move up**, **Move down**, **Move to folder**, **Remove folder (keeps scenes)**.
   - An unfiled note: **Add to manuscript**, **Open**, **Open in new tab**.
   - A scene whose note has gone missing: **Remove from binder**.
@@ -188,6 +190,18 @@ Each scene of a structure comes with a title and a synopsis that says what it is
 **On a phone.** Long-press a row to pick it up and drag it. Everything a drag does, the row's menu does too.
 
 **Limits.** If the project's index note cannot be understood, the binder says "This project is read-only" and changes nothing until the note is put right. If two devices changed the binder before syncing, a notice appears with **Merge** and **Dismiss**; see [Sync and several devices](#sync-and-several-devices).
+
+## Chapters or scenes, or both
+
+Some writers keep one note per scene and gather scenes into chapter folders. Others write a whole chapter in one note. Spellbook does both, in the same book if you like: some chapters as one note, others as a folder of scenes.
+
+**Marking a note as a chapter.** Open a note's menu in the binder and choose **Treat as a chapter**. A small bookmark appears at the start of its row. **Treat as a scene** turns it back. Nothing in the note changes: the mark is kept in the project's index note, under `chapters`.
+
+**What you usually write in.** Each project remembers whether you usually write in scenes or chapters. You choose it when you create the project, and can change it from the binder's "More options" menu (**I usually write in scenes** / **I usually write in chapters**). It decides what the toolbar's **New ...** button makes. A new note next to another one takes that note's kind, so **New scene below** a scene in a chapter folder makes another scene, even in a book written in chapters. Projects made before this choice existed write in scenes.
+
+**What follows the kind.** The words on screen follow the note: **New chapter** or **New scene**, **In this chapter** or **In this scene** in the inspector, **Chapter** or **Scene** for the title in the bottom bar, "3 chapters and 2 scenes" on the corkboard and in Find and replace, and the first column of the plot grid. A chapter card on the corkboard says "Chapter" above its title. In the Novel view a chapter note has its title above it as a heading. Statuses, labels, targets, word counts, timeline dates, the plot grid, ages and snapshots work the same for both.
+
+**Export.** A chapter note becomes a chapter of its own: its title is the chapter heading, it starts a new page, and it is listed in the contents, at the level a folder in the same place would have. A folder that holds chapter notes becomes a part heading above them (name it "Part One: The Spark", for example). Folders of scenes stay chapters as before, and scenes inside them are set apart by the scene break. This works in Word, the web page, the print page, the e-book and Markdown.
 
 ## Corkboard
 
@@ -918,7 +932,7 @@ A project is an ordinary folder of Markdown notes. You can read and edit all of 
 <Project>/
   <Project>.md   the project index
   To-do.md       to-dos as plain checkbox lines
-  Manuscript/    one note per scene
+  Manuscript/    one note per scene (or per chapter)
   Timeline/      one note per timeline event
   Research/      your research notes
   Stats/         daily word logs, one file per device per month
@@ -934,7 +948,7 @@ The first six are made with the project. World, Snapshots, Exports, AI helper, B
 
 Project templates are kept apart from any project, in a folder called "Spellbook templates" at the top of the vault, made the first time you save one.
 
-The **project index** is the note named after the project. Its properties hold the order of the binder, the lists of statuses and labels, the targets, the timeline lanes, the story calendar, the day marks, the entity types and the author's name for exports.
+The **project index** is the note named after the project. Its properties hold the order of the binder, the lists of statuses and labels, the targets, the timeline lanes, the story calendar, the day marks, the entity types and the author's name for exports. It also says which notes are whole chapters (`chapters`) and, for a project written in chapters, `writes-in: chapters`.
 
 ### The properties of a scene
 

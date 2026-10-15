@@ -10,7 +10,7 @@
 import type { Extension } from '@codemirror/state';
 import { Notice, Platform, moment } from 'obsidian';
 import type { App, Tasks } from 'obsidian';
-import { binderTotals, placeOfNote, scenesWithNotes } from '../../core/binderModel';
+import { binderTotals, isChapterNote, placeOfNote, scenesWithNotes } from '../../core/binderModel';
 import { isDateText } from '../../core/dates';
 import { findTag, parseTagList, readSceneFields, TAG_INDEX_KEYS } from '../../core/cards/index';
 import { clashKey, isInside, isMarkdownPath, joinPath, noteTitle, parentPath, relativeTo } from '../../core/paths';
@@ -668,6 +668,7 @@ export class WritingProgress {
         // Typed in today, and the date not written into the note yet: today it is.
         edited: wants('edited') ? later(sceneEditedDate(open.frontmatter), this.dates.waitingFor(open.path)) : null,
         sceneTitle: noteTitle(open.path),
+        chapter: isChapterNote(project, open.path),
         status: wants('status') ? this.statusOf(open.frontmatter) : null,
       };
     }

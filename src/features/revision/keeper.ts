@@ -16,6 +16,8 @@
 // the writer wrote (restoring a snapshot is the other), so it goes carefully
 // (see replace below).
 
+import { kindOfNote } from '../../core/binderModel';
+import { notesText } from './results';
 import type { App, EditorPosition } from 'obsidian';
 import { sanitiseFileName } from '../../core/names';
 import { isInside, joinPath, noteTitle, parentPath, pathKey, relativeTo } from '../../core/paths';
@@ -92,6 +94,8 @@ export interface ScenePlan {
 export interface ReplaceReport {
   /** The scenes that were changed. */
   readonly scenes: number;
+  /** How many of those are notes that are whole chapters. Absent: none. */
+  readonly chapters?: number;
   /** The changes made in them. */
   readonly changes: number;
   /** The scenes that were left as they are, and why. */
@@ -518,6 +522,7 @@ export class RevisionKeeper {
    */
   async replace(plans: readonly ScenePlan[], snapshotName: string, inProject: string | undefined = this.projectId()): Promise<ReplaceReport> {
     let scenes = 0;
+    let chapters = 0;
     let changes = 0;
     const problems: Array<{ title: string; message: string }> = [];
     const blocked = this.whyNotWritable();
@@ -561,6 +566,7 @@ export class RevisionKeeper {
       const result = await this.context.store.replaceInSceneBody(plan.scene.path, plan.body, plan.edits, inProject);
       if (result.status === 'done') {
         scenes++;
+        if (this.isChapter(plan.scene.path)) chapters++;
         changes += plan.edits.length;
       } else if (result.status === 'refused' && result.reason === 'scene-changed') {
         problems.push({ title, message: CHANGED_SINCE_TEXT });
@@ -569,7 +575,13 @@ export class RevisionKeeper {
       }
       this.emit({ type: 'text', path: plan.scene.path });
     }
-    return { scenes, changes, problems };
+    return chapters > 0 ? { scenes, chapters, changes, problems } : { scenes, changes, problems };
+  }
+
+  /** Whether a note of the binder is a whole chapter rather than a scene, by its path relative to the project folder. */
+  isChapter(path: string): boolean {
+    const project = this.context.store.project;
+    return project !== null && kindOfNote(project.tree, path) === 'chapter';
   }
 
   // ---------------------------------------------------------------- rename
@@ -645,7 +657,7 @@ export class RevisionKeeper {
     this.emit({ type: 'notes' });
     if (renamed.status !== 'done') {
       const parts = [renamed.message];
-      if (replaced.changes > 0) parts.push(`The text was changed in ${replaced.scenes} ${replaced.scenes === 1 ? 'scene' : 'scenes'}.`);
+      if (replaced.changes > 0) parts.push(`The text was changed in ${notesText(replaced.scenes, replaced.chapters ?? 0)}.`);
       if (keepOldName && aliasProblem === null) parts.push(`"${entity.name}" was added to its other names.`);
       return parts.join(' ');
     }

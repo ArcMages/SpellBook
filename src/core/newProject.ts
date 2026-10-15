@@ -2,6 +2,7 @@
 // scene, and the sample novel. Both create the project through the store and
 // then make it the open project.
 
+import type { NoteKind } from './noteKind';
 import { joinPath } from './paths';
 import type { NewProjectOptions, ProjectStore } from './projectStore';
 import { starterProject } from './projectSeed';
@@ -53,8 +54,9 @@ export function createStarterProject(
   name: string,
   parentFolder = '',
   seed: ProjectSeed = starterProject(),
+  writesIn: NoteKind = 'scene',
 ): Promise<IntentResult<NewProject>> {
-  return createAndOpen(store, name, parentFolder, { seed });
+  return createAndOpen(store, name, parentFolder, writesIn === 'chapter' ? { seed, writesIn } : { seed });
 }
 
 /**

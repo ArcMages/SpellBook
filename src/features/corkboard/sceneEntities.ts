@@ -19,6 +19,8 @@ import type { SceneEntitiesPart } from './host';
 import { PROBLEM_NOTICE_MS } from '../../ui/notices';
 
 export const SCENE_ENTITIES_HEADING = 'In this scene';
+/** The same heading for a note that is a whole chapter. */
+export const CHAPTER_ENTITIES_HEADING = 'In this chapter';
 export const SCENE_ENTITIES_NONE = 'Nobody and nothing yet.';
 export const SCENE_ENTITIES_ADD = 'Add';
 // The dot between a name and an age, built from its number so that this file stays plain ASCII.
@@ -51,12 +53,14 @@ function chipsOf(service: SceneEntitiesService, path: string): readonly SceneEnt
   }
 }
 
-function draw(slot: HTMLElement, service: SceneEntitiesService, path: string | null): void {
+function draw(slot: HTMLElement, service: SceneEntitiesService, path: string | null, chapter: boolean): void {
   slot.empty();
   if (path === null) return;
   const canChange = service.canChange() === true;
+  const heading = chapter ? CHAPTER_ENTITIES_HEADING : SCENE_ENTITIES_HEADING;
+  const noun = chapter ? 'chapter' : 'scene';
   const part = slot.createDiv({ cls: 'spellbook-inspector-entities' });
-  part.createDiv({ cls: 'spellbook-field-name spellbook-inspector-entities-head', text: SCENE_ENTITIES_HEADING });
+  part.createDiv({ cls: 'spellbook-field-name spellbook-inspector-entities-head', text: heading });
   const chips = chipsOf(service, path);
   const list = part.createDiv({ cls: 'spellbook-inspector-entities-chips', attr: { role: 'list' } });
   if (chips.length === 0) list.createSpan({ cls: 'spellbook-inspector-entities-none', text: SCENE_ENTITIES_NONE });
@@ -96,11 +100,11 @@ function draw(slot: HTMLElement, service: SceneEntitiesService, path: string | n
     if (!canChange) continue;
     const remove = item.createEl('button', {
       cls: 'spellbook-entity-chip-remove',
-      attr: { type: 'button', 'aria-label': `Take ${chip.name} out of this scene` },
+      attr: { type: 'button', 'aria-label': `Take ${chip.name} out of this ${noun}` },
     });
     showIcon(remove, 'x');
     remove.addEventListener('click', () => {
-      safely('Take out of this scene', async () => {
+      safely(`Take out of this ${noun}`, async () => {
         const problem = await service.remove(path, chip.key);
         if (typeof problem === 'string') new Notice(problem, PROBLEM_NOTICE_MS);
       });
@@ -110,7 +114,7 @@ function draw(slot: HTMLElement, service: SceneEntitiesService, path: string | n
   if (!canChange) return;
   const add = part.createEl('button', { cls: 'spellbook-inspector-entities-add', text: SCENE_ENTITIES_ADD, attr: { type: 'button' } });
   add.addEventListener('click', () => {
-    safely(SCENE_ENTITIES_HEADING, () => {
+    safely(heading, () => {
       service.add(path);
     });
   });
@@ -128,6 +132,7 @@ export function mountSceneEntities(
   services: Pick<FeatureServices, 'get'>,
   clock: Pick<FeatureClock, 'setTimer'>,
   scenePath: () => string | null,
+  isChapter: (path: string) => boolean = () => false,
 ): SceneEntitiesPart {
   let stopped = false;
   let service: SceneEntitiesService | null = null;
@@ -136,7 +141,8 @@ export function mountSceneEntities(
 
   const refresh = (): void => {
     if (stopped || service === null) return;
-    draw(slot, service, scenePath());
+    const path = scenePath();
+    draw(slot, service, path, path !== null && isChapter(path));
   };
 
   /** @returns whether the service was there */

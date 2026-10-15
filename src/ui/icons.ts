@@ -40,6 +40,8 @@ export const BINDER_ICON = 'book-open';
 /** Points down; the stylesheet turns it sideways for something folded shut. */
 export const FOLD_ICON = ['chevron-down'] as const;
 export const WARNING_ICON = ['triangle-alert', 'alert-triangle'] as const;
+/** The small mark of a note that is a whole chapter. */
+export const CHAPTER_ICON = ['bookmark'] as const;
 export const SWITCH_ICON = ['chevrons-up-down', 'chevron-down'] as const;
 
 /** The "more" button of a row (three dots side by side) and of the toolbar (three dots, one above the other). */
@@ -57,6 +59,8 @@ export const ACTION_ICONS = {
   moveDown: ['arrow-down'],
   moveToFolder: ['folder-input', 'folder-open', 'folder'],
   deleteScene: ['trash-2', 'trash'],
+  treatAsChapter: ['bookmark-plus', 'bookmark'],
+  treatAsScene: ['bookmark-minus', 'bookmark'],
   removeFolder: ['folder-minus', 'folder-x', 'folder'],
   removeEntry: ['list-x', 'x'],
   addToManuscript: ['list-plus', 'plus'],

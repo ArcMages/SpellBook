@@ -45,6 +45,14 @@ function plural(count: number, one: string, many: string): string {
   return `${formatCount(count)} ${count === 1 ? one : many}`;
 }
 
+/** What an export saved: "12 scenes", or "3 chapters and 9 scenes" when there are chapter notes among them. */
+function savedWhat(notes: number, chapters: number): string {
+  if (chapters === 0) return plural(notes, 'scene', 'scenes');
+  const scenes = notes - chapters;
+  const said = (count: number, one: string, many: string): string => plural(count, one, many);
+  return scenes > 0 ? `${said(chapters, 'chapter', 'chapters')} and ${said(scenes, 'scene', 'scenes')}` : said(chapters, 'chapter', 'chapters');
+}
+
 /** The name of a file, from its vault path. */
 export function fileNameOf(path: string): string {
   const at = path.lastIndexOf('/');
@@ -90,7 +98,7 @@ export class ExportDoneModal extends Modal {
     const result = contentEl.createDiv({ cls: 'spellbook-export-result' });
     result.createEl('p', {
       cls: 'spellbook-export-saved',
-      text: `Saved ${plural(outcome.scenes, 'scene', 'scenes')}, ${plural(outcome.words, 'word', 'words')}, as a new file.`,
+      text: `Saved ${savedWhat(outcome.scenes, outcome.chapters ?? 0)}, ${plural(outcome.words, 'word', 'words')}, as a new file.`,
     });
     const where = result.createDiv({ cls: 'spellbook-export-where' });
     const line = (label: string, cls: string, value: string): void => {

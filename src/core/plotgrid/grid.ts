@@ -5,6 +5,7 @@
 //
 // Plain calculations: the caller says which scene is in which column.
 
+import { notesHeading } from '../binderModel';
 import type { TreeNode } from '../types';
 import type { PlotColumn } from './columns';
 
@@ -90,6 +91,8 @@ export interface PlotGrid {
   readonly rows: readonly GridRow[];
   /** How many scenes the book has. */
   readonly sceneCount: number;
+  /** What the column of row names is headed: "Scene", "Chapter", or "Chapter / scene" for a mixed book. */
+  readonly heading?: string;
 }
 
 export interface PlotGridInput {
@@ -220,5 +223,5 @@ export function buildPlotGrid(input: PlotGridInput): PlotGrid {
     }
   };
   walk(tree, 0, true);
-  return { columns: gridColumns, rows, sceneCount: scenes.length };
+  return { columns: gridColumns, rows, sceneCount: scenes.length, heading: notesHeading(tree) };
 }

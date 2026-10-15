@@ -61,8 +61,9 @@ The sample has no writing history, so the calendar's word counts start empty. Wh
 1. Run the command **Create project**.
 2. In the window, type a **Name**, for example "The Lighthouse". The project gets its own folder with this name.
 3. Choose a **Location**: the folder to create the project in.
-4. Leave **Structure** at **Blank** for this tutorial, so that you build the chapters yourself in the next step.
-5. Press **Create**.
+4. Leave **I usually write in** at **Scenes** for this tutorial (see [Chapters or scenes, or both](#chapters-or-scenes-or-both) below).
+5. Leave **Structure** at **Blank** for this tutorial, so that you build the chapters yourself in the next step.
+6. Press **Create**.
 
 You should see the new project's first scene open in the editor. In Obsidian's file list there is now a folder named after your book, with the folders Manuscript, Timeline, Research and Stats inside it, a note named after the project, and a note called `To-do.md`.
 
@@ -93,6 +94,12 @@ Good to know:
 - Dragging and the menu do the same things. Use whichever suits your hand.
 - A folder can hold folders. Use **New folder inside** for parts that hold chapters.
 - A note you make in Obsidian's own file list inside the Manuscript folder shows under **Unfiled** in the binder. Its menu has **Add to manuscript**.
+
+### Chapters or scenes, or both
+
+Not every chapter has to be a folder of scenes. If you would rather write a chapter as one note, make a note at the top of the manuscript (for example "The crossing"), open its menu and choose **Treat as a chapter**. A small bookmark appears on its row, and in an export its title becomes a chapter heading on a new page, listed in the contents. You can mix the two ways in one book: here Chapter 1 and Chapter 2 are folders of scenes, and "The crossing" is a chapter in one note.
+
+If you write mostly in whole chapters, choose **I usually write in chapters** in the binder's "More options" menu: the toolbar button then says **New chapter**. A folder that holds chapter notes becomes a part of the book ("Part One") in an export. See [Chapters or scenes, or both](guide.md#chapters-or-scenes-or-both).
 
 ## 5. Write a scene and fill in its inspector
 

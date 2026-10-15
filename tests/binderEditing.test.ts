@@ -134,7 +134,18 @@ describe('the toolbar\'s menu', () => {
     const button = toolbarButton(s.pane, 'More options');
     button.rect = { top: 8, bottom: 36, left: 260, right: 288, width: 28, height: 28 };
     const menu = toolbarMenu(s.pane);
-    expect(menu.outline).toEqual(['Collapse all', 'Expand all', '---', 'Create project', 'Create sample project']);
+    expect(menu.outline).toEqual([
+      'Collapse all',
+      'Expand all',
+      '---',
+      'I usually write in scenes',
+      'I usually write in chapters',
+      '---',
+      'Create project',
+      'Create sample project',
+    ]);
+    expect(menu.item('I usually write in scenes').checked).toBe(true);
+    expect(menu.item('I usually write in chapters').checked).toBe(false);
     expect(menu.position).toEqual({ x: 260, y: 36, width: 28 }); // under the button
     expect(menu.items.every((item) => item.icon !== null)).toBe(true);
   });
@@ -551,6 +562,7 @@ describe('the menus', () => {
       'Move up',
       'Move down',
       'Move to folder',
+      'Treat as a chapter',
       '---',
       'Delete scene',
     ]);
@@ -584,6 +596,7 @@ describe('the menus', () => {
       'Move up',
       'Move down',
       'Move to folder',
+      'Treat as a chapter',
       '---',
       'Take snapshot',
       'Snapshots',

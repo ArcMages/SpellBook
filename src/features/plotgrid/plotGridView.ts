@@ -276,7 +276,7 @@ export class PlotGridView extends ItemView {
       return;
     }
     this.say(null);
-    this.drawHead(els.head, grid);
+    this.drawHead(els.head, grid, grid.heading ?? 'Scene');
     for (const row of grid.rows) {
       if (row.kind === 'folder') this.drawFolder(els.body, row, grid);
       else this.drawScene(els.body, row, grid, project.readOnly, prefs.synopsisLine);
@@ -292,8 +292,8 @@ export class PlotGridView extends ItemView {
     els.scroll.toggleClass('spellbook-plotgrid-off', text !== null);
   }
 
-  private drawHead(tr: HTMLElement, grid: PlotGrid): void {
-    tr.createEl('th', { cls: 'spellbook-plotgrid-corner', text: 'Scene', attr: { scope: 'col' } });
+  private drawHead(tr: HTMLElement, grid: PlotGrid, heading: string): void {
+    tr.createEl('th', { cls: 'spellbook-plotgrid-corner', text: heading, attr: { scope: 'col' } });
     for (const column of grid.columns) this.drawColumnHead(tr, column, grid.sceneCount);
   }
 

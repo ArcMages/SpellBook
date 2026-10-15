@@ -941,6 +941,21 @@
   display: none;
 }
 
+/* A note that is a whole chapter: a small word above its title. */
+.spellbook-board .spellbook-card.spellbook-is-chapter .spellbook-card-title {
+  font-weight: var(--font-bold);
+}
+
+.spellbook-board .spellbook-card.spellbook-is-chapter .spellbook-card-title::before {
+  content: "Chapter";
+  display: block;
+  font-size: var(--font-smallest);
+  font-weight: var(--font-normal);
+  color: var(--text-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 /* -------------------------------------------------------------- Out of sight */
 
 /* Something that is built but has nothing to show right now (a card without a
@@ -949,3 +964,4 @@
 .spellbook-is-off.spellbook-is-off.spellbook-is-off {
   display: none;
 }
+

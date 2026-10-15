@@ -10,6 +10,7 @@
 // direction of its own text. Word counts are numbers and always read left to
 // right; the card around them follows the direction of Obsidian itself.
 
+import { describeKinds } from '../../core/noteKind';
 import { describeCount, formatCount } from '../../core/binderModel';
 import type { CardTag, FolderCard, SceneCard } from '../../core/cards';
 import { ROW_MORE_ICON, WARNING_ICON, showIcon } from '../../ui/icons';
@@ -51,8 +52,9 @@ export interface FolderParts {
 
 export type CardParts = SceneParts | FolderParts;
 
-/** "1 scene", "12 scenes". */
-export function describeScenes(count: number): string {
+/** "1 scene", "12 scenes"; with chapter notes among them, "3 chapters and 9 scenes". */
+export function describeScenes(count: number, chapters = 0): string {
+  if (chapters > 0) return describeKinds(chapters, count - chapters);
   return `${formatCount(count)} ${count === 1 ? 'scene' : 'scenes'}`;
 }
 
@@ -123,6 +125,8 @@ function showTag(outer: HTMLElement, name: HTMLElement, colored: HTMLElement, ta
 export function drawScene(card: HTMLElement, parts: SceneParts, model: SceneCard): void {
   card.toggleClass(MISSING_CLASS, model.missing);
   card.setAttr('aria-disabled', model.missing ? 'true' : null);
+  // A note that is a whole chapter is marked as one (see the stylesheet).
+  card.toggleClass('spellbook-is-chapter', model.chapter === true);
   setTextOnce(parts.title, model.title);
 
   // A preview taken from the scene's text is shown in a quieter style than a synopsis the writer wrote.
@@ -185,7 +189,7 @@ export function buildFolderParts(card: HTMLElement, menu: (button: HTMLElement) 
 /** Make a folder card say what the engine worked out for its folder. */
 export function drawFolder(parts: FolderParts, model: FolderCard): void {
   setTextOnce(parts.title, model.name);
-  setTextOnce(parts.scenes, describeScenes(model.sceneCount));
+  setTextOnce(parts.scenes, describeScenes(model.sceneCount, model.chapterCount ?? 0));
   setTextOnce(parts.missing, model.missingCount > 0 ? `${formatCount(model.missingCount)} not found` : '');
   setShown(parts.missing, model.missingCount > 0);
   // The sum is not known while a scene inside is still being counted.

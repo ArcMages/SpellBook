@@ -85,8 +85,8 @@ export type NameCheck =
  * note, so characters that file names cannot hold are taken out; a title of
  * which nothing is left is turned down, with the reason.
  */
-export function checkSceneName(raw: string): NameCheck {
-  if (tidyDisplayName(raw) === '') return { ok: false, message: 'Give the scene a name.' };
+export function checkSceneName(raw: string, noun = 'scene'): NameCheck {
+  if (tidyDisplayName(raw) === '') return { ok: false, message: `Give the ${noun} a name.` };
   const name = sanitiseFileName(raw, '');
   if (name === '') {
     return { ok: false, message: 'That name has no characters that can be used in a file name.' };

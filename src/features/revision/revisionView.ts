@@ -14,6 +14,7 @@
 // through it. Touch first: every action is a button or a tick, nothing
 // depends on hovering or on dragging.
 
+import { notesText } from './results';
 import { ItemView, Notice, Platform } from 'obsidian';
 import { followLayout } from '../../ui/layout';
 import type { WorkspaceLeaf } from 'obsidian';
@@ -52,10 +53,10 @@ export const EMPTY_TEXT = 'No revision notes yet. Select some words in a scene a
 /** How long after a scene was saved its passages are looked for again, in milliseconds. */
 const RECHECK_MS = 800;
 
-/** "3 open notes in 2 scenes". */
-export function countText(notes: number, scenes: number, filter: NoteFilter): string {
+/** "3 open notes in 2 scenes", or "... in 1 chapter and 1 scene". */
+export function countText(notes: number, scenes: number, filter: NoteFilter, chapters = 0): string {
   const kind = filter === 'all' ? '' : `${filter} `;
-  return `${formatCount(notes)} ${kind}${notes === 1 ? 'note' : 'notes'} in ${formatCount(scenes)} ${scenes === 1 ? 'scene' : 'scenes'}`;
+  return `${formatCount(notes)} ${kind}${notes === 1 ? 'note' : 'notes'} in ${notesText(scenes, chapters)}`;
 }
 
 /** The notes of each scene that pass a filter; scenes left with none are left out. */
@@ -196,7 +197,8 @@ export class RevisionView extends ItemView {
     const inFolder = this.folder === null ? null : new Set(this.keeper.scenesIn(this.folder).map((scene) => pathKey(scene.path)));
     const shown = filtered(all, this.filter, inFolder);
     const total = shown.reduce((sum, entry) => sum + entry.notes.length, 0);
-    status.setText(countText(total, shown.length, this.filter));
+    const chapters = shown.filter((entry) => this.keeper.isChapter(entry.scene.path)).length;
+    status.setText(countText(total, shown.length, this.filter, chapters));
     if (all.length === 0) {
       list.createDiv({ cls: 'spellbook-revision-empty', text: EMPTY_TEXT });
       return;

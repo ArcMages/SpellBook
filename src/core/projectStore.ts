@@ -89,7 +89,9 @@ import type { LinkScope } from './links';
 import { applyToNote, splitBody } from './revision/edits';
 import type { BodyEdit } from './revision/edits';
 import type { PlantedSeed, ProjectSeed } from './projectSeed';
-import { DEFAULT_SCENE_NAME, newSceneFrontmatter } from './scene';
+import { DEFAULT_CHAPTER_NAME, DEFAULT_SCENE_NAME, newSceneFrontmatter } from './scene';
+import { CHAPTERS_KEY, WRITES_IN_KEY, chapterKeys, readWritesIn, renamedChapterList, withKind, writesInValue } from './noteKind';
+import type { NoteKind } from './noteKind';
 import type {
   Binder,
   BinderNode,
@@ -133,6 +135,12 @@ export interface NewProjectOptions {
    * creates the project as "<name> 2", "<name> 3" and so on instead.
    */
   readonly numberIfTaken?: boolean;
+  /**
+   * What the writer usually writes in. "chapter" stores it in the index and
+   * marks every note the project starts with as a whole chapter. Default:
+   * scenes, which stores nothing.
+   */
+  readonly writesIn?: NoteKind;
 }
 
 /** What merging a conflicting copy of the index came to. */
@@ -281,6 +289,37 @@ function failed(message: string): { status: 'failed'; message: string } {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** For mutateBinder: mark one note as a whole chapter in the same write. */
+function markAsChapter(path: string): (frontmatter: Frontmatter) => boolean {
+  return (frontmatter) => setKindIn(frontmatter, path, 'chapter');
+}
+
+/** For mutateBinder: forget that one note was a chapter (it is going to the trash). */
+function forgetKind(path: string): (frontmatter: Frontmatter) => boolean {
+  return (frontmatter) => setKindIn(frontmatter, path, 'scene');
+}
+
+/** Set one note's kind in the index's chapters list, in place. True when that changed anything. */
+function setKindIn(frontmatter: Frontmatter, path: string, kind: NoteKind): boolean {
+  const had = Object.prototype.hasOwnProperty.call(frontmatter, CHAPTERS_KEY);
+  const before = had ? frontmatter[CHAPTERS_KEY] : undefined;
+  const next = withKind(before, path, kind);
+  if (next === undefined) {
+    if (!had) return false;
+    delete frontmatter[CHAPTERS_KEY];
+    return true;
+  }
+  if (had && JSON.stringify(next) === JSON.stringify(before)) return false;
+  frontmatter[CHAPTERS_KEY] = next;
+  return true;
+}
+
+/** The binder of an index note's properties as they are on disk; empty when it cannot be read. */
+function parseBinderOf(frontmatter: Readonly<Frontmatter>): Binder {
+  const parsed = parseProjectIndex(frontmatter);
+  return parsed.ok ? parsed.binder : [];
 }
 
 function isReservedKey(key: string): boolean {
@@ -731,7 +770,11 @@ export class ProjectStore {
         );
       }
 
-      const data = seed?.data ?? {};
+      const data: Record<string, unknown> = { ...(seed?.data ?? {}) };
+      if (options.writesIn === 'chapter') {
+        data[WRITES_IN_KEY] = writesInValue('chapter');
+        if (planted.scenes.length > 0) data[CHAPTERS_KEY] = [...planted.scenes];
+      }
       if (planted.binder.length > 0 || Object.keys(data).length > 0) {
         const problem = await this.listInNewIndex(indexPath, planted.binder, data);
         if (problem !== null) {
@@ -773,17 +816,21 @@ export class ProjectStore {
    *   properties added to (or taking the place of) the standard ones, and its
    *   text. The scene's own order key and the day it was made are always the
    *   plugin's. Default: the standard properties and no text.
+   * @param kind whether the note is a scene or a whole chapter. Default: what
+   *   the project usually writes in (see noteKind.ts).
    */
   addScene(
     title: string,
     placement: Placement = END_OF_BINDER,
     inProject?: string,
     start?: NoteStart,
+    kind?: NoteKind,
   ): Promise<IntentResult<{ path: string }>> {
     return this.run(async (): Promise<IntentResult<{ path: string }>> => {
       const active = this.active;
       const blocked = this.whyNotWritable(active);
       if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const noteKind = kind ?? readWritesIn(active.data[WRITES_IN_KEY]);
 
       const manuscript = joinPath(active.folder, MANUSCRIPT_FOLDER);
       if (!this.vault.exists(manuscript)) await this.vault.createFolder(manuscript);
@@ -797,7 +844,7 @@ export class ProjectStore {
       // another device, and must not be filled in by a new empty note.
       const binder = this.effectiveBinder(active);
       const listed = new Set(flattenScenes(binder).map(clashKey));
-      const base = sanitiseFileName(title, DEFAULT_SCENE_NAME);
+      const base = sanitiseFileName(title, noteKind === 'chapter' ? DEFAULT_CHAPTER_NAME : DEFAULT_SCENE_NAME);
       const name = uniqueName(base, (candidate) => {
         const rel = `${MANUSCRIPT_FOLDER}/${candidate}.md`;
         return listed.has(clashKey(rel)) || this.vault.exists(joinPath(active.folder, rel));
@@ -825,9 +872,9 @@ export class ProjectStore {
           value: { path: rel },
           warning: target
             ? undefined
-            : 'The place you chose is no longer in the binder, so the scene was added at the end.',
+            : `The place you chose is no longer in the binder, so the ${noteKind} was added at the end.`,
         };
-      });
+      }, noteKind === 'chapter' ? markAsChapter(rel) : undefined);
       if (result.status === 'done') {
         this.scheduleOrderSync([rel]);
         return result;
@@ -1037,7 +1084,7 @@ export class ProjectStore {
         const removed = removeNode(onDisk, sceneRef(rel));
         if (!where || !removed) return noop('not-found', 'That scene is no longer in the binder.');
         return { status: 'done', binder: removed.binder, value: { entry: removed.node, where } };
-      });
+      }, forgetKind(rel));
       if (removal.status === 'failed' || removal.status === 'refused') return removal;
       const taken = removal.status === 'done' ? removal.value : null;
 
@@ -1114,6 +1161,7 @@ export class ProjectStore {
 
       const file = this.projectFiles(active).get(pathKey(rel));
       if (!file) return noop('not-found', 'That note is no longer in the project.');
+      const asChapter = readWritesIn(active.data[WRITES_IN_KEY]) === 'chapter';
 
       const result = await this.mutateBinder<{ path: string }>((onDisk) => {
         if (hasScene(onDisk, file.rel)) return noop('already-in-binder', 'That note is already in the binder.');
@@ -1129,7 +1177,7 @@ export class ProjectStore {
             ? undefined
             : 'The place you chose is no longer in the binder, so the note was added at the end.',
         };
-      });
+      }, asChapter ? markAsChapter(file.rel) : undefined);
       if (result.status === 'done') this.scheduleOrderSync([file.rel]);
       return result;
     }, inProject);
@@ -1262,6 +1310,39 @@ export class ProjectStore {
   // that belong to the plugin (To-do.md and the word logs in Stats). Each is
   // changed here, in the same queue as the binder, by one read-modify-write
   // against what is on disk at that moment.
+
+  /**
+   * Mark a note of the binder as a whole chapter, or as a scene again. The
+   * mark is kept in the project index (see noteKind.ts); the note itself is
+   * not changed.
+   */
+  setNoteKind(path: string, kind: NoteKind, inProject?: string): Promise<IntentResult> {
+    return this.run(async (): Promise<IntentResult> => {
+      const active = this.active;
+      const blocked = this.whyNotWritable(active);
+      if (blocked || !active) return blocked ?? refused('no-project', 'No project is open.');
+      const rel = this.checkedPath(active, path, true);
+      if (typeof rel !== 'string') return rel;
+      const box = { changed: false };
+      const result = await this.mutateBinder<undefined>(
+        (onDisk) =>
+          hasScene(onDisk, rel) ? noop('unchanged', 'Nothing needed to change.') : noop('not-found', 'That note is no longer in the binder.'),
+        (frontmatter) => {
+          box.changed = false;
+          if (!hasScene(parseBinderOf(frontmatter), rel)) return false;
+          box.changed = setKindIn(frontmatter, rel, kind);
+          return box.changed;
+        },
+      );
+      if (result.status === 'noop' && result.reason === 'unchanged' && box.changed) return done(undefined);
+      return result;
+    }, inProject);
+  }
+
+  /** Say what the open project usually writes in: what "New ..." makes and the kind new notes get. */
+  setWritesIn(kind: NoteKind, inProject?: string): Promise<IntentResult> {
+    return this.updateProjectData(WRITES_IN_KEY, () => writesInValue(kind), inProject);
+  }
 
   /**
    * Change one of the open project's own data keys in the index note, in one
@@ -3088,6 +3169,12 @@ export class ProjectStore {
           writeBinder(frontmatter, renamed.binder);
           write = true;
         }
+        // Notes marked as chapters keep their mark when they move.
+        const chapters = renamedChapterList(frontmatter[CHAPTERS_KEY], renames);
+        if (chapters !== null) {
+          frontmatter[CHAPTERS_KEY] = chapters;
+          write = true;
+        }
         // What else is to change in the same write. Not when the binder's own change was refused or failed.
         if (alongside !== undefined && (result.status === 'done' || result.status === 'noop') && alongside(frontmatter)) {
           write = true;
@@ -3212,6 +3299,13 @@ export class ProjectStore {
     return replaceScenePaths(active.binder, this.pendingRenames).binder;
   }
 
+  /** The keys of the notes marked as chapters, with renames that are about to be saved already applied. */
+  private effectiveChapters(active: ActiveProject): Set<string> {
+    const stored = active.data[CHAPTERS_KEY];
+    if (this.pendingRenames.size === 0) return chapterKeys(stored);
+    return chapterKeys(renamedChapterList(stored, this.pendingRenames) ?? stored);
+  }
+
   /** Work out the snapshot again and tell listeners if it is different. */
   private refreshSnapshot(): void {
     const active = this.active;
@@ -3229,6 +3323,7 @@ export class ProjectStore {
     const files = this.projectFiles(active);
     this.snapshotFiles = files;
     const binder = this.effectiveBinder(active);
+    const chapters = this.effectiveChapters(active);
     const missing: string[] = [];
     const toTree = (nodes: Binder): TreeNode[] =>
       nodes.map((node): TreeNode => {
@@ -3237,7 +3332,8 @@ export class ProjectStore {
         }
         const isMissing = !files.has(pathKey(node.path));
         if (isMissing) missing.push(node.path);
-        return { kind: 'scene', path: node.path, title: noteTitle(node.path), missing: isMissing };
+        const scene = { kind: 'scene' as const, path: node.path, title: noteTitle(node.path), missing: isMissing };
+        return chapters.has(pathKey(node.path)) ? { ...scene, chapter: true } : scene;
       });
     const tree = toTree(binder);
 
@@ -3267,6 +3363,7 @@ export class ProjectStore {
       missing,
       research,
       conflicts,
+      writesIn: readWritesIn(active.data[WRITES_IN_KEY]),
     };
     // The project data is not part of the snapshot (it is read with
     // projectData), but a change to it is a change to the open project.

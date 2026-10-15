@@ -70,12 +70,22 @@ import {
   SWITCH_ICON,
   TOOLBAR_MORE_ICON,
   WARNING_ICON,
+  CHAPTER_ICON,
   iconName,
   showIcon,
 } from '../ui/icons';
 import { ownTextTitle } from '../ui/ownText';
 import { safely } from '../ui/safely';
 import { MISSING_LABEL } from './binderActions';
+import { kindWord } from '../core/noteKind';
+
+/** The binder's toolbar menu item that says what the project usually writes in. */
+export function writesInMenuTitle(kind: 'scene' | 'chapter'): string {
+  return kind === 'chapter' ? 'I usually write in chapters' : 'I usually write in scenes';
+}
+
+/** What the small mark of a chapter note says to a screen reader (and on hover). */
+export const CHAPTER_MARK_LABEL = 'Chapter';
 import type { BinderActions } from './binderActions';
 import { folderMenu, missingMenu, researchMenu, sceneMenu, unfiledMenu } from './binderMenus';
 import type { MenuContext } from './binderMenus';
@@ -710,7 +720,7 @@ export class BinderView extends ItemView {
     toolbar.empty();
     if (!services) return;
     if (project && !project.readOnly) {
-      this.addButton(toolbar, 'spellbook-toolbar-button', 'New scene', ACTION_ICONS.newScene, () => {
+      this.addButton(toolbar, 'spellbook-toolbar-button', `New ${kindWord(project.writesIn ?? 'scene')}`, ACTION_ICONS.newScene, () => {
         this.newFromToolbar('scene');
       });
       this.addButton(toolbar, 'spellbook-toolbar-button', 'New folder', ACTION_ICONS.newFolder, () => {
@@ -759,6 +769,23 @@ export class BinderView extends ItemView {
         this.foldAll(false);
       });
       menu.addSeparator();
+      if (!project.readOnly) {
+        // What "New ..." makes, and the kind new notes get.
+        const usual = project.writesIn ?? 'scene';
+        for (const kind of ['scene', 'chapter'] as const) {
+          menu.addItem((item) => {
+            const title = writesInMenuTitle(kind);
+            item
+              .setTitle(title)
+              .setIcon(iconName(...(kind === 'chapter' ? ACTION_ICONS.treatAsChapter : ACTION_ICONS.newScene)))
+              .setChecked(usual === kind)
+              .onClick(() => {
+                safely(title, () => this.host.actions.setWritesIn(project.indexPath, kind));
+              });
+          });
+        }
+        menu.addSeparator();
+      }
     }
     add('Create project', ACTION_ICONS.createProject, () => {
       this.host.askForNewProject();
@@ -912,7 +939,7 @@ export class BinderView extends ItemView {
       this.manuscript = manuscript;
       this.manuscriptCount = manuscript.count;
       if (project.tree.length === 0) {
-        this.say(manuscript.children ?? body, 'No scenes yet.', 'spellbook-binder-message spellbook-binder-hint');
+        this.say(manuscript.children ?? body, `No ${kindWord(project.writesIn ?? 'scene', 2)} yet.`, 'spellbook-binder-message spellbook-binder-hint');
       }
       this.addBinderNodes(manuscript.children ?? body, project.tree, foldsOf(manuscript), services, indexPath, null);
     }
@@ -1008,6 +1035,7 @@ export class BinderView extends ItemView {
             menu: (context) => sceneMenu(context, path),
             drag: { kind: 'node', ref: sceneRef(path), title: node.title },
             place,
+            chapter: node.chapter === true,
           });
         }
         continue;
@@ -1087,6 +1115,8 @@ export class BinderView extends ItemView {
       readonly menu: (context: MenuContext) => Menu;
       readonly drag?: Dragged;
       readonly place?: TreePlace;
+      /** True for a note that is a whole chapter: it gets a small mark. */
+      readonly chapter?: boolean;
     },
   ): void {
     const path = note.path;
@@ -1114,6 +1144,7 @@ export class BinderView extends ItemView {
       },
       around,
     );
+    this.markChapter(row, note.chapter === true);
 
     const vaultPath = services.store.vaultPathOf(path);
     if (vaultPath === null) return;
@@ -1121,6 +1152,20 @@ export class BinderView extends ItemView {
     const rows = this.noteRows.get(vaultPath) ?? [];
     rows.push({ self: row.self, count: row.count, around });
     this.noteRows.set(vaultPath, rows);
+  }
+
+  /**
+   * Show (or take away) the small mark of a note that is a whole chapter, in
+   * the space at the start of its row. Rows are used again from one drawing
+   * to the next, so this is set every time.
+   */
+  private markChapter(row: Row, chapter: boolean): void {
+    if (row.self.hasClass('spellbook-is-chapter') === chapter) return;
+    row.self.toggleClass('spellbook-is-chapter', chapter);
+    row.slot.toggleClass('spellbook-chapter-mark', chapter);
+    row.slot.empty();
+    row.slot.setAttr('aria-label', chapter ? CHAPTER_MARK_LABEL : null);
+    if (chapter) showIcon(row.slot, ...CHAPTER_ICON);
   }
 
   /** A row for a binder entry whose note is not in the vault: greyed, with a warning. */

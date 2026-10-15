@@ -53,6 +53,8 @@ export interface FolderCard {
   readonly sceneCount: number;
   /** How many of those scenes have no note in the vault. */
   readonly missingCount: number;
+  /** How many of those are notes that are whole chapters. Absent: none. */
+  readonly chapterCount?: number;
   /** The words of all the scenes inside; null while any of them is still being counted. */
   readonly words: number | null;
   /** The scope that shows this folder's own cards: what opening the card leads to. */
@@ -86,6 +88,8 @@ export interface Board {
   readonly cards: readonly BoardCard[];
   /** The scenes in this scope at any depth, including those whose note is missing. */
   readonly sceneCount: number;
+  /** How many of those are notes that are whole chapters. Absent: none. */
+  readonly chapterCount?: number;
   /** The words of all those scenes; null while any of them is still being counted. */
   readonly words: number | null;
 }
@@ -117,20 +121,23 @@ function trailTo(nodes: readonly TreeNode[], id: string): FolderTreeNode[] | nul
   return null;
 }
 
-function countScenes(nodes: readonly TreeNode[]): { scenes: number; missing: number } {
+function countScenes(nodes: readonly TreeNode[]): { scenes: number; missing: number; chapters: number } {
   let scenes = 0;
   let missing = 0;
+  let chapters = 0;
   for (const node of nodes) {
     if (node.kind === 'folder') {
       const inner = countScenes(node.children);
       scenes += inner.scenes;
       missing += inner.missing;
+      chapters += inner.chapters;
     } else {
       scenes++;
       if (node.missing) missing++;
+      if (node.chapter === true) chapters++;
     }
   }
-  return { scenes, missing };
+  return { scenes, missing, chapters };
 }
 
 /**
@@ -165,18 +172,21 @@ export function buildBoard(input: BoardInput): Board {
         name: node.name,
         sceneCount: inside.scenes,
         missingCount: inside.missing,
+        ...(inside.chapters > 0 ? { chapterCount: inside.chapters } : {}),
         words: totals.folders.get(node.id) ?? null,
         opens: folderScope(node.id),
       };
     }
     const known = input.sceneOf(node.path) ?? {};
-    return buildSceneCard(
+    const card = buildSceneCard(
       { path: node.path, frontmatter: known.frontmatter, text: known.text, words: known.words, missing: node.missing },
       input.lists,
       input.previewLength ?? PREVIEW_LENGTH,
     );
+    return node.chapter === true ? { ...card, chapter: true } : card;
   });
 
+  const whole = countScenes(children);
   const steps: Array<{ name: string; scope: BoardScope }> = [
     { name: MANUSCRIPT_FOLDER, scope: MANUSCRIPT_SCOPE },
     ...(trail ?? []).map((step) => ({ name: step.name, scope: folderScope(step.id) })),
@@ -189,7 +199,8 @@ export function buildBoard(input: BoardInput): Board {
     parentId: folder ? folder.id : null,
     breadcrumb,
     cards,
-    sceneCount: countScenes(children).scenes,
+    sceneCount: whole.scenes,
+    ...(whole.chapters > 0 ? { chapterCount: whole.chapters } : {}),
     words: totals.manuscript,
   };
 }

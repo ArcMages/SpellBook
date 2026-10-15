@@ -26,8 +26,9 @@ export const PICKER_NONE_FOUND_TEXT = 'Nothing by that name yet.';
 export const PICKER_LIMIT = 50;
 
 /** "Add to scene" with the scene's title, which is the writer's own text. */
-export function pickerTitle(sceneTitle: string | null): string {
-  return sceneTitle === null ? 'In this scene' : `In this scene: ${sceneTitle}`;
+export function pickerTitle(sceneTitle: string | null, chapter = false): string {
+  const heading = chapter ? 'In this chapter' : 'In this scene';
+  return sceneTitle === null ? heading : `${heading}: ${sceneTitle}`;
 }
 
 export class EntityPickerModal extends Modal {
@@ -52,7 +53,7 @@ export class EntityPickerModal extends Modal {
     const { contentEl } = this;
     this.closed = false;
     contentEl.empty();
-    this.titleEl.setText(pickerTitle(this.host.sceneTitle(this.scenePath)));
+    this.titleEl.setText(pickerTitle(this.host.sceneTitle(this.scenePath), this.host.isChapter(this.scenePath)));
     this.titleEl.setAttr('dir', 'auto');
     this.modalEl.addClass('spellbook-world-picker');
 

@@ -12,6 +12,13 @@ import type { App, ButtonComponent } from 'obsidian';
 import { BLANK_STRUCTURE_ID, DEFAULT_CHAPTERS, MAX_CHAPTERS, MIN_CHAPTERS, describeSize, isStructureFolder, readChapterCount } from '../core/templates';
 import type { StartChoice, StructurePart } from '../core/templates';
 import { isInputMethodKey } from './keys';
+import { WRITES_IN_LABELS } from '../core/noteKind';
+import type { NoteKind } from '../core/noteKind';
+
+/** The name of the choice between scenes and chapters. */
+export const WRITES_IN_NAME = 'I usually write in';
+export const WRITES_IN_DESC =
+  'One note per scene, or one note per chapter. A book can mix both, and this can be changed later from the binder\'s menu.';
 
 /** How the top of the vault is shown in the list of folders. */
 export const VAULT_ROOT_LABEL = '/ (top of the vault)';
@@ -22,6 +29,8 @@ export interface ProjectStart {
   readonly choice: string;
   /** How many chapters, for the structure that asks. */
   readonly chapters: number;
+  /** What the writer usually writes in: what "New ..." makes and the kind of the first notes. */
+  readonly writesIn: NoteKind;
 }
 
 /**
@@ -42,6 +51,7 @@ export class CreateProjectModal extends Modal {
   private parentFolder = '';
   private choice: StartChoice | null;
   private chaptersText = String(DEFAULT_CHAPTERS);
+  private writesIn: NoteKind = 'scene';
   private busy = false;
   private createButton: ButtonComponent | null = null;
   private nameInput: HTMLInputElement | null = null;
@@ -102,6 +112,19 @@ export class CreateProjectModal extends Modal {
         }
         dropdown.setValue(this.parentFolder).onChange((value) => {
           this.parentFolder = value;
+        });
+      });
+
+    // In a place of its own, next to the structure's rows below it.
+    new Setting(contentEl.createDiv({ cls: 'spellbook-create-writes-in' }))
+      .setName(WRITES_IN_NAME)
+      .setDesc(WRITES_IN_DESC)
+      .addDropdown((dropdown) => {
+        for (const kind of ['scene', 'chapter'] as const) {
+          dropdown.selectEl.createEl('option', { value: kind, text: WRITES_IN_LABELS[kind] });
+        }
+        dropdown.setValue(this.writesIn).onChange((value) => {
+          this.writesIn = value === 'chapter' ? 'chapter' : 'scene';
         });
       });
 
@@ -227,7 +250,7 @@ export class CreateProjectModal extends Modal {
     this.createButton?.setDisabled(true);
     let created = false;
     try {
-      created = await this.create(this.name, this.parentFolder, { choice: choice?.id ?? BLANK_STRUCTURE_ID, chapters });
+      created = await this.create(this.name, this.parentFolder, { choice: choice?.id ?? BLANK_STRUCTURE_ID, chapters, writesIn: this.writesIn });
     } catch (error) {
       // The handler reports its own problems to the writer; this is only a safety net.
       console.error('Spellbook: creating the project failed', error);

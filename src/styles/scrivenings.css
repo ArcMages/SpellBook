@@ -181,6 +181,16 @@
 
 /* The divider between two scenes: a line, the scene's title at the start,
    its word count and Edit at the end. */
+/* The title of a note that is a whole chapter, set above it as a chapter heading. */
+.spellbook-scrivenings-chapter {
+  margin-block: var(--size-4-8) var(--size-4-2);
+  text-align: center;
+}
+
+.spellbook-scrivenings-chapter.spellbook-scrivenings-is-off {
+  display: none;
+}
+
 .spellbook-scrivenings-divider {
   display: flex;
   align-items: center;
