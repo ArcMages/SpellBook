@@ -30,9 +30,9 @@ The table at the end, [Where each setting lives](#where-each-setting-lives), lis
 
 ## Colour schemes
 
-![A scene and the binder in the Sepia colour scheme](images/colour-scheme-sepia.png)
+![The corkboard and the binder in the Sepia colour scheme](images/colour-scheme-sepia.png)
 
-*The Sepia scheme: tan pages and brown ink, in the editor and in Spellbook's own screens.*
+*The Sepia scheme: tan pages and brown ink, in Spellbook's own screens and in the editor.*
 
 A colour scheme is a set of colours to write in. There are six, and "None".
 
@@ -184,6 +184,10 @@ Class names and variables may change between versions while Spellbook is before 
 
 Spellbook lays its screens out for a finger on phones and tablets and for a mouse on computers. If that does not suit how you hold the device, choose another layout for it.
 
+![Spellbook's settings page with the Layout setting at the top, set to Automatic](images/setting-layout.png)
+
+*The Layout setting, at the top of Spellbook's settings.*
+
 1. Open Obsidian's **Settings** and choose **Spellbook**.
 2. Under the version, pick a **Layout**:
    - **Automatic**, as it comes: by the kind of device.
@@ -269,9 +273,9 @@ Spellbook has not been tried on a real iPhone or iPad yet, so this section is ho
 
 ## The bottom bar
 
-![The inspector on a phone with word figures and shortcut buttons at the top](images/phone-inspector.png)
+![The inspector on a phone, with the word figures at the top](images/phone-inspector.png)
 
-*On a phone the figures of the bottom bar, and its shortcut buttons, stand at the top of the inspector.*
+*On a phone the figures of the bottom bar stand at the top of the inspector. Shortcut buttons you add to the bar stand there too.*
 
 The bottom bar shows figures about the open scene and the project. You choose which figures, in what order, and you can add buttons that run a command.
 
@@ -431,9 +435,9 @@ Statuses and labels are saved in the project, so they are the same on every devi
 
 ## The story graph
 
-![Obsidian's graph view of a novel, coloured by kind of note](images/graph-view.png)
+![Obsidian's graph view of a full-length novel, coloured by kind of note](images/graph-view.png)
 
-*Obsidian's graph view of the sample novel, with one colour for each folder of the project.*
+*Obsidian's graph view of The Ember Crown, a full-length test novel, with one colour for each folder of the project.*
 
 Spellbook lists the characters, places, lore and other entities of a scene or a timeline event as ordinary Obsidian links, in the note's `entities` property. Obsidian's own graph view and its backlinks pane read those links, so the graph shows who appears in which scene without any setup. The graph belongs to Obsidian, not to Spellbook, so the steps below use Obsidian's settings.
 

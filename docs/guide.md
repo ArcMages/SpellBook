@@ -99,6 +99,12 @@ Loading the plugin changes nothing in your vault. Notes are only made when you r
 
 **What it does.** It opens the binder and the inspector (not on a phone), then puts a small bubble next to each of the binder, the inspector, the bottom bar (on a phone, the word figures at the top of the inspector), the ribbon buttons and the command palette in turn, with **Back**, **Next** and **Done**. A part that is not on the screen is passed over. Press **Done** or Escape to end it; nothing is left behind.
 
+**On a phone.** The binder and the inspector live in the drawers at the sides, so the tour slides the right drawer out before a stop inside it, and its bubble says how to open that drawer yourself (swipe in from the edge of the screen). A pane that is not open yet is not passed over in silence: the bubble says which command opens it.
+
+![The tour on a phone: the left drawer slid out with the binder, and the bubble "1 of 4, The binder" over it](images/phone-tour.png)
+
+*The tour in phone layout: the drawer with the binder is slid out, and the bubble says where to find it.*
+
 ### The Help pane
 
 ![The "Spellbook help" pane, with the tutorial's steps in short](images/help.png)
@@ -154,9 +160,9 @@ Each scene of a structure comes with a title and a synopsis that says what it is
 
 ## Binder
 
-![The binder on the left, a scene open in the middle and the inspector on the right](images/binder-scene-inspector.png)
+![The binder on the left with Part One and its chapters, the scene "A goat on the roof" open in the middle, and the inspector on the right](images/binder-scene-inspector.png)
 
-*The binder in the left sidebar, with a scene open in the editor and the inspector in the right sidebar.*
+*The binder of The Ember Crown, a full-length test novel, in the left sidebar: parts and chapters as folders, scenes inside them. A scene is open in the editor and the inspector is in the right sidebar.*
 
 **What it is for.** The binder is the project as a tree: your scenes and folders in the order of the book.
 
@@ -193,6 +199,10 @@ Each scene of a structure comes with a title and a synopsis that says what it is
 
 ## Chapters or scenes, or both
 
+![The binder with the notes of Part one marked as chapters, and the corkboard of Part one with "Chapter" above the title of each card](images/chapters-binder-corkboard.png)
+
+*The sample novel with the notes of Part one treated as chapters: a small bookmark on each row of the binder, and "Chapter" on each card of the corkboard.*
+
 Some writers keep one note per scene and gather scenes into chapter folders. Others write a whole chapter in one note. Spellbook does both, in the same book if you like: some chapters as one note, others as a folder of scenes.
 
 **Marking a note as a chapter.** Open a note's menu in the binder and choose **Treat as a chapter**. A small bookmark appears at the start of its row. **Treat as a scene** turns it back. Nothing in the note changes: the mark is kept in the project's index note, under `chapters`.
@@ -201,13 +211,17 @@ Some writers keep one note per scene and gather scenes into chapter folders. Oth
 
 **What follows the kind.** The words on screen follow the note: **New chapter** or **New scene**, **In this chapter** or **In this scene** in the inspector, **Chapter** or **Scene** for the title in the bottom bar, "3 chapters and 2 scenes" on the corkboard and in Find and replace, and the first column of the plot grid. A chapter card on the corkboard says "Chapter" above its title. In the Novel view a chapter note has its title above it as a heading. Statuses, labels, targets, word counts, timeline dates, the plot grid, ages and snapshots work the same for both.
 
+![The novel view of Part one, with the title "The Last Ferry" as a heading above its text](images/chapters-novel-view.png)
+
+*In the novel view a chapter note has its title above it as a heading.*
+
 **Export.** A chapter note becomes a chapter of its own: its title is the chapter heading, it starts a new page, and it is listed in the contents, at the level a folder in the same place would have. A folder that holds chapter notes becomes a part heading above them (name it "Part One: The Spark", for example). Folders of scenes stay chapters as before, and scenes inside them are set apart by the scene break. This works in Word, the web page, the print page, the e-book and Markdown.
 
 ## Corkboard
 
-![The corkboard with index cards showing titles, synopses, statuses and coloured labels](images/corkboard.png)
+![The corkboard of Chapter 1 of The Ember Crown, with ten index cards showing titles, synopses, statuses and coloured labels](images/corkboard.png)
 
-*The corkboard: one index card per scene, with its title, synopsis, status, coloured label and word count.*
+*The corkboard inside one chapter: one index card per scene, with its title, synopsis, status, coloured label and word count. The trail at the top leads back to the part and the manuscript.*
 
 **What it is for.** Seeing the shape of the book: each scene is an index card with its title, the start of its synopsis, its status, its coloured label and its word count.
 
@@ -260,9 +274,9 @@ Some writers keep one note per scene and gather scenes into chapter folders. Oth
 
 ## Outliner
 
-![The outliner, a table with one row per scene and columns for status, label, target, words and synopsis](images/outliner.png)
+![The outliner, a table with one row per scene under its part and chapter, and columns for status, label, target, words, synopsis, tags and read time](images/outliner.png)
 
-*The outliner: the manuscript as a table, with a row of totals for each folder and for the whole book.*
+*The outliner of The Ember Crown: 293 scenes as a table, with a row of totals for each part and chapter and for the whole book.*
 
 **What it is for.** The manuscript as a table, one row per scene under its folders, for checking and tidying many scenes at once.
 
@@ -286,9 +300,9 @@ Some writers keep one note per scene and gather scenes into chapter folders. Oth
 
 ## Plot grid
 
-![The plot grid: scenes down the side, characters across the top, a tick where each appears and grey stretches where one goes missing](images/plot-grid.png)
+![The plot grid: scenes down the side, the six timeline lanes across the top, a tick where a scene is in a lane, and darker cells before a lane's first scene and after its last](images/plot-grid.png)
 
-*The plot grid with a column for each character: a tick where the character is in the scene, and a grey stretch where one has been missing for a while.*
+*The plot grid of The Ember Crown with a column for each timeline lane. A tick marks a scene in that lane; the cells before a lane's first scene and after its last are shaded, and two lanes with no scenes yet are shaded all the way.*
 
 **What it is for.** Seeing which scene carries which plotline, and where a plotline or a character drops out of the book for too long.
 
@@ -324,9 +338,9 @@ With **Chosen entities**, press **Choose** to open the "Choose entities" window,
 
 ## Novel view
 
-![The novel view showing several scenes as one continuous page](images/novel-view.png)
+![The novel view showing the first scenes of The Ember Crown as one continuous page, with the binder beside it](images/novel-view.png)
 
-*The novel view: the scenes one after another as a single page, each under a small divider.*
+*The novel view: the scenes one after another as a single page, each under a small divider with its title, word count and Edit button.*
 
 **What it is for.** Reading the manuscript as one continuous page, scene after scene, each under a small divider with its title and word count.
 
@@ -406,9 +420,9 @@ With **Chosen entities**, press **Choose** to open the "Choose entities" window,
 
 ## Colour schemes
 
-![A scene and the binder in the Sepia colour scheme](images/colour-scheme-sepia.png)
+![The corkboard and the binder in the Sepia colour scheme](images/colour-scheme-sepia.png)
 
-*The Sepia scheme, worn by the editor and by Spellbook's own screens.*
+*The Sepia scheme, worn by Spellbook's own screens and by the editor.*
 
 **What they are for.** Colours to write in. A scheme recolours the editor and Spellbook's own screens, on top of whatever Obsidian theme you use.
 
@@ -462,7 +476,7 @@ The targets show in the bottom bar, the outliner, the corkboard cards and the ca
 
 ![The planner with a month calendar beside a to-do list](images/planner.png)
 
-*The planner: the month, with words written, to-dos due and day marks, beside the to-do list.*
+*The planner of The Ember Crown: the month, with words written, to-dos due and day marks, beside the to-do list.*
 
 **What it is for.** One screen for the project's calendar and its to-do list.
 
@@ -490,9 +504,9 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 
 ## Writing report
 
-![The writing report with tiles for words, pages and reading time, and a list of the most used words](images/writing-report.png)
+![The writing report for the whole manuscript of The Ember Crown: 78,222 words, 313 pages, 5 hours 13 minutes of reading, grade 2.5, and the most used words](images/writing-report.png)
 
-*The writing report for one scene: counts, pages, reading time, a reading grade and the most used words.*
+*The writing report for the whole of The Ember Crown: counts, pages, reading time, a reading grade and the most used words.*
 
 **What it is for.** The figures of a piece of writing: words, characters with and without spaces, sentences, paragraphs, pages, reading time, a reading grade and the most used words.
 
@@ -505,13 +519,13 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 - Set **Words on a page** (under the pages figure) to change what counts as one page. It starts at 250. The same number can be set in Spellbook's settings, where the writing report has a row for it.
 - Under **Most used words**, switch **Leave out common words** on or off, and press **Show more words** for a longer list.
 
-**Limits.** Each line of text counts as one paragraph. For English the reading grade is the Flesch-Kincaid grade level. Hebrew has no such standard formula, so for Hebrew the report shows an approximate index (LIX) that is useful for comparing your own chapters with each other, not as a school year. Whole-manuscript and Hebrew reports have not been looked at on screen.
+**Limits.** Each line of text counts as one paragraph. For English the reading grade is the Flesch-Kincaid grade level. Hebrew has no such standard formula, so for Hebrew the report shows an approximate index (LIX) that is useful for comparing your own chapters with each other, not as a school year. A Hebrew report has not been looked at on screen.
 
 ## Timeline
 
-![The timeline with coloured lanes and event cards along a time axis](images/timeline.png)
+![The timeline of The Ember Crown in spring 1203: lanes for Wren's quest, the Hollow King, Isolde's secret and the Free Isles, with event and scene cards](images/timeline.png)
 
-*The timeline: named, coloured lanes on one time axis, with events as cards.*
+*The timeline: named, coloured lanes on one time axis, with events and dated scenes as cards. Here the Manuscript lane is hidden and the view is zoomed in on a few months.*
 
 **What it is for.** Laying the story out in time: several named, coloured lanes on one time axis.
 
@@ -536,11 +550,19 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 - **Only events with** narrows the timeline to the events that involve chosen characters, places or other entities; **Show all events** undoes it. It narrows the world lanes too.
 - **Filter by tags** (the tag button) shows only what carries chosen tags: events (their `tags`), scenes (their `tags`) and entities (the `tags` of their note). Pick tags from those used in the project, each shown with how many things carry it. **Any tag** shows what has one of them, **All tags** what has every one; a tag also matches the tags nested under it, so `royalty` matches `royalty/king`. Under **Show only**, tick kinds to see just those, for example Characters and Events; ticking a type of entity turns the world lanes on. A "Filtered: ..." strip says what is shown; tap it to change the filter, or **Clear filter** to see everything. Lanes the filter leaves empty are not drawn. So a king who is a character tagged `royalty` shows on his lane beside the royal events.
 - **Views** (the first button, named after the view shown, with "(filtered)" after the name while a filter by tags that no saved view holds is on) switches between saved combinations of lanes shown or hidden, world lanes on or off, and the filter. Two are built in: **Story** (the manuscript and your lanes, no world lanes, no filter) and **World history** (the world lanes and the events, the Manuscript lane hidden). Neither touches a lane you hid yourself. **Save current view...** keeps what you see under a name; saving under the same name again replaces it, and each saved view has a **Delete** item.
+![The "Filter by tags" window with #royalty ticked, the tags listed with how many things carry each, and the kinds under "Show only"](images/timeline-filter-tags.png)
+
+*The "Filter by tags" window: each tag of the project with the number of things that carry it, Any tag or All tags, and the kinds to show.*
+
+![The Views menu open over a timeline filtered by #royalty: Story, World history, a saved view "The royal houses", Save current view and Delete](images/timeline-views.png)
+
+*The Views menu with a saved view, "The royal houses": the World history view filtered by #royalty, the reigns of every kingdom across three centuries.*
+
 - **World** switches the world lanes on or off: one lane for each type of entity that has a date, after your own lanes. An entity with a date and an end is a bar between the two; one with only a date is a point; its moments are small points on the same row, and its name stands on it. Tap an entity to open its sheet in the World screen; its menu has **Open sheet**, **Open note**, **Open note in new tab**, **Move earlier** and **Move later**. Drag it along its lane to change its dates, as you would an event; it stays in the lane of its type. In the "Timeline lanes" window the part called **World** shows or hides all world lanes, and each type's lane on its own.
 
-![The timeline with world lanes: characters' lives and places' histories as bars and points beside the story's events](images/world-history-timeline.png)
+![The timeline in the World history view: the Characters lane with lives as bars across the centuries](images/world-history-timeline.png)
 
-*World history: the sample novel's characters and places on the timeline, from the drowned village of the 1600s to the story's 1923.*
+*World history: the lives of The Ember Crown's characters as bars, from the old kings and queens to the children of the story.*
 
 **World history.** Command **Open world history**, or the **History** button in the World screen, switches the timeline to the **World history** view, fitted to the range of the world's dates. To get the scenes back, choose **Story** under **Views**, or turn **World** off. The world lanes show in **By date** order only.
 
@@ -566,9 +588,9 @@ The to-dos are plain checkbox lines in `To-do.md`, which you can also edit by ha
 
 ## World
 
-![The World screen with cards for characters, places and items](images/world.png)
+![The World screen with cards for the characters of The Ember Crown](images/world.png)
 
-*The World screen as cards: one for each entity, in a group for each type.*
+*The World screen as cards: one for each entity, in a group for each type. The Ember Crown has 200.*
 
 **What it is for.** Keeping track of who and what is in the story's world, how they have to do with each other, and which scenes and events they are in.
 
@@ -594,7 +616,7 @@ You can change these and add types of your own: see [Entity types of your own](c
 
 ### Cards and list
 
-![The World screen as a list: one row per entity, with its type, kind and number of scenes](images/world-list.png)
+![The World screen as a list: one row per entity, with its type, kind, dates and number of scenes](images/world-list.png)
 
 *The World screen as a list: tap a column's heading to sort by it.*
 
@@ -607,9 +629,9 @@ At the top of the screen:
 - **History**, which opens the [world history](#timeline) on the timeline.
 - The **Story's present** button (a calendar with a clock), which sets the date the characters' ages are worked out at. See [Ages](#ages).
 
-![The sheet of the Keeper with its History part: born, takes over the light, pensioned off, the lighthouse closed, died](images/world-history-sheet.png)
+![The History part of Wren Ashby's sheet: born in 1189, then the events and scenes of spring 1203, each marked event or scene](images/world-history-sheet.png)
 
-*The History part of a sheet: everything dated about the Keeper, in order, with the event and scene it belongs to.*
+*The History part of a sheet: everything dated about Wren, in order, each line marked as an event or a scene.*
 
 - **New**, and the button for **Entity types**.
 
@@ -617,9 +639,9 @@ Tap a card, anywhere on it, its name included, to open the entity's sheet; the n
 
 ### The entity sheet
 
-![The World screen with a character's sheet open: fields, related entities and scenes](images/entity-sheet.png)
+![Wren Ashby's sheet beside the World cards: nicknames "Wren" and "the Spark", Born 1189, Age 14, then the summary and fields](images/entity-sheet.png)
 
-*A character's sheet beside the cards: the picture, the summary, the fields, then Related and Scenes.*
+*A character's sheet beside the cards: the picture, the nicknames and other names, Born, Died and Age, then the summary and the fields. Related, Scenes, Time and History follow further down.*
 
 The sheet is one entity laid out to read and to fill in. It opens beside the list in a wide pane. The command **Open entity sheet** opens the sheet of the entity whose note is open in the editor.
 
@@ -635,9 +657,9 @@ The sheet is one entity laid out to read and to fill in. It opens beside the lis
 - **History.** Everything dated that concerns the entity, in order of time: its own dates and moments, the timeline events that list it and the dated scenes it is in. Tap a line to open the note it comes from. Whatever has no date is listed after, under **Undated**.
 - **Find mentions.** Lists scenes whose text names the entity, or one of its other names, without listing it, each with a **Link this scene** button.
 
-![The sheet of a legend, with who tells it and the scenes and events it touches](images/lore-sheet.png)
+![The sheet of a legend from the sample novel, with its kind, period and who tells it, its date and what it is related to](images/lore-sheet.png)
 
-*The sheet of a legend: its kind, its period, who tells it, and the scenes and events it touches.*
+*The sheet of a legend in the sample novel: its kind, its period, who tells it, when it is set and the place it is about.*
 
 **Nicknames and other names.** Straight under the name and the picture, before the summary and the fields, **Nicknames and other names** lists what else the entity is called: a character's nickname, a title, a short name, the name in another language. It is there for every type, on a phone as well. Each name is in a small box of its own. Type in **Add a nickname** and press Enter, or tap elsewhere, to add one; tap a name to change it; press the button beside a name, or empty its box, to remove it. They are saved as Obsidian's own `aliases` property of the note, as a list, so Obsidian's links and search know them as well, and "Find mentions" looks for them too. A Hebrew name reads right to left in its box.
 
@@ -648,6 +670,10 @@ Give a character a **Born** date and Spellbook works out the age; nothing has to
 - **Age** sits under **Born** and **Died** near the top of the sheet. With a death date it says, for example, **Died at 63**. Without one it gives the age at the **story's present**, and says which date that is.
 - **The story's present** is the latest date of any scene or timeline event, shown as "(latest date in the story)", until you set one. Set it with the **Story's present** button at the top of the World screen, or the one beside the age; leave the date empty, or press **Remove**, to go back to the latest date. It is kept in the project's index note, so it syncs with the project.
 - **In a scene.** When a scene has a date, its characters' ages at that date show on the inspector's chips under **In this scene** (for example "Wren · 14") and in the sheet's list of scenes. A character who is not born yet, or already dead, at the scene's date gets a small warning mark instead; hold the pointer over it, or read the sheet's list of scenes, to see which: "not born yet in this scene" or "died before this scene".
+![The inspector of a scene dated 1891, with a warning mark on Noa's chip and the words "not born yet in this scene"](images/age-warning.png)
+
+*A scene set before a character was born: a warning mark on her chip in the inspector.*
+
 - **The typed age.** The character's **age** field stays as it was while there is no Born date. Once there is, a typed age that says the same as the worked-out age (or nothing) is hidden, and one that says something else ("about forty") is shown as **Age (typed)**.
 - **Calendars.** Ages work in an invented calendar too, counted in its own years. When a date gives only the year, the age counts whole years; the month and day count when both dates give them.
 - **Which types.** Characters always have an age. Any other type has one when its date words begin with "Born": for example, give creatures the date words "Born, Died" in **Entity types**. A place that is **Founded** has no age.
@@ -662,9 +688,9 @@ Give a character a **Born** date and Spellbook works out the age; nothing has to
 
 ## Idea boards
 
-![The Idea boards pane on the right, with "New board", "Draw" and one board listed, beside a board open in Obsidian's Canvas](images/idea-boards.png)
+![The Idea boards pane on the right, with "New board", "Draw" and five boards listed, beside "The quest map" open in Obsidian's Canvas](images/idea-boards.png)
 
-*The Idea boards pane in the right sidebar: each board of the project with the number of cards on it.*
+*The Idea boards pane in the right sidebar: each board of the project with the number of cards on it. The Ember Crown has five; "The quest map" is open.*
 
 **What it is for.** A free surface for loose ideas: notes, scraps and arrows that do not yet belong anywhere in the binder. Spellbook can also lay out a board for you from the World or from the binder.
 
@@ -680,6 +706,28 @@ Give a character a **Born** date and Spellbook works out the age; nothing has to
 
 **Turning cards into notes.** Command **Turn board cards into notes** (for the board that is open, or one you pick), or **Turn cards into notes** in a board's menu. The window lists the board's text cards. For each, choose **Leave as a card**, **Scene** or a World type; **All scenes** and **Leave all** choose for every card at once. **New scenes go to** says which folder of the binder new scenes go in. Press **Make notes**. The first line of a card becomes the title; the rest becomes the synopsis of a scene or the summary of a World entry. On the board, each card is then replaced, in the same place, by a card that shows the new note.
 
+**Five boards of one book.** The Ember Crown has five boards made by hand in Canvas, to show what boards are good for:
+
+!["Cast and loyalties": the characters of The Ember Crown in coloured groups, joined by labelled arrows](images/board-cast-and-loyalties.png)
+
+*"Cast and loyalties": who stands with whom, and who betrays whom.*
+
+!["The quest map": places in a coloured group for each land, joined by arrows labelled with the chapters of the journey](images/board-quest-map.png)
+
+*"The quest map": the road of the story from place to place, chapter by chapter.*
+
+!["The three shards": a coloured group for each shard of the crown, with where it is hidden, who guards it, the clue that points to it, the scene it is found in and open questions](images/board-three-shards.png)
+
+*"The three shards": one group for each of the story's three magic objects, with its clue and the questions still open.*
+
+!["Ideas for Part Four": loose cards in groups for the ending, Sable and loose threads, and ideas not yet sorted](images/board-ideas-part-four.png)
+
+*"Ideas for Part Four": loose ideas for the last part, some already turned into notes.*
+
+!["Chapter 1 as cards": the ten scenes of the first chapter in reading order, joined by arrows, with the chapter's beats beside them](images/board-chapter-1-cards.png)
+
+*"Chapter 1 as cards": the scenes of one chapter in order, coloured by status, with its beats on a card beside them.*
+
 A board that is drawn again is a new board: drawing never changes one you already have. A second one of the same name gets a number, for example "Relationship map 2".
 
 ### Relationship map
@@ -694,15 +742,15 @@ Command **Board: relationship map**, or **Draw** then **Relationship map** in th
 
 ![A chapter drawn as cards: the scenes of one folder in reading order, in a box for each status](images/board-chapter-cards.png)
 
-*Part one of the sample novel as cards, grouped by status: a box for "Revised" and one for "Final".*
+*Part two of the sample novel as cards, grouped by status: a box each for "First draft", "Revised" and "Final".*
 
 Command **Board: chapter as cards**, or **Draw** then **Chapter as cards**. Choose **Scenes from** (**Whole manuscript** or a folder) and **Group by** (**Status**, **Label** or **No grouping**), and press **Draw board**. Each scene becomes a card that shows its note, in reading order, four to a row; with grouping, each status or label is a labelled box of its own, and scenes without one come last. Moving the cards on the board does not change the order of the book.
 
 ### Around an entity
 
-![A board around one character: her card in the middle, related entities above and below, and boxes of her scenes and events at the sides](images/board-around-entity.png)
+![A board around one character: her card in the middle, related entities above and below, and boxes of her events and scenes at the sides](images/board-around-entity.png)
 
-*A board around Noa: her relations above and below, her events on one side and her scenes on the other.*
+*A board around Mara: her relations above and below, her events on one side and her scenes on the other.*
 
 Command **Board: around this entity** (for the World entry open in the editor, or one you pick from a list), **Draw** then **Around an entity**, or the **Board around it** button on an entity's sheet in the World screen. The entity's card stands in the middle; the entities it has to do with stand round it with labelled arrows; its scenes and its timeline events stand in two boxes beside it, **Scenes** and **Events**.
 
@@ -740,6 +788,10 @@ Command **Board: around this entity** (for the World entry open in the editor, o
 
 **What it is for.** Tools for the rewriting, once a draft is down: notes pinned to the passages you want to come back to, one list of all of them, finding and replacing words across the whole manuscript, and renaming a character or a place everywhere at once.
 
+![A scene with a dotted underline under one sentence and the note "Show what Tam is hiding here, instead of saying nobody moved" above it, and the Revision pane in the right sidebar](images/revision-notes.png)
+
+*A note on a passage: a light dotted underline in the text, the note when you point at it, and every open note of the book in the Revision pane.*
+
 **Notes on a passage.**
 
 - Select some words in a scene and run **Add revision note** (command, or the editor's right-click menu; on a phone or tablet, the menu that opens when you press and hold a selection). A small window shows the words you chose; type your note and press **Add note**. Ctrl+Enter or Cmd+Enter saves too.
@@ -752,6 +804,10 @@ Command **Board: around this entity** (for the World entry open in the editor, o
 - Tap a scene's title to open the scene; tap a quoted passage to open the scene with those words selected.
 - Tick **Done** when you have dealt with a note. **Edit** changes its words; **Delete** takes it away (it asks first). Neither touches the scene's text.
 
+![The "Add revision note" window, with the chosen sentence quoted and a note typed below it](images/revision-add-note.png)
+
+*The "Add revision note" window.*
+
 **Find and replace.** **Find and replace in the manuscript** (command, or the button at the top of the Revision pane) opens a window. Words you had selected on one line are looked for straight away.
 
 - Type what to find and what to put in its place. **Match case** makes capitals count. **Whole words** finds "art" but not "start" or "artist"; in Hebrew, a word with a letter joined to its front is another word, so "house" with "the" joined to it is not found when you look for "house" alone. **Wildcards** lets `?` stand for any one character and `*` for any characters on the same line; a `*` at the start or end stands for the rest of the word, so `walk*` finds "walked" and "walking". No other character is special.
@@ -759,15 +815,23 @@ Command **Board: around this entity** (for the World entry open in the editor, o
 - **Search** lists every place found, by scene, with its line around it. Each place has a tick, and all are ticked to begin with; a scene's tick ticks or unticks all its places. Only the text of scenes is searched, never their properties or any other note.
 - **Replace** asks first, with the number of changes and scenes. Then, for each scene: a snapshot is taken, called "Before replace: *what you found* → *what you put in*", and only then are the ticked places changed. If a scene was changed after you searched (by you, or by a sync), it is left exactly as it is and the window says so: search again to see it as it is now. Each scene can be put back as it was with **Restore** in its snapshots.
 
+![The "Find and replace" window: ember-fox to fire-fox, Look in Part One, found 56 times in 17 scenes, with one place unticked](images/find-and-replace.png)
+
+*Find and replace: every place found, by scene, each with a tick. One place in the first scene is unticked, so it stays as it is.*
+
 **Rename everywhere.** For a character, a place or any other World entry: **Rename everywhere** in its menu (the "…" button of its card or row), on its sheet, or as a command while its note is open. The window shows what will change before anything does:
 
 - the note gets the new name, and Spellbook points every link to it at the new name: in this project, or in the whole vault, as you chose in Spellbook's settings (see [Binder](#binder), "Renaming");
 - **Keep the old name as another name** (ticked to begin with) adds the old name to its other names (aliases);
 - every place in the manuscript's text where the old name stands, as a whole word with its capitals, each with a tick. A Hebrew name is also found with letters joined to its front; only the name is changed there, and those places start unticked, so look at them first. The name inside a link is changed with the links, not here.
 
+![The "Rename Pip everywhere" window: the new name Pippin, Keep the old name as another name switched on, and 325 places in 156 scenes listed](images/rename-everywhere.png)
+
+*Rename everywhere: what will change, before anything does.*
+
 **Rename** asks once more, then does it with the same protection as Find and replace: a "Before rename" snapshot of each scene first, and a scene changed since the window opened is left alone.
 
-**Limits.** A note is found again by the first place where its exact words stand in the scene; if the same words appear twice, the first is underlined. Notes are read from the scene's properties as the editor shows them, so a note added on another device appears once that device's change has synced. The underline and the bubble, the jump to a passage and the windows on a phone have not yet been looked at on screen.
+**Limits.** A note is found again by the first place where its exact words stand in the scene; if the same words appear twice, the first is underlined. Notes are read from the project's revision notes file, so a note added on another device appears once that file has synced. The jump to a passage has not yet been looked at on screen.
 
 ## Export
 
@@ -777,7 +841,7 @@ Command **Board: around this entity** (for the World entry open in the editor, o
 
 ![The export window with the format, what to include and the title page options](images/export.png)
 
-*The export window for a web page, which also offers the line at the top of each page.*
+*The export window set for Word with the "Manuscript for an agent" preset: the format, the preset, what to include, the author, and the switches for the title page, the line at the top of each page, the list of contents and scene titles.*
 
 **What it is for.** Putting the manuscript into one file to send or print, with the scenes in binder order. Scenes whose "Include in compile" switch is off are left out.
 
@@ -801,6 +865,10 @@ Command **Board: around this entity** (for the World entry open in the editor, o
 - **Front and back matter** (folded away; tap to open): a **Dedication**, an **Epigraph**, **Acknowledgements** and **About the author**. For each, choose **None**, **Write it here** (a box to type in) or **From a note** (any note of the project, for example one in Research). The dedication and the epigraph come after the title page, each on a page of its own; the acknowledgements and about the author come at the end, with headings. A heading on the first line of the text (`# With thanks`) becomes the page's heading; otherwise the acknowledgements are headed "Acknowledgements" and about the author "About the Author", or their Hebrew words in a Hebrew book. In an e-book each is a part of its own; in Markdown the epigraph is a quote.
 - **Headings** (folded away; tap to open): the headings the book writes by itself, each in a box of its own: **List of contents**, **Dedication**, **Epigraph**, **Acknowledgements** and **About the author**, and for an e-book also **Cover**, **Title page** and **Start of the text**, the entries of an e-book reader's menu. An empty box keeps the usual word, shown in grey, in the language of the book (English, or Hebrew for a Hebrew book). Type your own to use it instead, for example a different wording of "About the Author". A dedication and an epigraph have no heading unless you type one here. A heading on the first line of a page's own text still comes first.
 
+![The export window scrolled to the Headings section: boxes for the list of contents, dedication, epigraph, acknowledgements and about the author, each showing its usual heading in grey](images/export-headings.png)
+
+*The Headings section of the export window: type your own heading in any box.*
+
 The window remembers your last choices for each project, on this device, typed front and back matter and headings included.
 
 **Per-scene choices.** Two scene properties change how one scene goes out. The inspector does not show them: add them in Obsidian's properties of the scene note.
@@ -810,9 +878,13 @@ The window remembers your last choices for each project, on this device, typed f
 
 Press **Export**. The file is saved as a new file in the project's Exports folder; an export never replaces an earlier one. A small window then says that the manuscript was exported, the name of the file and the folder of the vault it is in, how many scenes and words were saved and which scenes were left out. It stays until you close it. Its buttons: **Show in file list** brings Obsidian's file list to the front (on a phone, the drawer at the side) and points at the file; **Open** opens it; **OK** closes the window.
 
+![The "Manuscript exported" window: saved 9 chapters and 43 scenes, 28,527 words, with the file's name and folder and the buttons Show in file list, Open and OK](images/export-done.png)
+
+*The "Manuscript exported" window.*
+
 **On a phone.** "Print / save as PDF" is not offered on a phone or tablet. Export the web page instead, open it in the browser or the Files app, and print it from the share menu, which offers to save it as a PDF.
 
-**Limits.** There is no direct PDF file: the browser's "Save as PDF" sets Hebrew correctly, and a PDF written by Spellbook itself could not (see [the PDF study](pdf-study.md)). Safari leaves out the line at the top of each page when it prints. The e-book has been checked by automated tests that open it again, not in Apple Books or another reader, and not with the official EPUB checker. The Word file was checked by converting it with macOS tools, not by opening it in Word, Pages or Google Docs. Word and web-page files only show in Obsidian's file list when Obsidian's "Detect all file extensions" setting is on. The button that shows the file in its folder is on computers only.
+**Limits.** There is no direct PDF file: the browser's "Save as PDF" sets Hebrew correctly, and a PDF written by Spellbook itself could not (see [the PDF study](pdf-study.md)). Safari leaves out the line at the top of each page when it prints. The e-book has been checked by automated tests that open it again, not in Apple Books or another reader, and not with the official EPUB checker. The Word file was checked by converting it with macOS tools, not by opening it in Word, Pages or Google Docs. Word, e-book and web-page files only show in Obsidian's file list when Obsidian's "Detect all file extensions" setting is on.
 
 ## For AI assistants
 
@@ -832,6 +904,10 @@ Press **Export**. The file is saved as a new file in the project's Exports folde
 ## Settings
 
 Open Obsidian's Settings and choose **Spellbook**. The page shows the installed version, **Layout** (see below), the **Projects in this vault**, **Renaming** ("When a note is renamed, update links in": **This project only**, as it comes, or **The whole vault**; see [Binder](#binder), "Renaming"), and these sections, each described above: **Writing progress** (with the bottom bar), **Colour scheme**, **Writing modes**, **Prose checks**, **Snapshots**, **Plot grid** ("Mark long gaps" and "Shade before and after"), **Welcome and help** ("Show the welcome page again" and "Show what is new after updates") and **Templates** (the list of templates, with **Open** and **Delete**), and a row for the writing report's words on a page.
+
+![Spellbook's settings page with the Layout setting at the top, set to Automatic](images/setting-layout.png)
+
+*The Layout setting at the top of Spellbook's settings.*
 
 **Layout.** How Spellbook's screens are laid out on this device:
 
@@ -1030,7 +1106,7 @@ Let iCloud finish syncing before you start writing on another device, especially
 
 ## Known limits
 
-Spellbook is at version 0.10.0 and has not been used for real writing yet. This list is taken from the project's status notes of 14 October 2026.
+Spellbook is at version 0.10.0 and has not been used for real writing yet. This list is taken from the project's status notes of 15 October 2026.
 
 **How far it has been checked**
 
@@ -1038,6 +1114,7 @@ Spellbook is at version 0.10.0 and has not been used for real writing yet. This 
 - Typing was tested with simulated input. Real key presses, the iPhone keyboard and autocorrect are untested.
 - The change of day at midnight, and writing a second project's word log, are proven by automated tests only.
 - Spellbook is not in Obsidian's community plugin list.
+- Speed was checked on a full-length test novel (about 77,000 words in 290 scenes, 200 World entries, 300 events) on a Mac. Replacing a word in about seventy-five scenes, or renaming a main character linked from about four hundred notes, still takes about a second.
 
 **Novel view**
 
@@ -1101,7 +1178,14 @@ Spellbook is at version 0.10.0 and has not been used for real writing yet. This 
 - Link addresses and code blocks count as words, as they do in the binder.
 - Each line of text is one paragraph.
 - The Hebrew reading level is an approximate index (LIX), not an established Hebrew formula.
-- Whole-manuscript and Hebrew reports were not looked at on screen.
+- A Hebrew report was not looked at on screen.
+
+**Revision**
+
+- Links from notes outside the project keep the old name after a rename, unless "When a note is renamed, update links in" is set to the whole vault.
+- A snapshot taken before a rename keeps its links to the old name.
+- A note on a passage is found again by the first place where its exact words stand; if the same words appear twice, the first is underlined.
+- The windows on a phone and right-to-left text in the windows were checked in Obsidian's phone layout on a Mac only.
 
 **Prose checks**
 

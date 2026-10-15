@@ -16,73 +16,105 @@ Made by Daniel at DandiMage.
 
 ## Screens
 
+Most pictures show "The Ember Crown", a full-length test novel (an epic fantasy for teenage readers of about 77,000 words in 290 scenes, with 200 World entries and 300 timeline events). A few show the small sample novel that Spellbook makes for you.
+
 ### Binder, scene and inspector
 
-![The binder on the left, a scene open in the middle and the inspector on the right](docs/images/binder-scene-inspector.png)
+![The binder on the left with Part One and its chapters, the scene "A goat on the roof" open in the middle, and the inspector on the right](docs/images/binder-scene-inspector.png)
 
-*The book as a tree in the left sidebar, a scene open in the editor, and the scene's synopsis, status, label and target in the right sidebar.*
+*The book as a tree of parts, chapters and scenes in the left sidebar, a scene open in the editor, and the scene's synopsis, status, label, target and the people in it in the right sidebar.*
 
 ### Corkboard
 
-![The corkboard with index cards showing titles, synopses, statuses and coloured labels](docs/images/corkboard.png)
+![The corkboard of Chapter 1, with ten index cards showing titles, synopses, statuses and coloured labels](docs/images/corkboard.png)
 
 *One index card per scene, with its title, synopsis, status, coloured label and word count.*
 
+### Outliner
+
+![The outliner: a table of scenes grouped by part and chapter, with status, label, target bars, words, synopsis and tags](docs/images/outliner.png)
+
+*The whole book as a table, with a row of totals for each part and chapter.*
+
+### Chapters and scenes
+
+![The binder with the notes of Part one marked as chapters, and the corkboard of Part one with "Chapter" on each card](docs/images/chapters-binder-corkboard.png)
+
+*A note can be a whole chapter. A small bookmark marks it in the binder, and its card on the corkboard says "Chapter". Folders of scenes and chapter notes can be mixed in one book.*
+
 ### Timeline
 
-![The timeline with coloured lanes and event cards along a time axis](docs/images/timeline.png)
+![The timeline of The Ember Crown in spring 1203: six coloured lanes of events and scenes](docs/images/timeline.png)
 
 *Story events as cards in named, coloured lanes on one time axis.*
 
+![The timeline in the World history view, filtered by the tag #royalty: the reigns of the kingdoms as bars across two centuries](docs/images/timeline-royalty.png)
+
+*Filter by tags narrows the timeline to what carries a tag: here every reign and coronation tagged #royalty. A filtered view can be saved under a name in the Views menu.*
+
 ### Novel view
 
-![The novel view showing several scenes as one continuous page](docs/images/novel-view.png)
+![The novel view showing the first scenes of The Ember Crown as one continuous page](docs/images/novel-view.png)
 
 *The manuscript as one continuous page to read through.*
 
 ### World
 
-![The World screen with cards for characters, places and items](docs/images/world.png)
+![The World screen with cards for the characters of The Ember Crown](docs/images/world.png)
 
 *A card for each character, place, faction, item, piece of lore, creature and culture of the story.*
 
-![The World screen as a list: one row per entity, with its type, kind and number of scenes](docs/images/world-list.png)
+![The World screen as a list: one row per entity, with its type, kind, dates and number of scenes](docs/images/world-list.png)
 
-*The same world as a list that sorts by name, type, kind or number of scenes.*
+*The same world as a list that sorts by name, type, kind, dates or number of scenes.*
 
 ### Character and lore sheets
 
-![The World screen with a character's sheet open: fields, related entities and scenes](docs/images/entity-sheet.png)
+![The World screen with Wren Ashby's sheet open: nicknames, Born 1189 and Age 14, summary and fields](docs/images/entity-sheet.png)
 
-*A character's sheet beside the World cards: role, occupation, personality, voice and arc, the people and places related to her, and the scenes she is in.*
+*A character's sheet beside the World cards: nicknames and other names, Born, Died and Age, the summary and fields, then the people related to her and the scenes she is in.*
 
-![The sheet of a legend, with who tells it and the scenes and events it touches](docs/images/lore-sheet.png)
+![The sheet of a legend from the sample novel, with who tells it, when it is set and what it is related to](docs/images/lore-sheet.png)
 
 *Lore has its own type: legends, tales, history and customs, linked to the scenes and events where they matter.*
 
 ### World history
 
-![The timeline with world lanes: lives and histories as bars and points beside the story's events](docs/images/world-history-timeline.png)
+![The timeline with world lanes: characters' lives as bars over the centuries](docs/images/world-history-timeline.png)
 
 *Characters, places and legends can carry dates and moments. The timeline shows them as lanes beside the story's events, and each sheet lists its own history.*
 
 ### Plot grid
 
-![The plot grid: scenes down the side, characters across the top, ticks where each appears and grey stretches where one goes missing](docs/images/plot-grid.png)
+![The plot grid: scenes down the side, the six timeline lanes across the top, ticks where a scene belongs to a lane, and darker cells before a lane begins and after it ends](docs/images/plot-grid.png)
 
-*The plot grid with characters as columns. The bar under each name shows where in the book they appear; grey marks a long stretch without them.*
+*The plot grid with timeline lanes as columns. The bar under each name shows where in the book it runs; cells before a plotline's first scene and after its last are shaded.*
+
+### Revision
+
+![A scene with a dotted underline and the note "Show what Tam is hiding here" above it, and the Revision pane listing open notes](docs/images/revision-notes.png)
+
+*Notes on passages: a light dotted underline in the text, the note above it, and every note of the book in the Revision pane.*
+
+![The "Find and replace" window: ember-fox to fire-fox in Part One, found 56 times in 17 scenes, with one place unticked](docs/images/find-and-replace.png)
+
+*Find and replace across the manuscript, with every place listed to tick or untick. Each scene is saved as a snapshot first.*
 
 ### Idea boards
 
+![The Idea boards pane listing five boards, beside "The quest map" open in Canvas: places in coloured groups joined by the chapters of the journey](docs/images/idea-boards.png)
+
+*Boards on Obsidian's own Canvas, listed in the Idea boards pane.*
+
 ![A relationship map drawn by Spellbook on an Obsidian Canvas board](docs/images/board-relationship-map.png)
 
-*A relationship map that Spellbook drew from the relations in World, on Obsidian's own Canvas.*
+*A relationship map that Spellbook drew from the relations in World of the sample novel.*
 
 ### Story graph
 
-![Obsidian's graph view of a novel: scenes, characters, places, items and events as linked dots](docs/images/graph-view.png)
+![Obsidian's graph view of The Ember Crown: hundreds of scenes, characters, places and events as linked dots](docs/images/graph-view.png)
 
-*Obsidian's graph view of the sample novel: scenes in grey, characters in blue, places in green, factions in red, items in orange, lore in yellow, creatures in cyan, cultures in pink, timeline events in purple. The links come from the entities listed on each scene and event.*
+*Obsidian's graph view of The Ember Crown: scenes in grey, characters in blue, places in green, factions in red, items in orange, lore in yellow, creatures in cyan, cultures in pink, timeline events in purple. The links come from the entities listed on each scene and event.*
 
 ### On a phone
 
@@ -109,11 +141,12 @@ Made by Daniel at DandiMage.
 
 ### Organise
 
-- **Binder.** The project as a tree in the sidebar: scenes and folders, each with its word count. Add, rename, nest, reorder by dragging or with "Move up" and "Move down", and delete to the trash.
+- **Binder.** The project as a tree in the sidebar: scenes and folders, each with its word count. Add, rename, nest, reorder by dragging or with "Move up" and "Move down", and delete to the trash. Renaming updates every link to the note at once, without stopping to ask.
+- **Chapters and scenes.** Write a chapter as one note, or as a folder of scenes, or mix both in one book. A chapter note has a small mark in the binder and says "Chapter" on its card; the novel view and the export give it a chapter heading.
 - **Corkboard.** The scenes as index cards with title, synopsis, status, coloured label and word count. Drag to reorder; open a folder card to see what is inside it.
 - **Outliner.** The manuscript as a table: status, label, target, words, synopsis, tags, tasks, read time and dates, with a row of totals, sorting, filtering and columns of your own.
 - **Inspector.** A side panel for the open scene: synopsis, status, label, word target, whether it is included in the export, and who and what is in the scene.
-- **Plot grid.** Scenes down the side and plotlines across the top: timeline lanes, labels, characters, places or entities you choose. A tick where a scene belongs to one, a tap to change it, and grey stretches where a character or a plotline goes missing.
+- **Plot grid.** Scenes down the side and plotlines across the top: timeline lanes, labels, characters, places or entities you choose. A tick where a scene belongs to one, a tap to change it, grey stretches where a character or a plotline goes missing, and shading before its first scene and after its last.
 
 ### Write
 
@@ -121,6 +154,13 @@ Made by Daniel at DandiMage.
 - **Novel view.** The whole manuscript, or one folder, as one continuous page to read through. Tap a paragraph to open its scene at that place.
 - **Prose checks.** Marks in the editor for filler words, the passive voice, repeated words, crowded adverbs and sentence rhythm, and colours for nouns, verbs, adjectives and adverbs. Some checks are English only; repeated words, filler words and rhythm also work in Hebrew. The text itself is never changed.
 - **Colour schemes.** Six palettes to write in (Paper, Sepia, Mist, Dusk, Ink, Ember) on top of whatever Obsidian theme you use.
+- **Layout.** Each device can follow its kind (touch on phones and tablets, desktop on computers) or be set to the touch or the desktop layout, for example a touch-screen laptop or an iPad with a keyboard.
+
+### Revise
+
+- **Revision notes.** Select a passage and add a note to it: a light dotted underline in the text, the note on pointing or tapping, and every note of the book in the Revision pane, to tick off when done.
+- **Find and replace.** Across the whole manuscript or one folder, with each place listed to tick or untick, capitals kept, and a snapshot of each scene first.
+- **Rename everywhere.** Give a character, place or other entity a new name: the note, every link to it and every mention in the scenes change together, and the old name can stay as another name.
 
 ### Track
 
@@ -131,30 +171,32 @@ Made by Daniel at DandiMage.
 
 ### Plan the story
 
-- **Timelines.** Named, coloured lanes on one time axis. Events are notes; scenes that have a date appear too. Zoom, drag an event to change its date, and switch between date order and story order.
+- **Timelines.** Named, coloured lanes on one time axis. Events are notes; scenes that have a date appear too. Zoom, drag an event to change its date, and switch between date order and story order. Filter by tags, switch between the Story and World history views, and save a view of your own.
 - **World history.** Give characters, places and other entities dates and moments, and see them on the timeline: a lane for each type, spans from birth to death or founding to fall, with the world's history one command away.
 - **Invented calendars.** Give a story its own months, week, eras and leap years, and the timeline counts in it.
-- **World.** Characters, places, factions, items, lore (legends, tales, history), creatures and cultures, plus types of your own. Each is a plain note with a sheet: a picture, fields you fill in place, when it begins and ends and the moments of its life, relations to other entities, the scenes and events it appears in, and its whole history in order of time. Browse them as cards or as a sortable list, link them to scenes and timeline events, and find scenes that mention one without listing it.
+- **World.** Characters, places, factions, items, lore (legends, tales, history), creatures and cultures, plus types of your own. Each is a plain note with a sheet: a picture, nicknames and other names, Born, Died and Age for a character (with a warning in a scene set before they were born or after they died), fields you fill in place, when it begins and ends and the moments of its life, relations to other entities, the scenes and events it appears in, and its whole history in order of time. Browse them as cards or as a sortable list, link them to scenes and timeline events, and find scenes that mention one without listing it.
 - **Story graph.** Scenes and timeline events link to the characters, places, lore and other entities listed on them with ordinary Obsidian links, so Obsidian's own graph view and backlinks show who appears where, with no setup. Give each kind of note its own colour with the graph's Groups setting.
 - **Idea boards.** Free boards for loose ideas, on Obsidian's own Canvas. Turn a card into a scene or a World entry; have Spellbook draw a relationship map of your characters, a chapter as cards, or the web around one entity.
 
 ### Keep and share
 
 - **Snapshots.** Save a scene as it is now, list its earlier versions, compare two and restore one. The text from before a restore is always saved first.
-- **Export.** The manuscript as a Word document, an e-book (EPUB), a web page, one Markdown note, or a page laid out for printing and saving as a PDF. Presets for an agent, a reading copy and a proof; dedication, epigraph, acknowledgements and about the author; a new page or a title for any scene.
+- **Export.** The manuscript as a Word document, an e-book (EPUB), a web page, one Markdown note, or a page laid out for printing and saving as a PDF. Presets for an agent, a reading copy and a proof; dedication, epigraph, acknowledgements and about the author, with headings you can type yourself; a new page or a title for any scene. A small window then says what was saved and where.
 
 ## How a project is stored
 
-A project is an ordinary folder of Markdown notes in your vault. You can read, edit, move and back up every part of it without the plugin. Spellbook keeps what it needs in note properties and in one index note; it has no database.
+A project is an ordinary folder of Markdown notes in your vault. You can read, edit, move and back up every part of it without the plugin. Spellbook keeps what it needs in note properties, in one index note and in one file of revision notes; it has no database.
 
 ```
 <Project>/
-  <Project>.md   the project index: binder order, statuses and labels, targets, timeline lanes, day marks
+  <Project>.md   the project index: binder order, chapters, statuses and labels, targets, timeline lanes, day marks
+  Revision notes.json   the notes on passages (made when you add the first)
   To-do.md       to-dos as plain checkbox lines
   Manuscript/    one note per scene
   Timeline/      one note per timeline event
   Research/      your research notes
   Stats/         daily word logs, one file per device per month
+  Boards/        idea boards on Obsidian's Canvas (made when you make the first)
   World/         one note per character, place, faction, item, piece of lore, creature or culture (made when you add the first)
   Snapshots/     saved versions of scenes (made when you take the first)
   Exports/       exported manuscripts (made when you first export)
