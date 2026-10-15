@@ -14,6 +14,7 @@ import {
   TimelineView,
 } from '../../../src/features/timeline/timelineView';
 import { TOUCH_HOLD_MS } from '../../../src/ui/dragDrop';
+import { setLayoutChoice, stopLayout } from '../../../src/ui/layout';
 import { point } from '../../binderScreen';
 import { Platform as StubPlatform, fakeDocument, resetPlatform } from '../../obsidianStub';
 import type { FakeElement } from '../../obsidianStub';
@@ -35,6 +36,7 @@ import {
   notices,
   one,
   open,
+  openWindow,
   openWindows,
   ownTextClasses,
   rangeOf,
@@ -70,6 +72,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  stopLayout();
   resetPlatform();
 });
 
@@ -114,6 +117,37 @@ describe('the view itself', () => {
     const s = await open();
     const root = one(s.pane, 'spellbook-timeline');
     expect(root.hasClass('spellbook-is-mobile')).toBe(true);
+    expect(root.hasClass('spellbook-is-phone')).toBe(true);
+  });
+
+  it('follows the "Layout" setting at once, and so do its windows when they open', async () => {
+    const s = await open();
+    const root = one(s.pane, 'spellbook-timeline');
+    expect(root.hasClass('spellbook-is-mobile')).toBe(false);
+    setLayoutChoice('touch');
+    expect(root.hasClass('spellbook-is-mobile')).toBe(true);
+    expect(root.hasClass('spellbook-is-phone')).toBe(false); // no phone's floating bar here
+    click(button(s, 'Lanes'));
+    const lanes = openWindow();
+    expect(lanes.modalEl.hasClass('spellbook-timeline-lanes-window')).toBe(true);
+    expect(lanes.modalEl.hasClass('spellbook-is-mobile')).toBe(true);
+    lanes.close();
+
+    setLayoutChoice('desktop');
+    expect(root.hasClass('spellbook-is-mobile')).toBe(false);
+    expect(root.hasClass('spellbook-is-desktop-layout')).toBe(true);
+    click(button(s, 'Lanes'));
+    const again = openWindow();
+    expect(again.modalEl.hasClass('spellbook-is-mobile')).toBe(false);
+    expect(again.modalEl.hasClass('spellbook-is-desktop-layout')).toBe(true);
+  });
+
+  it('"Desktop layout" on a phone keeps the room for the phone\'s floating bar', async () => {
+    Object.assign(StubPlatform, { isDesktop: false, isMobile: true, isPhone: true });
+    setLayoutChoice('desktop');
+    const s = await open();
+    const root = one(s.pane, 'spellbook-timeline');
+    expect(root.hasClass('spellbook-is-mobile')).toBe(false);
     expect(root.hasClass('spellbook-is-phone')).toBe(true);
   });
 

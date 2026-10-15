@@ -8,6 +8,7 @@ import { NARROW_BELOW, WIDE_FROM } from '../src/core/binderModel';
 import { ACTIVE_PROJECT_KEY } from '../src/core/devicePrefs';
 import { createSampleProject } from '../src/core/newProject';
 import { WORD_COUNT_DEBOUNCE_MS } from '../src/core/wordCountCache';
+import { setLayoutChoice, stopLayout } from '../src/ui/layout';
 import { BINDER_VIEW_TYPE, MISSING_LABEL } from '../src/views/binderView';
 import { countOf, heading, one, partOf, picture, rowOf, scroller, tap, toolbarLabels } from './binderScreen';
 import { HEBREW, LETTER, OPENING, clearScreen, fileAt, notices, novel, rest, stage } from './binderStage';
@@ -24,6 +25,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  stopLayout();
   resetPlatform();
   vi.restoreAllMocks();
 });
@@ -544,6 +546,50 @@ describe('on a desktop or a tablet', () => {
     expect(tablet.fake.workspace.leftSplit.collapses).toBe(0);
     expect(one(tablet.pane, 'spellbook-binder').hasClass('spellbook-is-mobile')).toBe(true);
     expect(one(tablet.pane, 'spellbook-binder').hasClass('spellbook-is-phone')).toBe(false);
+  });
+});
+
+describe('with the "Layout" setting', () => {
+  it('"Touch layout" on a computer gives tall rows, at once in a binder already open, and back again', async () => {
+    const s = await stage(novel());
+    const root = one(s.pane, 'spellbook-binder');
+    expect(root.hasClass('spellbook-is-mobile')).toBe(false);
+    setLayoutChoice('touch');
+    expect(root.hasClass('spellbook-is-mobile')).toBe(true);
+    expect(root.hasClass('spellbook-is-phone')).toBe(false); // no phone's floating bar to leave room for
+    setLayoutChoice('auto');
+    expect(root.hasClass('spellbook-is-mobile')).toBe(false);
+  });
+
+  it('"Desktop layout" on a tablet gives the compact desktop rows', async () => {
+    StubPlatform.isMobile = true;
+    StubPlatform.isDesktop = false;
+    setLayoutChoice('desktop');
+    const s = await stage(novel());
+    const root = one(s.pane, 'spellbook-binder');
+    expect(root.hasClass('spellbook-is-mobile')).toBe(false);
+    expect(root.hasClass('spellbook-is-desktop-layout')).toBe(true);
+  });
+
+  it('"Desktop layout" on a phone still slides the drawer away and leaves room for the floating bar: that is the phone, not the layout', async () => {
+    Object.assign(StubPlatform, { isDesktop: false, isMobile: true, isPhone: true });
+    setLayoutChoice('desktop');
+    const s = await stage(novel());
+    const root = one(s.pane, 'spellbook-binder');
+    expect(root.hasClass('spellbook-is-mobile')).toBe(false);
+    expect(root.hasClass('spellbook-is-phone')).toBe(true);
+    s.fake.workspace.leftSplit.expand();
+    tap(rowOf(s.pane, 'Opening'));
+    await tick();
+    expect(s.fake.workspace.leftSplit.collapses).toBe(1);
+  });
+
+  it('stops following the setting once the binder is closed', async () => {
+    const s = await stage(novel());
+    const root = one(s.pane, 'spellbook-binder');
+    await s.shell.close();
+    setLayoutChoice('touch');
+    expect(root.hasClass('spellbook-is-mobile')).toBe(false);
   });
 });
 

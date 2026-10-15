@@ -41,6 +41,7 @@ import { SHOW_ON_CORKBOARD } from '../../../src/views/binderActions';
 import { point } from '../../binderScreen';
 import { MemoryVault } from '../../memoryVault';
 import { Platform as StubPlatform, resetPlatform } from '../../obsidianStub';
+import { setLayoutChoice, stopLayout } from '../../../src/ui/layout';
 import type { FakeElement } from '../../obsidianStub';
 import { INDEX_BODY, binderOnDisk, seedProject, tick } from '../../storeHarness';
 import {
@@ -101,6 +102,7 @@ beforeEach(() => {
 
 afterEach(() => {
   for (const wired of stages.splice(0)) wired.switchOff();
+  stopLayout();
   resetPlatform();
 });
 
@@ -996,6 +998,49 @@ describe('the line at the top of the inspector', () => {
     const { pane } = await openInspectorPane(s);
     expect(one(pane, SUMMARY_SLOT_CLASS).children).toEqual([]);
     expect(line.listeners.size).toBe(0);
+  });
+
+  describe('with the "Layout" setting', () => {
+    it('"Touch layout" on a computer shows the line, at once in an inspector already open, and takes it away again', async () => {
+      const s = await stage();
+      const line = new FakeLine();
+      s.features.services.provide(SCENE_LINE_SERVICE, line);
+      const { pane } = await openInspectorPane(s);
+      const root = one(pane, 'spellbook-inspector');
+      expect(one(pane, SUMMARY_SLOT_CLASS).children).toEqual([]);
+
+      setLayoutChoice('touch');
+      expect(shown(pane)).toHaveLength(2);
+      expect(root.hasClass('spellbook-is-mobile')).toBe(true);
+      expect(line.listeners.size).toBe(1);
+
+      setLayoutChoice('auto');
+      expect(one(pane, SUMMARY_SLOT_CLASS).children).toEqual([]);
+      expect(root.hasClass('spellbook-is-mobile')).toBe(false);
+      expect(line.listeners.size).toBe(0);
+    });
+
+    it('"Desktop layout" on a tablet leaves the figures to the bottom bar', async () => {
+      Object.assign(StubPlatform, { isDesktop: false, isMobile: true, isPhone: false });
+      setLayoutChoice('desktop');
+      const s = await stage();
+      s.features.services.provide(SCENE_LINE_SERVICE, new FakeLine());
+      const { pane } = await openInspectorPane(s);
+      expect(one(pane, SUMMARY_SLOT_CLASS).children).toEqual([]);
+      expect(one(pane, 'spellbook-inspector').hasClass('spellbook-is-mobile')).toBe(false);
+    });
+
+    it('"Desktop layout" on a phone still shows the figures: a phone has no bottom bar', async () => {
+      Object.assign(StubPlatform, { isDesktop: false, isMobile: true, isPhone: true });
+      setLayoutChoice('desktop');
+      const s = await stage();
+      s.features.services.provide(SCENE_LINE_SERVICE, new FakeLine());
+      const { pane } = await openInspectorPane(s);
+      expect(shown(pane)).toHaveLength(2);
+      const root = one(pane, 'spellbook-inspector');
+      expect(root.hasClass('spellbook-is-mobile')).toBe(false);
+      expect(root.hasClass('spellbook-is-phone')).toBe(true); // the room for the phone's floating bar stays
+    });
   });
 
   it('shows nothing when no line is offered, or something else is offered under its name', async () => {

@@ -6,6 +6,7 @@
 import { getFrontMatterInfo } from 'obsidian';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACTIVE_PROJECT_KEY, LINK_SCOPE_KEY } from '../src/core/devicePrefs';
+import { LAYOUT_KEY } from '../src/core/layout';
 import { ProjectStore } from '../src/core/projectStore';
 import type { SettingsSection } from '../src/features/registry';
 import { SNAPSHOTS_SERVICE, SNAPSHOTS_VIEW_TYPE } from '../src/features/snapshots';
@@ -16,6 +17,7 @@ import { LAYOUT_DESC_TEXT, LAYOUT_NAME_TEXT, LINK_SCOPE_DESC_TEXT, LINK_SCOPE_NA
 import { ConfirmModal } from '../src/ui/confirmModal';
 import { CreateProjectModal } from '../src/ui/createProjectModal';
 import { FolderPickerModal } from '../src/ui/folderPickerModal';
+import { layoutChoice } from '../src/ui/layout';
 import { TextPromptModal } from '../src/ui/textPromptModal';
 import { SNAPSHOT_ACTIONS } from '../src/views/binderActions';
 import { BinderView } from '../src/views/binderView';
@@ -1509,6 +1511,54 @@ describe('the settings page', () => {
 
     dropdown.choose('project');
     expect(fake.localStorage.has(LINK_SCOPE_KEY)).toBe(false);
+  });
+
+  it('lets the writer choose the layout on this device; open screens and the bottom bar follow at once', async () => {
+    const fake = novelVault();
+    const { plugin, stub } = loadReady(fake);
+    await plugin.openBinder();
+    const view = fake.workspace.getLeavesOfType('spellbook-binder')[0]?.view as unknown as BinderView;
+    const binder = one(view.contentEl as unknown as FakeElement, 'spellbook-binder');
+    await until(() => stub.statusBar.children.length > 0, 'the bottom bar');
+    const bar = stub.statusBar.children[0];
+    const { tab, element } = page(stub);
+    tab.display();
+    const row = element.settings.find((setting) => setting.nameEl.text === LAYOUT_NAME_TEXT);
+    const dropdown = row?.components[0] as DropdownComponent;
+    expect([...dropdown.options.entries()]).toEqual([
+      ['auto', 'Automatic'],
+      ['touch', 'Touch layout'],
+      ['desktop', 'Desktop layout'],
+    ]);
+    expect(dropdown.getValue()).toBe('auto');
+    expect(fake.localStorage.has(LAYOUT_KEY)).toBe(false); // nothing is stored while it is as it comes
+    expect(binder.hasClass('spellbook-is-mobile')).toBe(false);
+
+    // A touch-screen laptop: big targets, in the binder already open and in the bottom bar.
+    dropdown.choose('touch');
+    expect(fake.loadLocalStorage(LAYOUT_KEY)).toBe('touch');
+    expect(binder.hasClass('spellbook-is-mobile')).toBe(true);
+    expect(bar?.hasClass('spellbook-is-mobile')).toBe(true);
+
+    dropdown.choose('desktop');
+    expect(binder.hasClass('spellbook-is-mobile')).toBe(false);
+    expect(binder.hasClass('spellbook-is-desktop-layout')).toBe(true);
+    expect(bar?.hasClass('spellbook-is-mobile')).toBe(false);
+
+    // Kept on this device: the next start reads it before any screen opens.
+    plugin.unload();
+    expect(layoutChoice()).toBe('auto'); // let go of on unload
+    const again = load(fake);
+    expect(layoutChoice()).toBe('desktop');
+    const next = page(again.stub);
+    next.tab.display();
+    const nextRow = next.element.settings.find((setting) => setting.nameEl.text === LAYOUT_NAME_TEXT);
+    expect((nextRow?.components[0] as DropdownComponent).getValue()).toBe('desktop');
+    // Its place: right under the version, before the projects.
+    expect(next.rows().map((r) => r.name).slice(0, 3)).toEqual(['Spellbook', LAYOUT_NAME_TEXT, 'Projects in this vault']);
+
+    (nextRow?.components[0] as DropdownComponent).choose('auto');
+    expect(fake.localStorage.has(LAYOUT_KEY)).toBe(false);
   });
 
   it('explains how to make a project when there are none', () => {

@@ -28,6 +28,7 @@ import {
 import { NOTHING_TEXT, NO_PROJECT_TEXT, OPTIONS_KEY } from '../../../src/features/export/exporter';
 import { EXPORT_COMMANDS } from '../../../src/features/export/index';
 import { Modal as StubModal, Notice as StubNotice, Platform as StubPlatform, resetPlatform } from '../../obsidianStub';
+import { setLayoutChoice, stopLayout } from '../../../src/ui/layout';
 import type { FakeElement } from '../../obsidianStub';
 import { MemoryDeviceStorage, TODAY } from '../../storeHarness';
 import {
@@ -72,6 +73,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  stopLayout();
   resetPlatform();
 });
 
@@ -235,6 +237,20 @@ describe('the export window', () => {
     expect(dropdown(window, 'Format').getValue()).toBe('html');
     expect(textsOf(window, 'spellbook-export-note')).toEqual([FORMAT_NOTES.html, MOBILE_PDF_NOTE, PRESET_NOTES.manuscript, MATTER_NOTE, HEADINGS_NOTE]);
     expect(MOBILE_PDF_NOTE).toMatch(/export the web page/);
+  });
+
+  it('offers printing by what the device can do, whatever the "Layout" setting says', async () => {
+    // A touch-screen laptop with the touch layout can still print.
+    setLayoutChoice('touch');
+    const laptop = await wire(novelVault());
+    expect(choicesOf(openWindow(laptop), 'Format').map(([value]) => value)).toContain('print');
+
+    // A phone with the desktop layout still cannot.
+    Object.assign(StubPlatform, { isDesktop: false, isMobile: true, isPhone: true });
+    setLayoutChoice('desktop');
+    StubModal.opened.length = 0;
+    const phone = await wire(novelVault());
+    expect(choicesOf(openWindow(phone), 'Format').map(([value]) => value)).toEqual(['docx', 'epub', 'html', 'markdown']);
   });
 
   it('remembers the choices on this device, and takes the author from the project the first time', async () => {

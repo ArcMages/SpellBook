@@ -31,7 +31,8 @@ import type { TourScreen } from '../../../src/features/welcome/index';
 import { FakeObsidian } from '../../fakeObsidianApp';
 import type { FakeLeaf } from '../../fakeObsidianApp';
 import { MemoryVault } from '../../memoryVault';
-import { FakeElement, Modal as StubModal, Notice as StubNotice, Platform, Plugin as StubPlugin, resetFakeDocument, resetPlatform } from '../../obsidianStub';
+import { FakeElement, Modal as StubModal, fakeDocument, fakeWindow, Notice as StubNotice, Platform, Plugin as StubPlugin, resetFakeDocument, resetPlatform } from '../../obsidianStub';
+import { setLayoutChoice, stopLayout } from '../../../src/ui/layout';
 import type { StubCommand } from '../../obsidianStub';
 import { INDEX_BODY, MemoryDeviceStorage, TODAY, makeStore } from '../../storeHarness';
 
@@ -41,6 +42,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  stopLayout();
+  vi.unstubAllGlobals();
   resetPlatform();
   resetFakeDocument();
   vi.restoreAllMocks();
@@ -188,6 +191,22 @@ describe('the first run', () => {
     expect(panesOf(stage, WELCOME_VIEW_TYPE)).toHaveLength(1);
     // On a phone the drawers slide away so that the page can be seen.
     expect(stage.fake.workspace.leftSplit.collapsed).toBe(true);
+  });
+
+  it('waits as long on a phone with the desktop layout: how slow the device starts is not a matter of layout', async () => {
+    Object.assign(Platform, { isDesktop: false, isMobile: true, isPhone: true });
+    setLayoutChoice('desktop');
+    const stage = await wire();
+    stage.advance(QUIET);
+    await opened();
+    expect(panesOf(stage, WELCOME_VIEW_TYPE)).toEqual([]);
+    stage.advance(quietBeforeDeciding(true) - QUIET);
+    await opened();
+    expect(panesOf(stage, WELCOME_VIEW_TYPE)).toHaveLength(1);
+    const pane = (panesOf(stage, WELCOME_VIEW_TYPE)[0]?.view as unknown as { contentEl: FakeElement }).contentEl;
+    const root = pane.hasClass('spellbook-welcome') ? pane : pane.withClass('spellbook-welcome')[0];
+    expect(root?.hasClass('spellbook-is-mobile')).toBe(false);
+    expect(root?.hasClass('spellbook-is-phone')).toBe(true);
   });
 
   it('never opens on a device whose vault already holds a project, and remembers that', async () => {
@@ -591,6 +610,32 @@ describe('the tour', () => {
     const empty = new Tour(screen({}), TOUR_STOPS.filter((stop) => stop.selectors.length > 0), ended);
     expect(empty.start()).toBe(false);
     expect(ended).toHaveBeenCalledOnce();
+  });
+
+  it('the tour\'s buttons follow the "Layout" setting; its phone stops follow the device', async () => {
+    // A page with nothing to point at but the stops that need nothing.
+    const page = {
+      defaultView: fakeWindow,
+      body: fakeDocument.body,
+      documentElement: { clientWidth: 1200, clientHeight: 800 },
+      querySelectorAll: () => [],
+    };
+    vi.stubGlobal('activeDocument', page);
+    const bubble = (): FakeElement | undefined => fakeDocument.body.withClass('spellbook-tour-bubble')[0];
+    const stage = await wire({ stored: SEEN });
+
+    setLayoutChoice('touch'); // a touch-screen laptop
+    stage.command(WELCOME_COMMANDS.tour.id).callback?.();
+    stage.advance(1000);
+    expect(bubble()?.hasClass('spellbook-is-mobile')).toBe(true);
+    expect(bubble()?.fullText).not.toContain('left sidebar'); // not a phone: no drawers to explain
+
+    setLayoutChoice('auto');
+    stage.command(WELCOME_COMMANDS.tour.id).callback?.();
+    stage.advance(1000);
+    expect(fakeDocument.body.withClass('spellbook-tour-bubble')).toHaveLength(1);
+    expect(bubble()?.hasClass('spellbook-is-mobile')).toBe(false);
+    stage.switchOff();
   });
 
   it('the command opens the binder and the inspector first, on a phone too (in the drawers the tour slides out)', async () => {
