@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Spellbook promo</title>
+<!--
+  Source of docs/images/spellbook-promo.png (1600x900) and
+  docs/images/spellbook-social.png (open as promo.html#social, 1200x630).
+  System fonts only, no network. The pictures are crops of docs/images.
+-->
+<style>
+  :root {
+    --ink: #120f17;
+    --ink-2: #1c1724;
+    --gold: #d8b46a;
+    --gold-soft: #b8975a;
+    --paper: #efe6d4;
+    --muted: #a99f90;
+    --serif: "Iowan Old Style", "New York", "Palatino", "Hoefler Text", Georgia, serif;
+    --sans: -apple-system, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1600px; height: 900px; overflow: hidden; background: var(--ink); }
+  body.social, body.social html { width: 1200px; height: 630px; }
+  .stage {
+    position: relative; width: 1600px; height: 900px; overflow: hidden;
+    background:
+      radial-gradient(ellipse 900px 700px at 78% 45%, rgba(120, 86, 160, 0.20), transparent 70%),
+      radial-gradient(ellipse 700px 600px at 12% 30%, rgba(216, 180, 106, 0.10), transparent 70%),
+      linear-gradient(160deg, #1b1622 0%, #120f17 55%, #0d0b11 100%);
+    color: var(--paper);
+    font-family: var(--sans);
+  }
+  /* a faint page border, like the edge of a book's title page */
+  .stage::before {
+    content: ""; position: absolute; inset: 22px;
+    border: 1px solid rgba(216, 180, 106, 0.22); border-radius: 6px; pointer-events: none; z-index: 5;
+  }
+  .stage::after {
+    content: ""; position: absolute; inset: 28px;
+    border: 1px solid rgba(216, 180, 106, 0.08); border-radius: 4px; pointer-events: none; z-index: 5;
+  }
+
+  /* ---------- left column ---------- */
+  .copy { position: absolute; left: 84px; top: 78px; width: 520px; z-index: 4; }
+  .eyebrow {
+    font: 600 13px/1 var(--sans); letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--gold-soft); display: flex; align-items: center; gap: 14px;
+  }
+  .eyebrow::after { content: ""; flex: 0 0 64px; height: 1px; background: var(--gold-soft); opacity: 0.6; }
+  h1 {
+    font: 500 112px/1 var(--serif); letter-spacing: -0.01em; margin-top: 22px;
+    color: var(--paper);
+    text-shadow: 0 2px 30px rgba(216, 180, 106, 0.18);
+  }
+  h1 .ornament { color: var(--gold); font-size: 0.5em; vertical-align: 0.55em; margin-left: 8px; }
+  .tagline { font: italic 400 34px/1.2 var(--serif); color: var(--gold); margin-top: 18px; }
+  .by { font: 500 15px/1 var(--sans); letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); margin-top: 18px; }
+  .by b { color: var(--paper); font-weight: 600; }
+  .rule {
+    margin: 34px 0 26px; height: 1px; width: 420px;
+    background: linear-gradient(90deg, var(--gold-soft), transparent);
+  }
+  ul.features { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 20px 30px; width: 520px; }
+  .features li { position: relative; padding-left: 22px; }
+  .features li::before {
+    content: ""; position: absolute; left: 2px; top: 7px; width: 7px; height: 7px;
+    background: var(--gold); transform: rotate(45deg);
+  }
+  .features .t { font: 600 17px/1.2 var(--serif); color: var(--paper); }
+  .features .d { font: 400 13.5px/1.35 var(--sans); color: var(--muted); margin-top: 4px; }
+  .footer {
+    position: absolute; left: 84px; bottom: 64px; z-index: 4;
+    font: 500 13px/1 var(--sans); letter-spacing: 0.12em; color: var(--muted);
+  }
+  .footer span { color: var(--gold-soft); margin: 0 10px; }
+
+  /* ---------- screenshots ---------- */
+  .shot {
+    position: absolute; border-radius: 10px; overflow: hidden;
+    background-color: #1e1e1e; background-repeat: no-repeat;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow:
+      0 30px 60px -12px rgba(0, 0, 0, 0.75),
+      0 18px 36px -18px rgba(0, 0, 0, 0.8),
+      0 0 0 1px rgba(0, 0, 0, 0.6);
+  }
+  .tag {
+    position: absolute; z-index: 6; white-space: nowrap;
+    font: 600 12px/1 var(--sans); letter-spacing: 0.16em; text-transform: uppercase;
+    color: #1a1520; background: var(--gold); padding: 7px 11px 6px; border-radius: 3px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+  }
+
+  /* ---------- social card (1200x630) ---------- */
+  body.social .stage { width: 1200px; height: 630px; }
+  body.social .stage::before { inset: 16px; }
+  body.social .stage::after { inset: 21px; }
+  body.social .copy { left: 60px; top: 62px; width: 420px; }
+  body.social .eyebrow { font-size: 11px; }
+  body.social h1 { font-size: 88px; margin-top: 18px; }
+  body.social .tagline { font-size: 28px; margin-top: 14px; }
+  body.social .by { font-size: 13px; margin-top: 14px; }
+  body.social .rule { margin: 26px 0 20px; width: 340px; }
+  body.social ul.features { grid-template-columns: 1fr; gap: 9px; width: 400px; }
+  body.social .features .t { font-size: 16px; }
+  body.social .features .d { display: none; }
+  body.social .features li::before { top: 6px; }
+  body.social .features li.social-hide { display: none; }
+  body.social .footer { left: 60px; bottom: 44px; font-size: 11px; }
+  body.social .tag { font-size: 10px; padding: 6px 9px 5px; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="copy">
+    <div class="eyebrow">An Obsidian plugin for novelists</div>
+    <h1>Spellbook<span class="ornament">&#10022;</span></h1>
+    <div class="tagline">Write your novel in Obsidian</div>
+    <div class="by">by <b>DandiMage</b></div>
+    <div class="rule"></div>
+    <ul class="features">
+      <li><div class="t">Binder &amp; corkboard</div><div class="d">Parts, chapters and scenes as index cards</div></li>
+      <li><div class="t">Timeline &amp; world history</div><div class="d">Story lanes, invented calendars, centuries of reigns</div></li>
+      <li><div class="t">Characters with ages</div><div class="d">Places, lore and a warning before birth or after death</div></li>
+      <li><div class="t">Idea boards &amp; plot grid</div><div class="d">Brainstorm on Canvas, see every plotline at once</div></li>
+      <li class="social-hide"><div class="t">Revision tools</div><div class="d">Notes on passages, find and replace, snapshots</div></li>
+      <li class="social-hide"><div class="t">Word targets</div><div class="d">Counts, deadlines and a writing report, or none at all</div></li>
+      <li><div class="t">Export</div><div class="d">Word, e-book, web page and print</div></li>
+      <li><div class="t">Your files stay yours</div><div class="d">Plain Markdown notes, no network, no tracking</div></li>
+    </ul>
+  </div>
+  <div class="footer">Desktop<span>&#9670;</span>iPad<span>&#9670;</span>iPhone<span>&#9670;</span>Right-to-left ready</div>
+  <div id="shots"></div>
+</div>
+<script>
+  // Each picture is a crop of a 1600x1000 screenshot in docs/images.
+  // crop: [x, y, w, h] in the source; at: [left, top, width] on the stage; tag: [text, dx, dy] from the frame's top-left.
+  const layouts = {
+    promo: [
+      { src: 'timeline-royalty.png', crop: [214, 186, 1330, 650], at: [700, 84, 600], rot: -1.2, tag: ['World history', 18, -22] },
+      { src: 'entity-sheet.png', crop: [1118, 146, 482, 760], at: [1272, 150, 262], rot: 1.6, tag: ['Ages', 150, -22] },
+      { src: 'corkboard.png', crop: [396, 150, 1190, 590], at: [640, 420, 590], rot: 0.8, tag: ['Corkboard', 18, -22] },
+      { src: 'board-quest-map.png', crop: [604, 132, 940, 470], at: [1050, 566, 470], rot: -1.6, tag: ['Idea boards', 18, -22] },
+    ],
+    social: [
+      { src: 'timeline-royalty.png', crop: [214, 186, 1330, 650], at: [500, 60, 470], rot: -1.2, tag: ['World history', 14, -18] },
+      { src: 'entity-sheet.png', crop: [1118, 146, 482, 760], at: [950, 100, 200], rot: 1.6, tag: ['Ages', 110, -18] },
+      { src: 'corkboard.png', crop: [396, 150, 1190, 590], at: [474, 316, 420], rot: 0.8, tag: ['Corkboard', 14, -18] },
+      { src: 'board-quest-map.png', crop: [604, 132, 940, 470], at: [800, 398, 350], rot: -1.6, tag: ['Idea boards', 14, -18] },
+    ],
+  };
+  const social = location.hash === '#social';
+  if (social) document.body.classList.add('social');
+  const host = document.getElementById('shots');
+  layouts[social ? 'social' : 'promo'].forEach((s, i) => {
+    const [x, y, w, h] = s.crop; const [left, top, width] = s.at; const k = width / w;
+    const d = document.createElement('div');
+    d.className = 'shot';
+    Object.assign(d.style, {
+      left: left + 'px', top: top + 'px', width: width + 'px', height: Math.round(h * k) + 'px',
+      backgroundImage: `url(../images/${s.src})`,
+      backgroundSize: `${1600 * k}px ${1000 * k}px`,
+      backgroundPosition: `${-x * k}px ${-y * k}px`,
+      transform: `rotate(${s.rot}deg)`, zIndex: 1 + i,
+    });
+    host.appendChild(d);
+    const t = document.createElement('div');
+    t.className = 'tag'; t.textContent = s.tag[0];
+    Object.assign(t.style, { left: (left + s.tag[1]) + 'px', top: (top + s.tag[2]) + 'px', transform: `rotate(${s.rot}deg)`, zIndex: 10 + i });
+    host.appendChild(t);
+  });
+</script>
+</body>
+</html>
