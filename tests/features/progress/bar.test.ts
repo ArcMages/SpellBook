@@ -5,7 +5,16 @@
 
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_BAR_LAYOUT, MEASURE_AFTER_MS, addBarButton, addBarItem, parseBarLayout, serializeBarLayout } from '../../../src/core/progress/index';
+import {
+  DEFAULT_BAR_LAYOUT,
+  MEASURE_AFTER_MS,
+  WORD_BAR_ITEMS,
+  addBarButton,
+  addBarItem,
+  parseBarLayout,
+  serializeBarLayout,
+  withoutWordItems,
+} from '../../../src/core/progress/index';
 import type { BarLayout } from '../../../src/core/progress/index';
 import { BAR_LAYOUT_KEY } from '../../../src/features/progress/barPrefs';
 import { CommandPicker } from '../../../src/features/progress/commandPicker';
@@ -14,6 +23,7 @@ import { StatusBar } from '../../../src/features/progress/statusBar';
 import { TargetsModal } from '../../../src/features/progress/targetsModal';
 import { FakeElement, Menu, Modal, Notice, Platform, resetFakeDocument, resetPlatform, unknownIcons } from '../../obsidianStub';
 import type { ButtonComponent, Setting, TextComponent } from '../../obsidianStub';
+import { setShowWordCounts, stopWordFigures } from '../../../src/ui/wordFigures';
 import { DAY, makeStand } from './stand';
 import type { Stand } from './stand';
 
@@ -137,6 +147,47 @@ describe('the bar as a device starts with it', () => {
     ]);
     expect(bar.attrs['role']).toBe('button');
     expect(stand.storage.saves.filter(([key]) => key === BAR_LAYOUT_KEY)).toEqual([]);
+  });
+});
+
+describe('with "Show word counts" switched off on this device', () => {
+  afterEach(() => {
+    stopWordFigures();
+  });
+
+  it('knows which figures are words: all but the dates, the status, the to-dos and the title', () => {
+    expect([...WORD_BAR_ITEMS].sort()).toEqual(['project', 'reading', 'scene', 'session', 'target', 'today']);
+    expect(withoutWordItems(['scene', 'started', 'today', 'title', 'reading', 'todos', 'status', 'edited', 'project', 'session', 'target'])).toEqual([
+      'started',
+      'title',
+      'todos',
+      'status',
+      'edited',
+    ]);
+  });
+
+  it('leaves the word figures out of the bar and the inspector\'s line at once, keeps the rest, and keeps counting', async () => {
+    const layout = addBarButton(addBarItem(addBarItem(DEFAULT_BAR_LAYOUT, 'title'), 'reading'), ZEN, 'Zen');
+    const stand = await standUp({ extra: { targets: { daily: 2 } } }, layout);
+    stand.workspace.show(OPENING);
+    await drawn(stand);
+    const bar = theBar(stand);
+    expect(bar.fullText).toMatch(/^Words 9 Session 0 Project 19 Today 0 \/ 2 Scene Opening Reading <1 min/);
+
+    setShowWordCounts(false);
+    await drawn(stand);
+    // The scene's title and the shortcut button stay; no number of words is left.
+    expect(bar.fullText).not.toMatch(/Words|Session|Project|Today|Reading/);
+    expect(bar.fullText).toContain('Scene Opening');
+    expect(buttonsOf(bar)).toHaveLength(1);
+    const line = stand.sceneLine().current().map((segment) => segment.id);
+    expect(line).toEqual(['title']);
+    // The writer's choice of figures is kept as it was.
+    expect(stand.storage.saves.filter(([key]) => key === BAR_LAYOUT_KEY)).toEqual([]);
+
+    setShowWordCounts(true);
+    await drawn(stand);
+    expect(bar.fullText).toMatch(/^Words 9 Session 0 Project 19 Today 0 \/ 2 Scene Opening Reading <1 min/);
   });
 });
 

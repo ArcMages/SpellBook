@@ -114,6 +114,7 @@ describe('the list of features', () => {
     expect(new Set(commandIds).size).toBe(commandIds.length); // no two share an id
     expect(registered.settingsSections.map((section) => [section.id, section.title])).toEqual([
       ['progress', 'Writing progress'],
+      ['timeline', 'Timeline'],
       ['schemes', 'Colour scheme'],
       ['modes', 'Writing modes'],
       ['report', 'Writing report'],

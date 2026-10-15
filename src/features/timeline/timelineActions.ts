@@ -70,6 +70,9 @@ import type { TimeMode, TimelineContent } from './timelineScene';
 /** How long a notice about something that was refused stays up, in milliseconds. */
 const REFUSAL_NOTICE_MS = 8000;
 
+/** What the Story calendar button and command say when no project is open. */
+export const CALENDAR_NO_PROJECT = 'Open a Spellbook project first: the story calendar belongs to a project.';
+
 /** Where a dragged card was dropped: the engine's answer, as far as it matters here. */
 export interface DropResult {
   readonly start: StoryDate;
@@ -270,7 +273,7 @@ export class TimelineActions {
   askCalendar(): void {
     const content = this.current();
     if (content === null) {
-      new Notice('No Spellbook project is open.', REFUSAL_NOTICE_MS);
+      new Notice(CALENDAR_NO_PROJECT, REFUSAL_NOTICE_MS);
       return;
     }
     new CalendarModal(this.host.app, {

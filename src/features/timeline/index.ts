@@ -6,12 +6,12 @@
 // the ribbon button that open the timeline. Everything the timeline needs is
 // in this folder and in its stylesheet, src/styles/timeline.css.
 
-import { Notice } from 'obsidian';
+import { Notice, Setting } from 'obsidian';
 import type { App } from 'obsidian';
-import { WORLD_HISTORY_SERVICE } from '../../core/world';
-import type { WorldHistoryService } from '../../core/world';
+import { STORY_CALENDAR_SERVICE, WORLD_HISTORY_SERVICE } from '../../core/world';
+import type { StoryCalendarService, WorldHistoryService } from '../../core/world';
 import { iconName } from '../../ui/icons';
-import type { Feature, FeatureContext } from '../registry';
+import type { Feature, FeatureContext, SettingsSection } from '../registry';
 import { TimelineActions } from './timelineActions';
 import { TIMELINE_ICONS } from './timelineMenus';
 import { readContent } from './timelineScene';
@@ -33,6 +33,11 @@ export const TIMELINE_NOT_OPENED = 'The timeline could not be opened.';
 /** The command that opens the window in which the project's story calendar is defined. */
 export const EDIT_CALENDAR_COMMAND = 'edit-story-calendar';
 export const EDIT_CALENDAR_NAME = 'Edit story calendar';
+/** The button that opens the same window, in the settings and in the World browser. */
+export const STORY_CALENDAR_TEXT = 'Story calendar';
+export const STORY_CALENDAR_SETTING_DESC =
+  "The calendar the open project's story dates are counted in: real-world dates, or a calendar of your own with its own months and weekdays. " +
+  'It belongs to the project, and is the same on every device.';
 /** The command that opens the timeline as the history of the world: the world lanes on, the scenes' lane off. */
 export const OPEN_WORLD_HISTORY_COMMAND = 'open-world-history';
 export const OPEN_WORLD_HISTORY_NAME = 'Open world history';
@@ -54,6 +59,22 @@ async function showTimeline(app: App): Promise<void> {
     console.error('Spellbook: the timeline could not be opened', error);
     new Notice(TIMELINE_NOT_OPENED, PROBLEM_NOTICE_MS);
   }
+}
+
+/** The timeline's part of the settings tab: a button that opens the Story calendar window. */
+export function storyCalendarSettings(open: () => void): SettingsSection {
+  return {
+    id: 'timeline',
+    title: 'Timeline',
+    render(containerEl: HTMLElement): void {
+      new Setting(containerEl)
+        .setName(STORY_CALENDAR_TEXT)
+        .setDesc(STORY_CALENDAR_SETTING_DESC)
+        .addButton((button) => {
+          button.setButtonText(STORY_CALENDAR_TEXT).onClick(open);
+        });
+    },
+  };
 }
 
 export const timelineFeature: Feature = {
@@ -89,13 +110,14 @@ export const timelineFeature: Feature = {
       },
       () => 'date',
     );
-    context.plugin.addCommand({
-      id: EDIT_CALENDAR_COMMAND,
-      name: EDIT_CALENDAR_NAME,
-      callback: () => {
-        actions.askCalendar();
-      },
-    });
+    const askCalendar = (): void => {
+      if (!host.isReleased) actions.askCalendar();
+    };
+    context.plugin.addCommand({ id: EDIT_CALENDAR_COMMAND, name: EDIT_CALENDAR_NAME, callback: askCalendar });
+    // The same window from a button in the settings, and from the World browser's toolbar.
+    context.addSettingsSection(storyCalendarSettings(askCalendar));
+    const calendar: StoryCalendarService = { open: askCalendar };
+    context.services.provide(STORY_CALENDAR_SERVICE, calendar);
     context.plugin.addRibbonIcon(iconName(...TIMELINE_ICONS.view) ?? 'calendar', OPEN_TIMELINE_TOOLTIP, open);
 
     // The world's history: the timeline, with the world lanes on and the

@@ -55,9 +55,10 @@ export interface SceneEntitiesService {
 
 // ------------------------------------------------------------------- time
 //
-// Two more services join the World browser and the timeline, which do not
+// Three more services join the World browser and the timeline, which do not
 // know each other either: the timeline shows an entity's sheet through the
-// first, and the World browser opens the world's history through the second.
+// first, and the World browser opens the world's history through the second
+// and the Story calendar window through the third.
 
 /** The name the World browser offers its sheets under. */
 export const ENTITY_SHEET_SERVICE = 'world.entitySheet';
@@ -79,4 +80,13 @@ export const WORLD_HISTORY_SERVICE = 'timeline.worldHistory';
 export interface WorldHistoryService {
   /** Bring the timeline to the front with the world lanes on and the scenes' lane off, fitted to the world's dates. */
   show(): void;
+}
+
+/** The name the timeline offers the Story calendar window under. */
+export const STORY_CALENDAR_SERVICE = 'timeline.storyCalendar';
+
+/** Opens the window in which the open project's story calendar is defined. */
+export interface StoryCalendarService {
+  /** Open the Story calendar window for the open project; with no project open, say to open one first. */
+  open(): void;
 }

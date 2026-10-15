@@ -30,6 +30,7 @@
 
 import { ItemView, Keymap, Menu, Platform } from 'obsidian';
 import { followLayout, isPhoneLayout } from '../../ui/layout';
+import { followWordCounts, showsWordCounts } from '../../ui/wordFigures';
 import type { WorkspaceLeaf } from 'obsidian';
 import { describeCount, formatCount } from '../../core/binderModel';
 import { pathKey } from '../../core/paths';
@@ -231,6 +232,11 @@ export class ScriveningsView extends ItemView {
     const root = pane.createDiv({ cls: 'spellbook-scrivenings' });
     // Touch needs larger buttons. The touch layout (src/ui/layout.ts) decides.
     followLayout(this, root);
+    // Word counts can be switched off on this device: the stylesheet hides
+    // those on the dividers, and the summary is written again without its count.
+    followWordCounts(this, root, () => {
+      this.showSummary();
+    });
     // On a phone, Obsidian's own bar floats over the bottom of the pane: the
     // stylesheet keeps the last lines clear of it.
     root.toggleClass('spellbook-is-phone', Platform.isPhone);
@@ -870,7 +876,9 @@ export class ScriveningsView extends ItemView {
       if (typeof count === 'number') words += count;
     }
     const chapters = this.sections.filter((section) => section.chapter).length;
-    els.summary.setText(`${describeScenes(this.sections.length, chapters)}, ${describeCount(words)}`);
+    const scenes = describeScenes(this.sections.length, chapters);
+    // Without the count while word counts are switched off on this device.
+    els.summary.setText(showsWordCounts() ? `${scenes}, ${describeCount(words)}` : scenes);
   }
 
   private showScopeMenu(button: HTMLElement): void {

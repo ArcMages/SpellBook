@@ -14,6 +14,7 @@ The table at the end, [Where each setting lives](#where-each-setting-lives), lis
 - [Colour schemes](#colour-schemes)
 - [Obsidian themes and light or dark mode](#obsidian-themes-and-light-or-dark-mode)
 - [Touch or desktop layout](#touch-or-desktop-layout)
+- [Hiding word counts](#hiding-word-counts)
 - [Keyboard shortcuts](#keyboard-shortcuts)
 - [Phone and tablet toolbar](#phone-and-tablet-toolbar)
 - [The bottom bar](#the-bottom-bar)
@@ -201,6 +202,19 @@ Open screens change at once. The choice is kept on the device you make it on, so
 **For people who write CSS snippets.** The touch layout puts the class `spellbook-is-mobile` on each Spellbook screen; the desktop layout, when you choose it, puts `spellbook-is-desktop-layout` there.
 
 Spellbook has not been tried on a real iPad yet, so this section is how it works by design.
+
+## Hiding word counts
+
+Some writers would rather not see how many words they have while they write. Spellbook can keep the numbers out of sight.
+
+1. Open Obsidian's **Settings** and choose **Spellbook**.
+2. Switch off **Show word counts**, just below **Layout**.
+
+The binder, the corkboard, the outliner, the inspector, the bottom bar and the novel view then show no word numbers. The corkboard's line above the cards says "9 chapters" instead of "9 chapters, 6,884 words"; the outliner leaves out its **Words**, **Target** and **Read time** columns, and keeps your choice of columns for when you switch the counts on again. In the bottom bar and the inspector the dates, status, to-dos, scene title and your shortcut buttons stay.
+
+Counting goes on; the writing report, the Writing targets window, the planner's calendar and the export result still show the numbers, because you open those to see them. The daily log, streaks and targets are kept as before. Open screens change at once. The choice is kept on the device you make it on.
+
+**For people who write CSS snippets.** While the counts are hidden, the binder, the corkboard and the novel view carry the class `spellbook-hides-word-counts`.
 
 ## Keyboard shortcuts
 
@@ -507,7 +521,7 @@ Entity types are saved in the project. Types of your own have not been tried on 
 
 A story set in an invented world can have its own months, week and eras. The timeline then counts in that calendar.
 
-1. Run the command **Edit story calendar**, or press **Calendar** on the timeline. The window is called "Story calendar".
+1. Run the command **Edit story calendar**, press **Calendar** on the timeline, press **Story calendar** at the top of the World screen, or press **Story calendar** in Spellbook's settings, under "Timeline". The window is called "Story calendar".
 2. Under **Start from**, choose a starting point: the real-world calendar, or a ready-made one such as "Twelve months of thirty days".
 3. Give the calendar a **Name**.
 4. Under **Months**, give each month its name and its number of days. **Add month** adds one; each row can be moved up, moved down or removed.
@@ -575,6 +589,7 @@ Both settings are kept on each device separately, so switch automatic snapshots 
 | Setting | Where to find it | Syncs or stays |
 | --- | --- | --- |
 | Layout (Automatic, Touch layout, Desktop layout) | Settings, "Layout", under the version | Stays on the device |
+| Show word counts | Settings, "Show word counts", under "Layout" | Stays on the device |
 | Colour scheme | Settings, "Colour scheme"; commands **Choose colour scheme** and **Next colour scheme** | Stays on the device |
 | Which writing modes are on | The four **Toggle ... mode** commands | Stays on the device |
 | Letter box band, typewriter line, Zen switches | Settings, "Writing modes" | Stays on the device |
@@ -598,7 +613,7 @@ Both settings are kept on each device separately, so switch automatic snapshots 
 | A scene's synopsis, status, label, target, compile switch | The inspector, the corkboard, the outliner | Syncs with the project |
 | Project target, daily target, deadline | **Set writing targets** | Syncs with the project |
 | Timeline lanes, names, colours and order | The "Timeline lanes" window | Syncs with the project |
-| Story calendar | **Edit story calendar** | Syncs with the project |
+| Story calendar | **Edit story calendar**; the **Story calendar** button in Settings, "Timeline", and in the World screen | Syncs with the project |
 | Entity types | **Entity types** in the World screen | Syncs with the project |
 | An entity's picture, fields and relations | The entity's sheet in the World screen | Syncs with the project |
 | World shown as cards or as a list | The World screen, **Cards** and **List** | Stays on the device |

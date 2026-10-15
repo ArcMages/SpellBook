@@ -25,6 +25,7 @@ import { openNote } from './obsidian/openNote';
 import { localToday, nextFrame, nowMs, setTimer, untilTomorrow } from './obsidian/systemClock';
 import { SpellbookSettingTab } from './settings';
 import { startLayout, stopLayout } from './ui/layout';
+import { startWordFigures, stopWordFigures } from './ui/wordFigures';
 import { CreateProjectModal } from './ui/createProjectModal';
 import { FIRST_CHAPTER_TITLE, kindWord } from './core/noteKind';
 import type { ProjectStart } from './ui/createProjectModal';
@@ -116,6 +117,9 @@ export default class SpellbookPlugin extends Plugin implements BinderHost, Actio
     // can be before the layout is ready: it is read from this device now.
     startLayout(new ObsidianDeviceStorage(this.app));
     this.register(stopLayout);
+    // So is "Show word counts".
+    startWordFigures(new ObsidianDeviceStorage(this.app));
+    this.register(stopWordFigures);
     this.addSettingTab(new SpellbookSettingTab(this.app, this));
 
     this.registerView(BINDER_VIEW_TYPE, (leaf) => new BinderView(leaf, this));

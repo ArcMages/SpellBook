@@ -54,6 +54,7 @@ export const WORLD_ICONS = {
   dates: ['calendar', 'calendar-days'],
   history: ['calendar-range', 'calendar-clock', 'calendar'],
   present: ['calendar-clock', 'clock', 'calendar'],
+  calendar: ['calendar-cog', 'calendar-days', 'calendar'],
 } as const satisfies Record<string, readonly string[]>;
 
 /**

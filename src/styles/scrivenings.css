@@ -229,6 +229,16 @@
   text-decoration: underline;
 }
 
+/* "Show word counts" is off on this device: the dividers' counts go
+   (src/ui/wordFigures.ts), and the Edit button keeps its place at the end. */
+.spellbook-scrivenings.spellbook-hides-word-counts .spellbook-scrivenings-count {
+  display: none;
+}
+
+.spellbook-scrivenings.spellbook-hides-word-counts .spellbook-scrivenings-edit {
+  margin-inline-start: auto;
+}
+
 .spellbook-scrivenings-count {
   flex: 1 1 auto;
   font-variant-numeric: tabular-nums;

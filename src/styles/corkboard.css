@@ -413,6 +413,12 @@
   white-space: nowrap;
 }
 
+/* "Show word counts" is off on this device: the counts and the target bars go (src/ui/wordFigures.ts). */
+.spellbook-board.spellbook-hides-word-counts .spellbook-card-words,
+.spellbook-board.spellbook-hides-word-counts .spellbook-card-target {
+  display: none;
+}
+
 .spellbook-board .spellbook-card-folder-missing {
   color: var(--text-warning);
 }

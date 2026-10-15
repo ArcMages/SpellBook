@@ -89,6 +89,11 @@ export function isNumberColumn(id: ColumnId): boolean {
   return id === 'number' || id === 'words' || id === 'target' || id === 'tasks' || id === 'readTime';
 }
 
+/** Columns that show numbers of words (or a time worked out from them): the "Show word counts" setting leaves them out. */
+export function isWordColumn(id: ColumnId): boolean {
+  return id === 'words' || id === 'target' || id === 'readTime';
+}
+
 /** One column of a layout. */
 export interface ColumnChoice {
   readonly id: ColumnId;

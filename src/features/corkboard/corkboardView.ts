@@ -33,6 +33,7 @@
 
 import { ItemView, Keymap, Menu, Notice, Platform } from 'obsidian';
 import { followLayout } from '../../ui/layout';
+import { followWordCounts, showsWordCounts } from '../../ui/wordFigures';
 import type { MenuPositionDef, PaneType, UserEvent, ViewStateResult, WorkspaceLeaf } from 'obsidian';
 import { describeCount } from '../../core/binderModel';
 import {
@@ -291,6 +292,11 @@ export class CorkboardView extends ItemView {
     // Touch needs larger buttons. The touch layout (src/ui/layout.ts) decides;
     // the stylesheet also covers touch screens on desktop.
     followLayout(this, root);
+    // Word counts can be switched off on this device: the stylesheet hides
+    // those on the cards, and the header is written again without its count.
+    followWordCounts(this, root, () => {
+      if (this.els) this.showHeader(this.els, this.board);
+    });
     // On a phone, Obsidian's own bar floats over the bottom of the pane: the
     // stylesheet leaves room for it under the last card.
     root.toggleClass('spellbook-is-phone', Platform.isPhone);
@@ -753,7 +759,8 @@ export class CorkboardView extends ItemView {
     if (board) {
       summary = describeScenes(board.sceneCount, board.chapterCount ?? 0);
       // The sum is not known while a scene is still being counted.
-      if (board.words !== null) summary += `, ${describeCount(board.words)}`;
+      // Left out too while word counts are switched off on this device.
+      if (board.words !== null && showsWordCounts()) summary += `, ${describeCount(board.words)}`;
     }
     els.summary.setText(summary);
     els.size.disabled = board === null;

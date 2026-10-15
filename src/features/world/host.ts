@@ -987,6 +987,9 @@ export class WorldHost {
   /** Set by the feature: opens the timeline as the history of the world. Null while no timeline offers it. */
   showWorldHistory: (() => boolean) | null = null;
 
+  /** Set by the feature: opens the Story calendar window. Returns false while no timeline offers it. */
+  editStoryCalendar: (() => boolean) | null = null;
+
   /** Set by the feature: what draws a board around an entity, asked for each time; null while no feature offers it. */
   entityBoard: () => EntityBoardService | null = () => null;
 

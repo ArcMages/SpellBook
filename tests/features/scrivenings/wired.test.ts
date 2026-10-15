@@ -23,6 +23,7 @@ import {
   UNREAD_TEXT,
 } from '../../../src/features/scrivenings/scriveningsView';
 import { MISSING_LABEL } from '../../../src/ui/missingNote';
+import { HIDES_WORD_COUNTS_CLASS, setShowWordCounts, stopWordFigures } from '../../../src/ui/wordFigures';
 import { MemoryVault } from '../../memoryVault';
 import { Menu as StubMenu, Notice as StubNotice, Platform, resetFakeDocument, resetPlatform } from '../../obsidianStub';
 import type { FakeElement } from '../../obsidianStub';
@@ -207,6 +208,25 @@ describe('plugging in', () => {
     s.command('open-scrivenings').callback?.(); // does nothing any more
     await calm(s);
     expect(s.workspace.revealed).toHaveLength(revealed);
+  });
+});
+
+describe('with "Show word counts" switched off on this device', () => {
+  afterEach(() => {
+    stopWordFigures();
+  });
+
+  it('leaves the words out of the summary and hides the dividers\' counts, at once', async () => {
+    const s = await stage();
+    const { pane } = await openPane(s);
+    const root = one(pane, 'spellbook-scrivenings');
+    setShowWordCounts(false);
+    expect(summaryOf(pane)).toBe('5 scenes');
+    // The stylesheet hides the dividers' counts under this class.
+    expect(root.hasClass(HIDES_WORD_COUNTS_CLASS)).toBe(true);
+    setShowWordCounts(true);
+    expect(summaryOf(pane)).toBe('5 scenes, 54 words');
+    expect(root.hasClass(HIDES_WORD_COUNTS_CLASS)).toBe(false);
   });
 });
 

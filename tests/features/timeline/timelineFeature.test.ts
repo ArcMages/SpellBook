@@ -97,7 +97,8 @@ describe('plugging the timeline in', () => {
       ['calendar-range', OPEN_TIMELINE_TOOLTIP, true],
     ]);
     expect(OPEN_TIMELINE_TOOLTIP).toBe('Open Spellbook timeline');
-    expect(w.registered.settingsSections).toEqual([]);
+    // One section in the settings: the Story calendar button.
+    expect(w.registered.settingsSections.map((section) => [section.id, section.title])).toEqual([['timeline', 'Timeline']]);
     // Nothing is opened, written or remembered by plugging in.
     expect(w.fake.workspace.leaves).toEqual([]);
     expect(w.vault.writes).toEqual([]);

@@ -103,8 +103,9 @@ describe('the source of the corkboard feature', () => {
       /^\.\.\/\.\.\/core\/(binderModel|dropTarget|names|noteKind|types)$/,
       // missingNote: the wording of the warning on an entry whose note is missing, shared with the binder.
       /^\.\.\/\.\.\/ui\/(confirmModal|dragDrop|icons|keys|missingNote|notices|safely|textPromptModal)$/,
-      // layout: which layout the writer chose for this device (it only reads the choice).
-      /^\.\.\/\.\.\/ui\/layout$/,
+      // layout and wordFigures: which layout the writer chose for this device,
+      // and whether word counts are shown on it (they only read the choice).
+      /^\.\.\/\.\.\/ui\/(layout|wordFigures)$/,
     ];
     for (const name of screens) {
       const code = codeOf(name);

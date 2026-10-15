@@ -13,6 +13,7 @@ import { registerFeatures } from '../../../src/features/registry';
 import { Notice, fakeDocument, resetFakeDocument, resetPlatform } from '../../obsidianStub';
 import { DEVICE_ID_KEY } from '../../../src/core/deviceId';
 import { sceneBody, seedProject } from '../../storeHarness';
+import { setShowWordCounts, stopWordFigures } from '../../../src/ui/wordFigures';
 import { DAY, makeStand, setHidden } from './stand';
 import type { Stand } from './stand';
 
@@ -86,6 +87,26 @@ describe('counting what is typed', () => {
     expect(file.problems).toEqual([]);
     expect([file.device, file.month]).toEqual([stand.deviceId, '2026-10']);
     expect(stand.vault.textOf(path)).toContain('spellbook: stats');
+  });
+
+  it('goes on counting and logging with "Show word counts" switched off; only the figures are hidden', async () => {
+    setShowWordCounts(false);
+    try {
+      const stand = await standUp();
+      stand.workspace.show(OPENING);
+      stand.editor(OPENING).type('Five new words right here. ');
+      await stand.pass(PAUSE);
+      expect(stand.line().join(' ')).not.toMatch(/Words|Session/);
+      await stand.pass(QUIET);
+      expect(stand.logDays('2026-10')).toEqual([day(DAY, { manuscriptAdded: 5 })]);
+      // The figures come back as they are, with what was typed meanwhile.
+      setShowWordCounts(true);
+      await stand.pass(PAUSE);
+      expect(stand.line()).toContain('Session 5');
+      expect(stand.line()).toContain('Words 14');
+    } finally {
+      stopWordFigures();
+    }
   });
 
   it('counts deleting as deleted words, not as fewer written', async () => {

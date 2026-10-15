@@ -12,8 +12,8 @@
 
 import { Notice, Platform } from 'obsidian';
 import type { App, WorkspaceLeaf } from 'obsidian';
-import { ENTITY_SHEET_SERVICE, SCENE_ENTITIES_SERVICE, WORLD_HISTORY_SERVICE } from '../../core/world';
-import type { EntitySheetService, WorldHistoryService } from '../../core/world';
+import { ENTITY_SHEET_SERVICE, SCENE_ENTITIES_SERVICE, STORY_CALENDAR_SERVICE, WORLD_HISTORY_SERVICE } from '../../core/world';
+import type { EntitySheetService, StoryCalendarService, WorldHistoryService } from '../../core/world';
 import { ENTITY_BOARD_SERVICE } from '../../core/boards';
 import type { EntityBoardService } from '../../core/boards';
 import { RENAME_EVERYWHERE_SERVICE } from '../../core/revision';
@@ -152,6 +152,12 @@ export const worldFeature: Feature = {
       const history = context.services.get<WorldHistoryService>(WORLD_HISTORY_SERVICE);
       history?.show();
       return history !== undefined;
+    };
+    // And the "Story calendar" button: the timeline's window, when one offers it.
+    host.editStoryCalendar = () => {
+      const calendar = context.services.get<StoryCalendarService>(STORY_CALENDAR_SERVICE);
+      calendar?.open();
+      return calendar !== undefined;
     };
 
     // A board around an entity, for the sheet's button: offered by the idea boards, when they are there.

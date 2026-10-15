@@ -13,11 +13,12 @@ import { SNAPSHOTS_SERVICE, SNAPSHOTS_VIEW_TYPE } from '../src/features/snapshot
 import { TAKE_TITLE } from '../src/features/snapshots/snapshotsView';
 import SpellbookPlugin from '../src/main';
 import { openNote } from '../src/obsidian/openNote';
-import { LAYOUT_DESC_TEXT, LAYOUT_NAME_TEXT, LINK_SCOPE_DESC_TEXT, LINK_SCOPE_NAME_TEXT, SpellbookSettingTab } from '../src/settings';
+import { LAYOUT_DESC_TEXT, LAYOUT_NAME_TEXT, LINK_SCOPE_DESC_TEXT, LINK_SCOPE_NAME_TEXT, SHOW_WORDS_DESC_TEXT, SHOW_WORDS_NAME_TEXT, SpellbookSettingTab } from '../src/settings';
 import { ConfirmModal } from '../src/ui/confirmModal';
 import { CreateProjectModal } from '../src/ui/createProjectModal';
 import { FolderPickerModal } from '../src/ui/folderPickerModal';
 import { layoutChoice } from '../src/ui/layout';
+import { HIDES_WORD_COUNTS_CLASS, SHOW_WORDS_KEY, showsWordCounts } from '../src/ui/wordFigures';
 import { TextPromptModal } from '../src/ui/textPromptModal';
 import { SNAPSHOT_ACTIONS } from '../src/views/binderActions';
 import { BinderView } from '../src/views/binderView';
@@ -248,6 +249,7 @@ describe('loading and unloading', () => {
     // The writing progress is the one screen with settings of its own.
     expect(plugin.features?.settingsSections.map((section) => [section.id, section.title])).toEqual([
       ['progress', 'Writing progress'],
+      ['timeline', 'Timeline'],
       ['schemes', 'Colour scheme'],
       ['modes', 'Writing modes'],
       ['report', 'Writing report'],
@@ -1443,6 +1445,8 @@ describe('the settings page', () => {
       { name: 'Spellbook', desc: 'Version 0.1.0', heading: false },
       // Near the top: the layout on this device.
       { name: LAYOUT_NAME_TEXT, desc: LAYOUT_DESC_TEXT, heading: false },
+      // And whether word counts are shown on this device.
+      { name: SHOW_WORDS_NAME_TEXT, desc: SHOW_WORDS_DESC_TEXT, heading: false },
       { name: 'Projects in this vault', desc: '', heading: true },
       { name: 'Loose', desc: 'At the top of the vault', heading: false },
       { name: 'My Novel', desc: 'Novel', heading: false },
@@ -1452,6 +1456,7 @@ describe('the settings page', () => {
       { name: LINK_SCOPE_NAME_TEXT, desc: LINK_SCOPE_DESC_TEXT, heading: false },
       // Then the sections the screens added, each under its own heading.
       { name: 'Writing progress', desc: '', heading: true },
+      { name: 'Timeline', desc: '', heading: true },
       { name: 'Colour scheme', desc: '', heading: true },
       { name: 'Writing modes', desc: '', heading: true },
       { name: 'Writing report', desc: '', heading: true },
@@ -1462,7 +1467,7 @@ describe('the settings page', () => {
       { name: 'Templates', desc: '', heading: true },
     ]);
     // titles and folders are the writer's own text: each picks its own direction
-    for (const row of element.settings.slice(3, 6)) {
+    for (const row of element.settings.slice(4, 7)) {
       expect(row.nameEl.attrs['dir']).toBe('auto');
       expect(row.descEl.attrs['dir']).toBe('auto');
     }
@@ -1555,29 +1560,68 @@ describe('the settings page', () => {
     const nextRow = next.element.settings.find((setting) => setting.nameEl.text === LAYOUT_NAME_TEXT);
     expect((nextRow?.components[0] as DropdownComponent).getValue()).toBe('desktop');
     // Its place: right under the version, before the projects.
-    expect(next.rows().map((r) => r.name).slice(0, 3)).toEqual(['Spellbook', LAYOUT_NAME_TEXT, 'Projects in this vault']);
+    expect(next.rows().map((r) => r.name).slice(0, 4)).toEqual(['Spellbook', LAYOUT_NAME_TEXT, SHOW_WORDS_NAME_TEXT, 'Projects in this vault']);
 
     (nextRow?.components[0] as DropdownComponent).choose('auto');
     expect(fake.localStorage.has(LAYOUT_KEY)).toBe(false);
+  });
+
+  it('lets the writer hide the word counts on this device; the binder and the bottom bar follow at once', async () => {
+    const fake = novelVault();
+    const { plugin, stub } = loadReady(fake);
+    await plugin.openBinder();
+    const view = fake.workspace.getLeavesOfType('spellbook-binder')[0]?.view as unknown as BinderView;
+    const binder = one(view.contentEl as unknown as FakeElement, 'spellbook-binder');
+    await until(() => stub.statusBar.children.length > 0, 'the bottom bar');
+    const bar = stub.statusBar.children[0] as FakeElement;
+    await until(() => /Project/.test(bar.fullText), 'the bar\'s figures');
+    const { tab, element } = page(stub);
+    tab.display();
+    const row = element.settings.find((setting) => setting.nameEl.text === SHOW_WORDS_NAME_TEXT);
+    expect(row?.descEl.text).toContain('Counting goes on; the Writing report, targets and calendar still show them.');
+    const toggle = row?.toggles[0];
+    expect(toggle?.getValue()).toBe(true);
+    expect(fake.localStorage.has(SHOW_WORDS_KEY)).toBe(false);
+    expect(binder.hasClass(HIDES_WORD_COUNTS_CLASS)).toBe(false);
+
+    toggle?.flip();
+    expect(showsWordCounts()).toBe(false);
+    expect(fake.loadLocalStorage(SHOW_WORDS_KEY)).toBe('off');
+    // The binder hides its counts at once (the stylesheet does, under this class).
+    expect(binder.hasClass(HIDES_WORD_COUNTS_CLASS)).toBe(true);
+    // The bottom bar loses its word figures before the screen is next drawn.
+    await until(() => !/Project|Session|Today/.test(bar.fullText), 'the bar without words');
+
+    // Kept on this device: the next start reads it.
+    plugin.unload();
+    expect(showsWordCounts()).toBe(true); // let go of on unload
+    const again = load(fake);
+    expect(showsWordCounts()).toBe(false);
+    const next = page(again.stub);
+    next.tab.display();
+    const nextToggle = next.element.settings.find((setting) => setting.nameEl.text === SHOW_WORDS_NAME_TEXT)?.toggles[0];
+    expect(nextToggle?.getValue()).toBe(false);
+    nextToggle?.flip();
+    expect(fake.localStorage.has(SHOW_WORDS_KEY)).toBe(false);
   });
 
   it('explains how to make a project when there are none', () => {
     const { stub } = loadReady();
     const { tab, rows } = page(stub);
     tab.display();
-    expect(rows().map((row) => row.name)).toEqual(['Spellbook', LAYOUT_NAME_TEXT, 'Projects in this vault', '', 'Renaming', LINK_SCOPE_NAME_TEXT, 'Writing progress', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots', 'Plot grid', 'Welcome and help', 'Templates']);
-    expect(rows()[3]?.name).toBe('');
-    expect(rows()[3]?.desc).toMatch(/No projects yet/);
-    expect(rows()[3]?.desc).toMatch(/"Spellbook: Create project"/);
-    expect(rows()[3]?.desc).toMatch(/"Spellbook: Create sample project"/);
+    expect(rows().map((row) => row.name)).toEqual(['Spellbook', LAYOUT_NAME_TEXT, SHOW_WORDS_NAME_TEXT, 'Projects in this vault', '', 'Renaming', LINK_SCOPE_NAME_TEXT, 'Writing progress', 'Timeline', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots', 'Plot grid', 'Welcome and help', 'Templates']);
+    expect(rows()[4]?.name).toBe('');
+    expect(rows()[4]?.desc).toMatch(/No projects yet/);
+    expect(rows()[4]?.desc).toMatch(/"Spellbook: Create project"/);
+    expect(rows()[4]?.desc).toMatch(/"Spellbook: Create sample project"/);
   });
 
   it('says so while Obsidian is still starting', () => {
     const { stub } = load(novelVault());
     const { tab, rows } = page(stub);
     tab.display();
-    expect(rows().map((row) => row.name)).toEqual(['Spellbook', LAYOUT_NAME_TEXT, 'Projects in this vault', '']);
-    expect(rows()[3]?.desc).toMatch(/still starting/);
+    expect(rows().map((row) => row.name)).toEqual(['Spellbook', LAYOUT_NAME_TEXT, SHOW_WORDS_NAME_TEXT, 'Projects in this vault', '']);
+    expect(rows()[4]?.desc).toMatch(/still starting/);
   });
 
   it('follows the vault while it is open, and stops when it is closed', async () => {
@@ -1585,17 +1629,17 @@ describe('the settings page', () => {
     const { tab, rows } = page(stub);
     /** The rows between the "Projects in this vault" heading and the first heading a screen added. */
     const projects = (): Row[] => {
-      const after = rows().slice(3);
+      const after = rows().slice(4);
       const next = after.findIndex((row) => row.heading);
       return next < 0 ? after : after.slice(0, next);
     };
     tab.display();
-    expect(rows()).toHaveLength(15);
+    expect(rows()).toHaveLength(17);
     expect(projects().map((row) => row.name)).toEqual(['']); // "No projects yet"
 
     await plugin.createProject('First');
     expect(projects()).toEqual([{ name: 'First', desc: 'First', heading: false }]);
-    expect(rows().filter((row) => row.heading).map((row) => row.name)).toEqual(['Projects in this vault', 'Renaming', 'Writing progress', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots', 'Plot grid', 'Welcome and help', 'Templates']);
+    expect(rows().filter((row) => row.heading).map((row) => row.name)).toEqual(['Projects in this vault', 'Renaming', 'Writing progress', 'Timeline', 'Colour scheme', 'Writing modes', 'Writing report', 'Prose checks', 'Snapshots', 'Plot grid', 'Welcome and help', 'Templates']);
 
     tab.display(); // opened again: still one listener's worth of rows
     await plugin.createProject('Second');
