@@ -1,5 +1,7 @@
 # Spellbook
 
+![Spellbook, by DandiMage: write your novel in Obsidian. A corkboard, a timeline of reigns, a character sheet with her age and an idea board](docs/images/spellbook-promo.png)
+
 Spellbook is a plugin for [Obsidian](https://obsidian.md) for planning and writing novels. It gives a vault the tools of a dedicated novel-writing app: a binder of scenes, a corkboard, word targets, a story timeline, notes on characters and places, saved versions of a scene and a manuscript export. It is for writers who want those tools and still want their book to stay a folder of plain notes that they own. It was built for writing in Hebrew and English, on a computer, a tablet and a phone.
 
 Made by Daniel at DandiMage.
