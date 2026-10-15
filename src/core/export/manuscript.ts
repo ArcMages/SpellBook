@@ -283,6 +283,8 @@ export interface ScopedScene {
   readonly title: string;
   /** True when the binder lists the scene but it has no note. */
   readonly missing: boolean;
+  /** True for a note that is a whole chapter. */
+  readonly chapter?: boolean;
 }
 
 type FolderNode = Extract<TreeNode, { kind: 'folder' }>;
@@ -312,7 +314,9 @@ export function scenesInScope(tree: readonly TreeNode[], scope: string | null): 
   const scenes: ScopedScene[] = [];
   const walk = (nodes: readonly TreeNode[]): void => {
     for (const node of nodes) {
-      if (node.kind === 'scene') scenes.push({ path: node.path, title: node.title, missing: node.missing });
+      if (node.kind === 'scene') {
+        scenes.push({ path: node.path, title: node.title, missing: node.missing, ...(node.chapter === true ? { chapter: true } : {}) });
+      }
       else walk(node.children);
     }
   };
@@ -356,15 +360,25 @@ export interface SceneSource {
   readonly title?: boolean | null;
 }
 
-/** A chapter heading: the name of a binder folder. Every chapter starts on a new page. */
+/**
+ * A chapter heading: the name of a binder folder, or the title of a note
+ * that is a whole chapter by itself. Every chapter starts on a new page.
+ */
 export interface ChapterPart {
   readonly kind: 'chapter';
   /** A name for linking to it from the list of contents: "part-3". */
   readonly id: string;
   readonly title: string;
-  /** 1 for a folder at the top, 2 for a folder inside it, and so on. */
+  /** 1 for a folder (or chapter note) at the top, 2 for one inside a folder, and so on. */
   readonly level: number;
   readonly direction: Direction;
+  /**
+   * Set for the heading of a chapter note: the note's path relative to the
+   * project folder. Its text follows as a ScenePart that opens 'first'.
+   */
+  readonly note?: string;
+  /** True for a folder that holds chapter notes: it heads a part of the book, above its chapters. */
+  readonly bookPart?: boolean;
 }
 
 export interface ScenePart {
@@ -522,6 +536,14 @@ export function buildManuscript(input: ManuscriptInput): Manuscript {
     | (Omit<ChapterPart, 'direction'> & { direction: Direction | null })
     | (Omit<ScenePart, 'direction' | 'opens'> & { direction: Direction | null; opens: ScenePart['opens'] });
 
+  const countDirections = (blocks: readonly Block[]): void => {
+    for (const block of blocks) {
+      if (block.kind === 'break' || block.kind === 'code') continue;
+      if (block.direction === 'rtl') rtlBlocks++;
+      else if (block.direction === 'ltr') ltrBlocks++;
+    }
+  };
+
   const walk = (nodes: readonly TreeNode[], level: number): Draft[] => {
     const parts: Draft[] = [];
     let fresh = true;
@@ -531,8 +553,13 @@ export function buildManuscript(input: ManuscriptInput): Manuscript {
         const id = `part-${nextId++}`;
         const inner = walk(node.children, level + 1);
         // A folder with nothing to print in it leaves no heading behind.
-        if (!inner.some((part) => part.kind === 'scene')) continue;
-        parts.push({ kind: 'chapter', id, title: node.name, level, direction: directionOf(node.name) }, ...inner);
+        if (inner.length === 0) continue;
+        // A folder that holds chapter notes is a part of the book, above its chapters.
+        const holdsChapters = inner.some((part) => part.kind === 'chapter' && part.note !== undefined && part.level === level + 1);
+        parts.push(
+          { kind: 'chapter', id, title: node.name, level, direction: directionOf(node.name), ...(holdsChapters ? { bookPart: true } : {}) },
+          ...inner,
+        );
         afterChapter = true;
         fresh = false;
         continue;
@@ -549,15 +576,35 @@ export function buildManuscript(input: ManuscriptInput): Manuscript {
       const markdown = manuscriptText(source.text).trim();
       const blocks = parseBlocks(markdown);
       included.push(node.path);
+      words += node.chapter === true ? countPlainWords(plainTextOfBlocks(blocks)) : 0;
+      countDirections(blocks);
+      if (node.chapter === true) {
+        // A whole chapter in one note: its title is the chapter's heading, at
+        // the level a folder here would have, and its text follows straight under it.
+        parts.push({ kind: 'chapter', id: `part-${nextId++}`, title: node.title, level, direction: directionOf(node.title), note: node.path });
+        if (blocks.length > 0) {
+          parts.push({
+            kind: 'scene',
+            id: `part-${nextId++}`,
+            path: node.path,
+            title: node.title,
+            level: level + 1,
+            direction: directionOf(node.title),
+            opens: 'first',
+            titled: false,
+            blocks,
+            markdown,
+          });
+        }
+        // What follows at this level is not part of the chapter.
+        afterChapter = true;
+        fresh = false;
+        continue;
+      }
       const titled = typeof source.title === 'boolean' ? source.title : options.sceneTitles;
       // A scene with no text yet has nothing to print, unless its title is printed.
       if (blocks.length === 0 && !titled) continue;
       words += countPlainWords(plainTextOfBlocks(blocks));
-      for (const block of blocks) {
-        if (block.kind === 'break' || block.kind === 'code') continue;
-        if (block.direction === 'rtl') rtlBlocks++;
-        else if (block.direction === 'ltr') ltrBlocks++;
-      }
       parts.push({
         kind: 'scene',
         id: `part-${nextId++}`,

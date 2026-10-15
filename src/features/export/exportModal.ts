@@ -108,11 +108,21 @@ function plural(count: number, one: string, many: string): string {
 
 /** What an export of this part of the binder would take, in a sentence or two. */
 export function countText(count: ExportCount): string {
-  const parts = [`${plural(count.scenes, 'scene', 'scenes')} will be exported, in binder order.`];
+  const chapters = count.chapters ?? 0;
+  const scenes = count.scenes - chapters;
+  const what =
+    chapters === 0
+      ? plural(count.scenes, 'scene', 'scenes')
+      : scenes === 0
+        ? plural(chapters, 'chapter', 'chapters')
+        : `${plural(chapters, 'chapter', 'chapters')} and ${plural(scenes, 'scene', 'scenes')}`;
+  const parts = [`${what} will be exported, in binder order.`];
+  // Notes that are left out are counted together, whatever they are.
+  const noun = chapters > 0 ? 'note' : 'scene';
   if (count.switchedOff > 0) {
-    parts.push(`${plural(count.switchedOff, 'scene is', 'scenes are')} left out: the "compile" switch is off.`);
+    parts.push(`${plural(count.switchedOff, `${noun} is`, `${noun}s are`)} left out: the "compile" switch is off.`);
   }
-  if (count.missing > 0) parts.push(`${plural(count.missing, 'scene has', 'scenes have')} no note and cannot be exported.`);
+  if (count.missing > 0) parts.push(`${plural(count.missing, `${noun} has`, `${noun}s have`)} no note and cannot be exported.`);
   return parts.join(' ');
 }
 

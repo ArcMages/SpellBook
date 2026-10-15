@@ -74,6 +74,8 @@ export interface ExportCount {
   readonly switchedOff: number;
   /** Scenes the binder lists that have no note. */
   readonly missing: number;
+  /** How many of `scenes` are notes that are whole chapters. Absent: none. */
+  readonly chapters?: number;
 }
 
 export type ExportOutcome =
@@ -85,6 +87,8 @@ export type ExportOutcome =
       /** The new file's path inside the project folder: "Exports/My Novel 2026-10-13.docx". */
       readonly rel: string;
       readonly scenes: number;
+      /** How many of `scenes` are notes that are whole chapters. Absent: none. */
+      readonly chapters?: number;
       readonly words: number;
       /** The titles of the scenes left out because their "compile" switch is off. */
       readonly switchedOff: readonly string[];
@@ -257,12 +261,15 @@ export class Exporter {
     let scenes = 0;
     let switchedOff = 0;
     let missing = 0;
+    let chapters = 0;
     for (const scene of scenesInScope(project.tree, scope)) {
       if (scene.missing) missing++;
-      else if (readSceneFields(indexed.get(pathKey(scene.path))).compile) scenes++;
-      else switchedOff++;
+      else if (readSceneFields(indexed.get(pathKey(scene.path))).compile) {
+        scenes++;
+        if (scene.chapter === true) chapters++;
+      } else switchedOff++;
     }
-    return { scenes, switchedOff, missing };
+    return chapters > 0 ? { scenes, switchedOff, missing, chapters } : { scenes, switchedOff, missing };
   }
 
   /**
@@ -310,8 +317,9 @@ export class Exporter {
     }
 
     const manuscript = buildManuscript({ title: project.title, tree: project.tree, options, scenes: sources, matter });
-    const scenes = manuscript.parts.filter((part) => part.kind === 'scene').length;
-    if (scenes === 0) return { status: 'nothing', message: NOTHING_TEXT };
+    const chapterNotes = new Set(manuscript.parts.flatMap((part) => (part.kind === 'chapter' && part.note !== undefined ? [part.note] : [])));
+    const scenes = manuscript.parts.filter((part) => part.kind === 'scene' && !chapterNotes.has(part.path)).length + chapterNotes.size;
+    if (manuscript.parts.every((part) => part.kind !== 'scene')) return { status: 'nothing', message: NOTHING_TEXT };
     for (const kind of MATTER_KINDS) {
       if (matter.has(kind) && ![...manuscript.front, ...manuscript.back].some((part) => part.role === kind)) {
         warnings.push(`${MATTER_NAMES[kind]} left out: it has no text.`);
@@ -350,6 +358,7 @@ export class Exporter {
           path: joinPath(project.folder, saved.value.path),
           rel: saved.value.path,
           scenes,
+          ...(chapterNotes.size > 0 ? { chapters: chapterNotes.size } : {}),
           words: manuscript.words,
           switchedOff: manuscript.switchedOff.map(noteTitle),
           unread: manuscript.unread.map(noteTitle),
