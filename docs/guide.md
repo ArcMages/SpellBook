@@ -412,7 +412,7 @@ With **Chosen entities**, press **Choose** to open the "Choose entities" window,
 
 **What it is for.** Spellbook counts the words you write and shows a line of figures for the open scene.
 
-**Where it is.** On a computer or a tablet, in the bar at the bottom of the Obsidian window. On a phone, which has no bottom bar, at the top of the [inspector](#inspector). Shortcut buttons you add to the bar also show at the top of the inspector on a phone and on a tablet. The **Layout** setting changes this: with the touch layout the figures and buttons also stand in the inspector on a computer, and with the desktop layout a tablet keeps them in the bottom bar only (see [Settings](#settings)). Click a figure to open the [Writing targets](#writing-targets) window.
+**Where it is.** On a computer or a tablet, in the bar at the bottom of the Obsidian window. On a phone, which has no bottom bar, at the top of the [inspector](#inspector). Shortcut buttons you add to the bar also show at the top of the inspector on a phone and on a tablet. The **Layout** setting changes this: with the touch layout the figures and buttons also stand in the inspector on a computer (see [Settings](#settings)). Click a figure to open the [Writing targets](#writing-targets) window.
 
 **The figures you can show.** Scene words, Scene target, Session words, Words today, Project words, Reading time, Date started, Date last edited, Status, To-dos due and Scene title. A new bar shows scene words, date started, date last edited, session, project and today.
 
@@ -823,9 +823,9 @@ Open Obsidian's Settings and choose **Spellbook**. The page shows the installed 
 
 - **Automatic** (as it comes): the touch layout on phones and tablets, the desktop layout on computers.
 - **Touch layout**: big buttons and rows for a finger, buttons always shown instead of when pointed at, and the word figures at the top of the inspector. For a touch-screen laptop, or a small window. On a tablet the screens keep their tablet size; only a phone-narrow window gets the phone's sizes.
-- **Desktop layout**: the full desktop screens with their compact rows. For an iPad with a keyboard and trackpad. The figures stay in the bottom bar.
+- **Desktop layout**: the full desktop screens with their compact rows. For an iPad with a keyboard and trackpad.
 
-Screens that are open change at once; nothing needs to be restarted. Some things go by what the device can do, whatever the layout: printing is offered on computers only; on a phone the sidebars still slide in over the page, there is still no bottom bar (so the figures stay at the top of the inspector), and the screens still leave room for the phone's own bar at the bottom. On a touch screen, things you would point at with a mouse stay shown in the desktop layout too, because a finger cannot point without tapping.
+Screens that are open change at once; nothing needs to be restarted. Some things go by what the device can do, whatever the layout: printing is offered on computers only; on a phone or tablet the word figures stay at the top of the inspector, because Obsidian gives plugins no bottom bar there; on a phone the sidebars still slide in over the page, and the screens still leave room for the phone's own bar at the bottom. On a touch screen, things you would point at with a mouse stay shown in the desktop layout too, because a finger cannot point without tapping.
 
 [Making Spellbook your own](customising.md) goes through these settings one by one, and ends with a table of where each setting lives.
 

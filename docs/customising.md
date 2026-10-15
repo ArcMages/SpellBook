@@ -188,11 +188,11 @@ Spellbook lays its screens out for a finger on phones and tablets and for a mous
 2. Under the version, pick a **Layout**:
    - **Automatic**, as it comes: by the kind of device.
    - **Touch layout**: big buttons and rows, buttons always shown, and the word figures at the top of the inspector. Good for a touch-screen laptop, or a computer window you keep small. A tablet keeps its own size in this layout; only a window as narrow as a phone gets the phone's sizes.
-   - **Desktop layout**: the full desktop screens, with compact rows and the figures in the bottom bar. Good for an iPad with a keyboard and trackpad.
+   - **Desktop layout**: the full desktop screens, with compact rows. Good for an iPad with a keyboard and trackpad.
 
 Open screens change at once. The choice is kept on the device you make it on, so an iPad can use the desktop layout while your phone keeps the touch one.
 
-**What the layout does not change.** What the device itself can or cannot do. Printing to PDF is offered on computers only. On a phone the sidebars still slide in over the page, there is still no bottom bar (the figures stay at the top of the inspector), and the screens leave room for the phone's own bar at the bottom. On a touch screen, buttons that a mouse would only show when pointed at stay shown, because a finger cannot point without tapping.
+**What the layout does not change.** What the device itself can or cannot do. Printing to PDF is offered on computers only. On a phone or tablet the word figures stay at the top of the inspector, because Obsidian gives plugins no bottom bar there. On a phone the sidebars still slide in over the page, and the screens leave room for the phone's own bar at the bottom. On a touch screen, buttons that a mouse would only show when pointed at stay shown, because a finger cannot point without tapping.
 
 **For people who write CSS snippets.** The touch layout puts the class `spellbook-is-mobile` on each Spellbook screen; the desktop layout, when you choose it, puts `spellbook-is-desktop-layout` there.
 
@@ -327,7 +327,7 @@ If a button's command is not available (its plugin may be switched off), the but
 
 **One more switch.** Above the bar's settings, **Count pasted text** decides what counts as writing. When it is on, words you paste or drop in count as written and words you cut count as deleted. When it is off, only what you type counts.
 
-**On a phone or tablet.** A phone has no bottom bar. The figures stand at the top of the inspector, and so do your shortcut buttons, on a phone and on a tablet. With the [touch layout](#touch-or-desktop-layout) they stand there on any device; with the desktop layout a tablet keeps them in the bottom bar, and a phone, which has none, keeps them in the inspector.
+**On a phone or tablet.** A phone has no bottom bar. The figures stand at the top of the inspector, and so do your shortcut buttons, on a phone and on a tablet. With the [touch layout](#touch-or-desktop-layout) they stand there on a computer too; the desktop layout does not take them away from a phone or tablet.
 
 **Limits.** A long bar takes at most 60% of the window's width and scrolls sideways. The bar holds at most 40 figures and buttons. The layout is kept on each device separately, so the bar on your computer and the line on your phone can differ.
 

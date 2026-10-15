@@ -2,10 +2,11 @@
 // word count and dates, and the session and project totals, and after them
 // the shortcut buttons the writer put in the bottom bar.
 //
-// On a desktop Obsidian shows that line in its bottom bar. A phone has no
-// bottom bar, so there the inspector always shows it, whatever the layout
-// setting (that is about what the device has, not about the layout). In the
-// touch layout elsewhere it is shown there too, as on a tablet. The line itself belongs
+// On a desktop Obsidian shows that line in its bottom bar. Obsidian gives
+// plugins no bottom bar on a phone or tablet ("not available on mobile"), so
+// there the inspector always shows it, whatever the layout setting: that is
+// about what the device has, not about the layout. In the touch layout on a
+// computer it is shown there too. The line itself belongs
 // to another screen of the plugin (the writing progress), which offers it to
 // the others under a name; this file only puts it on the screen. When nobody
 // offers it, nothing is shown.
@@ -159,8 +160,8 @@ function drawButtons(slot: HTMLElement, line: SceneLineService, drawing: Drawing
 
 /**
  * Fill the empty place at the top of the inspector with the line, and keep it
- * up to date. Shows nothing in the desktop layout on a device with a bottom
- * bar, and nothing when no line is offered.
+ * up to date. Shows nothing in the desktop layout on a computer, and nothing
+ * when no line is offered.
  *
  * @param slot the empty element at the top of the inspector
  * @returns the function to call when the inspector closes
@@ -190,12 +191,12 @@ export function mountSceneLine(
 }
 
 /**
- * Whether the inspector shows the line: on a phone, which has no bottom bar
- * (a CAPABILITY: Platform.isPhone, whatever the layout), and in the touch
- * layout (a LAYOUT choice).
+ * Whether the inspector shows the line: on a phone or tablet, where a plugin
+ * may get no bottom bar (a CAPABILITY: Platform.isMobile, whatever the
+ * layout), and in the touch layout (a LAYOUT choice).
  */
 export function sceneLineInInspector(): boolean {
-  return Platform.isPhone || isTouchLayout();
+  return Platform.isMobile || isTouchLayout();
 }
 
 function showSceneLine(

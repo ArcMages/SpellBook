@@ -1020,13 +1020,13 @@ describe('the line at the top of the inspector', () => {
       expect(line.listeners.size).toBe(0);
     });
 
-    it('"Desktop layout" on a tablet leaves the figures to the bottom bar', async () => {
+    it('"Desktop layout" on a tablet gives desktop sizes but keeps the figures: Obsidian may give no bottom bar there', async () => {
       Object.assign(StubPlatform, { isDesktop: false, isMobile: true, isPhone: false });
       setLayoutChoice('desktop');
       const s = await stage();
       s.features.services.provide(SCENE_LINE_SERVICE, new FakeLine());
       const { pane } = await openInspectorPane(s);
-      expect(one(pane, SUMMARY_SLOT_CLASS).children).toEqual([]);
+      expect(shown(pane)).toHaveLength(2);
       expect(one(pane, 'spellbook-inspector').hasClass('spellbook-is-mobile')).toBe(false);
     });
 

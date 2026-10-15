@@ -230,7 +230,7 @@ const CAPABILITY_CHECKS: Readonly<Record<string, { count: number; why: string }>
   'features/export/exportModal.ts': { count: 1, why: 'printing is offered where the device can print' },
   'features/progress/writingProgress.ts': { count: 1, why: 'a phone has no bottom bar' },
   'features/progress/targetsModal.ts': { count: 1, why: 'the on-screen keyboard would cover the form' },
-  'features/corkboard/summaryLine.ts': { count: 1, why: 'a phone has no bottom bar: the inspector shows the figures' },
+  'features/corkboard/summaryLine.ts': { count: 1, why: 'no bottom bar for plugins on mobile: the inspector shows the figures' },
   'features/outliner/outlinerView.ts': { count: 2, why: "the phone's floating bar, and room for the bottom bar" },
   'features/timeline/timelineView.ts': { count: 2, why: "the phone's floating bar, and room for it at the end" },
   'features/modes/index.ts': { count: 2, why: 'the editor and the exit button where there is no Escape key' },

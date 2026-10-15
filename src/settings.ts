@@ -24,7 +24,7 @@ export const LAYOUT_DESC_TEXT =
   '"Automatic" follows the device: the touch layout on phones and tablets, the desktop layout on computers. ' +
   '"Touch layout" gives big buttons and rows for a finger, for example on a touch-screen laptop or a small window. ' +
   '"Desktop layout" gives the full desktop screens, for example on an iPad with a keyboard and trackpad. ' +
-  'What the device itself can or cannot do stays as it is: printing is offered on computers only, and a phone keeps its sliding sidebars and shows the word figures in the inspector. ' +
+  'What the device itself can or cannot do stays as it is: printing is offered on computers only, a phone or tablet keeps the word figures in the inspector, and a phone keeps its sliding sidebars. ' +
   'Open screens change at once. This choice is kept on this device only.';
 export const LAYOUT_OPTIONS: Readonly<Record<LayoutChoice, string>> = {
   auto: 'Automatic',
