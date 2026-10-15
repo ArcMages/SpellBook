@@ -40,6 +40,14 @@ export class ObsidianVault implements VaultPort {
   private readonly refs: Array<{ source: Events; ref: EventRef }> = [];
   private started = false;
   private registerEvent: ((ref: EventRef) => void) | null = null;
+  /**
+   * The lists of notes listMarkdownFiles gave, by folder, kept until the
+   * vault's files or the index of their properties change. Spellbook's
+   * screens ask for them many times a second while a book-wide change is
+   * written; on a novel-sized project each listing walks a thousand notes.
+   * Only kept while started: the events that clear it are followed only then.
+   */
+  private readonly listings = new Map<string, readonly MarkdownFileInfo[]>();
 
   constructor(app: App) {
     this.app = app;
@@ -67,6 +75,17 @@ export class ObsidianVault implements VaultPort {
     this.started = true;
     this.registerEvent = registerEvent ?? null;
     const { vault, metadataCache, workspace } = this.app;
+
+    // Whatever changes which notes there are or what their properties say clears the kept lists.
+    const forget = (): void => {
+      this.listings.clear();
+    };
+    for (const name of ['changed', 'deleted', 'resolved'] as const) {
+      this.track(metadataCache, (metadataCache as unknown as Events).on(name, forget));
+    }
+    for (const name of ['create', 'delete', 'rename'] as const) {
+      this.track(vault, (vault as unknown as Events).on(name, forget));
+    }
 
     this.track(
       metadataCache,
@@ -117,6 +136,7 @@ export class ObsidianVault implements VaultPort {
   /** Stop passing events on. */
   stop(): void {
     this.started = false;
+    this.listings.clear();
     this.registerEvent = null;
     for (const { source, ref } of this.refs) source.offref(ref);
     this.refs.length = 0;
@@ -149,12 +169,18 @@ export class ObsidianVault implements VaultPort {
   listMarkdownFiles(under?: string): MarkdownFileInfo[] {
     const folder = under === undefined ? '' : normalizePath(under);
     const all = folder === '' || folder === '/';
+    const key = all ? '' : folder;
+    // The same list (frozen) until something changes: see `listings`.
+    const kept = this.started ? this.listings.get(key) : undefined;
+    if (kept) return kept as MarkdownFileInfo[];
     const out: MarkdownFileInfo[] = [];
     for (const file of this.app.vault.getMarkdownFiles()) {
       if (!all && !isInside(folder, file.path)) continue;
       const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
       out.push({ path: file.path, frontmatter: isRecord(frontmatter) ? frontmatter : null });
     }
+    Object.freeze(out);
+    if (this.started) this.listings.set(key, out);
     return out;
   }
 
